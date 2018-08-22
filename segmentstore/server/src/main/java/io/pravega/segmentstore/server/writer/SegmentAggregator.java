@@ -1057,7 +1057,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     }
 
     private CompletableFuture<WriterFlushResult> reconcile(TimeoutTimer timer) {
-        assert this.state.get() == AggregatorState.Reconciling : "reconcile cannot be called if state == " + this.state;
         ReconciliationState rc = this.reconciliationState.get();
         WriterFlushResult result = new WriterFlushResult();
         if (rc == null) {

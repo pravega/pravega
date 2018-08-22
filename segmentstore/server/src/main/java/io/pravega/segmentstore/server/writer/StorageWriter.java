@@ -117,7 +117,8 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         .thenComposeAsync(this::acknowledge, this.executor)
                         .exceptionally(this::iterationErrorHandler)
                         .thenRunAsync(this::endIteration, this.executor),
-                this.executor);
+                this.executor)
+                .thenRun(this::closeProcessors);
     }
 
     private boolean canRun() {
@@ -154,6 +155,14 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         }
 
         return null;
+    }
+
+    /**
+     * Closes all processors. This is usually done when the StorageWriter has stopped or is about to stop.
+     */
+    private void closeProcessors() {
+        this.processors.values().forEach(ProcessorCollection::close);
+        this.processors.clear();
     }
 
     //endregion
@@ -539,24 +548,39 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         private final List<WriterSegmentProcessor> processors;
 
         ProcessorCollection(SegmentAggregator aggregator, Collection<WriterSegmentProcessor> processors) {
+            // We separate out the main SegmentAggregator since we depend on it for some operations, however when we
+            // generate the list of processors we make sure to put it first; if there are any issues with the operations
+            // to process we need to ensure that no other processor may see those operations before the Segment Aggregator.
             this.aggregator = aggregator;
             this.processors = ImmutableList.<WriterSegmentProcessor>builder().add(aggregator).addAll(processors).build();
         }
 
         //region SegmentAggregator direct wrapper
 
+        /**
+         * Gets a value indicating the amount of time since the main Segment Aggregator has been flushed.
+         */
         Duration getElapsedSinceLastFlush() {
             return this.aggregator.getElapsedSinceLastFlush();
         }
 
+        /**
+         * Gets a value indicating the Segment Id for all processors in this collection.
+         */
         long getId() {
             return this.aggregator.getMetadata().getId();
         }
 
+        /**
+         * Gets a value indicating whether the Segment is deleted.
+         */
         boolean isDeleted() {
             return this.aggregator.getMetadata().isDeleted();
         }
 
+        /**
+         * Gets a value indicating whether the Segment is active or not.
+         */
         boolean isActive() {
             return this.aggregator.getMetadata().isActive();
         }
@@ -577,6 +601,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         @Override
         public long getLowestUncommittedSequenceNumber() {
+            // We collect the lowest value across all processors.
             return this.processors.stream()
                                   .mapToLong(WriterSegmentProcessor::getLowestUncommittedSequenceNumber)
                                   .min()
