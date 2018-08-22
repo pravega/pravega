@@ -143,7 +143,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.storage, this.executor);
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
-        this.plugins = createPlugins.apply(this, this.executor);
+        this.plugins = Collections.unmodifiableMap(createPlugins.apply(this, this.executor));
     }
 
     /**

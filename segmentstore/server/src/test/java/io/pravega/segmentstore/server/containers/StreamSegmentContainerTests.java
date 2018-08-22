@@ -42,19 +42,25 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.SegmentContainerPlugin;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.Writer;
 import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.WriterFlushResult;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.logs.DurableLogFactory;
+import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
@@ -1389,6 +1395,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test
     public void testStartFailure() throws Exception {
         final Duration shutdownTimeout = Duration.ofSeconds(5);
+
         @Cleanup
         val context = new TestContext();
         val failedWriterFactory = new FailedWriterFactory();
@@ -1514,7 +1521,59 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             container.stopAsync().awaitTerminated();
         }
+    }
 
+    /**
+     * Tests the ability to register plugins.
+     */
+    @Test
+    public void testPlugins() throws Exception {
+        // Configure plugin.
+        val operationProcessed = new CompletableFuture<SegmentOperation>();
+        AtomicInteger count = new AtomicInteger();
+        val writerProcessor = new TestWriterProcessor(op -> {
+            count.incrementAndGet();
+            if (!operationProcessed.isDone()) {
+                operationProcessed.complete(op);
+            }
+        });
+
+        val plugin = new AtomicReference<TestSegmentContainerPlugin>();
+        SegmentContainerFactory.CreatePlugins createPlugins = (container, executor) -> {
+            Assert.assertTrue("Already created", plugin.compareAndSet(null, new TestSegmentContainerPlugin(Collections.singleton(writerProcessor))));
+            return Collections.singletonMap(TestSegmentContainerPlugin.class, plugin.get());
+        };
+
+        @Cleanup
+        val context = new TestContext(createPlugins);
+
+        // Verify plugin is initialized when the SegmentContainer is started.
+        context.container.startAsync().awaitRunning();
+        Assert.assertTrue("Plugin not initialized.", plugin.get().initialized.get());
+
+        // Verify getPlugin().
+        val p = context.container.getPlugin(TestSegmentContainerPlugin.class);
+        Assert.assertEquals("Unexpected result from getPlugin().", plugin.get(), p);
+
+        // Verify Writer Segment Processors are properly wired in.
+        String segmentName = getSegmentName(0);
+        byte[] data = getAppendData(segmentName, 0);
+        context.container.createStreamSegment(segmentName, null, TIMEOUT).join();
+        context.container.append(segmentName, data, null, TIMEOUT).join();
+        val rawOp = operationProcessed.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertTrue("Unexpected operation type.", rawOp instanceof CachedStreamSegmentAppendOperation);
+
+        // Our operation has been transformed into a CachedStreamSegmentAppendOperation, which means it just points to
+        // a location in the cache. We do not have access to that cache, so we can only verify its metadata.
+        val appendOp = (CachedStreamSegmentAppendOperation) rawOp;
+        Assert.assertEquals("Unexpected segment id.", 1, appendOp.getStreamSegmentId());
+        Assert.assertEquals("Unexpected offset.", 0, appendOp.getStreamSegmentOffset());
+        Assert.assertEquals("Unexpected data length.", data.length, appendOp.getLength());
+        Assert.assertNull("Unexpected attribute updates.", appendOp.getAttributeUpdates());
+
+        // Verify plugin is closed when the SegmentContainer is closed.
+        context.container.close();
+        Assert.assertTrue("Plugin not closed.", plugin.get().closed.get());
     }
 
     /**
@@ -1862,10 +1921,18 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final Storage storage;
 
         TestContext() {
-            this(DEFAULT_CONFIG);
+            this(DEFAULT_CONFIG, SegmentContainerFactory.NO_PLUGINS);
+        }
+
+        TestContext(SegmentContainerFactory.CreatePlugins createPlugins) {
+            this(DEFAULT_CONFIG, createPlugins);
         }
 
         TestContext(ContainerConfig config) {
+            this(config, SegmentContainerFactory.NO_PLUGINS);
+        }
+
+        TestContext(ContainerConfig config, SegmentContainerFactory.CreatePlugins createPlugins) {
             this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
@@ -1875,7 +1942,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
-                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, SegmentContainerFactory.NO_PLUGINS, executorService());
+                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, createPlugins, executorService());
             this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = this.storageFactory.createStorageAdapter();
         }
@@ -1997,6 +2064,64 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     //endregion
 
     //region Helper Classes
+
+    @RequiredArgsConstructor
+    private static class TestSegmentContainerPlugin implements SegmentContainerPlugin {
+        final AtomicBoolean closed = new AtomicBoolean();
+        final AtomicBoolean initialized = new AtomicBoolean(false);
+        final Collection<WriterSegmentProcessor> writerSegmentProcessors;
+
+        @Override
+        public void close() {
+            this.closed.set(true);
+        }
+
+        @Override
+        public CompletableFuture<Void> initialize() {
+            Assert.assertTrue("Plugin already initialized.", this.initialized.compareAndSet(false, true));
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
+            return this.writerSegmentProcessors;
+        }
+    }
+
+    @RequiredArgsConstructor
+    private static class TestWriterProcessor implements WriterSegmentProcessor {
+        final Consumer<SegmentOperation> addHandler;
+
+        @Override
+        public void add(SegmentOperation operation) {
+            this.addHandler.accept(operation);
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public boolean isClosed() {
+            return false;
+        }
+
+        @Override
+        public long getLowestUncommittedSequenceNumber() {
+            return 0;
+        }
+
+        @Override
+        public boolean mustFlush() {
+            return false;
+        }
+
+        @Override
+        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+            return CompletableFuture.completedFuture(new WriterFlushResult());
+        }
+    }
 
     private static class WatchableInMemoryStorageFactory extends InMemoryStorageFactory {
         private final ConcurrentHashMap<String, Long> truncationOffsets = new ConcurrentHashMap<>();
