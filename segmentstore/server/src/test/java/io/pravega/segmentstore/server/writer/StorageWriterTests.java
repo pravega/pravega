@@ -24,6 +24,7 @@ import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -864,13 +865,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
             this.dataSource = new TestWriterDataSource(this.metadata, executorService(), dataSourceConfig);
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this::createNoProcessors, executorService());
         }
 
         void resetWriter() {
             this.writer.close();
             this.baseStorage.changeOwner();
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this::createNoProcessors, executorService());
         }
 
         @Override
@@ -878,6 +879,10 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             this.dataSource.close();
             this.writer.close();
             this.storage.close(); // This also closes the baseStorage.
+        }
+
+        private Collection<WriterSegmentProcessor> createNoProcessors(UpdateableSegmentMetadata metadata) {
+            return Collections.emptyList();
         }
     }
 

@@ -9,14 +9,36 @@
  */
 package io.pravega.segmentstore.server;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+
 /**
  * Defines a Factory for SegmentContainers.
  */
 public interface SegmentContainerFactory {
+    /**
+     * A Function that returns an empty Map of Plugins.
+     */
+    CreatePlugins NO_PLUGINS = (container, executor) -> Collections.emptyMap();
+
     /**
      * Creates a new instance of a SegmentContainer.
      *
      * @param containerId The Id of the container to create.
      */
     SegmentContainer createStreamSegmentContainer(int containerId);
+
+    @FunctionalInterface
+    interface CreatePlugins {
+        /**
+         * Creates new instances of the SegmentContainerPlugins for the given Segment Container.
+         *
+         * @param container The SegmentContainer to create plugins for.
+         * @param executor  An executor for async tasks.
+         * @return A Map containing new instances of the SegmentContainerPlugins that were created, indexed by their c
+         * class descriptors.
+         */
+        Map<Class<? extends SegmentContainerPlugin>, SegmentContainerPlugin> apply(SegmentContainer container, ScheduledExecutorService executor);
+    }
 }

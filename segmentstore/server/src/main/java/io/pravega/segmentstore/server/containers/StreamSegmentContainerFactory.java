@@ -29,6 +29,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     private final AttributeIndexFactory attributeIndexFactory;
     private final WriterFactory writerFactory;
     private final StorageFactory storageFactory;
+    private final CreatePlugins createPlugins;
     private final ScheduledExecutorService executor;
 
     /**
@@ -40,24 +41,27 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      * @param attributeIndexFactory The AttributeIndexFactory to use for every container creation.
      * @param writerFactory         The Writer Factory to use for every container creation.
      * @param storageFactory        The Storage Factory to use for every container creation.
+     * @param createPlugins         A Function that, when given an instance of a SegmentContainer, will create the required
+     *                              SegmentContainerPlugins for it.
      * @param executor              The Executor to use for running async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
     public StreamSegmentContainerFactory(ContainerConfig config, OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory,
                                          AttributeIndexFactory attributeIndexFactory, WriterFactory writerFactory,
-                                         StorageFactory storageFactory, ScheduledExecutorService executor) {
+                                         StorageFactory storageFactory, CreatePlugins createPlugins, ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.operationLogFactory = Preconditions.checkNotNull(operationLogFactory, "operationLogFactory");
         this.readIndexFactory = Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         this.attributeIndexFactory = Preconditions.checkNotNull(attributeIndexFactory, "attributeIndexFactory");
         this.writerFactory = Preconditions.checkNotNull(writerFactory, "writerFactory");
         this.storageFactory = Preconditions.checkNotNull(storageFactory, "storageFactory");
+        this.createPlugins = Preconditions.checkNotNull(createPlugins, "createPlugins");
         this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
     @Override
     public SegmentContainer createStreamSegmentContainer(int containerId) {
         return new StreamSegmentContainer(containerId, config, this.operationLogFactory, this.readIndexFactory,
-                this.attributeIndexFactory, this.writerFactory, this.storageFactory, this.executor);
+                this.attributeIndexFactory, this.writerFactory, this.storageFactory, this.createPlugins, this.executor);
     }
 }

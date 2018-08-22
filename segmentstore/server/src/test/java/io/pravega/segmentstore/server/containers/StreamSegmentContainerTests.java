@@ -1395,7 +1395,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicReference<OperationLog> log = new AtomicReference<>();
         val watchableDurableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, log::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, watchableDurableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, failedWriterFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, failedWriterFactory, context.storageFactory,
+                SegmentContainerFactory.NO_PLUGINS, executorService());
         val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID);
         container.startAsync();
 
@@ -1429,7 +1430,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicReference<OperationLog> durableLog = new AtomicReference<>();
         val durableLogFactory = new WatchableOperationLogFactory(new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService()), durableLog::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, durableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, SegmentContainerFactory.NO_PLUGINS, executorService());
 
         // Write some data
         ArrayList<String> segmentNames = new ArrayList<>();
@@ -1874,7 +1875,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
-                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, executorService());
+                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, SegmentContainerFactory.NO_PLUGINS, executorService());
             this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = this.storageFactory.createStorageAdapter();
         }
@@ -1900,7 +1901,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         MetadataCleanupContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory,
                                  ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
                                  WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
-            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory, storageFactory, executor);
+            super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory, storageFactory,
+                    SegmentContainerFactory.NO_PLUGINS, executor);
             this.executor = executor;
         }
 
@@ -2037,7 +2039,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     private static class FailedWriterFactory implements WriterFactory {
         @Override
         public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
-                                   ContainerAttributeIndex attributeIndex, Storage storage) {
+                                   ContainerAttributeIndex attributeIndex, Storage storage, CreateProcessors createProcessors) {
             return new FailedWriter();
         }
 
