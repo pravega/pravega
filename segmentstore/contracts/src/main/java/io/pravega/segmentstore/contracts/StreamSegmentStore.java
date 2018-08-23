@@ -197,4 +197,16 @@ public interface StreamSegmentStore {
      * failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout);
+
+    /**
+     * Returns a DirectSegmentAccess object that can be used for operating on a particular StreamSegment directly. The
+     * result of this call should only be used for short periods of time (i.e., while processing a single request) and
+     * not be cached for long-term access.
+     *
+     * @param streamSegmentName The name of the StreamSegment to get for.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain the desired result. If the operation
+     * failed, the future will be failed with the causing exception.
+     */
+    CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout);
 }

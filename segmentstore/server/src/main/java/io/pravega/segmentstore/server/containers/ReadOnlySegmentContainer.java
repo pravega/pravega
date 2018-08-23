@@ -18,6 +18,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -189,6 +190,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         return unsupported("truncateStreamSegment");
+    }
+
+    @Override
+    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+        return unsupported("forSegment");
     }
 
     private <T> CompletableFuture<T> unsupported(String methodName) {

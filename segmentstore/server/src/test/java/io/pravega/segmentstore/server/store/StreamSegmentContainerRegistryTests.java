@@ -16,6 +16,7 @@ import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.segmentstore.contracts.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerHandle;
@@ -383,6 +384,11 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
+            return null;
+        }
+
+        @Override
+        public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
             return null;
         }
 

@@ -15,6 +15,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -186,6 +187,11 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         @Override
         public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
             throw new UnsupportedOperationException("truncateStreamSegment");
+        }
+
+        @Override
+        public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+            throw new UnsupportedOperationException("forSegment");
         }
     }
 
