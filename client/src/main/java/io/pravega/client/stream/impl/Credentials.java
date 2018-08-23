@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
  * This interface represents the credentials passed to Pravega for authentication and authorizing the access.
@@ -26,8 +27,8 @@ public interface Credentials extends Serializable {
     String getAuthenticationType();
 
     /**
-     * Returns the authorization token to be sent to Pravega.
-     * @return A token in token68-compatible format (as defined by RFC 7235).
+     * Returns authorization parameters used by this specific authentication type.
+     * @return The map of authentication headers and values.
      */
-    String getAuthenticationToken();
+    Map<String, String> getAuthParameters();
 }

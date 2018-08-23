@@ -9,8 +9,11 @@
  */
 package io.pravega.client;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.impl.Credentials;
+import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,15 +31,19 @@ public class CredentialsExtractorTest {
         //Test custom creds
         Properties properties = new Properties();
         properties.setProperty("pravega.client.auth.method", "temp");
-        properties.setProperty("pravega.client.auth.token", "mytoken");
+        properties.setProperty("pravega.client.auth.prop1", "prop1");
+        properties.setProperty("pravega.client.auth.prop2", "prop2");
 
         config = ClientConfig.builder().extractCredentials(properties, new HashMap<String, String>()).build();
 
         assertEquals("Method is not picked up from properties",
-                "temp", config.getCredentials().getAuthenticationType());
+                config.getCredentials().getAuthenticationType(), "temp");
 
-        assertEquals("Token is not same",
-                "mytoken", config.getCredentials().getAuthenticationToken());
+        AssertExtensions.assertMapEquals("Paramters are not same",
+                config.getCredentials().getAuthParameters(),
+                ImmutableMap.of("prop1", "prop1",
+                        "prop2", "prop2",
+                        "method", "temp"));
 
         //If a credential is explicitly mentioned, do not override from properties
         config = ClientConfig.builder().credentials(new Credentials() {
@@ -46,7 +53,7 @@ public class CredentialsExtractorTest {
             }
 
             @Override
-            public String getAuthenticationToken() {
+            public Map<String, String> getAuthParameters() {
                 return null;
             }
         }).build();
@@ -85,8 +92,8 @@ public class CredentialsExtractorTest {
         }
 
         @Override
-        public String getAuthenticationToken() {
-            return "DynamicallyLoadedCreds";
+        public Map<String, String> getAuthParameters() {
+            return null;
         }
     }
 
@@ -98,8 +105,8 @@ public class CredentialsExtractorTest {
         }
 
         @Override
-        public String getAuthenticationToken() {
-            return "DynamicallyLoadedCredsSecond";
+        public Map<String, String> getAuthParameters() {
+            return null;
         }
     }
 }

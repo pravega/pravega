@@ -14,6 +14,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
 import java.io.Serializable;
 import java.net.URI;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -80,7 +81,6 @@ public class ClientConfig implements Serializable {
         private static final String AUTH_PROPS_PREFIX = "pravega.client.auth.";
         private static final String AUTH_METHOD = "method";
         private static final String AUTH_METHOD_LOAD_DYNAMIC = "loadDynamic";
-        private static final String AUTH_TOKEN = "token";
 
         private static final String AUTH_PROPS_PREFIX_ENV = "pravega_client_auth_";
 
@@ -174,8 +174,8 @@ public class ClientConfig implements Serializable {
                 }
 
                 @Override
-                public String getAuthenticationToken() {
-                    return credsMap.get(AUTH_TOKEN);
+                public Map<String, String> getAuthParameters() {
+                    return Collections.unmodifiableMap(credsMap);
                 }
             };
         }

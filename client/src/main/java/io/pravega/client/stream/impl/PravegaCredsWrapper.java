@@ -9,12 +9,12 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.auth.AuthConstants;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PravegaCredsWrapper extends com.google.auth.Credentials {
     private final Credentials creds;
@@ -30,9 +30,15 @@ public class PravegaCredsWrapper extends com.google.auth.Credentials {
 
     @Override
     public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
-        String token = creds.getAuthenticationToken();
-        String credential = creds.getAuthenticationType() + " " + token;
-        return Collections.singletonMap(AuthConstants.AUTHORIZATION, Collections.singletonList(credential));
+        Map<String, String> metadata = creds.getAuthParameters();
+
+        Map<String, List<String>> retVal = metadata.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
+                e -> {
+                    List<String> list = Collections.singletonList(e.getValue());
+                    return list;
+                }));
+        retVal.put("method", Collections.singletonList(creds.getAuthenticationType()));
+        return retVal;
     }
 
     @Override
