@@ -92,4 +92,4 @@ It must be noted that passing ```StreamCut.UNBOUNDED``` to startStreamCut and en
 current head of stream and the current tail of the stream, respectively.
 
 
-We have provided a simple yet illustrative example of using StreamCut [here.](https://github.com/pravega/pravega-samples/tree/{{variable.pravega_samples_version}}/pravega-client-examples/src/main/java/io/pravega/example/streamcuts)
+We have provided a simple yet illustrative example of using StreamCut [here.](https://github.com/pravega/pravega-samples/tree/v0.3.1/pravega-client-examples/src/main/java/io/pravega/example/streamcuts)
