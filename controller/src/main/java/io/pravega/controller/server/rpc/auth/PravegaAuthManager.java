@@ -41,16 +41,16 @@ public class PravegaAuthManager {
     private AuthHandler getHandler(String handlerName) throws AuthenticationException {
         AuthHandler retVal;
         synchronized (this) {
-                retVal = handlerMap.get(handlerName);
-            }
-            if (retVal == null) {
+            retVal = handlerMap.get(handlerName);
+        }
+        if (retVal == null) {
             throw new AuthenticationException("Handler does not exist for method " + handlerName);
         }
         return retVal;
     }
 
     /**
-     * API to authenticate and authroize access to a given resource.
+     * API to authenticate and authorize access to a given resource.
      * @param resource The resource identifier for which the access needs to be controlled.
      * @param headers  Custom headers used for authentication.
      * @param level    Expected level of access.
