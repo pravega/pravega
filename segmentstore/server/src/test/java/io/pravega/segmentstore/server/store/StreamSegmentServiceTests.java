@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
@@ -86,6 +87,7 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
             dsa.seal(TIMEOUT).join();
             dsa.truncate(1, TIMEOUT).join();
 
+            // Check metadata.
             val info = dsa.getInfo();
             Assert.assertEquals("Unexpected name.", segmentName, info.getName());
             Assert.assertEquals("Unexpected length.", appendData.length, info.getLength());
@@ -95,9 +97,15 @@ public class StreamSegmentServiceTests extends StreamSegmentStoreTestBase {
             Assert.assertEquals("Unexpected attribute 2.", 2L, (long) info.getAttributes().get(attributeId2));
             Assert.assertTrue("Unexpected isSealed.", info.isSealed());
 
+            // Check written data.
             byte[] readBuffer = new byte[appendData.length - 1];
-            int bytesRead = dsa.read(1, readBuffer.length, TIMEOUT).readRemaining(readBuffer, TIMEOUT);
-            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, bytesRead);
+            @Cleanup
+            val readResult = dsa.read(1, readBuffer.length, TIMEOUT);
+            val firstEntry = readResult.next();
+            firstEntry.requestContent(TIMEOUT);
+            val entryContents = firstEntry.getContent().join();
+            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, entryContents.getLength());
+            StreamHelpers.readAll(entryContents.getData(), readBuffer, 0, readBuffer.length);
             AssertExtensions.assertArrayEquals("Unexpected data read back.", appendData, 1, readBuffer, 0, readBuffer.length);
         }
     }
