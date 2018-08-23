@@ -7,8 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.contracts;
+package io.pravega.segmentstore.server;
 
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -16,7 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines an API that can be used to get direct access to a Segment. This can be used instead of the StreamSegmentStore API
+ * Defines an API that can be used to get direct access to a Segment. This can be used instead of the SegmentContainer API
  * for short periods of time if a rapid sequence of operations is desired (since it caches the locations of the Segment and
  * it does not need to all the usual SegmentContainer and StreamSegment lookups on every invocation).
  */

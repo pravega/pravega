@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.mocks;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -108,13 +107,6 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     @Override
     public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         CompletableFuture<Void> result = impl.truncateStreamSegment(streamSegmentName, offset, timeout);
-        Futures.await(result);
-        return result;
-    }
-
-    @Override
-    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
-        CompletableFuture<DirectSegmentAccess> result = impl.forSegment(streamSegmentName, timeout);
         Futures.await(result);
         return result;
     }

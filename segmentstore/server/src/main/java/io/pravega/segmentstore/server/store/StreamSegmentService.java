@@ -14,7 +14,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
-import io.pravega.segmentstore.contracts.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -144,14 +143,6 @@ public class StreamSegmentService implements StreamSegmentStore {
                 streamSegmentName,
                 container -> container.truncateStreamSegment(streamSegmentName, offset, timeout),
                 "truncateStreamSegment", streamSegmentName);
-    }
-
-    @Override
-    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
-        return invoke(
-                streamSegmentName,
-                container -> container.forSegment(streamSegmentName, timeout),
-                "forSegment", streamSegmentName);
     }
 
     //endregion

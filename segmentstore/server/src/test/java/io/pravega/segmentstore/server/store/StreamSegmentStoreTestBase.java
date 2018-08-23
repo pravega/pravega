@@ -72,8 +72,6 @@ import org.junit.Test;
 public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     //region Test Configuration
 
-    protected static final Duration TIMEOUT = Duration.ofSeconds(120);
-
     // Even though this should work with just 1-2 threads, doing so would cause this test to run for a long time. Choosing
     // a decent size so that the tests do finish up within a few seconds.
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
@@ -87,6 +85,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int MAX_INSTANCE_COUNT = 5;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+    private static final Duration TIMEOUT = Duration.ofSeconds(120);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
@@ -482,7 +481,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.allOf(result);
     }
 
-    protected ArrayList<String> createSegments(StreamSegmentStore store) {
+    private ArrayList<String> createSegments(StreamSegmentStore store) {
         ArrayList<String> segmentNames = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
