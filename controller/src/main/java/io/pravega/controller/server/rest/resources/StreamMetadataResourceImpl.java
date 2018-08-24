@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.rest.resources;
 
-import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
@@ -45,11 +44,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.shared.NameUtils;
-import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import javax.ws.rs.container.AsyncResponse;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
@@ -134,50 +135,19 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
     private void authenticateAuthorize(String resourceName, AuthHandler.Permissions level) throws AuthException {
         if (pravegaAuthManager != null ) {
+            Map<String, String> map = null;
             List<String> authParams = headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
 
             if (authParams == null || authParams.isEmpty()) {
                 throw new AuthenticationException("Auth failed for " + resourceName);
             }
 
-            String credentials = authParams.get(0);
-            Preconditions.checkNotNull(credentials, "Credentials not specified in the parameters.");
+            String authHeader = authParams.get(0);
+            map = Arrays.stream(authHeader.split(",")).map(str -> str.split(":"))
+                                            .collect(Collectors.toMap(e -> e[0], e -> e[1]));
 
-            if (!pravegaAuthManager.authenticateAndAuthorize(resourceName, credentials, level)) {
-                throw new AuthorizationException("Auth failed for " + resourceName, Status.FORBIDDEN.getStatusCode());
-            }
-        }
-    }
-
-    private Principal authenticate() throws AuthException {
-        if (pravegaAuthManager != null ) {
-            List<String> authParams = headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
-
-            if (authParams == null || authParams.isEmpty()) {
-                throw new AuthenticationException("Auth failed.");
-            }
-
-            String credentials = authParams.get(0);
-            Preconditions.checkNotNull(credentials, "Credentials not specified in the parameters.");
-
-            return pravegaAuthManager.authenticate(credentials);
-        }
-        return null;
-    }
-
-    private void authorize(String resourceName, Principal principal, AuthHandler.Permissions level) throws AuthException {
-        if (pravegaAuthManager != null ) {
-            List<String> authParams = headers.getRequestHeader(HttpHeaders.AUTHORIZATION);
-
-            if (authParams == null || authParams.isEmpty()) {
-                throw new AuthenticationException("Auth failed for " + resourceName);
-            }
-
-            String credentials = authParams.get(0);
-            Preconditions.checkNotNull(credentials, "Credentials not specified in the parameters.");
-
-            if (!pravegaAuthManager.authorize(resourceName, principal, credentials, level)) {
-                throw new AuthorizationException("Auth failed for " + resourceName, Status.FORBIDDEN.getStatusCode());
+            if (!pravegaAuthManager.authenticate(resourceName, map, level)) {
+                throw new AuthorizationException("Auth failed for " + resourceName, 403);
             }
         }
     }
@@ -497,10 +467,8 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
     public void listScopes(final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listScopes");
 
-        Principal principal;
         try {
-            principal = authenticate();
-            authorize("/", principal, READ);
+            authenticateAuthorize("/", READ);
         } catch (AuthException e) {
             log.warn("Get scopes failed due to authentication failure.", e);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -513,7 +481,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                              ScopesList scopes = new ScopesList();
                              scopesList.forEach(scope -> {
                                  try {
-                                     authorize(scope, principal, READ);
+                                     authenticateAuthorize(scope, READ);
                                      scopes.addScopesItem(new ScopeProperty().scopeName(scope));
                                  } catch (AuthException e) {
                                      log.warn("Not adding {} to list because authentication exception.", scope, e);
