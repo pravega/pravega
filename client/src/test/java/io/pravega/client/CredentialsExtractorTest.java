@@ -18,9 +18,6 @@ import java.util.Properties;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-
 public class CredentialsExtractorTest {
     @Test
     public void testextractCredentials() {
@@ -39,7 +36,7 @@ public class CredentialsExtractorTest {
         assertEquals("Method is not picked up from properties",
                 config.getCredentials().getAuthenticationType(), "temp");
 
-        AssertExtensions.assertMapEquals("Paramters are not same",
+        AssertExtensions.assertMapEquals("Parameters are not same",
                 config.getCredentials().getAuthParameters(),
                 ImmutableMap.of("prop1", "prop1",
                         "prop2", "prop2",

@@ -63,7 +63,7 @@ public class PravegaAuthManager {
     }
 
     /**
-     * API to authenticate and authroize access to a given resource.
+     * API to authenticate and authorize access to a given resource.
      * @param resource The resource identifier for which the access needs to be controlled.
      * @param paramMap  Custom headers used for authentication.
      * @param level    Expected level of access.
