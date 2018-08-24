@@ -152,7 +152,7 @@ public interface StreamSegmentStore {
     CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout);
 
     /**
-     * Merges a Sealed StreamSegment into another.
+     * Merges a StreamSegment into another.
      *
      * @param targetSegmentName The name of the StreamSegment to merge into.
      * @param sourceSegmentName The name of the StreamSegment to merge.
