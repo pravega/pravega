@@ -77,7 +77,7 @@ public class CredentialsExtractorTest {
         //In case dynamic creds system property is true, the correct class should be loaded.
         properties.setProperty("pravega.client.auth.method", "DynamicallyLoadedCredsSecond");
         config = ClientConfig.builder().extractCredentials(properties, new HashMap<String, String>()).build();
-        Assert.assertEquals("Correct creds object should be loaded dynamically",
+        assertEquals("Correct creds object should be loaded dynamically",
                 config.getCredentials().getAuthenticationType(), "DynamicallyLoadedCredsSecond");
     }
 
