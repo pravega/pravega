@@ -23,14 +23,14 @@ public interface AsyncIterator<T> {
      * Attempts to get the next element in the iteration.
      *
      * Note: since this is an async call, it is possible to invoke getNext() before the previous call completed; in this
-     * case the behavior depends on the implementation (it may block on the previous call's completion, throw an
-     * IllegalStateException or repeat the previous call).
+     * case the expected behavior is that the second call will be rejected with an {@link IllegalStateException}.
      *
      * @return A CompletableFuture that, when completed, will contain the next element in the iteration. If the iteration
      * has reached its end, this will complete with null. If an exception occurred, this will be completed exceptionally
      * with the causing exception, and the iteration will end.
      */
     CompletableFuture<T> getNext();
+
     /**
      * Processes the remaining elements in the AsyncIterator.
      *

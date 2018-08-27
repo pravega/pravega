@@ -29,6 +29,10 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.tables.TableReader;
+import io.pravega.client.tables.TableReaderConfig;
+import io.pravega.client.tables.TableWriter;
+import io.pravega.client.tables.TableWriterConfig;
 import java.net.URI;
 import lombok.val;
 
@@ -151,6 +155,30 @@ public interface ClientFactory extends AutoCloseable {
      */
     @Beta
     BatchClient createBatchClient();
+
+    /**
+     * Creates a new Table Writer for the given Table Name, using the given Key and Value Serializers and Config.
+     *
+     * @param tableName       The name of the Table to create a TableWriter for.
+     * @param keySerializer   The Serializer for Keys.
+     * @param valueSerializer The Serializer for Values.
+     * @param config          The TableWriter Configuration.
+     * @return Newly created TableWriter that will work on the given Table.
+     */
+    <KeyT, ValueT> TableWriter<KeyT, ValueT> createTableWriter(String tableName, Serializer<KeyT> keySerializer,
+                                                               Serializer<ValueT> valueSerializer, TableWriterConfig config);
+
+    /**
+     * Creates a new Table Reader for the given Table Name, using the given Key and Value Serializer and Config.
+     *
+     * @param tableName       The name of the Table to create a TableReader for.
+     * @param keySerializer   The Serializer for Keys.
+     * @param valueSerializer The Serializer for Values.
+     * @param config          The TableReader Configuration.
+     * @return Newly created TableReader that will work on the given Table.
+     */
+    <KeyT, ValueT> TableReader<KeyT, ValueT> createTableReader(String tableName, Serializer<KeyT> keySerializer,
+                                                               Serializer<ValueT> valueSerializer, TableReaderConfig config);
 
     /**
      * Closes the client factory. This will close any connections created through it.
