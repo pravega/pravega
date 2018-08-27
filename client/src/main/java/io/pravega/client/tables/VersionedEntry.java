@@ -9,23 +9,23 @@
  */
 package io.pravega.client.tables;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 
 /**
- * The result of a Get operation from a Table.
- * @param <ValueT> Type of the Value.
+ * A Table Entry with a Version.
+ *
+ * @param <KeyT>   Key Type.
+ * @param <ValueT> Value Type
  */
-@Data
-@Builder
-public class GetResult<ValueT> {
+@Getter
+public class VersionedEntry<KeyT, ValueT> extends VersionedKey<KeyT> {
     /**
-     * The version corresponding to this Value.
-     */
-    private final KeyVersion keyVersion;
-
-    /**
-     * Deserialized value.
+     * The Value.
      */
     private final ValueT value;
+
+    VersionedEntry(KeyT key, ValueT value, KeyVersion version) {
+        super(key, version);
+        this.value = value;
+    }
 }

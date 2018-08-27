@@ -114,9 +114,9 @@ public interface TableStore {
     CompletableFuture<Void> seal(String segmentName, Duration timeout);
 
     /**
-     * Inserts a new or updates an existing Table Entry into the given Table Segment.
+     * Inserts new or updates existing Table Entries into the given Table Segment.
      *
-     * @param segmentName The name of the Table Segment to insert/update the Table Entry.
+     * @param segmentName The name of the Table Segment to insert/update the Table Entries.
      * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#hasVersion()}
      *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
      *                    Update. If {@link TableEntry#hasVersion()} returns false for ALL items in the list, then this
@@ -137,9 +137,9 @@ public interface TableStore {
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout);
 
     /**
-     * Removes a Table Key from the given Table Segment.
+     * Removes one or more Table Keys from the given Table Segment.
      *
-     * @param segmentName The name of the Table Segment to remove the Key from.
+     * @param segmentName The name of the Table Segment to remove the Keys from.
      * @param keys        A Collection of {@link TableKey} instances to remove. If {@link TableKey#hasVersion()} returns
      *                    true for at least one of the TableKeys in this collection, then this will perform an atomic
      *                    Conditional Update (Removal). If {@link TableKey#hasVersion()} returns false for ALL items in

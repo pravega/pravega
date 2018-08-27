@@ -9,22 +9,22 @@
  */
 package io.pravega.client.tables;
 
-import java.io.Serializable;
 import lombok.Data;
 
 /**
- * Version of a Key in a Table.
+ * A Table Key with a Version.
+ *
+ * @param <KeyT> Type of the Key.
  */
 @Data
-public class KeyVersion implements Serializable {
-    private static final long serialVersionUID = 1L;
+public class VersionedKey<KeyT> {
+    /**
+     * The Key.
+     */
+    private final KeyT key;
 
     /**
-     * The internal Table Segment Id where this Key Version refers to.
+     * The Version. If null, any updates for this Key will be non-conditional (blind).
      */
-    private final long segmentId;
-    /**
-     * The internal version inside the Table Segment for this Key.
-     */
-    private final long segmentVersion;
+    private final KeyVersion version;
 }
