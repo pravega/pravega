@@ -12,13 +12,13 @@ package io.pravega.segmentstore.server.logs;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.AttributeReference;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
-import io.pravega.segmentstore.contracts.Reference;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -405,14 +405,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         for (AttributeUpdate u : attributeUpdates) {
             // Process by-reference updates, if needed.
             boolean byRef = u instanceof AttributeUpdateByReference;
-            long newValue;
             if (byRef) {
-                AttributeUpdateByReference ur = (AttributeUpdateByReference) u;
-                ur.setAttributeId(getAttributeId(ur));
-                newValue = getAttributeValue(ur);
-            } else {
-                newValue = u.getValue();
+                processAttributeUpdateByReference((AttributeUpdateByReference) u);
             }
+
+            // Get the new value; this may be updated based on the update type provided.
+            long newValue = u.getValue();
 
             // Get the current value, if any.
             boolean hasValue = false;
@@ -474,66 +472,46 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Evaluates the AttributeId of an update-by-reference.
+     * Determines whether the given AttributeUpdateByReference requires any evaluation for its Id or Value, and if so,
+     * performs the necessary evaluation and assigns the Id and Value as needed.
      *
-     * @param updateByRef The AttributeUpdateByReference to evaluate.
-     * @return The value.
+     * @param updateByRef The AttributeUpdateByReference to process.
      * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
      */
-    private UUID getAttributeId(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
-        Reference<UUID> ref = updateByRef.getIdReference();
-        if (ref == null) {
-            // The exact ID was passed in. No need to evaluate anything else.
-            return updateByRef.getAttributeId();
+    private void processAttributeUpdateByReference(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+        AttributeReference<UUID> idRef = updateByRef.getIdReference();
+        if (idRef != null) {
+            // A reference was passed in for an ID. Evaluate it and assign the Id.
+            updateByRef.setAttributeId(getReferenceValue(idRef, updateByRef));
         }
 
-        return getReferenceValue(ref, updateByRef);
-    }
-
-    /**
-     * Evaluates the AttributeValue of an update-by-reference.
-     *
-     * @param updateByRef The AttributeUpdateByReference to evaluate.
-     * @return The value.
-     * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
-     */
-    private long getAttributeValue(AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
-        Reference<Long> ref = updateByRef.getValueReference();
-        if (ref == null) {
-            // The exact value was passed in. No need to evaluate anything else.
-            return updateByRef.getValue();
+        AttributeReference<Long> valueRef = updateByRef.getValueReference();
+        if (valueRef != null) {
+            // A reference was passed in for a Value. Evaluate it and assign the Value.
+            updateByRef.setValue(getReferenceValue(valueRef, updateByRef));
         }
-
-        return getReferenceValue(updateByRef.getValueReference(), updateByRef);
     }
 
     /**
      * Evaluates the given reference.
      *
-     * @param ref         The Reference to evaluate.
+     * @param ref         The AttributeReference to evaluate.
      * @param updateByRef The AttributeUpdateByReference that this is part of.
      * @param <T>         Return type.
      * @return The evaluated reference.
      * @throws BadAttributeUpdateException If the update refers to an invalid attribute id.
      */
-    private <T> T getReferenceValue(Reference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
+    private <T> T getReferenceValue(AttributeReference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
         long result;
-        if (ref instanceof Reference.SegmentLength) {
-            // Segment Length.
-            result = getLength();
-        } else if (ref instanceof Reference.Attribute) {
-            // Attribute reference. First pick a value from this UpdateTransaction, then fail back to base attributes.
-            UUID attributeId = ((Reference.Attribute) ref).getAttributeId();
-            if (this.attributeUpdates.containsKey(attributeId)) {
-                result = this.attributeUpdates.get(attributeId);
-            } else if (this.baseAttributeValues.containsKey(attributeId)) {
-                result = this.baseAttributeValues.get(attributeId);
-            } else {
-                throw new BadAttributeUpdateException(this.name, updateByRef, true,
-                        String.format("%s refers to an Attribute that is not set (%s).", ref.getClass().getSimpleName(), attributeId));
-            }
+        // First pick a value from this UpdateTransaction, then fail back to base attributes.
+        UUID attributeId = ref.getAttributeId();
+        if (this.attributeUpdates.containsKey(attributeId)) {
+            result = this.attributeUpdates.get(attributeId);
+        } else if (this.baseAttributeValues.containsKey(attributeId)) {
+            result = this.baseAttributeValues.get(attributeId);
         } else {
-            throw new IllegalArgumentException("Unsupported AttributeValueReference: " + ref.getClass().getSimpleName());
+            throw new BadAttributeUpdateException(this.name, updateByRef, true,
+                    String.format("%s refers to an Attribute that is not set (%s).", ref.getClass().getSimpleName(), attributeId));
         }
 
         // Finally, transform the result.

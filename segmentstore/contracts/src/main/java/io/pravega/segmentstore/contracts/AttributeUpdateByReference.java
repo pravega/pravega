@@ -22,25 +22,25 @@ import lombok.NonNull;
 public class AttributeUpdateByReference extends AttributeUpdate {
     private boolean valueSet; // This is needed since Value is non-nullable.
     /**
-     * The Reference to evaluate in order to determine AttributeId.
+     * The AttributeReference to evaluate in order to determine AttributeId.
      */
     @Getter
-    private final Reference<UUID> idReference;
+    private final AttributeReference<UUID> idReference;
 
     /**
-     * The Reference to evaluate in order to determine Attribute value.
+     * The AttributeReference to evaluate in order to determine Attribute value.
      */
     @Getter
-    private final Reference<Long> valueReference;
+    private final AttributeReference<Long> valueReference;
 
     /**
      * Creates a new instance of the AttributeUpdateByReference class, except for ReplaceIfEquals.
      *
      * @param attributeId    The AttributeId to update.
      * @param updateType     The UpdateType. All update types except ReplaceIfEquals work with this method.
-     * @param valueReference The Reference to evaluate.
+     * @param valueReference The AttributeReference to evaluate.
      */
-    public AttributeUpdateByReference(@NonNull UUID attributeId, @NonNull AttributeUpdateType updateType, @NonNull Reference<Long> valueReference) {
+    public AttributeUpdateByReference(@NonNull UUID attributeId, @NonNull AttributeUpdateType updateType, @NonNull AttributeReference<Long> valueReference) {
         super(attributeId, updateType, Attributes.NULL_ATTRIBUTE_VALUE);
         this.idReference = null;
         this.valueReference = valueReference;
@@ -49,11 +49,11 @@ public class AttributeUpdateByReference extends AttributeUpdate {
     /**
      * Creates a new instance of the AttributeUpdateByReference class, except for ReplaceIfEquals.
      *
-     * @param idReference    The Reference to evaluate in order to determine AttributeId.
+     * @param idReference    The AttributeReference to evaluate in order to determine AttributeId.
      * @param updateType     The UpdateType. All update types except ReplaceIfEquals work with this method.
-     * @param valueReference The Reference to evaluate in order to determine Attribute Value.
+     * @param valueReference The AttributeReference to evaluate in order to determine Attribute Value.
      */
-    public AttributeUpdateByReference(@NonNull Reference<UUID> idReference, @NonNull AttributeUpdateType updateType, @NonNull Reference<Long> valueReference) {
+    public AttributeUpdateByReference(@NonNull AttributeReference<UUID> idReference, @NonNull AttributeUpdateType updateType, @NonNull AttributeReference<Long> valueReference) {
         super(null, updateType, Attributes.NULL_ATTRIBUTE_VALUE);
         this.idReference = idReference;
         this.valueReference = valueReference;
@@ -62,11 +62,11 @@ public class AttributeUpdateByReference extends AttributeUpdate {
     /**
      * Creates a new instance of the AttributeUpdateByReference class, except for ReplaceIfEquals.
      *
-     * @param idReference The Reference to evaluate in order to determine AttributeId.
+     * @param idReference The AttributeReference to evaluate in order to determine AttributeId.
      * @param updateType  The UpdateType. All update types except ReplaceIfEquals work with this method.
      * @param value       The AttributeValue to set..
      */
-    public AttributeUpdateByReference(@NonNull Reference<UUID> idReference, @NonNull AttributeUpdateType updateType, long value) {
+    public AttributeUpdateByReference(@NonNull AttributeReference<UUID> idReference, @NonNull AttributeUpdateType updateType, long value) {
         super(null, updateType, value);
         this.idReference = idReference;
         this.valueReference = null;
@@ -81,7 +81,7 @@ public class AttributeUpdateByReference extends AttributeUpdate {
      * @param valueReference  The AttributeValueReference to evaluate.
      * @param comparisonValue The value to compare against.
      */
-    public AttributeUpdateByReference(@NonNull UUID attributeId, @NonNull AttributeUpdateType updateType, @NonNull Reference<Long> valueReference, long comparisonValue) {
+    public AttributeUpdateByReference(@NonNull UUID attributeId, @NonNull AttributeUpdateType updateType, @NonNull AttributeReference<Long> valueReference, long comparisonValue) {
         super(attributeId, updateType, Attributes.NULL_ATTRIBUTE_VALUE, comparisonValue);
         this.idReference = null;
         this.valueReference = valueReference;
