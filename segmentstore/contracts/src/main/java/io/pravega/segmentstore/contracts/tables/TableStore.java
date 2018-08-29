@@ -178,8 +178,9 @@ public interface TableStore {
      * Creates a new Iterator over all the {@link TableEntry} in the given Table Segment.
      *
      * @param segmentName       The name of the Table Segment to iterate over.
-     * @param continuationToken A continuation token that can be used to resume a previously interrupted iteration. This
-     *                          can be obtained by invoking {@link IteratorItem#getContinuationToken()}.
+     * @param continuationToken An {@link IteratorState} representing a continuation token that can be used to resume a
+     *                          previously interrupted iteration. This can be obtained by invoking
+     *                          {@link IteratorItem#getContinuationToken()}.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableEntry} instances in the given Table Segment. If the operation failed, the Future will be
@@ -189,45 +190,40 @@ public interface TableStore {
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<AsyncIterator<IteratorItem>> iterator(String segmentName, Object continuationToken, Duration timeout);
+    CompletableFuture<AsyncIterator<IteratorItem>> iterator(String segmentName, IteratorState continuationToken, Duration timeout);
 
     /**
-     * Registers an existing {@link UpdateListener} for particular Key on a Table Segment.
+     * Gets the {@link UpdateListener} for a particular TableSegment
      *
-     * @param segmentName The name of the Table Segment to register the {@link UpdateListener} for.
-     * @param key         An {@link ArrayView} representing the Key to register the {@link UpdateListener} for.
-     * @param listener    An {@link UpdateListener} instance to register.
-     * @return A CompletableFuture that, when completed, will indicate the operation completed. If the operation failed,
+     * @param listener    The {@link UpdateListener} to register.
+     * @param timeout     Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain a {@link UpdateListener}. If the operation failed,
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If any of the items in "keys" exceeds {@link #maximumKeyLength()}.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<Void> registerListener(String segmentName, ArrayView key, UpdateListener listener);
+    CompletableFuture<Void> registerListener(UpdateListener listener, Duration timeout);
 
     /**
-     * Unregisters an {@link UpdateListener} for a particular Key on a Table Segment.
+     * Unregisters an {@link UpdateListener}..
      *
-     * @param segmentName The name of the Table Segment to unregister the {@link UpdateListener} from.
-     * @param key         An {@link ArrayView} representing the Key to unregister from.
-     * @param listener    The {@link UpdateListener} to unregister.
+     * @param listener The {@link UpdateListener} to unregister.
      * @return True if the {@link UpdateListener} was registered before this call, false otherwise.
      */
-    boolean unregisterListener(String segmentName, ArrayView key, UpdateListener listener);
+    boolean unregisterListener(UpdateListener listener);
 
     /**
-     * Defines iteration result that is returned by the {@link AsyncIterator} when invoking
-     * {@link #iterator(String, Object, Duration)}.
+     * Defines an iteration result that is returned by the {@link AsyncIterator} when invoking
+     * {@link #iterator(String, IteratorState, Duration)}.
      */
     interface IteratorItem {
         /**
-         * Gets an object that can be used to reinvoke {@link TableStore#iterator(String, Object, Duration)} if a previous
-         * iteration has been interrupted (by losing the pointer to the {@link AsyncIterator}), system restart, etc.
-         * TODO: this will be properly defined when the implementation is ready, but it will be a serializable object (String, byte[], etc.).
+         * Gets an {@link IteratorState} that can be used to reinvoke {@link TableStore#iterator(String, IteratorState, Duration)}
+         * if a previous iteration has been interrupted (by losing the pointer to the {@link AsyncIterator}), system restart, etc.
          */
-        Object getContinuationToken();
+        IteratorState getContinuationToken();
 
         /**
          * Gets a List of {@link TableEntry} instances that are contained in this instance. For efficiency reasons, entries
@@ -237,45 +233,5 @@ public interface TableStore {
          * @return A List of {@link TableEntry} instances.
          */
         List<TableEntry> getEntries();
-    }
-
-    /**
-     * Defines a listener for updates for a particular Key.
-     * Note about consistency and concurrency:
-     * * These callbacks will always be invoked after a successful Table Update and may be invoked in parallel with the
-     * completion of the Future that is returned with every invocation.
-     * * For updates in quick succession, it may be possible that not all updates may be captured. If the same key is
-     * updated multiple times and those updates are batched together (externally or internally), only the latest change
-     * will be reflected in one of these callbacks.
-     */
-    interface UpdateListener extends AutoCloseable {
-        /**
-         * This will be invoked by the Table Store when the Update Listener is unregistered. It may be unregistered by
-         * one of the following cases:
-         * * When {@link TableStore#unregisterListener(String, ArrayView, UpdateListener)} is invoked with the correct arguments.
-         * * When {@link TableStore#deleteSegment(String, Duration)} is invoked for the Table Segment for which this is registered.
-         * * When {@link TableStore#seal(String, Duration)} is invoked for the Table Segment for which this is registered.
-         * * When {@link TableStore#merge(String, String, Duration)} is invoked for the Source Table Segment for which
-         * this is registered.
-         * * When the Segment Container on which the segment for which this is registered for is shutting down.
-         *
-         * This is not invoked when the Key associated with this instance is removed.
-         */
-        @Override
-        void close();
-
-        /**
-         * This will be invoked every time the requested Key is updated or inserted.
-         *
-         * @param currentEntry A {@link TableEntry} with the current value.
-         */
-        void entryUpdated(TableEntry currentEntry);
-
-        /**
-         * This will be invoked every time the requested Key is removed.
-         *
-         * @param removedKey A {@link TableKey} that was removed.
-         */
-        void keyRemoved(TableKey removedKey);
     }
 }

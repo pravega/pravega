@@ -10,45 +10,60 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import io.pravega.common.util.ArrayView;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * An Entry in a Table Segment, made up of a Key and a Value, with optional Version.
  */
 @Getter
-public class TableEntry extends TableKey {
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+public class TableEntry {
+    /**
+     * The Key.
+     */
+    private final TableKey key;
+
     /**
      * The Value (data) of the entry.
      */
     private final ArrayView value;
-
     /**
      * Creates a new instance of the TableEntry class with no desired version.
      *
      * @param key   The Key.
      * @param value The Value.
      */
-    public TableEntry(ArrayView key, @NonNull ArrayView value) {
-        super(key);
-        this.value = value;
+    public static TableEntry unversioned(@NonNull ArrayView key, @NonNull ArrayView value) {
+        return new TableEntry(TableKey.unversioned(key), value);
+    }
+
+    /**
+     * Creates a new instance of the TableEntry class that indicates the Key must not previously exist.
+     *
+     * @param key   The Key.
+     * @param value The Value.
+     */
+    public static TableEntry notExists(@NonNull ArrayView key, @NonNull ArrayView value) {
+        return new TableEntry(TableKey.notExists(key), value);
     }
 
     /**
      * Creates a new instance of the TableEntry class with a specified version.
      *
-     * @param key     The Key.
-     * @param value   The Value.
-     * @param version The desired Version. Must be non-negative.
+     * @param key   The Key.
+     * @param value The Value.
+     * @param version The desired version.
      */
-    public TableEntry(ArrayView key, @NonNull ArrayView value, long version) {
-        super(key, version);
-        this.value = value;
+    public static TableEntry versioned(@NonNull ArrayView key, @NonNull ArrayView value, long version) {
+        return new TableEntry(TableKey.versioned(key, version), value);
     }
 
     @Override
     public String toString() {
-        return String.format("%s -> %s", super.toString(), this.value);
+        return String.format("%s -> %s", this.key, this.value);
     }
 
 }

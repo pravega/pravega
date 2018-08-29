@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  * * All registered callbacks will be invoked asynchronously on an {@link java.util.concurrent.Executor} that is either
  * provided during construction of this instance or on another {@link java.util.concurrent.Executor}. Due to the asynchronous
  * nature of such callbacks, it is not guaranteed that they will be invoked in order, so it is the responsibility of the
- * callback to verify the order (based on {@link TableEntry#getVersion()} or {@link TableKey#getVersion()}) if needed.
+ * callback to verify the order (based on {@link TableEntry#getKey()#getVersion()} or {@link TableKey#getVersion()}) if needed.
  *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type.
