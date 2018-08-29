@@ -9,8 +9,10 @@
  */
 package io.pravega.client.tables;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * Defines all operations that can be used to access a Table for reading purposes.
@@ -31,25 +33,19 @@ public interface TableReader<KeyT, ValueT> extends AutoCloseable {
     /**
      * Gets the latest values for the given Keys.
      *
-     * @param keys A list of Keys to get values for.
-     * @return A CompletableFuture that, when completed, will contain a list of results for the given Keys. The results
-     * will be in the same order as the keys. For any key that does not exist, a null value will be at its corresponding
-     * index.
+     * @param keys A Collection of Keys to get values for.
+     * @return A CompletableFuture that, when completed, will contain a map of {@link KeyT} to {@link GetResult} for those
+     * keys that have a value in the index. All other keys will not be included.
      */
-    CompletableFuture<List<GetResult<ValueT>>> get(List<KeyT> keys);
+    CompletableFuture<Map<KeyT, GetResult<ValueT>>> get(Collection<KeyT> keys);
 
     /**
-     * Registers a listener for all updates to a single key.
+     * Creates and registers a {@link KeyUpdateListener} for all updates to this {@link TableSegment}, subject to the given
+     * {@link KeyUpdateFilter}.
      *
-     * @param listener The listener to register.
-     * @return A CompletableFuture that, when completed, will indicate the listener has been registered.
+     * @param filter   A {@link KeyUpdateFilter} that will specify which Keys should the {@link KeyUpdateListener} listen to.
+     * @param executor An {@link Executor} that will be used to invoke all callbacks on.
+     * @return A CompletableFuture that, when completed, will contain an {@link KeyUpdateListener}.
      */
-    CompletableFuture<Void> registerListener(KeyUpdateListener<KeyT, ValueT> listener);
-
-    /**
-     * Unregisters a registered listener.
-     *
-     * @param listener THe listener to unregister.
-     */
-    void unregisterListener(KeyUpdateListener<KeyT, ValueT> listener);
+    CompletableFuture<KeyUpdateListener<KeyT, ValueT>> createListener(KeyUpdateFilter<KeyT> filter, Executor executor);
 }

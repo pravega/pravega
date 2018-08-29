@@ -14,36 +14,67 @@ import java.util.function.Consumer;
 /**
  * Defines a Listener for Key Updates.
  *
+ * Notes:
+ * * All registered callbacks will be invoked asynchronously on an {@link java.util.concurrent.Executor} that is either
+ * provided during construction of this instance or on another {@link java.util.concurrent.Executor}. Due to the asynchronous
+ * nature of such callbacks, it is not guaranteed that they will be invoked in order, so it is the responsibility of the
+ * callback to verify the order (based on {@link VersionedEntry#getVersion()} or {@link VersionedKey#getVersion()}) if needed.
+ *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type.
  */
 public interface KeyUpdateListener<KeyT, ValueT> extends AutoCloseable {
     /**
-     * Gets a value indicating the Key that this Listener is attached to.
-     * @return The Key.
+     * Gets a pointer to the {@link KeyUpdateFilter} for this instance.
+     *
+     * @return The filter.
      */
-    KeyT getListeningKey();
+    KeyUpdateFilter<KeyT> getFilter();
 
     /**
-     * This will be invoked whenever an Entry matching {@link #getListeningKey()} is inserted or updated.
-     * @param value A Consumer that, when invoked, will process the given value update.
+     * Registers a callback that will be invoked every time a Key matching {@link #getFilter()} is inserted or updated.
+     * @param updateEntryCallback A {@link Consumer} that will be invoked with a {@link VersionedEntry} containing all
+     *                            necessary information about the inserted or updated key.
      */
-    void handleValueUpdate(Consumer<GetResult<ValueT>> value);
+    void setKeyUpdatedCallback(Consumer<VersionedEntry<KeyT, ValueT>> updateEntryCallback);
 
     /**
-     * This will be invoked whenever a Key matching {@link #getListeningKey()} is removed.
-     * @param removeVersion A Consumer that, when invoked, will process the given key removal.
+     * Registers a callback that will be invoked every time a Key matching {@link #getFilter()} is removed.
+     *
+     * @param removeKeyCallback A {@link Consumer} that will be invoked with a {@link VersionedKey} representing the key
+     *                          that was removed.
      */
-    void handlevalueRemoved(Consumer<KeyVersion> removeVersion);
+    void setKeyRemovedCallback(Consumer<VersionedKey<KeyT>> removeKeyCallback);
 
     /**
-     * This will be invoked when the Update Listener is unregistered, which is one of the following cases:
-     * * {@link TableReader#unregisterListener(KeyUpdateListener)} is invoked (if registered on a {@link TableReader}).
-     * * {@link TableSegment#unregisterListener(KeyUpdateListener)} is invoked (if registered on a {@link TableSegment}).
-     * * The Table Segment is sealed.
-     * * The Table Segment is merged (into another one).
-     * * The Table Segment is deleted.
+     * Registers a callback that will be invoked when this {@link KeyUpdateListener} is closed.
+     * @param closeCallback A {@link Consumer} that will be invoked with the appropriate {@link CloseReason}.
+     */
+    void setCloseCallback(Consumer<CloseReason> closeCallback);
+
+    /**
+     * Closes this instance and unregisters it.
      */
     @Override
     void close();
+
+    /**
+     * Defines a reason why a {@link KeyUpdateListener} may be closed.
+     */
+    enum CloseReason {
+        /**
+         * Table is Sealed, so no more updates should be expected.
+         */
+        Sealed,
+
+        /**
+         * Table is Merged (into another one), so no more updates should be expected on this one.
+         */
+        Merged,
+
+        /**
+         * Table is Deleted.
+         */
+        Deleted
+    }
 }
