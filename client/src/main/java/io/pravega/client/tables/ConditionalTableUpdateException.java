@@ -7,29 +7,29 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.contracts.tables;
+package io.pravega.client.tables;
 
-import io.pravega.common.util.ArrayView;
-import io.pravega.segmentstore.contracts.StreamSegmentException;
 import java.util.Collection;
 import lombok.Getter;
 
 /**
  * Exception that is thrown whenever a Conditional Update to a Table (based on versions) failed.
  */
-public class ConditionalTableUpdateException extends StreamSegmentException {
+public class ConditionalTableUpdateException extends Exception {
     private static final long serialVersionUID = 1L;
+    /**
+     * A Collection of Keys that failed conditional update validation.
+     */
     @Getter
-    private final Collection<ArrayView> keys;
+    private final Collection<Object> keys;
 
     /**
      * Creates a new instance of the ConditionalTableUpdateException class.
      *
-     * @param segmentName The name of the affected Table Segment.
-     * @param keys        A Collection of Keys that failed conditional update validation.
+     * @param keys A Collection of Keys that failed conditional update validation.
      */
-    public ConditionalTableUpdateException(String segmentName, Collection<ArrayView> keys) {
-        super(segmentName, String.format("Conditional update failed for %s key(s).", keys.size()));
+    public ConditionalTableUpdateException(Collection<Object> keys) {
+        super(String.format("Conditional update failed for %s key(s).", keys.size()));
         this.keys = keys;
     }
 }

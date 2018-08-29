@@ -41,7 +41,10 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
      *              Blind Update, otherwise it will perform a Conditional Update based on the information provided.
      *              See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
-     * inserted or updated entry.
+     * inserted or updated entry. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
+     * </ul>
      */
     CompletableFuture<KeyVersion> put(TableEntry<KeyT, ValueT> entry);
 
@@ -53,7 +56,11 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
      *                Conditional Update where all the entries either get applied or none will; otherwise a Blind Update
      *                will be performed. See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a map of {@link KeyT} to {@link KeyVersion} which
-     * represents the versions for the inserted/updated keys.
+     * represents the versions for the inserted/updated keys. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Update and the condition was not satisfied.
+     * This exception will contain the Keys that failed the validation.
+     * </ul>
      */
     CompletableFuture<Map<KeyT, KeyVersion>> put(Collection<TableEntry<KeyT, ValueT>> entries);
 
@@ -62,7 +69,10 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
      * @param key  The Key to remove. If {@link TableKey#getVersion()} is null, this will perform a Blind Remove,
      *             otherwise it will perform a Conditional Remove based on the information provided.
      *             See {@link TableSegment} doc for more details on Types of Updates.
-     * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
+     * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
+     * </ul>
      */
     CompletableFuture<Void> remove(TableKey<KeyT> key);
 
@@ -73,7 +83,11 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
      *             a non-null value, this will perform an atomic Conditional Remove where all the keys either get removed
      *             or none will; otherwise a Blind Remove will be performed. See {@link TableSegment} doc for more details
      *             on Types of Updates.
-     * @return A CompletableFuture that, when completed, will indicate that the keys have been removed.
+     * @return A CompletableFuture that, when completed, will indicate that the keys have been removed. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} If this is a Conditional Removal and the condition was not satisfied.
+     * This exception will contain the Keys that failed the validation.
+     * </ul>
      */
     CompletableFuture<Void> remove(Collection<TableKey<KeyT>> keys);
 
