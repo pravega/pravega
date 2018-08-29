@@ -20,48 +20,62 @@ import lombok.Data;
 /**
  * Defines all operations that are supported on a Table Segment.
  *
+ * Types of updates:
+ * * Blind Updates will insert and/or overwrite any existing values for the given Key, regardless of whether that Key
+ * previously existed or not, and regardless of what that Key's version is.
+ * * Conditional Updates will only overwrite an existing value if the specified version matches that Key's version. If
+ * the key does not exist, the {@link TableKey} or {@link TableEntry} must have been created with {@link KeyVersion#NOT_EXISTS}
+ * in order for the update to succeed.
+ * * Blind Removals will remove a Key regardless of what that Key's version is. The operation will also succeed (albeit
+ * with no effect) if the Key does not exist.
+ * * Conditional Removals will remove a Key only if the specified {@link TableKey#getVersion()} matches that Key's version.
+ * It will also fail (with no effect) if the Key does not exist and Version is not set to {@link KeyVersion#NOT_EXISTS}.
+ *
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
  */
 public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
     /**
      * Inserts or updates an existing Table Entry into this Table Segment.
-     * @param entry The Entry to insert or update. If {@link VersionedEntry#getVersion()} is null, this will perform a
+     * @param entry The Entry to insert or update. If {@link TableEntry#getKey()#getVersion()} is null, this will perform a
      *              Blind Update, otherwise it will perform a Conditional Update based on the information provided.
+     *              See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
      * inserted or updated entry.
      */
-    CompletableFuture<KeyVersion> put(VersionedEntry<KeyT, ValueT> entry);
+    CompletableFuture<KeyVersion> put(TableEntry<KeyT, ValueT> entry);
 
     /**
      * Inserts new or updates existing Table Entries into this Table Segment.
      *
      * @param entries A Collection of entries to insert or update. If for at least one such entry,
-     *                {@link VersionedKey#getVersion()} returns a non-null value, this will perform an atomic
+     *                {@link TableEntry#getKey()#getVersion()} returns a non-null value, this will perform an atomic
      *                Conditional Update where all the entries either get applied or none will; otherwise a Blind Update
-     *                will be performed.
+     *                will be performed. See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will contain a map of {@link KeyT} to {@link KeyVersion} which
      * represents the versions for the inserted/updated keys.
      */
-    CompletableFuture<Map<KeyT, KeyVersion>> put(Collection<VersionedEntry<KeyT, ValueT>> entries);
+    CompletableFuture<Map<KeyT, KeyVersion>> put(Collection<TableEntry<KeyT, ValueT>> entries);
 
     /**
      * Removes the given key from this Table Segment.
-     * @param key  The Key to remove. If {@link VersionedKey#getVersion()} is null, this will perform a Blind Update,
-     *             otherwise it will perform a Conditional Update based on the information provided.
+     * @param key  The Key to remove. If {@link TableKey#getVersion()} is null, this will perform a Blind Remove,
+     *             otherwise it will perform a Conditional Remove based on the information provided.
+     *             See {@link TableSegment} doc for more details on Types of Updates.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
      */
-    CompletableFuture<Void> remove(VersionedKey<KeyT> key);
+    CompletableFuture<Void> remove(TableKey<KeyT> key);
 
     /**
      * Removes one or more keys from this Table Segment.
      *
-     * @param keys A Collection of keys to remove. If for at least one such key, {@link VersionedKey#getVersion()} returns
-     *             a non-null value, this will perform an atomic Conditional Update where all the keys either get removed
-     *             or none will; otherwise a Blind Update will be performed.
+     * @param keys A Collection of keys to remove. If for at least one such key, {@link TableKey#getVersion()} returns
+     *             a non-null value, this will perform an atomic Conditional Remove where all the keys either get removed
+     *             or none will; otherwise a Blind Remove will be performed. See {@link TableSegment} doc for more details
+     *             on Types of Updates.
      * @return A CompletableFuture that, when completed, will indicate that the keys have been removed.
      */
-    CompletableFuture<Void> remove(Collection<VersionedKey<KeyT>> keys);
+    CompletableFuture<Void> remove(Collection<TableKey<KeyT>> keys);
 
     /**
      * Gets the latest value for the given Key.
@@ -122,10 +136,10 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
          */
         private final IteratorState continuationToken;
         /**
-         * A List of {@link VersionedEntry} instances that are contained in this instance. For efficiency reasons, entries
+         * A List of {@link TableEntry} instances that are contained in this instance. For efficiency reasons, entries
          * may be batched together. The entries in this list are not necessarily related to each other, nor are they
          * guaranteed to be in any particular order.
          */
-        private final List<VersionedEntry<KeyT, ValueT>> entries;
+        private final List<TableEntry<KeyT, ValueT>> entries;
     }
 }

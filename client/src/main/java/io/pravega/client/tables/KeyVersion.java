@@ -17,6 +17,10 @@ import lombok.Data;
  */
 @Data
 public class KeyVersion implements Serializable {
+    /**
+     * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
+     */
+    public static final KeyVersion NOT_EXISTS = new KeyVersion(Long.MIN_VALUE, Long.MIN_VALUE);
     private static final long serialVersionUID = 1L;
 
     /**

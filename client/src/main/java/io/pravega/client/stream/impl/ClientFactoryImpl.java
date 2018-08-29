@@ -47,6 +47,10 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.tables.TableReader;
+import io.pravega.client.tables.TableReaderConfig;
+import io.pravega.client.tables.TableWriter;
+import io.pravega.client.tables.TableWriterConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
@@ -189,6 +193,16 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public BatchClient createBatchClient() {
         return new BatchClientImpl(controller, connectionFactory);
+    }
+
+    @Override
+    public <KeyT, ValueT> TableWriter<KeyT, ValueT> createTableWriter(String tableName, Serializer<KeyT> keySerializer, Serializer<ValueT> valueSerializer, TableWriterConfig config) {
+        throw new UnsupportedOperationException("createTableWriter is not yet supported.");
+    }
+
+    @Override
+    public <KeyT, ValueT> TableReader<KeyT, ValueT> createTableReader(String tableName, Serializer<KeyT> keySerializer, Serializer<ValueT> valueSerializer, TableReaderConfig config) {
+        throw new UnsupportedOperationException("createTableWriter is not yet supported.");
     }
 
     @Override

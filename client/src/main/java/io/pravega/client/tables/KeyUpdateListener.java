@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  * * All registered callbacks will be invoked asynchronously on an {@link java.util.concurrent.Executor} that is either
  * provided during construction of this instance or on another {@link java.util.concurrent.Executor}. Due to the asynchronous
  * nature of such callbacks, it is not guaranteed that they will be invoked in order, so it is the responsibility of the
- * callback to verify the order (based on {@link VersionedEntry#getVersion()} or {@link VersionedKey#getVersion()}) if needed.
+ * callback to verify the order (based on {@link TableEntry#getVersion()} or {@link TableKey#getVersion()}) if needed.
  *
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type.
@@ -33,18 +33,18 @@ public interface KeyUpdateListener<KeyT, ValueT> extends AutoCloseable {
 
     /**
      * Registers a callback that will be invoked every time a Key matching {@link #getFilter()} is inserted or updated.
-     * @param updateEntryCallback A {@link Consumer} that will be invoked with a {@link VersionedEntry} containing all
+     * @param updateEntryCallback A {@link Consumer} that will be invoked with a {@link TableEntry} containing all
      *                            necessary information about the inserted or updated key.
      */
-    void setKeyUpdatedCallback(Consumer<VersionedEntry<KeyT, ValueT>> updateEntryCallback);
+    void setKeyUpdatedCallback(Consumer<TableEntry<KeyT, ValueT>> updateEntryCallback);
 
     /**
      * Registers a callback that will be invoked every time a Key matching {@link #getFilter()} is removed.
      *
-     * @param removeKeyCallback A {@link Consumer} that will be invoked with a {@link VersionedKey} representing the key
+     * @param removeKeyCallback A {@link Consumer} that will be invoked with a {@link TableKey} representing the key
      *                          that was removed.
      */
-    void setKeyRemovedCallback(Consumer<VersionedKey<KeyT>> removeKeyCallback);
+    void setKeyRemovedCallback(Consumer<TableKey<KeyT>> removeKeyCallback);
 
     /**
      * Registers a callback that will be invoked when this {@link KeyUpdateListener} is closed.

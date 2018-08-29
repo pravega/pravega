@@ -12,7 +12,7 @@ package io.pravega.client.tables;
 import java.io.Serializable;
 
 /**
- * Defines the state of an iterator returned by {@link TableSegment#iterator(IteratorState)}
+ * Defines the state of an iterator returned by {@link TableSegment#iterator(IteratorState)}.
  */
 public interface IteratorState extends Serializable {
 }
