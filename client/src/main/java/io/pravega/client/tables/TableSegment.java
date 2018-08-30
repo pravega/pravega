@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import io.pravega.common.util.AsyncIterator;
 import java.util.Collection;
 import java.util.List;
@@ -34,6 +35,7 @@ import lombok.Data;
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
  */
+@Beta
 public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
     /**
      * Inserts or updates an existing Table Entry into this Table Segment.

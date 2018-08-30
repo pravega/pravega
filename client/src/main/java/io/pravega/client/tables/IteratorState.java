@@ -9,10 +9,12 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import java.io.Serializable;
 
 /**
- * Defines the state of an iterator returned by {@link TableSegment#iterator(IteratorState)}.
+ * Defines the state of a resumable iterator.
  */
+@Beta
 public interface IteratorState extends Serializable {
 }

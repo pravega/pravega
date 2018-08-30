@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import java.util.function.Consumer;
 
 /**
@@ -23,6 +24,7 @@ import java.util.function.Consumer;
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type.
  */
+@Beta
 public interface KeyUpdateListener<KeyT, ValueT> extends AutoCloseable {
     /**
      * Gets a pointer to the {@link KeyUpdateFilter} for this instance.

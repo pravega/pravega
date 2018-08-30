@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -20,6 +21,7 @@ import java.util.concurrent.Executor;
  * @param <KeyT>   Table Key type.
  * @param <ValueT> Table Value type.
  */
+@Beta
 public interface TableReader<KeyT, ValueT> extends AutoCloseable {
     /**
      * Gets the latest value for the given Key.

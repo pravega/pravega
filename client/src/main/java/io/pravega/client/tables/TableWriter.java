@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables;
 
+import com.google.common.annotations.Beta;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -28,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * @param <KeyT> Table Key Type.
  * @param <ValueT> Table Value Type.
  */
+@Beta
 public interface TableWriter<KeyT, ValueT> extends AutoCloseable {
     /**
      * Performs a Blind Update by inserting or updating the Value for a Key in this Table, regardless of whether the Key

@@ -10,10 +10,9 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import java.io.Serializable;
-import java.time.Duration;
 
 /**
- * Defines the state of an iterator returned by {@link TableStore#iterator(String, IteratorState, Duration)}.
+ * Defines the state of a resumable iterator.
  */
 public interface IteratorState extends Serializable {
 }
