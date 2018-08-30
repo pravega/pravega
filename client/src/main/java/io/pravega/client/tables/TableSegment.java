@@ -120,40 +120,51 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
     CompletableFuture<KeyUpdateListener<KeyT, ValueT>> createListener(KeyUpdateFilter<KeyT> filter, Executor executor);
 
     /**
-     * Creates a new Iterator over all the Entries in the Table Segment.
+     * Creates a new Iterator over all the Keys in the Table Segment.
      *
      * @param continuationToken An {@link IteratorState} that represents a continuation token that can be used to resume
      *                          a previously interrupted iteration. This can be obtained by invoking
      *                          {@link IteratorItem#getContinuationToken()}. A null value will create an iterator that
      *                          lists all keys.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over all the Keys in this Table Segment.
+     */
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey<KeyT>>>> keyIterator(IteratorState continuationToken);
+
+    /**
+     * Creates a new Iterator over all the Entries in the Table Segment.
+     *
+     * @param continuationToken An {@link IteratorState} that represents a continuation token that can be used to resume
+     *                          a previously interrupted iteration. This can be obtained by invoking
+     *                          {@link IteratorItem#getContinuationToken()}. A null value will create an iterator that
+     *                          lists all Entries.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the Entries in this Table Segment.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<KeyT, ValueT>>> iterator(IteratorState continuationToken);
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>>> entryIterator(IteratorState continuationToken);
 
     @Override
     void close();
 
     /**
-     * An iteration result item returned by {@link AsyncIterator} when invoking {@link #iterator(IteratorState)}.
+     * An iteration result item returned by {@link AsyncIterator} when invoking {@link #entryIterator(IteratorState)} or
+     * {@link #keyIterator(IteratorState)}.
      *
-     * @param <KeyT>   Key Type.
-     * @param <ValueT> Value Type.
+     * @param <T> Iterator Item type..
      */
     @Data
-    class IteratorItem<KeyT, ValueT> {
+    class IteratorItem<T> {
         /**
-         * Gets an {@link IteratorState} that can be used to reinvoke {@link TableSegment#iterator(IteratorState)} if a
-         * previous iteration has been interrupted (by losing the pointer to the {@link AsyncIterator}), system restart, etc.
-         * Invoking {@link TableSegment#iterator(IteratorState)} will continue the iterator from the next item after this
-         * one.
+         * Gets an {@link IteratorState} that can be used to reinvoke {@link TableSegment#entryIterator(IteratorState)} or
+         * {@link TableSegment#keyIterator(IteratorState)}if a previous iteration has been interrupted (by losing the
+         * pointer to the {@link AsyncIterator}), system restart, etc.
          */
         private final IteratorState continuationToken;
         /**
-         * A List of {@link TableEntry} instances that are contained in this instance. For efficiency reasons, entries
-         * may be batched together. The entries in this list are not necessarily related to each other, nor are they
+         * A List of items that are contained in this instance. For efficiency reasons, multiple iterator items may be
+         * batched together. The items in this list are not necessarily related to each other, nor are they
          * guaranteed to be in any particular order.
          */
-        private final List<TableEntry<KeyT, ValueT>> entries;
+        private final List<T> items;
     }
 }

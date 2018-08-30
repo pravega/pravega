@@ -175,7 +175,26 @@ public interface TableStore {
     CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout);
 
     /**
-     * Creates a new Iterator over all the {@link TableEntry} in the given Table Segment.
+     * Creates a new Iterator over all the {@link TableKey}s in the given Table Segment.
+     *
+     * @param segmentName       The name of the Table Segment to iterate over.
+     * @param continuationToken An {@link IteratorState} representing a continuation token that can be used to resume a
+     *                          previously interrupted iteration. This can be obtained by invoking
+     *                          {@link IteratorItem#getContinuationToken()}.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over all the {@link TableKey} instances in the given Table Segment. If the operation failed, the Future will be
+     * failed with the causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
+     */
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorState continuationToken,
+                                                                         Duration timeout);
+
+    /**
+     * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
      *
      * @param segmentName       The name of the Table Segment to iterate over.
      * @param continuationToken An {@link IteratorState} representing a continuation token that can be used to resume a
@@ -190,10 +209,11 @@ public interface TableStore {
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<AsyncIterator<IteratorItem>> iterator(String segmentName, IteratorState continuationToken, Duration timeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState continuationToken,
+                                                                             Duration timeout);
 
     /**
-     * Gets the {@link UpdateListener} for a particular TableSegment
+     * Gets the {@link UpdateListener} for a particular TableSegment.
      *
      * @param listener    The {@link UpdateListener} to register.
      * @param timeout     Timeout for the operation.
@@ -207,7 +227,7 @@ public interface TableStore {
     CompletableFuture<Void> registerListener(UpdateListener listener, Duration timeout);
 
     /**
-     * Unregisters an {@link UpdateListener}..
+     * Unregisters an {@link UpdateListener}.
      *
      * @param listener The {@link UpdateListener} to unregister.
      * @return True if the {@link UpdateListener} was registered before this call, false otherwise.
@@ -216,22 +236,21 @@ public interface TableStore {
 
     /**
      * Defines an iteration result that is returned by the {@link AsyncIterator} when invoking
-     * {@link #iterator(String, IteratorState, Duration)}.
+     * {@link #entryIterator(String, IteratorState, Duration)} or {@link #keyIterator(String, IteratorState, Duration)} .
      */
-    interface IteratorItem {
+    interface IteratorItem<T> {
         /**
-         * Gets an {@link IteratorState} that can be used to reinvoke {@link TableStore#iterator(String, IteratorState, Duration)}
-         * if a previous iteration has been interrupted (by losing the pointer to the {@link AsyncIterator}), system restart, etc.
+         * Gets an {@link IteratorState} that can be used to reinvoke {@link #entryIterator(String, IteratorState, Duration)}
+         * or {@link #keyIterator(String, IteratorState, Duration)} if a previous iteration has been interrupted (by losing
+         * the pointer to the {@link AsyncIterator}), system restart, etc.
          */
         IteratorState getContinuationToken();
 
         /**
-         * Gets a List of {@link TableEntry} instances that are contained in this instance. For efficiency reasons, entries
-         * may be batched together. The entries in this list are not necessarily related to each other, nor are they
-         * guaranteed to be in any particular order.
-         *
-         * @return A List of {@link TableEntry} instances.
+         * Gets a List of items that are contained in this instance. For efficiency reasons, items may be batched together.
+         * The items in this list are not necessarily related to each other, nor are they guaranteed to be in any particular
+         * order.
          */
-        List<TableEntry> getEntries();
+        List<T> getEntries();
     }
 }
