@@ -53,11 +53,11 @@ public class StorageWriterFactory implements WriterFactory {
 
     @Override
     public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
-                               ContainerAttributeIndex attributeIndex, Storage storage) {
+                               ContainerAttributeIndex attributeIndex, Storage storage, CreateProcessors createProcessors) {
         Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(),
                 "Given containerMetadata and operationLog have different Container Ids.");
         WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex, attributeIndex);
-        return new StorageWriter(this.config, dataSource, storage, this.executor);
+        return new StorageWriter(this.config, dataSource, storage, createProcessors, this.executor);
     }
 
     //region StorageWriterDataSource
