@@ -70,6 +70,16 @@ public final class Attributes {
     public static final UUID LAST_ATTRIBUTE_SNAPSHOT_LENGTH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
+     * Defines an attribute that is used to store the next TableNodeId.
+     */
+    public static final UUID TABLE_NODE_ID = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 7);
+
+    /**
+     * Defines an attribute that is used to store the first index of a (Table) Segment that has not yet been indexed.
+     */
+    public static final UUID TABLE_INDEX_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 8);
+
+    /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
      *
      * @param attributeId The Attribute Id to check.
