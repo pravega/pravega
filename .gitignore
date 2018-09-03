@@ -18,3 +18,4 @@ out/
 .metadata/
 .recommenders/
 *.log
+/.nb-gradle/
