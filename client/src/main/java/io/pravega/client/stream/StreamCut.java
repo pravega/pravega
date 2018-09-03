@@ -14,9 +14,6 @@ import io.pravega.client.stream.impl.StreamCutInternal;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-import static io.pravega.common.util.ToStringUtils.compressToBase64;
-import static io.pravega.common.util.ToStringUtils.decompressFromBase64;
-
 /**
  * A set of segment/offset pairs for a single stream that represent a consistent position in the
  * stream. (IE: Segment 1 and 2 will not both appear in the set if 2 succeeds 1, and if 0 appears
@@ -39,7 +36,7 @@ public interface StreamCut extends Serializable {
 
         @Override
         public String asText() {
-            return compressToBase64(toString());
+            return toString();
         }
 
         @Override
@@ -86,7 +83,7 @@ public interface StreamCut extends Serializable {
         if (base64String.equals(UNBOUNDED.asText())) {
             return UNBOUNDED;
         }
-        return StreamCutInternal.from(decompressFromBase64(base64String));
+        return StreamCutInternal.from(base64String);
     }
 
     /**

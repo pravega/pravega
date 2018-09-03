@@ -24,17 +24,24 @@ import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
 import static io.pravega.common.util.ToStringUtils.compressToBase64;
-import static io.pravega.common.util.ToStringUtils.stringToMap;
+import static io.pravega.common.util.ToStringUtils.decompressFromBase64;
+import static io.pravega.common.util.ToStringUtils.listToString;
+import static io.pravega.common.util.ToStringUtils.stringToList;
 
 /**
  * Implementation of {@link io.pravega.client.stream.StreamCut} interface. {@link StreamCutInternal} abstract class is
@@ -44,7 +51,7 @@ import static io.pravega.common.util.ToStringUtils.stringToMap;
 public class StreamCutImpl extends StreamCutInternal {
 
     static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
-    private static final char TO_STRING_VERSION = 0;
+    private static final int TO_STRING_VERSION = 0;
 
     private final Stream stream;
 
@@ -82,18 +89,45 @@ public class StreamCutImpl extends StreamCutInternal {
 
     @Override
     public String asText() {
-        return compressToBase64(TO_STRING_VERSION + ":" + toString());
+        return compressToBase64(getText());
+    }
+
+    private String getText() {
+        StringBuilder builder = new StringBuilder(Integer.toString(TO_STRING_VERSION)).append(":");
+        builder.append(stream.getScopedName()).append(":"); // append Stream name.
+
+        //split segmentNumbers, epochs and offsets into separate lists.
+        List<Integer> segmentNumbers = new ArrayList<>();
+        List<Integer> epochs = new ArrayList<>();
+        List<Long> offsets = new ArrayList<>();
+        positions.forEach((segmentId, offset) -> {
+            segmentNumbers.add(StreamSegmentNameUtils.getSegmentNumber(segmentId.getSegmentId()));
+            epochs.add(StreamSegmentNameUtils.getEpoch(segmentId.getSegmentId()));
+            offsets.add(offset);
+        });
+
+        // append segmentsNumbers, epochs and offsets.
+        builder.append(listToString(segmentNumbers)).append(":");
+        builder.append(listToString(epochs)).append(":");
+        builder.append(listToString(offsets));
+
+        return builder.toString();
     }
 
     public static StreamCutInternal from(String textualRepresentation) {
         Exceptions.checkNotNullOrEmpty(textualRepresentation, "textualRepresentation");
-        String[] split = textualRepresentation.split(":", 3);
-        Preconditions.checkArgument(split.length == 3, "Invalid string representation of StreamCut");
+        String[] split = decompressFromBase64(textualRepresentation).split(":", 5);
+        Preconditions.checkArgument(split.length == 5, "Invalid string representation of StreamCut");
 
         final Stream stream = Stream.of(split[1]);
-        final Map<Segment, Long> positions = stringToMap(split[2],
-                                                         s -> new Segment(stream.getScope(), stream.getStreamName(), Long.valueOf(s)),
-                                                         Long::valueOf);
+        List<Integer> segmentNumbers = stringToList(split[2], Integer::valueOf);
+        List<Integer> epochs = stringToList(split[3], Integer::valueOf);
+        List<Long> offsets = stringToList(split[4], Long::valueOf);
+
+        final Map<Segment, Long> positions = IntStream.range(0, segmentNumbers.size()).boxed()
+                .collect(Collectors.toMap(i ->  new Segment(stream.getScope(), stream.getStreamName(),
+                                                            StreamSegmentNameUtils.computeSegmentId(segmentNumbers.get(i), epochs.get(i))),
+                                          offsets::get));
         return new StreamCutImpl(stream, positions);
     }
 

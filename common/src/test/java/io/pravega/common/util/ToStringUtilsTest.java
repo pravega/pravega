@@ -13,7 +13,9 @@ import io.pravega.test.common.AssertExtensions;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -25,7 +27,6 @@ import static org.junit.Assert.assertEquals;
 
 public class ToStringUtilsTest {
 
-    
     @Test
     public void testRoundTrip() {
         HashMap<String, Integer> m = new HashMap<>();
@@ -48,6 +49,21 @@ public class ToStringUtilsTest {
         m.clear();
         m.put("c  =4", 3);
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> ToStringUtils.mapToString(m));
+    }
+
+    @Test
+    public void testListToString() {
+        List<Integer> list = Arrays.asList(1, 2, 3, 4);
+
+        String string = ToStringUtils.listToString(list);
+        List<Integer> list2 = ToStringUtils.stringToList(string, Integer::parseInt);
+        assertEquals("String did not round trip: " + string, list, list2);
+    }
+
+    @Test
+    public void testBadListValues() {
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> ToStringUtils.listToString(Arrays.asList("a,b\"")));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> ToStringUtils.listToString(Arrays.asList("a, b")));
     }
 
     @Test

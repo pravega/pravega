@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
@@ -77,6 +79,41 @@ public class ToStringUtils {
         return map.entrySet()
                   .stream()
                   .collect(toMap(e -> keyMaker.apply(e.getKey()), e -> valueMaker.apply(e.getValue())));
+    }
+
+    /**
+     * Transforms a list into a string of the from:
+     * "V1,V2,V3"
+     * Where the string versions of the key and value are derived from their toString() function.
+     *
+     * @param <V> The type of the values of the list.
+     * @param list The list to be serialized to a string
+     * @return A string representation of the list.
+     */
+    public static <V> String listToString(List<V> list) {
+        List<String> asStrings = list.stream().map(Object::toString).collect(Collectors.toList());
+        asStrings.forEach(v -> {
+            Preconditions.checkArgument(v == null || !v.contains(","), "Invalid value: %s", v);
+        });
+        return Joiner.on(",").join(asStrings);
+    }
+
+    /**
+     * Performs the reverse of {@link #listToString(List)}. It parses a list written in a string form
+     * back into a Java list.
+     *
+     * Note that in order to parse properly, it is important that none of the values that
+     * were serialized contain ',' character as this prevents parsing. For this reason it
+     * should be noted that this simple format does not support nesting.
+     *
+     * @param <V> The type of the values of the list.
+     * @param serialized The serialized form of the list.
+     * @param valueMaker The constructor for the value objects
+     * @return A list that corresponds to the serialized string.
+     */
+    public static <V> List<V> stringToList(String serialized, Function<String, V> valueMaker) {
+        List<String> list = Splitter.on(',').trimResults().splitToList(serialized);
+        return list.stream().map(valueMaker::apply).collect(Collectors.toList());
     }
 
     /**
