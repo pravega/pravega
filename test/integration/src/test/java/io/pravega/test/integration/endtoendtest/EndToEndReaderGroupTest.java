@@ -44,11 +44,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URI;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndReaderGroupTest {
@@ -195,6 +197,11 @@ public class EndToEndReaderGroupTest {
         writeTestEvent(scopeB, streamName, 1);
         eventRead = reader1.readNextEvent(10000);
         assertEquals("1", eventRead.getEvent());
+
+        // Verify ReaderGroup.getStreamNames().
+        Set<String> managedStreams = readerGroup.getStreamNames();
+        assertTrue(managedStreams.contains(Stream.of(scopeA, streamName).getScopedName()));
+        assertTrue(managedStreams.contains(Stream.of(scopeB, streamName).getScopedName()));
     }
 
     private StreamConfiguration getStreamConfig(String scope, String streamName) {
