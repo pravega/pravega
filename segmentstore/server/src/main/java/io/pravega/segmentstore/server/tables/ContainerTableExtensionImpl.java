@@ -10,20 +10,26 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.UpdateListener;
 import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
+import io.pravega.segmentstore.server.tables.hashing.HashConfig;
+import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
 import java.util.Collection;
@@ -32,7 +38,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
@@ -40,9 +48,12 @@ import lombok.NonNull;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
-    private final StreamSegmentStore segmentContainer;
+    private static final HashConfig HASH_CONFIG = HashConfig.of(16, 12, 12, 12, 12);
+    private final SegmentContainer segmentContainer;
     private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
+    private final KeyHasher hasher;
+    private final ContainerKeyIndex keyIndex;
     private final AtomicBoolean closed;
 
     //endregion
@@ -62,6 +73,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.segmentContainer = segmentContainer;
         this.cacheManager = cacheManager;
         this.executor = executor;
+        this.hasher = KeyHasher.sha512(HASH_CONFIG);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, this.executor);
+        this.cacheManager.register(this.keyIndex);
         this.closed = new AtomicBoolean();
     }
 
@@ -72,7 +86,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-
+            this.keyIndex.close();
+            this.cacheManager.unregister(this.keyIndex);
         }
     }
 
@@ -90,7 +105,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new WriterTableProcessor());
+        return Collections.singletonList(new WriterTableProcessor(metadata, this.hasher, this.keyIndex.getIndexer(), this.segmentContainer::forSegment, this.executor));
     }
 
     //endregion
@@ -114,13 +129,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> merge(@NonNull String targetSegmentName, @NonNull String sourceSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("merge");
     }
 
     @Override
     public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("seal");
     }
 
     @Override
@@ -145,26 +160,96 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(@NonNull String segmentName, IteratorState continuationToken,
                                                                                 Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("keyIterator");
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(@NonNull String segmentName, IteratorState continuationToken,
                                                                                     Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("entryIterator");
     }
 
     @Override
     public CompletableFuture<Void> registerListener(@NonNull UpdateListener listener, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("registerListener");
     }
 
     @Override
     public boolean unregisterListener(@NonNull UpdateListener listener) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("unregisterListener");
+    }
+
+    //endregion
+
+    //region Helpers
+
+    private CompletableFuture<EntryInfo> findEntry(DirectSegmentAccess segment, byte[] key, long bucketOffset, TimeoutTimer timer) {
+        final int maxReadLength = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
+        AtomicLong offset = new AtomicLong(bucketOffset);
+        // Read the Key at the current offset and check it against the sought one.
+        CompletableFuture<EntryInfo> result = new CompletableFuture<>();
+        Futures.loop(
+                () -> !result.isDone(),
+                () -> {
+                    ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
+                    KeyMatcher keyMatcher = new KeyMatcher(key, timer);
+                    AsyncReadResultProcessor.process(readResult, keyMatcher, this.executor);
+                    return keyMatcher.getResult()
+                                     .thenComposeAsync(header -> {
+                                         if (header == null) {
+                                             // No match: Try to use backpointers to re-get offset and repeat.
+                                             return this.keyIndex.getBackpointerOffset(segment, offset.get(), timer.getRemaining())
+                                                                 .thenAccept(newOffset -> {
+                                                                     offset.set(newOffset);
+                                                                     if (newOffset < 0) {
+                                                                         // Could not find anything.
+                                                                         result.complete(null);
+                                                                     }
+                                                                 });
+                                         } else {
+                                             // Match.
+                                             result.complete(new EntryInfo(offset.get(), bucketOffset, header));
+                                             return CompletableFuture.<Void>completedFuture(null);
+                                         }
+                                     }, this.executor);
+                },
+                this.executor)
+               .exceptionally(ex -> {
+                   result.completeExceptionally(ex);
+                   return null;
+               });
+        return result;
+    }
+
+    private CompletableFuture<TableEntry> readEntry(DirectSegmentAccess segment, ArrayView key, EntryInfo entryInfo, TimeoutTimer timer) {
+        if (entryInfo == null) {
+            // Couldn't find anything.
+            return CompletableFuture.completedFuture(null);
+        } else {
+            // Found it! Read Value from Segment and return.
+            AsyncTableEntryBuilder builder = new AsyncTableEntryBuilder(key, entryInfo.header.getValueLength(), entryInfo.bucketOffset, timer);
+            ReadResult readResult = segment.read(entryInfo.getValueSegmentOffset(), entryInfo.header.getValueLength(), timer.getRemaining());
+            AsyncReadResultProcessor.process(readResult, builder, this.executor);
+            return builder.getResult();
+        }
+    }
+
+    //endregion
+
+    //region EntryInfo
+
+    @RequiredArgsConstructor
+    private static class EntryInfo {
+        final long offset;
+        final long bucketOffset;
+        final EntrySerializer.Header header;
+
+        long getValueSegmentOffset() {
+            return this.offset + this.header.getValueOffset();
+        }
     }
 
     //endregion
