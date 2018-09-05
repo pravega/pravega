@@ -41,8 +41,8 @@ import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentContainerPlugin;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.SegmentOperation;
@@ -1403,7 +1403,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val watchableDurableLogFactory = new WatchableOperationLogFactory(context.operationLogFactory, log::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, watchableDurableLogFactory,
                 context.readIndexFactory, context.attributeIndexFactory, failedWriterFactory, context.storageFactory,
-                SegmentContainerFactory.NO_PLUGINS, executorService());
+                SegmentContainerFactory.NO_EXTENSIONS, executorService());
         val container = containerFactory.createStreamSegmentContainer(CONTAINER_ID);
         container.startAsync();
 
@@ -1437,7 +1437,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AtomicReference<OperationLog> durableLog = new AtomicReference<>();
         val durableLogFactory = new WatchableOperationLogFactory(new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService()), durableLog::set);
         val containerFactory = new StreamSegmentContainerFactory(DEFAULT_CONFIG, durableLogFactory,
-                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, SegmentContainerFactory.NO_PLUGINS, executorService());
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, SegmentContainerFactory.NO_EXTENSIONS, executorService());
 
         // Write some data
         ArrayList<String> segmentNames = new ArrayList<>();
@@ -1524,11 +1524,11 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to register plugins.
+     * Tests the ability to register extensions.
      */
     @Test
-    public void testPlugins() throws Exception {
-        // Configure plugin.
+    public void testExtensions() throws Exception {
+        // Configure extension.
         val operationProcessed = new CompletableFuture<SegmentOperation>();
         AtomicInteger count = new AtomicInteger();
         val writerProcessor = new TestWriterProcessor(op -> {
@@ -1538,22 +1538,23 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             }
         });
 
-        val plugin = new AtomicReference<TestSegmentContainerPlugin>();
-        SegmentContainerFactory.CreatePlugins createPlugins = (container, executor) -> {
-            Assert.assertTrue("Already created", plugin.compareAndSet(null, new TestSegmentContainerPlugin(Collections.singleton(writerProcessor))));
-            return Collections.singletonMap(TestSegmentContainerPlugin.class, plugin.get());
+        val extension = new AtomicReference<TestSegmentContainerExtension>();
+        SegmentContainerFactory.CreateExtensions createExtensions = (container, executor) -> {
+            Assert.assertTrue("Already created", extension.compareAndSet(null,
+                    new TestSegmentContainerExtension(Collections.singleton(writerProcessor))));
+            return Collections.singletonMap(TestSegmentContainerExtension.class, extension.get());
         };
 
         @Cleanup
-        val context = new TestContext(createPlugins);
+        val context = new TestContext(createExtensions);
 
-        // Verify plugin is initialized when the SegmentContainer is started.
+        // Verify extension is initialized when the SegmentContainer is started.
         context.container.startAsync().awaitRunning();
-        Assert.assertTrue("Plugin not initialized.", plugin.get().initialized.get());
+        Assert.assertTrue("Extension not initialized.", extension.get().initialized.get());
 
-        // Verify getPlugin().
-        val p = context.container.getPlugin(TestSegmentContainerPlugin.class);
-        Assert.assertEquals("Unexpected result from getPlugin().", plugin.get(), p);
+        // Verify getExtension().
+        val p = context.container.getExtension(TestSegmentContainerExtension.class);
+        Assert.assertEquals("Unexpected result from getExtension().", extension.get(), p);
 
         // Verify Writer Segment Processors are properly wired in.
         String segmentName = getSegmentName(0);
@@ -1571,9 +1572,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected data length.", data.length, appendOp.getLength());
         Assert.assertNull("Unexpected attribute updates.", appendOp.getAttributeUpdates());
 
-        // Verify plugin is closed when the SegmentContainer is closed.
+        // Verify extension is closed when the SegmentContainer is closed.
         context.container.close();
-        Assert.assertTrue("Plugin not closed.", plugin.get().closed.get());
+        Assert.assertTrue("Extension not closed.", extension.get().closed.get());
     }
 
     /**
@@ -1921,18 +1922,18 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final Storage storage;
 
         TestContext() {
-            this(DEFAULT_CONFIG, SegmentContainerFactory.NO_PLUGINS);
+            this(DEFAULT_CONFIG, SegmentContainerFactory.NO_EXTENSIONS);
         }
 
-        TestContext(SegmentContainerFactory.CreatePlugins createPlugins) {
-            this(DEFAULT_CONFIG, createPlugins);
+        TestContext(SegmentContainerFactory.CreateExtensions createExtensions) {
+            this(DEFAULT_CONFIG, createExtensions);
         }
 
         TestContext(ContainerConfig config) {
-            this(config, SegmentContainerFactory.NO_PLUGINS);
+            this(config, SegmentContainerFactory.NO_EXTENSIONS);
         }
 
-        TestContext(ContainerConfig config, SegmentContainerFactory.CreatePlugins createPlugins) {
+        TestContext(ContainerConfig config, SegmentContainerFactory.CreateExtensions createExtensions) {
             this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
@@ -1942,7 +1943,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
-                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, createPlugins, executorService());
+                    this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory, createExtensions, executorService());
             this.container = this.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
             this.storage = this.storageFactory.createStorageAdapter();
         }
@@ -1969,7 +1970,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                                  ReadIndexFactory readIndexFactory, AttributeIndexFactory attributeIndexFactory,
                                  WriterFactory writerFactory, StorageFactory storageFactory, ScheduledExecutorService executor) {
             super(streamSegmentContainerId, config, durableLogFactory, readIndexFactory, attributeIndexFactory, writerFactory, storageFactory,
-                    SegmentContainerFactory.NO_PLUGINS, executor);
+                    SegmentContainerFactory.NO_EXTENSIONS, executor);
             this.executor = executor;
         }
 
@@ -2066,7 +2067,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     //region Helper Classes
 
     @RequiredArgsConstructor
-    private static class TestSegmentContainerPlugin implements SegmentContainerPlugin {
+    private static class TestSegmentContainerExtension implements SegmentContainerExtension {
         final AtomicBoolean closed = new AtomicBoolean();
         final AtomicBoolean initialized = new AtomicBoolean(false);
         final Collection<WriterSegmentProcessor> writerSegmentProcessors;
@@ -2078,7 +2079,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Void> initialize() {
-            Assert.assertTrue("Plugin already initialized.", this.initialized.compareAndSet(false, true));
+            Assert.assertTrue("Extension already initialized.", this.initialized.compareAndSet(false, true));
             return CompletableFuture.completedFuture(null);
         }
 

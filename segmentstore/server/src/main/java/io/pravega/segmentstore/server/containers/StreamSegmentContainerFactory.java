@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.WriterFactory;
 import io.pravega.segmentstore.server.attributes.AttributeIndexFactory;
@@ -29,7 +30,7 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
     private final AttributeIndexFactory attributeIndexFactory;
     private final WriterFactory writerFactory;
     private final StorageFactory storageFactory;
-    private final CreatePlugins createPlugins;
+    private final CreateExtensions createExtensions;
     private final ScheduledExecutorService executor;
 
     /**
@@ -41,27 +42,27 @@ public class StreamSegmentContainerFactory implements SegmentContainerFactory {
      * @param attributeIndexFactory The AttributeIndexFactory to use for every container creation.
      * @param writerFactory         The Writer Factory to use for every container creation.
      * @param storageFactory        The Storage Factory to use for every container creation.
-     * @param createPlugins         A Function that, when given an instance of a SegmentContainer, will create the required
-     *                              SegmentContainerPlugins for it.
+     * @param createExtensions         A Function that, when given an instance of a SegmentContainer, will create the required
+     *                              {@link SegmentContainerExtension}s for it.
      * @param executor              The Executor to use for running async tasks.
      * @throws NullPointerException If any of the arguments are null.
      */
     public StreamSegmentContainerFactory(ContainerConfig config, OperationLogFactory operationLogFactory, ReadIndexFactory readIndexFactory,
                                          AttributeIndexFactory attributeIndexFactory, WriterFactory writerFactory,
-                                         StorageFactory storageFactory, CreatePlugins createPlugins, ScheduledExecutorService executor) {
+                                         StorageFactory storageFactory, CreateExtensions createExtensions, ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
         this.operationLogFactory = Preconditions.checkNotNull(operationLogFactory, "operationLogFactory");
         this.readIndexFactory = Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
         this.attributeIndexFactory = Preconditions.checkNotNull(attributeIndexFactory, "attributeIndexFactory");
         this.writerFactory = Preconditions.checkNotNull(writerFactory, "writerFactory");
         this.storageFactory = Preconditions.checkNotNull(storageFactory, "storageFactory");
-        this.createPlugins = Preconditions.checkNotNull(createPlugins, "createPlugins");
+        this.createExtensions = Preconditions.checkNotNull(createExtensions, "createExtensions");
         this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
     @Override
     public SegmentContainer createStreamSegmentContainer(int containerId) {
         return new StreamSegmentContainer(containerId, config, this.operationLogFactory, this.readIndexFactory,
-                this.attributeIndexFactory, this.writerFactory, this.storageFactory, this.createPlugins, this.executor);
+                this.attributeIndexFactory, this.writerFactory, this.storageFactory, this.createExtensions, this.executor);
     }
 }

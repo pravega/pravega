@@ -37,8 +37,8 @@ import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
-import io.pravega.segmentstore.server.SegmentContainerPlugin;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -95,7 +95,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final MetadataCleaner metadataCleaner;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.Container metrics;
-    private final Map<Class<? extends SegmentContainerPlugin>, ? extends SegmentContainerPlugin> plugins;
+    private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
 
     //endregion
 
@@ -111,13 +111,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @param attributeIndexFactory    The AttributeIndexFactory to use to create Attribute Indices.
      * @param writerFactory            The WriterFactory to use to create Writers.
      * @param storageFactory           The StorageFactory to use to create Storage Adapters.
-     * @param createPlugins            A Function that, given an instance of this class, will create the set of
-     *                                 SegmentContainerPlugins to be associated with that instance.
+     * @param createExtensions            A Function that, given an instance of this class, will create the set of
+     *                                 {@link SegmentContainerExtension}s to be associated with that instance.
      * @param executor                 An Executor that can be used to run async tasks.
      */
     StreamSegmentContainer(int streamSegmentContainerId, ContainerConfig config, OperationLogFactory durableLogFactory, ReadIndexFactory readIndexFactory,
                            AttributeIndexFactory attributeIndexFactory, WriterFactory writerFactory, StorageFactory storageFactory,
-                           SegmentContainerFactory.CreatePlugins createPlugins, ScheduledExecutorService executor) {
+                           SegmentContainerFactory.CreateExtensions createExtensions, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(durableLogFactory, "durableLogFactory");
         Preconditions.checkNotNull(readIndexFactory, "readIndexFactory");
@@ -143,18 +143,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 this.storage, this.executor);
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
-        this.plugins = Collections.unmodifiableMap(createPlugins.apply(this, this.executor));
+        this.extensions = Collections.unmodifiableMap(createExtensions.apply(this, this.executor));
     }
 
     /**
-     * Creates WriterSegmentProcessors for the given Segment Metadata from all registered Plugins.
+     * Creates WriterSegmentProcessors for the given Segment Metadata from all registered Extensions.
      *
      * @param segmentMetadata The Segment Metadata to create WriterSegmentProcessors for.
      * @return A Collection of processors.
      */
     private Collection<WriterSegmentProcessor> createWriterProcessors(UpdateableSegmentMetadata segmentMetadata) {
         ImmutableList.Builder<WriterSegmentProcessor> builder = ImmutableList.builder();
-        this.plugins.values().forEach(p -> builder.addAll(p.createWriterSegmentProcessors(segmentMetadata)));
+        this.extensions.values().forEach(p -> builder.addAll(p.createWriterSegmentProcessors(segmentMetadata)));
         return builder.build();
     }
 
@@ -165,7 +165,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
-            this.plugins.values().forEach(SegmentContainerPlugin::close);
+            this.extensions.values().forEach(SegmentContainerExtension::close);
             Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
             this.writer.close();
@@ -229,11 +229,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return CompletableFuture.allOf(
                 Services.startAsync(this.metadataCleaner, this.executor),
                 Services.startAsync(this.writer, this.executor),
-                initializePlugins());
+                initializeExtensions());
     }
 
-    private CompletableFuture<Void> initializePlugins() {
-        return Futures.allOf(this.plugins.values().stream().map(SegmentContainerPlugin::initialize).collect(Collectors.toList()));
+    private CompletableFuture<Void> initializeExtensions() {
+        return Futures.allOf(this.extensions.values().stream().map(SegmentContainerExtension::initialize).collect(Collectors.toList()));
     }
 
     @Override
@@ -547,9 +547,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends SegmentContainerPlugin> T getPlugin(Class<T> pluginClass) {
-        SegmentContainerPlugin plugin = this.plugins.get(pluginClass);
-        return plugin == null ? null : (T) plugin;
+    public <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass) {
+        SegmentContainerExtension extension = this.extensions.get(extensionClass);
+        return extension == null ? null : (T) extension;
     }
 
     //endregion

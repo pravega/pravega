@@ -18,9 +18,9 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public interface SegmentContainerFactory {
     /**
-     * A Function that returns an empty Map of Plugins.
+     * A Function that returns an empty Map of {@link SegmentContainerExtension}.
      */
-    CreatePlugins NO_PLUGINS = (container, executor) -> Collections.emptyMap();
+    CreateExtensions NO_EXTENSIONS = (container, executor) -> Collections.emptyMap();
 
     /**
      * Creates a new instance of a SegmentContainer.
@@ -30,15 +30,15 @@ public interface SegmentContainerFactory {
     SegmentContainer createStreamSegmentContainer(int containerId);
 
     @FunctionalInterface
-    interface CreatePlugins {
+    interface CreateExtensions {
         /**
-         * Creates new instances of the SegmentContainerPlugins for the given Segment Container.
+         * Creates new instances of the {@link SegmentContainerExtension}s for the given {@link SegmentContainer}.
          *
-         * @param container The SegmentContainer to create plugins for.
-         * @param executor  An executor for async tasks.
-         * @return A Map containing new instances of the SegmentContainerPlugins that were created, indexed by their c
-         * class descriptors.
+         * @param container The {@link SegmentContainer} to create Extensions for.
+         * @param executor  A {@link ScheduledExecutorService} for async tasks.
+         * @return A Map containing new instances of the {@link SegmentContainerExtension}s that were created, indexed
+         * by their class descriptors.
          */
-        Map<Class<? extends SegmentContainerPlugin>, SegmentContainerPlugin> apply(SegmentContainer container, ScheduledExecutorService executor);
+        Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> apply(SegmentContainer container, ScheduledExecutorService executor);
     }
 }

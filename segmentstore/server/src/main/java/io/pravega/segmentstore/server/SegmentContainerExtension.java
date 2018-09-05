@@ -13,14 +13,15 @@ import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines a Plugin that can be associated with a Segment Container.
+ * Defines an Extension that can be associated with a {@link SegmentContainer}, which will be instantiated (and initialized)
+ * when the {@link SegmentContainer} is initialized, and closed when the {@link SegmentContainer} is closed.
  */
-public interface SegmentContainerPlugin extends AutoCloseable {
+public interface SegmentContainerExtension extends AutoCloseable {
     @Override
     void close();
 
     /**
-     * Performs any initialization required for the Plugin.
+     * Performs any initialization required for this SegmentContainerExtension instance.
      * @return A CompletableFuture that, when completed, will indicate that the initialization is done.
      */
     CompletableFuture<Void> initialize();
