@@ -19,9 +19,9 @@ import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndexFactory;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
 import io.pravega.segmentstore.server.SegmentContainerManager;
-import io.pravega.segmentstore.server.SegmentContainerPlugin;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.WriterFactory;
@@ -36,8 +36,8 @@ import io.pravega.segmentstore.server.logs.DurableLogFactory;
 import io.pravega.segmentstore.server.mocks.LocalSegmentContainerManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.server.tables.ContainerTablePlugin;
-import io.pravega.segmentstore.server.tables.ContainerTablePluginImpl;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
+import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.tables.TableService;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
@@ -291,13 +291,13 @@ public class ServiceBuilder implements AutoCloseable {
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::builder);
         return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, attributeIndexFactory,
-                writerFactory, storageFactory, this::createContainerPlugins, this.coreExecutor);
+                writerFactory, storageFactory, this::createContainerExtensions, this.coreExecutor);
     }
 
-    private Map<Class<? extends SegmentContainerPlugin>, SegmentContainerPlugin> createContainerPlugins(
+    private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
             SegmentContainer container, ScheduledExecutorService executor) {
         CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
-        return Collections.singletonMap(ContainerTablePlugin.class, new ContainerTablePluginImpl(container, cacheFactory, this.cacheManager, executor));
+        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, cacheFactory, this.cacheManager, executor));
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

@@ -10,11 +10,11 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.SegmentContainerPlugin;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 
 /**
- * Defines a Segment Container Plugin that implements Tables on top of Segment Containers.
+ * Defines a {@link SegmentContainerExtension} that implements Tables on top of Segment Containers.
  */
-public interface ContainerTablePlugin extends TableStore, SegmentContainerPlugin {
+public interface ContainerTableExtension extends TableStore, SegmentContainerExtension {
 
 }

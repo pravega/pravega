@@ -35,9 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.NonNull;
 
 /**
- * A {@link ContainerTablePlugin} that implements Table Segments on top of a {@link SegmentContainer}.
+ * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
  */
-public class ContainerTablePluginImpl implements ContainerTablePlugin {
+public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
     private final StreamSegmentStore segmentContainer;
@@ -50,15 +50,15 @@ public class ContainerTablePluginImpl implements ContainerTablePlugin {
     //region Constructor
 
     /**
-     * Creates a new instance of the ContainerTablePluginImpl class.
+     * Creates a new instance of the ContainerTableExtensionImpl class.
      *
      * @param segmentContainer The SegmentContainer to associate with.
      * @param cacheFactory     The CacheFactory to use in order to create Key Index Caches.
      * @param cacheManager     The CacheManager to use to manage the cache.
      * @param executor         An Executor to use for async tasks.
      */
-    public ContainerTablePluginImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheFactory cacheFactory,
-                                    @NonNull CacheManager cacheManager, @NonNull ScheduledExecutorService executor) {
+    public ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheFactory cacheFactory,
+                                       @NonNull CacheManager cacheManager, @NonNull ScheduledExecutorService executor) {
         this.segmentContainer = segmentContainer;
         this.cacheManager = cacheManager;
         this.executor = executor;

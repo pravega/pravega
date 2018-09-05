@@ -49,78 +49,78 @@ public class TableService extends SegmentContainerCollection implements TableSto
 
     @Override
     public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.createSegment(segmentName, timeout),
+        return invokeExtension(segmentName,
+                e -> e.createSegment(segmentName, timeout),
                 "createSegment", segmentName);
     }
 
     @Override
     public CompletableFuture<Void> deleteSegment(String segmentName, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.deleteSegment(segmentName, timeout),
+        return invokeExtension(segmentName,
+                e -> e.deleteSegment(segmentName, timeout),
                 "deleteSegment", segmentName);
     }
 
     @Override
     public CompletableFuture<Void> merge(String targetSegmentName, String sourceSegmentName, Duration timeout) {
-        return invokePlugin(targetSegmentName,
-                plugin -> plugin.merge(targetSegmentName, sourceSegmentName, timeout),
+        return invokeExtension(targetSegmentName,
+                e -> e.merge(targetSegmentName, sourceSegmentName, timeout),
                 "merge", targetSegmentName, sourceSegmentName);
     }
 
     @Override
     public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.seal(segmentName, timeout),
+        return invokeExtension(segmentName,
+                e -> e.seal(segmentName, timeout),
                 "seal", segmentName);
     }
 
     @Override
     public CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.put(segmentName, entries, timeout),
+        return invokeExtension(segmentName,
+                e -> e.put(segmentName, entries, timeout),
                 "put", segmentName, entries.size());
     }
 
     @Override
     public CompletableFuture<Void> remove(String segmentName, Collection<TableKey> keys, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.remove(segmentName, keys, timeout),
+        return invokeExtension(segmentName,
+                e -> e.remove(segmentName, keys, timeout),
                 "remove", segmentName, keys.size());
     }
 
     @Override
     public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.get(segmentName, keys, timeout),
+        return invokeExtension(segmentName,
+                e -> e.get(segmentName, keys, timeout),
                 "get", segmentName, keys.size());
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorState continuationToken, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.keyIterator(segmentName, continuationToken, timeout),
+        return invokeExtension(segmentName,
+                e -> e.keyIterator(segmentName, continuationToken, timeout),
                 "keyIterator", segmentName, continuationToken);
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState continuationToken, Duration timeout) {
-        return invokePlugin(segmentName,
-                plugin -> plugin.entryIterator(segmentName, continuationToken, timeout),
+        return invokeExtension(segmentName,
+                e -> e.entryIterator(segmentName, continuationToken, timeout),
                 "entryIterator", segmentName, continuationToken);
     }
 
     @Override
     public CompletableFuture<Void> registerListener(UpdateListener listener, Duration timeout) {
-        return invokePlugin(listener.getSegmentName(),
-                plugin -> plugin.registerListener(listener, timeout),
+        return invokeExtension(listener.getSegmentName(),
+                e -> e.registerListener(listener, timeout),
                 "registerListener", listener.getSegmentName());
     }
 
     @Override
     public boolean unregisterListener(UpdateListener listener) {
-        return invokePluginSync(listener.getSegmentName(),
-                plugin -> plugin.unregisterListener(listener),
+        return invokeExtensionSync(listener.getSegmentName(),
+                e -> e.unregisterListener(listener),
                 "unregisterListener", listener.getSegmentName());
     }
 
@@ -128,17 +128,17 @@ public class TableService extends SegmentContainerCollection implements TableSto
 
     //region Helpers
 
-    private <T> CompletableFuture<T> invokePlugin(String streamSegmentName, Function<ContainerTablePlugin, CompletableFuture<T>> toInvoke,
-                                                  String methodName, Object... logArgs) {
+    private <T> CompletableFuture<T> invokeExtension(String streamSegmentName, Function<ContainerTableExtension, CompletableFuture<T>> toInvoke,
+                                                     String methodName, Object... logArgs) {
         return super.invoke(streamSegmentName,
-                segmentContainer -> toInvoke.apply(segmentContainer.getPlugin(ContainerTablePlugin.class)),
+                segmentContainer -> toInvoke.apply(segmentContainer.getExtension(ContainerTableExtension.class)),
                 methodName, logArgs);
     }
 
-    private <T> T invokePluginSync(String streamSegmentName, Function<ContainerTablePlugin, T> toInvoke,
-                                   String methodName, Object... logArgs) {
+    private <T> T invokeExtensionSync(String streamSegmentName, Function<ContainerTableExtension, T> toInvoke,
+                                      String methodName, Object... logArgs) {
         return super.invokeSync(streamSegmentName,
-                segmentContainer -> toInvoke.apply(segmentContainer.getPlugin(ContainerTablePlugin.class)),
+                segmentContainer -> toInvoke.apply(segmentContainer.getExtension(ContainerTableExtension.class)),
                 methodName, logArgs);
     }
 
