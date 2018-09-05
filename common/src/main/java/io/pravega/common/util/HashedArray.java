@@ -7,15 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.tables.hashing;
+package io.pravega.common.util;
 
 import io.pravega.common.hash.HashHelper;
 import lombok.Getter;
 import lombok.NonNull;
 
 /**
- * Array Wrapper that provides a HashCode and Equals method. Suitable for using as HashMap key.
- * TODO: consider integrating into ArrayView.
+ * Array Wrapper that provides a {@link Object#hashCode()} and {@link Object#equals(Object)} method.
+ * Suitable for using as {@link java.util.HashMap} key.
  */
 public class HashedArray {
     private static final HashHelper HASH = HashHelper.seededWith(HashedArray.class.getName());
@@ -23,6 +23,10 @@ public class HashedArray {
     protected final byte[] array;
     private final int hashCode;
 
+    /**
+     * Creates a new instance of the HashedArray class.
+     * @param array An array to wrap.
+     */
     public HashedArray(@NonNull byte[] array) {
         this.array = array;
         this.hashCode = HASH.hash(array, 0, array.length);

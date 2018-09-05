@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables.hashing;
 import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
 import java.util.Iterator;
 import javax.annotation.Nonnull;
 import lombok.NonNull;
@@ -31,7 +32,7 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
      */
     KeyHash(byte[] hash, @NonNull HashConfig config) {
         super(hash);
-        this.parts = new ByteArraySegment[config.getCount()];
+        this.parts = new ByteArraySegment[config.getHashCount()];
         for (int i = 0; i < this.parts.length; i++) {
             Pair<Integer, Integer> offset = config.getOffsets(i);
             this.parts[i] = new ByteArraySegment(hash, offset.getLeft(), offset.getRight() - offset.getLeft());

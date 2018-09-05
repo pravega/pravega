@@ -10,10 +10,12 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -26,11 +28,11 @@ import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import io.pravega.segmentstore.server.tables.hashing.HashedArray;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -329,15 +331,15 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     @SneakyThrows(IOException.class)
     private KeyIndex readAndIndexKeys(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
+        KeyIndex indexedKeys = new KeyIndex();
+        long segmentOffset = firstOffset;
         try (InputStream input = readFromInMemorySegment(segment, firstOffset, lastOffset, timer)) {
-            KeyIndex indexedKeys = new KeyIndex();
-            long segmentOffset = firstOffset;
-            while (input.available() > 0) {
+            while (segmentOffset < lastOffset) {
                 segmentOffset += indexSingleKey(input, segmentOffset, indexedKeys);
             }
-
-            return indexedKeys;
         }
+
+        return indexedKeys;
     }
 
     /**
@@ -381,7 +383,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private InputStream readFromInMemorySegment(DirectSegmentAccess segment, long startOffset, long endOffset, TimeoutTimer timer) {
         long readOffset = startOffset;
-        long remainingLength = endOffset - readOffset;
+        long remainingLength = endOffset - startOffset;
         ArrayList<InputStream> inputs = new ArrayList<>();
         while (remainingLength > 0) {
             int readLength = (int) Math.min(remainingLength, Integer.MAX_VALUE);
@@ -393,7 +395,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             }
         }
 
-        return new MultiInputStream(inputs.iterator());
+        return new SequenceInputStream(Iterators.asEnumeration(inputs.iterator()));
     }
 
     //endregion

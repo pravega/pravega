@@ -13,6 +13,9 @@ import com.google.common.base.Preconditions;
 import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 
+/**
+ * Key Hashing Configuration.
+ */
 public class HashConfig {
     private final int[] endByteOffsets;
 
@@ -20,6 +23,12 @@ public class HashConfig {
         this.endByteOffsets = endByteOffsets;
     }
 
+    /**
+     * Creates a new instance of the {@link HashConfig} class.
+     *
+     * @param byteLengths An array representing the lengths (in bytes) for each of the Hash components.
+     * @return A new {@link HashConfig} instance.
+     */
     public static HashConfig of(@NonNull int... byteLengths) {
         Preconditions.checkArgument(byteLengths.length > 0, "byteLengths must not be empty.");
         int[] offsets = new int[byteLengths.length];
@@ -33,14 +42,25 @@ public class HashConfig {
         return new HashConfig(offsets);
     }
 
-    public int getCount() {
+    /**
+     * Gets a value representing the number of Hash components.
+     */
+    public int getHashCount() {
         return this.endByteOffsets.length;
     }
 
+    /**
+     * Gets a value representing the minimum number of bytes that a Hash function must generate in order to use this config.
+     */
     int getMinHashLengthBytes() {
         return this.endByteOffsets[this.endByteOffsets.length - 1];
     }
 
+    /**
+     * Gets a {@link Pair} of Offsets representing the Start and End offsets for the Hash Component with given index.
+     * @param index The Hash Component index.
+     * @return The {@link Pair} of offsets.
+     */
     Pair<Integer, Integer> getOffsets(int index) {
         Preconditions.checkArgument(index >= 0, "index must be non-negative.");
         if (index >= this.endByteOffsets.length) {
