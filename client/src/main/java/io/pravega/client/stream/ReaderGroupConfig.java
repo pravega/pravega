@@ -52,6 +52,7 @@ public class ReaderGroupConfig implements Serializable {
    public static class ReaderGroupConfigBuilder implements ObjectBuilder<ReaderGroupConfig> {
        private long groupRefreshTimeMillis = 3000; //default value
        private long automaticCheckpointIntervalMillis = 120000; //default value
+       // maximum outstanding checkpoint request that is allowed at any given time.
        private int maxOutstandingCheckpointRequest = 3; //default value
 
        /**
@@ -173,16 +174,6 @@ public class ReaderGroupConfig implements Serializable {
         */
        public ReaderGroupConfigBuilder startFromCheckpoint(final Checkpoint checkpoint) {
            this.startingStreamCuts(checkpoint.asImpl().getPositions());
-           return this;
-       }
-
-       /**
-        * Ensure not more than maximum outstanding checkpoint requests are allowed at any given time.
-        * @param maxOutstandingCheckpointRequest Max allowed outstanding checkpoint request.
-        * @return Reader group config builder.
-        */
-       public ReaderGroupConfigBuilder maxPendingCheckpoints(final int maxOutstandingCheckpointRequest) {
-           this.maxOutstandingCheckpointRequest = maxOutstandingCheckpointRequest;
            return this;
        }
 

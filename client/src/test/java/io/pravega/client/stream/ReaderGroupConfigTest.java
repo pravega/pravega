@@ -182,7 +182,7 @@ public class ReaderGroupConfigTest {
         ReaderGroupConfig cfg = ReaderGroupConfig.builder()
                 .disableAutomaticCheckpoints()
                 .stream("scope/s1", getStreamCut("s1"))
-                .maxPendingCheckpoints(5)
+                .maxOutstandingCheckpointRequest(5)
                 .build();
         assertEquals(cfg.getMaxOutstandingCheckpointRequest(), 5);
 
@@ -198,7 +198,7 @@ public class ReaderGroupConfigTest {
             cfg = ReaderGroupConfig.builder()
                     .disableAutomaticCheckpoints()
                     .stream("scope/s1", getStreamCut("s1"))
-                    .maxPendingCheckpoints(-1)
+                    .maxOutstandingCheckpointRequest(-1)
                     .build();
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "Outstanding checkpoint request should be greater than zero");
