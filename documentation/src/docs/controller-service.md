@@ -148,7 +148,7 @@ System diagram <a name="systemDiagram"></a>
 The following diagram shows the main components of a controller process.
 We discuss the elements of the diagram in detail next.
 
- <img src="./img/ControllerSystemDiagram.png" width="624" height="334" />
+![controller system_diagram](img/ControllerSystemDiagram.png)
 
 Controller Process Diagram
 
@@ -167,7 +167,7 @@ Each endpoint performs appropriate call to the *Controller Service backend subsy
 which has the actual implementation for various create, read, update and
 delete (CRUD) operations on entities owned and managed by controller.
 
- ##### gRPC  
+##### gRPC  
 Client Controller communication endpoint is implemented as a [gRPC](https://grpc.io/)
 interface. The complete list of APIs can be found
 [here](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto).
@@ -182,7 +182,7 @@ segments while working with a stream. For transactions, the client uses
 specific API calls to request controller to create and commit
 transactions.
  
- ##### REST  
+##### REST  
 For administration, the controller implements and exposes a REST
 interface. This includes API calls for stream management as well as
 other administration API primarily dealing with creation and deletion of
@@ -620,7 +620,7 @@ stream. These workflows include create, scale, truncation, update, seal,
 and delete. These workflows are invoked both via direct APIs and in some
 cases as applicable via background policy manager (auto-scale and retention).
 
-<img src="./img/RequestProcessing.png" width="624" height="338" />
+![request processing](img/RequestProcessing.png)
 
 Request Processing Flow
 
@@ -791,7 +791,7 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 
-<img src="./img/TransactionManagement.png" width="624" height="340" />
+![transaction Mangement](img/TransactionManagement.png)
 
 Transaction Management Diagram
 
