@@ -236,7 +236,7 @@ public class CheckpointTest {
         int maxOutstandingCheckpointRequest = 1;
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
                 .stream(Stream.of(scope, streamName))
-                .maxPendingCheckpoints(maxOutstandingCheckpointRequest)
+                .maxOutstandingCheckpointRequest(maxOutstandingCheckpointRequest)
                 .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
