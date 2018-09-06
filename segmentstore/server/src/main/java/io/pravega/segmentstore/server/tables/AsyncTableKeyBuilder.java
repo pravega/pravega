@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
+import lombok.NonNull;
 
 /**
  * Asynchronously builds Table Entry Keys.
@@ -29,6 +30,7 @@ import lombok.Getter;
 class AsyncTableKeyBuilder implements AsyncReadResultHandler {
     //region Members
 
+    private final EntrySerializer serializer;
     private final TimeoutTimer timer;
     @Getter
     private final CompletableFuture<ArrayView> result;
@@ -41,11 +43,12 @@ class AsyncTableKeyBuilder implements AsyncReadResultHandler {
 
     /**
      * Creates a new instance of the AsyncTableKeyBuilder class.
-     *
+     * @param serializer
      * @param timer
      */
-    AsyncTableKeyBuilder(TimeoutTimer timer) {
-        this.timer = Preconditions.checkNotNull(timer, "timer");
+    AsyncTableKeyBuilder(@NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+        this.serializer = serializer;
+        this.timer = timer;
         this.result = new CompletableFuture<>();
         this.readData = new EnhancedByteArrayOutputStream();
     }
@@ -68,7 +71,7 @@ class AsyncTableKeyBuilder implements AsyncReadResultHandler {
             this.readData.write(StreamHelpers.readAll(contents.getData(), contents.getLength()));
             if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
-                this.header = EntrySerializer.readHeader(this.readData.getData());
+                this.header = this.serializer.readHeader(this.readData.getData());
             }
 
             if (this.header != null && this.readData.size() >= this.header.getKeyLength() + EntrySerializer.HEADER_LENGTH) {

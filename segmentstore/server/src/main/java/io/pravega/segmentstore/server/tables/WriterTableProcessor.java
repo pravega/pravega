@@ -58,6 +58,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     //region Members
 
     private final SegmentMetadata metadata;
+    private final EntrySerializer serializer;
     private final KeyHasher hasher;
     private final Indexer indexer;
     private final GetSegment getSegment;
@@ -71,9 +72,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     //region Constructor
 
-    WriterTableProcessor(@NonNull SegmentMetadata segmentMetadata, @NonNull KeyHasher hasher, @NonNull Indexer indexer,
-                         @NonNull GetSegment getSegment, @NonNull ScheduledExecutorService executor) {
+    WriterTableProcessor(@NonNull SegmentMetadata segmentMetadata, @NonNull EntrySerializer serializer, @NonNull KeyHasher hasher,
+                         @NonNull Indexer indexer, @NonNull GetSegment getSegment, @NonNull ScheduledExecutorService executor) {
         this.metadata = segmentMetadata;
+        this.serializer = serializer;
         this.hasher = hasher;
         this.indexer = indexer;
         this.getSegment = getSegment;
@@ -305,7 +307,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 () -> offset.get() >= 0,
                 () -> {
                     ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    AsyncTableKeyBuilder builder = new AsyncTableKeyBuilder(timer);
+                    AsyncTableKeyBuilder builder = new AsyncTableKeyBuilder(this.serializer, timer);
                     AsyncReadResultProcessor.process(readResult, builder, this.executor);
                     return builder.getResult()
                                   .thenComposeAsync(keyView -> {
@@ -352,7 +354,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private int indexSingleKey(InputStream input, long entryOffset, KeyIndex indexedKeys) throws IOException {
         // Retrieve the next entry, get its Key and hash it.
-        EntrySerializer.Header h = EntrySerializer.readHeader(input);
+        EntrySerializer.Header h = this.serializer.readHeader(input);
         HashedArray key = new HashedArray(StreamHelpers.readAll(input, h.getKeyLength()));
         KeyHash keyHash = this.hasher.hash(key.getArray());
 

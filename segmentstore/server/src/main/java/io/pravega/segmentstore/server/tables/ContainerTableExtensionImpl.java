@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -39,8 +40,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.xml.crypto.dsig.keyinfo.KeyValue;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
@@ -49,11 +52,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
     private static final HashConfig HASH_CONFIG = HashConfig.of(16, 12, 12, 12, 12);
+    private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     private final SegmentContainer segmentContainer;
     private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
     private final ContainerKeyIndex keyIndex;
+    private final EntrySerializer serializer;
     private final AtomicBoolean closed;
 
     //endregion
@@ -76,6 +81,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.hasher = KeyHasher.sha512(HASH_CONFIG);
         this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, this.executor);
         this.cacheManager.register(this.keyIndex);
+        this.serializer = EntrySerializer.CURRENT;
         this.closed = new AtomicBoolean();
     }
 
@@ -105,7 +111,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new WriterTableProcessor(metadata, this.hasher, this.keyIndex.getIndexer(), this.segmentContainer::forSegment, this.executor));
+        return Collections.singletonList(new WriterTableProcessor(metadata, this.serializer, this.hasher, this.keyIndex.getIndexer(),
+                this.segmentContainer::forSegment, this.executor));
     }
 
     //endregion
@@ -141,7 +148,23 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        val batch = new ContainerKeyIndex.UpdateBatch();
+        for (val e : entries) {
+            int length = this.serializer.getSerializationLength(e);
+            batch.add(e.getKey(), this.hasher.hash(e.getKey().getKey()), length);
+        }
+
+        Preconditions.checkArgument(batch.getLength() <= MAX_BATCH_SIZE, "Update Batch length (%s) exceeds the maximum limit.", MAX_BATCH_SIZE);
+        return this.segmentContainer
+                .forSegment(segmentName, timer.getRemaining())
+                .thenCompose(segment -> this.keyIndex.update(segment, batch,
+                        () -> {
+                            // Serialize and commit the entire batch.
+                            byte[] s = new byte[batch.getLength()];
+                            this.serializer.serialize(entries, s);
+                            return segment.append(s, null, timer.getRemaining());
+                        }, timer));
     }
 
     @Override
@@ -153,7 +176,32 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        if (keys.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        } else {
+            TimeoutTimer timer = new TimeoutTimer(timeout);
+            return null; // TODO: implement
+            //            return this.segmentContainer
+            //                    .forSegment(segmentName, timer.getRemaining())
+            //                    .thenComposeAsync(
+            //                            segment -> Futures.allOfWithResults(keys.stream().collect(Collectors.toMap(key -> key, key -> get(segment, key, timer)))),
+            //                            this.executor);
+        }
+    }
+
+    private CompletableFuture<KeyValue> get(DirectSegmentAccess segment, byte[] key, TimeoutTimer timer) {
+        return null; // TODO implement
+        //        return this.keyIndex.getBucketOffset(segment, this.hasher.hash(key), timer)
+        //                            .thenComposeAsync(offset -> {
+        //                                if (offset == null) {
+        //                                    // Key does not exist.
+        //                                    return CompletableFuture.completedFuture(null);
+        //                                } else {
+        //                                    // Find the sought entry in the segment, based on its key.
+        //                                    return findEntry(segment, key, offset, timer)
+        //                                            .thenComposeAsync(entryInfo -> readEntry(segment, entryInfo, timer), this.executor);
+        //                                }
+        //                            }, this.executor);
     }
 
     @Override
@@ -195,7 +243,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 () -> !result.isDone(),
                 () -> {
                     ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    KeyMatcher keyMatcher = new KeyMatcher(key, timer);
+                    KeyMatcher keyMatcher = new KeyMatcher(key, this.serializer, timer);
                     AsyncReadResultProcessor.process(readResult, keyMatcher, this.executor);
                     return keyMatcher.getResult()
                                      .thenComposeAsync(header -> {

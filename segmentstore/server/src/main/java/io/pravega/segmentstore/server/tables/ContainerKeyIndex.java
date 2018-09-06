@@ -11,15 +11,20 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.ConcurrentDependentProcessor;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
+import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,12 +39,12 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 
 @ThreadSafe
 class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
     //region Members
-
     @Getter
     private final Indexer indexer;
     private final ScheduledExecutorService executor;
@@ -48,7 +53,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
     private final Map<CacheKey, CacheEntry> cacheEntries;
     @GuardedBy("cacheEntries")
     private int currentCacheGeneration;
-    private final SequentialAsyncQueue<CacheKey, Long> conditionalUpdateQueue;
+    private final ConcurrentDependentProcessor<CacheKey, List<Long>> conditionalUpdateProcessor;
     private final AtomicBoolean closed;
 
     //endregion
@@ -59,7 +64,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
         this.cache = cacheFactory.getCache(String.format("Container_%d_TableKeys", containerId));
         this.executor = executor;
         this.indexer = new Indexer(executor);
-        this.conditionalUpdateQueue = new SequentialAsyncQueue<>(this.executor);
+        this.conditionalUpdateProcessor = new ConcurrentDependentProcessor<>(this.executor);
         this.cacheEntries = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
@@ -131,8 +136,8 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      * @param segment Segment to look up Bucket Offset for.
      * @param hash    KeyHash to identify the Bucket.
      * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain the sought Offset, or null if this Bucket does not
-     * exist.
+     * @return A CompletableFuture that, when completed, will contain the sought Offset, or {@link TableKey#NOT_EXISTS}
+     * if this Bucket does not exist.
      */
     CompletableFuture<Long> getBucketOffset(DirectSegmentAccess segment, KeyHash hash, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
@@ -155,7 +160,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
                         newestEntry = updateCacheIfNewer(cacheKey, hash, new CacheValue(this.indexer.getOffset(last)));
                     }
 
-                    return newestEntry == null ? null : newestEntry.offset;
+                    return newestEntry == null ? TableKey.NOT_EXISTS : newestEntry.offset;
                 }, this.executor);
     }
 
@@ -169,52 +174,132 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      */
     CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        // TODO: maybe add this to the cache for quicker retrieval?
         return this.indexer.getBackpointerOffset(segment, offset, timeout);
     }
 
     /**
-     * Executes a pass-through update.
+     * Performs a Batch Update.
      *
-     * @param segment        The Segment to execute the update on.
-     * @param hash           The KeyHash for the Key to update.
-     * @param compareVersion (Optional) A CompareVersion for conditional updates.
-     * @param persist        A Supplier that will return a CompletableFuture which will indicate when the entry has been
-     *                       durably persisted.
-     * @param timer          Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain the offset at which the entry was added.
+     * If {@link UpdateBatch#isConditional()} returns true, this will execute an atomic Conditional Update based on the
+     * condition items in the batch ({@link UpdateBatch#versionedItems}. The entire UpdateBatch will be conditioned on
+     * those items, including those items that do not have a condition set. The entire UpdateBatch will either all be
+     * committed as one unit or not at all.
+     *
+     * Otherwise this will perform a Blind Update, where all the Update Items will be applied regardless of whether they
+     * already exist or what their versions are.
+     * @param segment The Segment to perform update on.
+     * @param batch   The UpdateBatch to apply.
+     * @param persist A Supplier that, when invoked, will persist the contents of the batch to the Segment and return a
+     *                CompletableFuture to indicate when the operation is done, containing the offset at which the batch
+     *                has been written.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that the update succeeded. If the update failed,
+     * it will be failed with the appropriate exception. Notable exceptions:
+     * <ul>
+     * <li>{@link KeyNotExistsException} If a Key in the UpdateBatch does not exist and was conditioned as having to exist.
+     * <li>{@link BadKeyVersionException} If a Key does exist but had a version mismatch.
+     * </ul>
      */
-    CompletableFuture<Long> update(DirectSegmentAccess segment, KeyHash hash, Long compareVersion, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
+    CompletableFuture<List<Long>> update(DirectSegmentAccess segment, UpdateBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        CacheKey cacheKey = new CacheKey(segment.getSegmentId(), hash.hashCode());
-        if (compareVersion == null) {
-            // Blind update: persist the entry and update the cache.
-            return persist.get().thenApply(offset -> {
-                updateCacheIfNewer(cacheKey, hash, new CacheValue(offset));
-                return offset;
-            });
+
+        if (batch.isConditional()) {
+            // Conditional update.
+            // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
+            // serialize execution across them.
+            val keys = batch.versionedItems.stream()
+                                           .map(item -> new CacheKey(segment.getSegmentId(), item.hash.hashCode()))
+                                           .collect(Collectors.toList());
+
+            // Serialize the execution (queue it up to run only after all other currently queued up conditional updates
+            // for touched keys have finished).
+            return this.conditionalUpdateProcessor.add(
+                    keys,
+                    () -> validateConditionalUpdate(segment, batch, timer)
+                            .thenComposeAsync(v -> persist.get(), this.executor)
+                            .thenApplyAsync(batchOffset -> updateCacheIfNewer(batch, segment.getSegmentId(), batchOffset), this.executor));
         } else {
-            // Conditional update: queue up behind the last such update.
-            return this.conditionalUpdateQueue.add(
-                    cacheKey,
-                    () -> getBucketOffset(segment, hash, timer)
-                            .thenComposeAsync(bucketOffset -> {
-                                Exceptions.checkNotClosed(this.closed.get(), this);
-
-                                // Validate compareVersion.
-                                if (!bucketOffset.equals(compareVersion)) {
-                                    return Futures.failedFuture(new ConditionalTableUpdateException(segment.getInfo().getName(), null)); // TODO actual key
-                                }
-
-                                // Validation successful: persist the entry.
-                                return persist.get();
-                            }, this.executor)
-                            .thenApplyAsync(persistedOffset -> {
-                                // Update the cache.
-                                updateCacheIfNewer(cacheKey, hash, new CacheValue(persistedOffset));
-                                return persistedOffset;
-                            }, this.executor));
+            // Blind update: persist the entries and update the cache.
+            return persist.get().thenApply(batchOffset -> updateCacheIfNewer(batch, segment.getSegmentId(), batchOffset));
         }
+    }
+
+    /**
+     * Validates all the conditional updates specified in the given UpdateBatch.
+     *
+     * @param segment The Segment to operate on.
+     * @param batch   The UpdateBatch to validate.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate that validation succeeded. If the validation did
+     * not pass, it will be failed with the appropriate exception. Notable exceptions:
+     * <ul>
+     * <li>{@link KeyNotExistsException} If a Key does not exist and was conditioned as having to exist.
+     * <li>{@link BadKeyVersionException} If a Key does exist but had a version mismatch.
+     * </ul>
+     */
+    private CompletableFuture<Void> validateConditionalUpdate(DirectSegmentAccess segment, UpdateBatch batch, TimeoutTimer timer) {
+        return Futures.loop(
+                batch.versionedItems,
+                item -> getBucketOffset(segment, item.hash, timer)
+                        .thenApply(bucketOffset -> validateConditionalUpdate(item, bucketOffset, segment.getInfo().getName())),
+                this.executor);
+    }
+
+    /**
+     * Validates a single UpdateBatchItem against its actual Table Bucket offset.
+     *
+     * @param item         The UpdateBatchItem to validate.
+     * @param bucketOffset The current Offset of this item's TableBucket.
+     * @param segmentName  The name of the segment on which the update is performed.
+     * @return True.
+     * @throws KeyNotExistsException  If the UpdateBatchItem's Key does not exist in the Table but the item's version does
+     *                                not indicate that the key must not exist.
+     * @throws BadKeyVersionException If the UpdateBatchItem's Key does exist in the Table but the item's version is
+     *                                different from that key's version.
+     */
+    @SneakyThrows(ConditionalTableUpdateException.class)
+    private boolean validateConditionalUpdate(UpdateBatchItem item, long bucketOffset, String segmentName) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        // Validate compareVersion.
+        TableKey key = item.key;
+        assert key.hasVersion() : "validateConditionalUpdate for TableKey with no compare version";
+        if (bucketOffset == TableKey.NOT_EXISTS) {
+            if (key.getVersion() != TableKey.NOT_EXISTS) {
+                // Key does not exist, but the conditional update provided a specific version.
+                throw new KeyNotExistsException(segmentName, key.getKey());
+            }
+        } else if (bucketOffset != key.getVersion()) {
+            // Key does exist, but has the wrong version.
+            throw new BadKeyVersionException(segmentName, key.getKey(), bucketOffset, key.getVersion());
+        }
+
+        // All validations for this item passed.
+        return true;
+    }
+
+    /**
+     * Updates the contents of one or more Cache Entries related to the given UpdateBatch. Each entry is updated only if
+     * no previous entry exists with its key or if the new entry's offset is greater than the existing Entry's offset.
+     *
+     * @param batch       An UpdateBatch containing items whose Cache Entries need updating.
+     * @param segmentId   Segment Id that the UpdateBatch Items belong to.
+     * @param batchOffset Offset in the Segment where the first item in the UpdateBatch has been written to.
+     * @return A List of offsets for each item in the UpdateBatch (in the same order) of where the latest value for that
+     * item's Key exists now.
+     */
+    private List<Long> updateCacheIfNewer(UpdateBatch batch, long segmentId, long batchOffset) {
+        val result = new ArrayList<Supplier<Long>>(batch.items.size());
+        synchronized (this.cacheEntries) {
+            int generation = this.currentCacheGeneration;
+            for (UpdateBatchItem item : batch.items) {
+                CacheKey cacheKey = new CacheKey(segmentId, item.hash.hashCode());
+                CacheEntry entry = this.cacheEntries.computeIfAbsent(cacheKey, key -> new CacheEntry(cacheKey, generation));
+                result.add(() -> entry.updateIfNewer(item.hash, new CacheValue(batchOffset + item.offset), generation).getOffset());
+            }
+        }
+
+        return result.stream().map(Supplier::get).collect(Collectors.toList());
     }
 
     /**
@@ -226,7 +311,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      * @return The CacheEntry that exists in the Cache when this method exists. This will be newEntry or whatever Cache Entry
      * was there before (if that entry superseded the new one).
      */
-    private CacheValue updateCacheIfNewer(CacheKey cacheKey, KeyHash keyHash, CacheValue newEntry) {
+    private CacheValue updateCacheIfNewer(CacheKey cacheKey, KeyHash keyHash, CacheValue newEntry) { // TODO: CacheValue -> long
         CacheEntry entry;
         int generation;
         synchronized (this.cacheEntries) {
@@ -250,61 +335,6 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
         }
 
         return entry == null ? null : entry.get(keyHash, generation);
-    }
-
-    //endregion
-
-    //region SequentialAsyncQueue
-
-    /**
-     * Concurrent async processor that allows parallel execution of tasks with different keys, but serializes the execution
-     * of tasks with the same key.
-     *
-     * @param <KeyType>    Type of the Key.
-     * @param <ReturnType> Return value of each async task.
-     */
-    @RequiredArgsConstructor
-    private static class SequentialAsyncQueue<KeyType, ReturnType> {
-        private final ScheduledExecutorService executor;
-        @GuardedBy("queue")
-        private final Map<KeyType, CompletableFuture<ReturnType>> queue = new HashMap<>();
-
-        public CompletableFuture<ReturnType> add(KeyType key, Supplier<CompletableFuture<? extends ReturnType>> toRun) {
-            CompletableFuture<ReturnType> result = new CompletableFuture<>();
-            boolean newEntry = false;
-            synchronized (this.queue) {
-                CompletableFuture<ReturnType> existingTask = this.queue.getOrDefault(key, null);
-                if (existingTask == null) {
-                    // Nothing else currently; we'll need to add a new entry.
-                    newEntry = true;
-                } else {
-                    // Another conditional update is in progress. Queue up behind it, and make sure to only start the
-                    // execution once that update is completed.
-                    existingTask.whenCompleteAsync((r, ex) -> Futures.completeAfter(toRun, result), this.executor);
-                }
-
-                // Update the queue to point to the latest task.
-                this.queue.put(key, result);
-            }
-
-            if (newEntry) {
-                // This was the first entry in this particular queue. Need to trigger its execution now, outside of the
-                // synchronized block.
-                Futures.completeAfter(toRun, result);
-            }
-
-            // Cleanup: if this was the last task in the queue, then clean up the queue.
-            result.whenComplete((r, ex) -> {
-                synchronized (this.queue) {
-                    val last = this.queue.getOrDefault(key, null);
-                    if (last != null && last.isDone()) {
-                        this.queue.remove(key);
-                    }
-                }
-            });
-
-            return result;
-        }
     }
 
     //endregion
@@ -511,6 +541,37 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
 
             return -1;
         }
+    }
+
+    //endregion
+
+    //region UpdateBatch
+
+    static class UpdateBatch {
+        private final List<UpdateBatchItem> items = new ArrayList<>();
+        private final List<UpdateBatchItem> versionedItems = new ArrayList<>();
+        @Getter
+        private int length;
+
+        void add(TableKey key, KeyHash hash, int length) {
+            UpdateBatchItem item = new UpdateBatchItem(key, hash, this.length);
+            this.items.add(item);
+            this.length += length;
+            if (key.hasVersion()) {
+                this.versionedItems.add(item);
+            }
+        }
+
+        boolean isConditional() {
+            return this.versionedItems.size() > 0;
+        }
+    }
+
+    @RequiredArgsConstructor
+    private static class UpdateBatchItem {
+        private final TableKey key;
+        private final KeyHash hash;
+        private final int offset;
     }
 
     //endregion

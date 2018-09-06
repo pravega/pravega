@@ -12,6 +12,8 @@ package io.pravega.segmentstore.server.tables.hashing;
 import com.google.common.base.Preconditions;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.ByteArraySegment;
 import lombok.NonNull;
 
 /**
@@ -33,7 +35,17 @@ public abstract class KeyHasher {
      * @param key The Key to hash.
      * @return A new {@link KeyHash}.
      */
-    public abstract KeyHash hash(@NonNull byte[] key);
+    public KeyHash hash(@NonNull byte[] key){
+        return hash(new ByteArraySegment(key));
+    }
+
+    /**
+     * Generates a new {@link KeyHash} for the given Key.
+     *
+     * @param key The Key to hash.
+     * @return A new {@link KeyHash}.
+     */
+    public abstract KeyHash hash(@NonNull ArrayView key);
 
     /**
      * When overridden in a derived class, this method returns the length of the generated Hash, in bytes.
@@ -59,8 +71,8 @@ public abstract class KeyHasher {
         }
 
         @Override
-        public KeyHash hash(@NonNull byte[] key) {
-            return new KeyHash(this.hash.hashBytes(key).asBytes(), this.config);
+        public KeyHash hash(@NonNull ArrayView key) {
+            return new KeyHash(this.hash.hashBytes(key.array(), key.arrayOffset(), key.getLength()).asBytes(), this.config);
         }
 
         @Override

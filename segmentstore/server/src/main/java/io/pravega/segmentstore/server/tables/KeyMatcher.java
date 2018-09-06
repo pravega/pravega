@@ -30,11 +30,12 @@ import lombok.NonNull;
 class KeyMatcher implements AsyncReadResultHandler {
     //region Members
 
+    private final byte[] soughtKey;
+    private final EntrySerializer serializer;
     private final TimeoutTimer timer;
+    private final EnhancedByteArrayOutputStream readData;
     @Getter
     private final CompletableFuture<EntrySerializer.Header> result;
-    private final byte[] soughtKey;
-    private final EnhancedByteArrayOutputStream readData;
     private EntrySerializer.Header header;
 
     //endregion
@@ -44,11 +45,13 @@ class KeyMatcher implements AsyncReadResultHandler {
     /**
      * Creates a new instance of the KeyMatcher class.
      *
-     * @param soughtKey The Key to search.
-     * @param timer     Timer for the operation.
+     * @param soughtKey  The Key to search.
+     * @param serializer The {@link EntrySerializer} to use.
+     * @param timer      Timer for the operation.
      */
-    KeyMatcher(@NonNull byte[] soughtKey, @NonNull TimeoutTimer timer) {
+    KeyMatcher(@NonNull byte[] soughtKey, @NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
         this.soughtKey = soughtKey;
+        this.serializer = serializer;
         this.timer = timer;
         this.result = new CompletableFuture<>();
         this.readData = new EnhancedByteArrayOutputStream();
@@ -72,7 +75,7 @@ class KeyMatcher implements AsyncReadResultHandler {
             this.readData.write(StreamHelpers.readAll(contents.getData(), contents.getLength()));
             if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
                 // We now have enough to read the header.
-                this.header = EntrySerializer.readHeader(this.readData.getData());
+                this.header = this.serializer.readHeader(this.readData.getData());
             }
 
             if (this.header != null && this.readData.size() >= this.soughtKey.length + EntrySerializer.HEADER_LENGTH) {
