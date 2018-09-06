@@ -39,7 +39,9 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 /**
@@ -48,6 +50,9 @@ import org.junit.runner.RunWith;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerFailoverTest extends AbstractSystemTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(3 * 60);
 
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private Service controllerService1 = null;
@@ -85,7 +90,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
     }
 
-    @Test(timeout = 180000)
+    @Test
     public void failoverTest() throws InterruptedException, ExecutionException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);

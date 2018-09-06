@@ -40,7 +40,9 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 /**
@@ -49,6 +51,9 @@ import org.junit.runner.RunWith;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MultiSegmentStoreTest extends AbstractSystemTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10 * 60);
 
     private Service segmentServiceInstance = null;
     private Service controllerInstance = null;
@@ -87,7 +92,7 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
         Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 600000)
+    @Test
     public void testMultiSegmentStores() throws InterruptedException, ExecutionException {
         // Test Sanity.
         log.info("Test with 1 segment store running");

@@ -15,7 +15,9 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import java.net.URI;
 import java.util.List;
@@ -24,6 +26,9 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class PravegaControllerTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -44,9 +49,9 @@ public class PravegaControllerTest {
 
     /**
      * Invoke the controller test.
-     * The test fails incase controller is not running on given ports
+     * The test fails in case controller is not running on given ports.
      */
-    @Test(timeout = 5 * 60 * 1000)
+    @Test
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
         Service con = Utils.createPravegaControllerService(null);

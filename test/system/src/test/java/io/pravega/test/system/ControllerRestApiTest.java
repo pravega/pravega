@@ -57,7 +57,9 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static javax.ws.rs.core.Response.Status.CREATED;
@@ -70,6 +72,9 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerRestApiTest extends AbstractSystemTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
     private final Client client;
     private WebTarget webTarget;
@@ -98,7 +103,7 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
-    @Test(timeout = 300000)
+    @Test
     public void restApiTests() {
 
         Service conService = Utils.createPravegaControllerService(null);

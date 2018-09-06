@@ -133,7 +133,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 25 * 60 * 1000)
+    @Test
     public void readTxnWriteAutoScaleWithFailoverTest() throws Exception {
         try {
             createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);

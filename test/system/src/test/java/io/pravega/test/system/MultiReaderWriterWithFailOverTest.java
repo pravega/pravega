@@ -132,7 +132,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 15 * 60 * 1000)
+    @Test
     public void multiReaderWriterWithFailOverTest() throws Exception {
         try {
             createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);

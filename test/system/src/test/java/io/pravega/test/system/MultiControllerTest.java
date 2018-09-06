@@ -36,18 +36,13 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MultiControllerTest extends AbstractSystemTest {
-
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(8 * 60);
 
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;

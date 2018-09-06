@@ -138,7 +138,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 25 * 60 * 1000)
+    @Test
     public void readWriteAndScaleWithFailoverTest() throws Exception {
         try {
             createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
