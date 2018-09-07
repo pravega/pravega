@@ -444,7 +444,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn("Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').", segment, containerId, operation);
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
-        } else if ( u instanceof ReadCancellationException) {
+        } else if (u instanceof ReadCancellationException) {
             log.info("Closing connection {} while reading segment {} due to CancellationException.", connection, segment);
             connection.send(new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER));
         } else if (u instanceof CancellationException) {
