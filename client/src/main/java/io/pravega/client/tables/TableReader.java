@@ -13,7 +13,6 @@ import com.google.common.annotations.Beta;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 
 /**
  * Defines all operations that can be used to access a Table for reading purposes.
@@ -40,14 +39,4 @@ public interface TableReader<KeyT, ValueT> extends AutoCloseable {
      * keys that have a value in the index. All other keys will not be included.
      */
     CompletableFuture<Map<KeyT, GetResult<ValueT>>> get(Collection<KeyT> keys);
-
-    /**
-     * Creates and registers a {@link KeyUpdateListener} for all updates to this {@link TableSegment}, subject to the given
-     * {@link KeyUpdateFilter}.
-     *
-     * @param filter   A {@link KeyUpdateFilter} that will specify which Keys should the {@link KeyUpdateListener} listen to.
-     * @param executor An {@link Executor} that will be used to invoke all callbacks on.
-     * @return A CompletableFuture that, when completed, will contain an {@link KeyUpdateListener}.
-     */
-    CompletableFuture<KeyUpdateListener<KeyT, ValueT>> createListener(KeyUpdateFilter<KeyT> filter, Executor executor);
 }
