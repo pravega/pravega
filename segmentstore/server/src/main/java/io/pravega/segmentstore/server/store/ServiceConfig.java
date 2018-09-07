@@ -48,6 +48,7 @@ public class ServiceConfig {
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
+    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", true);
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -216,6 +217,12 @@ public class ServiceConfig {
     @Getter
     private final CachePolicy cachePolicy;
 
+    /**
+     * Defines whether server-side stack traces should be send to clients as part of an error response.
+     */
+    @Getter
+    private final boolean replyWithStackTraceOnError;
+
     //endregion
 
     //region Constructor
@@ -267,6 +274,7 @@ public class ServiceConfig {
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
+        this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
     }
 
     /**

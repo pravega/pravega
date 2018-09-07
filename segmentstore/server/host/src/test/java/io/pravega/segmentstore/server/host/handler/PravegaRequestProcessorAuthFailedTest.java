@@ -27,7 +27,7 @@ public class PravegaRequestProcessorAuthFailedTest {
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
-        processor = new PravegaRequestProcessor(store, connection, null, (resource, token, expectedLevel) -> false);
+        processor = new PravegaRequestProcessor(store, connection, null, (resource, token, expectedLevel) -> false, true);
     }
 
     @After

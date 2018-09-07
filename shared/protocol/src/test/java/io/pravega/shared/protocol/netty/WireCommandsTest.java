@@ -219,7 +219,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentIsTruncated() throws IOException {
-        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1));
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1, "SomeException"));
     }
 
     @Test
@@ -244,27 +244,27 @@ public class WireCommandsTest {
 
     @Test
     public void testWrongHost() throws IOException {
-        testCommand(new WireCommands.WrongHost(l, "Foo", testString1));
+        testCommand(new WireCommands.WrongHost(l, "Foo", testString1, "SomeException"));
     }
 
     @Test
     public void testSegmentIsSealed() throws IOException {
-        testCommand(new WireCommands.SegmentIsSealed(l, testString1));
+        testCommand(new WireCommands.SegmentIsSealed(l, testString1, "SomeException"));
     }
 
     @Test
     public void testSegmentAlreadyExists() throws IOException {
-        testCommand(new WireCommands.SegmentAlreadyExists(l, testString1));
+        testCommand(new WireCommands.SegmentAlreadyExists(l, testString1, "SomeException"));
     }
 
     @Test
     public void testNoSuchSegment() throws IOException {
-        testCommand(new WireCommands.NoSuchSegment(l, testString1));
+        testCommand(new WireCommands.NoSuchSegment(l, testString1, "SomeException"));
     }
 
     @Test
     public void testInvalidEventNumber() throws IOException {
-        testCommand(new WireCommands.InvalidEventNumber(uuid, i));
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException"));
     }
 
     @Test

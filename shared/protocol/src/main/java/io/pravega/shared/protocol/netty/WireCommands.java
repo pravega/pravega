@@ -110,6 +110,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String correctHost;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -121,13 +122,15 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(correctHost);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String correctHost = in.readUTF();
-            return new WrongHost(requestId, segment, correctHost);
+            String serverStackTrace = in.readUTF();
+            return new WrongHost(requestId, segment, correctHost, serverStackTrace);
         }
         
         @Override
@@ -141,6 +144,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEGMENT_IS_SEALED;
         final long requestId;
         final String segment;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -151,12 +155,14 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentIsSealed(requestId, segment);
+            String serverStackTrace = in.readUTF();
+            return new SegmentIsSealed(requestId, segment, serverStackTrace);
         }
         
         @Override
@@ -171,6 +177,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final long startOffset;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -182,13 +189,15 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeLong(startOffset);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             long startOffset = in.readLong();
-            return new SegmentIsTruncated(requestId, segment, startOffset);
+            String serverStackTrace = in.readUTF();
+            return new SegmentIsTruncated(requestId, segment, startOffset, serverStackTrace);
         }
         
         @Override
@@ -202,6 +211,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEGMENT_ALREADY_EXISTS;
         final long requestId;
         final String segment;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -212,12 +222,14 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
-            return new SegmentAlreadyExists(requestId, segment);
+            String serverStackTrace = in.readUTF();
+            return new SegmentAlreadyExists(requestId, segment, serverStackTrace);
         }
 
         @Override
@@ -236,6 +248,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.NO_SUCH_SEGMENT;
         final long requestId;
         final String segment;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -246,12 +259,14 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
-            return new NoSuchSegment(requestId, segment);
+            String serverStackTrace = in.readUTF();
+            return new NoSuchSegment(requestId, segment, serverStackTrace);
         }
 
         @Override
@@ -270,6 +285,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
         final UUID writerId;
         final long eventNumber;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -281,12 +297,14 @@ public final class WireCommands {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
-            return new InvalidEventNumber(writerId, eventNumber);
+            String serverStackTrace = in.readUTF();
+            return new InvalidEventNumber(writerId, eventNumber, serverStackTrace);
         }
 
         @Override
@@ -310,6 +328,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.OPERATION_UNSUPPORTED;
         final long requestId;
         final String operationName;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -320,12 +339,14 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(operationName);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
             String operationName = in.readUTF();
-            return new OperationUnsupported(requestId, operationName);
+            String serverStackTrace = in.readUTF();
+            return new OperationUnsupported(requestId, operationName, serverStackTrace);
         }
         
         @Override
@@ -399,11 +420,11 @@ public final class WireCommands {
         public static Event readFrom(DataInput in, int length) throws IOException {
             int typeCode = in.readInt();
             if (typeCode != WireCommandType.EVENT.getCode()) {
-                throw new InvalidMessageException("Was expecting EVENT but found: "+ typeCode);
+                throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
             }
             int eventLength = in.readInt();
             if (eventLength != length - TYPE_PLUS_LENGTH_SIZE) {
-                throw new InvalidMessageException("Was expecting length: "+length+" but found: "+ eventLength);
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
             }
             byte[] msg = new byte[eventLength];
             in.readFully(msg);
