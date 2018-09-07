@@ -7,9 +7,12 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.tables.ConditionalTableUpdateException;
+import io.pravega.client.tables.GetResult;
+import io.pravega.client.tables.KeyVersion;
 import io.pravega.common.util.AsyncIterator;
 import java.util.Collection;
 import java.util.List;

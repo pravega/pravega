@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
+import io.pravega.client.tables.KeyVersion;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
