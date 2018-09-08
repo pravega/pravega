@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
 import com.google.common.base.Preconditions;
 import java.util.Collection;
