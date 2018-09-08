@@ -30,7 +30,7 @@ import lombok.NonNull;
 class KeyMatcher implements AsyncReadResultHandler {
     //region Members
 
-    private final byte[] soughtKey;
+    private final ArrayView soughtKey;
     private final EntrySerializer serializer;
     private final TimeoutTimer timer;
     private final EnhancedByteArrayOutputStream readData;
@@ -49,7 +49,7 @@ class KeyMatcher implements AsyncReadResultHandler {
      * @param serializer The {@link EntrySerializer} to use.
      * @param timer      Timer for the operation.
      */
-    KeyMatcher(@NonNull byte[] soughtKey, @NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+    KeyMatcher(@NonNull ArrayView soughtKey, @NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
         this.soughtKey = soughtKey;
         this.serializer = serializer;
         this.timer = timer;
@@ -78,12 +78,12 @@ class KeyMatcher implements AsyncReadResultHandler {
                 this.header = this.serializer.readHeader(this.readData.getData());
             }
 
-            if (this.header != null && this.readData.size() >= this.soughtKey.length + EntrySerializer.HEADER_LENGTH) {
+            if (this.header != null && this.readData.size() >= this.soughtKey.getLength() + EntrySerializer.HEADER_LENGTH) {
                 // We read the header, and enough data to verify the Key.
                 // TODO: we may want to optimize to verify this as we go.
                 ArrayView data = this.readData.getData().subSegment(this.header.getKeyOffset(), this.header.getKeyLength());
-                for (int i = 0; i < this.soughtKey.length; i++) {
-                    if (this.soughtKey[i] != data.get(i)) {
+                for (int i = 0; i < this.soughtKey.getLength(); i++) {
+                    if (this.soughtKey.get(i) != data.get(i)) {
                         // Key mismatch; no point in continuing.
                         this.result.complete(null);
                         return false;

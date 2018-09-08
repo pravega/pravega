@@ -25,6 +25,7 @@ import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
+import org.apache.commons.lang3.tuple.Pair;
 
 @ThreadSafe
 class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
@@ -131,37 +133,64 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
     //region Operations
 
     /**
-     * Find the Last Bucket Offset for the given KeyHash.
+     * Find the Last Bucket Offsets for the given {@link KeyHash}es.
+     * TODO: maybe return lengths too?
      *
-     * @param segment Segment to look up Bucket Offset for.
-     * @param hash    KeyHash to identify the Bucket.
+     * @param segment Segment to look up Bucket Offsets for.
+     * @param hashes  A list of {@link KeyHash} to identify the Buckets.
      * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain the sought Offset, or {@link TableKey#NOT_EXISTS}
-     * if this Bucket does not exist.
+     * @return A CompletableFuture that, when completed, will contain the sought Offsets, in the same order as the given
+     * hashes. If a particular bucket does not exist, {@link TableKey#NOT_EXISTS} will be inserted in its place.
      */
-    CompletableFuture<Long> getBucketOffset(DirectSegmentAccess segment, KeyHash hash, TimeoutTimer timer) {
+    CompletableFuture<List<Long>> getBucketOffsets(DirectSegmentAccess segment, List<KeyHash> hashes, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
-        // Look it up in our cache.
-        CacheKey cacheKey = new CacheKey(segment.getSegmentId(), hash.hashCode());
-        CacheValue existingValue = getFromCache(cacheKey, hash);
-        if (existingValue != null) {
-            return CompletableFuture.completedFuture(existingValue.offset);
+        // If hash does not exist, place NOT_EXISTS in its spot; otherwise place correct offset.
+        if (hashes.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
         }
 
-        // If there's nothing in the cache, then look up the bucket and cache it. TODO wait on recovery if needed.
-        return this.indexer
-                .locateBucket(segment, hash, timer)
-                .thenApplyAsync(bucket -> {
-                    // Cache the bucket's location, but only if its path is complete.
-                    TableBucket.Node last = bucket.getLastNode();
-                    CacheValue newestEntry = null;
-                    if (last != null && !last.isIndexNode()) {
-                        newestEntry = updateCacheIfNewer(cacheKey, hash, new CacheValue(this.indexer.getOffset(last)));
-                    }
+        // Find those keys which already exist in the cache.
+        ArrayList<Long> result = new ArrayList<>();
+        HashMap<KeyHash, Pair<CacheKey, Integer>> toLookup = new HashMap<>();
+        for (int i = 0; i < hashes.size(); i++) {
+            KeyHash hash = hashes.get(i);
+            CacheKey cacheKey = new CacheKey(segment.getSegmentId(), hash.hashCode());
+            CacheValue existingValue = getFromCache(cacheKey, hash);
+            if (existingValue != null) {
+                result.add(existingValue.offset);
+            } else {
+                result.add(TableKey.NOT_EXISTS);
+                toLookup.put(hash, Pair.of(cacheKey, i));
+            }
+        }
 
-                    return newestEntry == null ? TableKey.NOT_EXISTS : newestEntry.offset;
-                }, this.executor);
+        if (toLookup.isEmpty()) {
+            // Full cache hit.
+            return CompletableFuture.completedFuture(result);
+        } else {
+            // Fetch information for missing hashes. TODO wait on recovery if needed.
+            return Futures.loop(
+                    toLookup.entrySet(),
+                    e -> this.indexer
+                            .locateBucket(segment, e.getKey(), timer)
+                            .thenApplyAsync(bucket -> {
+                                // Cache the bucket's location, but only if its path is complete.
+                                CacheKey cacheKey = e.getValue().getKey();
+                                Integer resultOffset = e.getValue().getValue();
+                                TableBucket.Node last = bucket.getLastNode();
+                                CacheValue newestEntry = null;
+                                if (last != null && !last.isIndexNode()) {
+                                    newestEntry = updateCacheIfNewer(cacheKey, e.getKey(), new CacheValue(this.indexer.getOffset(last)));
+                                }
+
+                                result.set(resultOffset, newestEntry == null ? TableKey.NOT_EXISTS : newestEntry.offset);
+                                return true;
+                            }, this.executor)
+                    ,
+                    this.executor)
+                    .thenApply(v -> result);
+        }
     }
 
     /**
@@ -238,44 +267,45 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      * </ul>
      */
     private CompletableFuture<Void> validateConditionalUpdate(DirectSegmentAccess segment, UpdateBatch batch, TimeoutTimer timer) {
-        return Futures.loop(
-                batch.versionedItems,
-                item -> getBucketOffset(segment, item.hash, timer)
-                        .thenApply(bucketOffset -> validateConditionalUpdate(item, bucketOffset, segment.getInfo().getName())),
-                this.executor);
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        List<KeyHash> hashes = batch.versionedItems.stream().map(i -> i.hash).collect(Collectors.toList());
+        return getBucketOffsets(segment, hashes, timer)
+                .thenAccept(offsets -> validateConditionalUpdate(batch.versionedItems, offsets, segment.getInfo().getName()));
     }
 
     /**
-     * Validates a single UpdateBatchItem against its actual Table Bucket offset.
+     * Validates a list of UpdateBatchItems against their actual Table Bucket offsets.
      *
-     * @param item         The UpdateBatchItem to validate.
-     * @param bucketOffset The current Offset of this item's TableBucket.
-     * @param segmentName  The name of the segment on which the update is performed.
-     * @return True.
-     * @throws KeyNotExistsException  If the UpdateBatchItem's Key does not exist in the Table but the item's version does
+     * @param items         A list of UpdateBatchItems to validate.
+     * @param bucketOffsets A list of Offsets representing the current Offsets the given UpdateBatchItems. These offsets
+     *                      must be in the same order as the given UpdateBatchItems.
+     * @param segmentName   The name of the segment on which the update is performed.
+     * @throws KeyNotExistsException  If an UpdateBatchItem's Key does not exist in the Table but the item's version does
      *                                not indicate that the key must not exist.
-     * @throws BadKeyVersionException If the UpdateBatchItem's Key does exist in the Table but the item's version is
+     * @throws BadKeyVersionException If an UpdateBatchItem's Key does exist in the Table but the item's version is
      *                                different from that key's version.
      */
     @SneakyThrows(ConditionalTableUpdateException.class)
-    private boolean validateConditionalUpdate(UpdateBatchItem item, long bucketOffset, String segmentName) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
+    private void validateConditionalUpdate(List<UpdateBatchItem> items, List<Long> bucketOffsets, String segmentName) {
+        assert items.size() == bucketOffsets.size() : "items.size() != bucketOffsets.size()";
 
-        // Validate compareVersion.
-        TableKey key = item.key;
-        assert key.hasVersion() : "validateConditionalUpdate for TableKey with no compare version";
-        if (bucketOffset == TableKey.NOT_EXISTS) {
-            if (key.getVersion() != TableKey.NOT_EXISTS) {
-                // Key does not exist, but the conditional update provided a specific version.
-                throw new KeyNotExistsException(segmentName, key.getKey());
+        for (int i = 0; i < items.size(); i++) {
+            // Validate compareVersion.
+            TableKey key = items.get(i).key;
+            Long bucketOffset = bucketOffsets.get(i);
+            assert key.hasVersion() : "validateConditionalUpdate for TableKey with no compare version";
+            if (bucketOffset == TableKey.NOT_EXISTS) {
+                if (key.getVersion() != TableKey.NOT_EXISTS) {
+                    // Key does not exist, but the conditional update provided a specific version.
+                    throw new KeyNotExistsException(segmentName, key.getKey());
+                }
+            } else if (bucketOffset != key.getVersion()) {
+                // Key does exist, but has the wrong version.
+                throw new BadKeyVersionException(segmentName, key.getKey(), bucketOffset, key.getVersion());
             }
-        } else if (bucketOffset != key.getVersion()) {
-            // Key does exist, but has the wrong version.
-            throw new BadKeyVersionException(segmentName, key.getKey(), bucketOffset, key.getVersion());
         }
 
-        // All validations for this item passed.
-        return true;
+        // All validations for all items passed.
     }
 
     /**

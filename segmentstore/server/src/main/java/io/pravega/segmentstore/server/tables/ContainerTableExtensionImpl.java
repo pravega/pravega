@@ -30,9 +30,11 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.tables.hashing.HashConfig;
+import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -40,7 +42,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.xml.crypto.dsig.keyinfo.KeyValue;
+import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -180,28 +182,31 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return CompletableFuture.completedFuture(Collections.emptyList());
         } else {
             TimeoutTimer timer = new TimeoutTimer(timeout);
-            return null; // TODO: implement
-            //            return this.segmentContainer
-            //                    .forSegment(segmentName, timer.getRemaining())
-            //                    .thenComposeAsync(
-            //                            segment -> Futures.allOfWithResults(keys.stream().collect(Collectors.toMap(key -> key, key -> get(segment, key, timer)))),
-            //                            this.executor);
+            List<KeyHash> hashes = keys.stream().map(this.hasher::hash).collect(Collectors.toList());
+            return this.segmentContainer
+                    .forSegment(segmentName, timer.getRemaining())
+                    .thenComposeAsync(segment -> this.keyIndex.getBucketOffsets(segment, hashes, timer)
+                                    .thenComposeAsync(offsets -> get(segment, keys, offsets, timer), this.executor),
+                            this.executor);
         }
     }
 
-    private CompletableFuture<KeyValue> get(DirectSegmentAccess segment, byte[] key, TimeoutTimer timer) {
-        return null; // TODO implement
-        //        return this.keyIndex.getBucketOffset(segment, this.hasher.hash(key), timer)
-        //                            .thenComposeAsync(offset -> {
-        //                                if (offset == null) {
-        //                                    // Key does not exist.
-        //                                    return CompletableFuture.completedFuture(null);
-        //                                } else {
-        //                                    // Find the sought entry in the segment, based on its key.
-        //                                    return findEntry(segment, key, offset, timer)
-        //                                            .thenComposeAsync(entryInfo -> readEntry(segment, entryInfo, timer), this.executor);
-        //                                }
-        //                            }, this.executor);
+    private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, List<ArrayView> keys, List<Long> offsets, TimeoutTimer timer) {
+        List<CompletableFuture<TableEntry>> searchFutures = new ArrayList<>();
+        for (int i = 0; i < offsets.size(); i++) {
+            long offset = offsets.get(i);
+            if (offset == TableKey.NOT_EXISTS) {
+                // Key does not exist.
+                searchFutures.add(CompletableFuture.completedFuture(null));
+            } else {
+                // Find the sought entry in the segment, based on its key.
+                ArrayView key = keys.get(i);
+                searchFutures.add(findEntry(segment, key, offset, timer)
+                        .thenComposeAsync(entryInfo -> readEntry(segment, key, entryInfo, timer), this.executor));
+            }
+        }
+
+        return Futures.allOfWithResults(searchFutures);
     }
 
     @Override
@@ -234,7 +239,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //region Helpers
 
-    private CompletableFuture<EntryInfo> findEntry(DirectSegmentAccess segment, byte[] key, long bucketOffset, TimeoutTimer timer) {
+    private CompletableFuture<EntryInfo> findEntry(DirectSegmentAccess segment, ArrayView key, long bucketOffset, TimeoutTimer timer) {
         final int maxReadLength = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
         AtomicLong offset = new AtomicLong(bucketOffset);
         // Read the Key at the current offset and check it against the sought one.
