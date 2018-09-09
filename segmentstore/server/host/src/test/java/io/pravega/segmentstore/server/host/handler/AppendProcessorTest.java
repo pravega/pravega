@@ -467,7 +467,7 @@ public class AppendProcessorTest {
 
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new OperationUnsupported(data.length, "appending data", "SomeException"));
+        verify(connection).send(new OperationUnsupported(data.length, "appending data", ""));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }

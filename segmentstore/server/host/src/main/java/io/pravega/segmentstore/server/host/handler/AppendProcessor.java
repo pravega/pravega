@@ -116,7 +116,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, null, verifier, true);
+        this(store, connection, next, null, verifier, false);
     }
 
     /**
