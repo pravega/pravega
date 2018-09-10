@@ -14,6 +14,7 @@ import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -26,24 +27,22 @@ import lombok.val;
 /**
  * Serializes {@link TableEntry} instances.
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2; // Version, Key Length, Value Length.
     static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
-    static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
+    private static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
     private static final byte CURRENT_SERIALIZATION_VERSION = 0;
+    private static final int NO_VALUE = -1;
 
-    private final byte version;
-
-    static EntrySerializer CURRENT = new EntrySerializer(CURRENT_SERIALIZATION_VERSION);
+    //region Updates
 
     /**
-     * Calculates the number of bytes required to serialize the given {@link TableEntry}.
+     * Calculates the number of bytes required to serialize the given {@link TableEntry} update.
      *
      * @param entry The {@link TableEntry} to serialize.
      * @return The number of bytes required to serialize.
      */
-    int getSerializationLength(@NonNull TableEntry entry) {
+    int getUpdateLength(@NonNull TableEntry entry) {
         return HEADER_LENGTH + entry.getKey().getKey().getLength() + entry.getValue().getLength();
     }
 
@@ -53,10 +52,10 @@ class EntrySerializer {
      * @param entries A List of {@link TableEntry} to serialize.
      * @param target  The byte array to serialize into.
      */
-    void serialize(@NonNull List<TableEntry> entries, byte[] target) {
+    void serializeUpdate(@NonNull List<TableEntry> entries, byte[] target) {
         int offset = 0;
         for (TableEntry e : entries) {
-            offset += serialize(e, target, offset);
+            offset = serializeUpdate(e, target, offset);
         }
     }
 
@@ -66,34 +65,86 @@ class EntrySerializer {
      * @param entry        The {@link TableEntry} to serialize.
      * @param target       The byte array to serialize to.
      * @param targetOffset The first offset within the byte array to serialize at.
-     * @return The number of bytes written.
+     * @return The first offset in the given byte array after the serialization.
      */
-    int serialize(@NonNull TableEntry entry, byte[] target, int targetOffset) {
+    private int serializeUpdate(@NonNull TableEntry entry, byte[] target, int targetOffset) {
         val key = entry.getKey().getKey();
         val value = entry.getValue();
         Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
-        int serializationLength = getSerializationLength(entry);
+        int serializationLength = getUpdateLength(entry);
         Preconditions.checkArgument(serializationLength <= MAX_SERIALIZATION_LENGTH, "Key+Value serialization too large.");
-        Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "entry does not fit in target buffer");
+        Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "serialization does not fit in target buffer");
 
         // Serialize Header.
-        target[targetOffset] = this.version;
+        target[targetOffset] = CURRENT_SERIALIZATION_VERSION;
         targetOffset++;
         targetOffset += BitConverter.writeInt(target, targetOffset, key.getLength());
         targetOffset += BitConverter.writeInt(target, targetOffset, value.getLength());
 
         // Key
         System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
+        targetOffset += key.getLength();
 
         // Value.
-        if (value.getLength() > 0) {
-            targetOffset += key.getLength();
-            System.arraycopy(value.array(), value.arrayOffset(), target, targetOffset, value.getLength());
-            targetOffset += value.getLength();
-        }
+        System.arraycopy(value.array(), value.arrayOffset(), target, targetOffset, value.getLength());
+        targetOffset += value.getLength();
 
         return targetOffset;
     }
+
+    //endregion
+
+    //region Removals
+
+    /**
+     * Calculates the number of bytes required to serialize the given {@link TableKey} removal.
+     *
+     * @param key The {@link TableKey} to serialize for removal.
+     * @return The number of bytes required to serialize.
+     */
+    int getRemovalLength(@NonNull TableKey key) {
+        return HEADER_LENGTH + key.getKey().getLength();
+    }
+
+    /**
+     * Serializes the given {@link TableKey} list for removal into the given byte array.
+     *
+     * @param keys   A List of {@link TableKey} to serialize for removals.
+     * @param target The byte array to serialize into.
+     */
+    void serializeRemoval(@NonNull List<TableKey> keys, byte[] target) {
+        int offset = 0;
+        for (TableKey e : keys) {
+            offset = serializeRemoval(e, target, offset);
+        }
+    }
+
+    /**
+     * Serializes the given {@link TableKey} for removal into the given array.
+     *
+     * @param tableKey     The {@link TableKey} to serialize.
+     * @param target       The byte array to serialize to.
+     * @param targetOffset The first offset within the byte array to serialize at.
+     * @return The first offset in the given byte array after the serialization.
+     */
+    private int serializeRemoval(@NonNull TableKey tableKey, byte[] target, int targetOffset) {
+        val key = tableKey.getKey();
+        Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
+        int serializationLength = getRemovalLength(tableKey);
+        Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "serialization does not fit in target buffer");
+
+        // Serialize Header.
+        target[targetOffset] = CURRENT_SERIALIZATION_VERSION;
+        targetOffset++;
+        targetOffset += BitConverter.writeInt(target, targetOffset, key.getLength());
+        targetOffset += BitConverter.writeInt(target, targetOffset, NO_VALUE);
+
+        // Key
+        System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
+        return targetOffset + key.getLength();
+    }
+
+    //region Headers
 
     /**
      * Reads the Entry's Header from the given {@link ArrayView}.
@@ -103,13 +154,10 @@ class EntrySerializer {
      * @throws SerializationException If an invalid header was detected.
      */
     Header readHeader(@NonNull ArrayView input) throws SerializationException {
-        byte version = (byte) input.get(0);
+        byte version = input.get(0);
         int keyLength = BitConverter.readInt(input, 1);
         int valueLength = BitConverter.readInt(input, 1 + Integer.BYTES);
-        if (keyLength <= 0 || keyLength > MAX_KEY_LENGTH || valueLength < 0 || keyLength + valueLength > MAX_SERIALIZATION_LENGTH) {
-            throw new SerializationException(String.format("Read header with invalid data. KeyLength=%s, ValueLength=%s", keyLength, valueLength));
-        }
-
+        validateHeader(keyLength, valueLength);
         return new Header(version, keyLength, valueLength);
     }
 
@@ -124,11 +172,14 @@ class EntrySerializer {
         byte version = (byte) input.read();
         int keyLength = BitConverter.readInt(input);
         int valueLength = BitConverter.readInt(input);
-        if (keyLength <= 0 || keyLength > MAX_KEY_LENGTH || valueLength < 0 || keyLength + valueLength > MAX_SERIALIZATION_LENGTH) {
+        validateHeader(keyLength, valueLength);
+        return new Header(version, keyLength, valueLength);
+    }
+
+    private void validateHeader(int keyLength, int valueLength) throws SerializationException {
+        if (keyLength <= 0 || keyLength > MAX_KEY_LENGTH || (valueLength < 0 && valueLength != NO_VALUE) || keyLength + valueLength > MAX_SERIALIZATION_LENGTH) {
             throw new SerializationException(String.format("Read header with invalid data. KeyLength=%s, ValueLength=%s", keyLength, valueLength));
         }
-
-        return new Header(version, keyLength, valueLength);
     }
 
     /**
@@ -146,6 +197,7 @@ class EntrySerializer {
         }
 
         int getValueOffset() {
+            Preconditions.checkState(!isDeletion(), "Cannot request value offset for a removal entry.");
             return HEADER_LENGTH + this.keyLength;
         }
 
@@ -154,7 +206,7 @@ class EntrySerializer {
         }
 
         boolean isDeletion() {
-            return this.valueLength < 0;
+            return this.valueLength == NO_VALUE;
         }
 
         @Override
@@ -162,4 +214,6 @@ class EntrySerializer {
             return String.format("Length: Key=%s, Value=%s, Total=%s", this.keyLength, this.valueLength, getTotalLength());
         }
     }
+
+    //endregion
 }

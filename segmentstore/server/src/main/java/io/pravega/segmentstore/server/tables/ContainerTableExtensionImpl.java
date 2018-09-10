@@ -69,7 +69,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.executor = executor;
         this.hasher = KeyHasher.sha512(HASH_CONFIG);
         this.indexer = new Indexer(this.executor);
-        this.serializer = EntrySerializer.CURRENT;
+        this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
     }
 
