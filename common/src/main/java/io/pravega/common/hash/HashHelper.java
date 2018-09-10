@@ -36,6 +36,10 @@ public class HashHelper {
     public long hash(String str) {
         return hash.hashUnencodedChars(str).asLong();
     }
+
+    public int hash(byte[] array, int offset, int length) {
+        return hash.hashBytes(array, offset, length).asInt();
+    }
     
     public UUID toUUID(String str) {
         assert hash.bits() == 128;

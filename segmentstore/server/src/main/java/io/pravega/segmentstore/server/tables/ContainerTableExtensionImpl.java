@@ -15,7 +15,6 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -24,6 +23,8 @@ import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.tables.hashing.HashConfig;
+import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
 import java.util.Collection;
@@ -40,9 +41,13 @@ import lombok.NonNull;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
-    private final StreamSegmentStore segmentContainer;
+    private static final HashConfig HASH_CONFIG = HashConfig.of(16, 12, 12, 12, 12);
+    private final SegmentContainer segmentContainer;
     private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
+    private final KeyHasher hasher;
+    private final Indexer indexer;
+    private final EntrySerializer serializer;
     private final AtomicBoolean closed;
 
     //endregion
@@ -62,6 +67,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.segmentContainer = segmentContainer;
         this.cacheManager = cacheManager;
         this.executor = executor;
+        this.hasher = KeyHasher.sha512(HASH_CONFIG);
+        this.indexer = new Indexer(this.executor);
+        this.serializer = EntrySerializer.CURRENT;
         this.closed = new AtomicBoolean();
     }
 
@@ -90,7 +98,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new WriterTableProcessor());
+        return Collections.singletonList(new WriterTableProcessor(metadata, this.serializer, this.hasher, this.indexer,
+                this.segmentContainer::forSegment, this.executor));
     }
 
     //endregion

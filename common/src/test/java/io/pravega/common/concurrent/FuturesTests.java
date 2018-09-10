@@ -15,6 +15,7 @@ import io.pravega.test.common.IntentionalException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -402,6 +404,20 @@ public class FuturesTests {
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+    }
+
+    @Test
+    public void testLoopIterable() {
+        val list = IntStream.range(1, 10000).boxed().collect(Collectors.toList());
+        val processedList = Collections.synchronizedList(new ArrayList<Integer>());
+        Futures.loop(
+                list,
+                item -> {
+                    processedList.add(item);
+                    return CompletableFuture.completedFuture(true);
+                },
+                ForkJoinPool.commonPool()).join();
+        AssertExtensions.assertListEquals("Unexpected result.", list, processedList, Integer::equals);
     }
 
     @Test
