@@ -10,7 +10,6 @@
 package io.pravega.client.tables;
 
 
-import io.pravega.client.stream.ScalingPolicy;
 import java.io.Serializable;
 import lombok.Builder;
 import lombok.Data;
@@ -35,14 +34,4 @@ public class TableConfiguration implements Serializable {
      *
      */
     private final String tableName;
-
-    /**
-     * The Table's Scaling Policy..
-     *
-     */
-    private final ScalingPolicy scalingPolicy;
-
-    public static final class TableConfigurationBuilder {
-        private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
-    }
 }

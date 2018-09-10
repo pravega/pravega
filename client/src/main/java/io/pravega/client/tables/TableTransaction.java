@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
  * Defines all operations that can be made on a Table Transaction.
  *
  * Notes about Updates:
- * * Updates (Blind or Conditional) in this TableTransaction will not be reflected in the main Table until {@link #commit()}
+ * * Updates (Conditional or not) in this TableTransaction will not be reflected in the main Table until {@link #commit()}
  * is invoked (and completes successfully).
  * * Conditional Updates in this TableTransaction can only be done by comparing with Keys in this Transaction. Comparisons
  * cannot be made against Keys from the main Table.
@@ -28,8 +28,8 @@ import java.util.concurrent.CompletableFuture;
 @Beta
 public interface TableTransaction<KeyT, ValueT> extends AutoCloseable {
     /**
-     * Performs a Blind Update by inserting or updating the Value for a Key in this Table, regardless of whether the Key
-     * exists or not or what its Version is. See {@link TableWriter#put(KeyT, ValueT)}.
+     * Performs an Unconditional Update by inserting or updating the Value for a Key in this Table, regardless of whether
+     * the Key exists or not or what its Version is. See {@link TableWriter#put(KeyT, ValueT)}.
      *
      * @param key   The Key to insert or update.
      * @param value The Value to set for the Key.
@@ -53,8 +53,8 @@ public interface TableTransaction<KeyT, ValueT> extends AutoCloseable {
     CompletableFuture<KeyVersion> put(KeyT key, ValueT value, KeyVersion compareVersion);
 
     /**
-     * Performs a Blind Removal of the given key from this Table, regardless if whether the Key exists or not or what its
-     * Version is. See {@link TableWriter#remove(KeyT)}.
+     * Performs an Unconditional Removal of the given key from this Table, regardless if whether the Key exists or not or
+     * what its Version is. See {@link TableWriter#remove(KeyT)}.
      *
      * @param key The Key to remove.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed.

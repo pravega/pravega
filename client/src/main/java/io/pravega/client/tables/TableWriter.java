@@ -16,10 +16,10 @@ import java.util.concurrent.CompletableFuture;
  * Defines all operations that can be used to modify a Table.
  *
  * Types of updates:
- * * Blind Updates will insert and/or overwrite any existing values for the given Key, regardless of whether that Key
+ * * Unconditional Updates will insert and/or overwrite any existing values for the given Key, regardless of whether that Key
  * previously existed or not, and regardless of what that Key's version is.
  * * Conditional Updates will only overwrite an existing value if the specified {@link KeyVersion} matches that Key's version.
- * * Blind Removals will remove a Key regardless of what that Key's version is. The operation will also succeed (albeit
+ * * Unconditional Removals will remove a Key regardless of what that Key's version is. The operation will also succeed (albeit
  * with no effect) if the Key does not exist.
  * * Conditional Removals will remove a Key only if the specified {@link KeyVersion} matches that Key's version.
  *
@@ -41,8 +41,8 @@ public interface TableWriter<KeyT, ValueT> extends AutoCloseable {
     CompletableFuture<KeyVersion> create(KeyT key, ValueT value);
 
     /**
-     * Performs a Blind Update by inserting or updating the Value for a Key in this Table, regardless of whether the Key
-     * exists or not or what its Version is.
+     * Performs an Unconditional Update by inserting or updating the Value for a Key in this Table, regardless of whether
+     * the Key exists or not or what its Version is.
      *
      * @param key   The Key to insert or update.
      * @param value The Value to set for the Key.
@@ -63,8 +63,8 @@ public interface TableWriter<KeyT, ValueT> extends AutoCloseable {
     CompletableFuture<KeyVersion> put(KeyT key, ValueT value, KeyVersion compareVersion);
 
     /**
-     * Performs a Blind Removal of the given key from this Table, regardless if whether the Key exists or not or what its
-     * Version is.
+     * Performs an Unconditional Removal of the given key from this Table, regardless if whether the Key exists or not or
+     * what its Version is.
      * @param key  The Key to remove.
      * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
      */
