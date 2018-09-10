@@ -1578,6 +1578,54 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the forSegment() method. We test this here vs in StreamSegmentContainerTests because we want to exercise
+     * additional code in StreamSegmentService. This will invoke the StreamSegmentContainer code as well.
+     */
+    @Test
+    public void testForSegment() throws Exception {
+        UUID attributeId1 = UUID.randomUUID();
+        UUID attributeId2 = UUID.randomUUID();
+        @Cleanup
+        val context = new TestContext();
+        context.container.startAsync().awaitRunning();
+
+        // Create the StreamSegments.
+        val segmentNames = createSegments(context);
+
+        // Add some appends.
+        for (String segmentName : segmentNames) {
+            byte[] appendData = ("Append_" + segmentName).getBytes();
+
+            val dsa = context.container.forSegment(segmentName, TIMEOUT).join();
+            dsa.append(appendData, Collections.singleton(new AttributeUpdate(attributeId1, AttributeUpdateType.None, 1L)), TIMEOUT).join();
+            dsa.updateAttributes(Collections.singleton(new AttributeUpdate(attributeId2, AttributeUpdateType.None, 2L)), TIMEOUT).join();
+            dsa.seal(TIMEOUT).join();
+            dsa.truncate(1, TIMEOUT).join();
+
+            // Check metadata.
+            val info = dsa.getInfo();
+            Assert.assertEquals("Unexpected name.", segmentName, info.getName());
+            Assert.assertEquals("Unexpected length.", appendData.length, info.getLength());
+            Assert.assertEquals("Unexpected startOffset.", 1, info.getStartOffset());
+            Assert.assertEquals("Unexpected attribute count.", 2, info.getAttributes().size());
+            Assert.assertEquals("Unexpected attribute 1.", 1L, (long) info.getAttributes().get(attributeId1));
+            Assert.assertEquals("Unexpected attribute 2.", 2L, (long) info.getAttributes().get(attributeId2));
+            Assert.assertTrue("Unexpected isSealed.", info.isSealed());
+
+            // Check written data.
+            byte[] readBuffer = new byte[appendData.length - 1];
+            @Cleanup
+            val readResult = dsa.read(1, readBuffer.length, TIMEOUT);
+            val firstEntry = readResult.next();
+            firstEntry.requestContent(TIMEOUT);
+            val entryContents = firstEntry.getContent().join();
+            Assert.assertEquals("Unexpected number of bytes read.", readBuffer.length, entryContents.getLength());
+            StreamHelpers.readAll(entryContents.getData(), readBuffer, 0, readBuffer.length);
+            AssertExtensions.assertArrayEquals("Unexpected data read back.", appendData, 1, readBuffer, 0, readBuffer.length);
+        }
+    }
+
+    /**
      * Attempts to activate the targetSegment in the given Container. Since we do not have access to the internals of the
      * Container, we need to trigger this somehow, hence the need for this complex code. We need to trigger a truncation,
      * so we need an 'appendSegment' to which we continuously append so that the DurableDataLog is truncated. After truncation,
