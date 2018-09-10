@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Getting started
+# Getting Started
 
 
 The best way to get to know Pravega is to start it up and run a sample Pravega
