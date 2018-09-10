@@ -18,9 +18,12 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -51,6 +54,47 @@ class Indexer {
     Indexer(@NonNull ScheduledExecutorService executor) {
         this.executor = executor;
         this.attributeCalculator = new AttributeCalculator();
+    }
+
+    //endregion
+
+    //region General Table Attributes
+
+    /**
+     * Gets the offset (from the given {@link SegmentProperties}'s Attributes up to which all Table Entries have been indexed.
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The offset.
+     */
+    long getLastIndexedOffset(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_INDEX_OFFSET, 0L);
+    }
+
+    /**
+     * Generates a conditional {@link AttributeUpdate} that sets a new value for the {@link Attributes#TABLE_INDEX_OFFSET}
+     * attribute.
+     *
+     * @param currentOffset The current offset. This will be used for the conditional update.
+     * @param newOffset     The new offset to set.
+     * @return The generated {@link AttributeUpdate}.
+     */
+    AttributeUpdate generateUpdateLastIndexedOffset(long currentOffset, long newOffset) {
+        Preconditions.checkArgument(currentOffset <= newOffset, "newOffset must be larger than existingOffset");
+        return new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset);
+    }
+
+    /**
+     * Generates a set of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
+     *
+     * Attributes:
+     * * {@link Attributes#TABLE_NODE_ID} is initialized to 1.
+     * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
+     *
+     * @return A Collection of {@link AttributeUpdate}s.
+     */
+    Collection<AttributeUpdate> generateInitialTableAttributes() {
+        return Arrays.asList(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 1L),
+                new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
     }
 
     //endregion

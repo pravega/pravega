@@ -35,21 +35,20 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Data;
+import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import lombok.val;
+import org.apache.commons.io.IOUtils;
 
 /**
  * A {@link WriterSegmentProcessor} that handles the asynchronous indexing of Table Entries.
@@ -64,7 +63,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private final GetSegment getSegment;
     private final ScheduledExecutorService executor;
     private final OperationAggregator aggregator;
-    private final AtomicLong lastIndexedOffset;
     private final AtomicLong lastAddedOffset;
     private final AtomicBoolean closed;
 
@@ -72,6 +70,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the WriterTableProcessor class.
+     *
+     * @param segmentMetadata The {@link SegmentMetadata} of the Segment this processor handles.
+     * @param serializer      The {@link EntrySerializer} used to read Table Entries from the Segment.
+     * @param hasher          The {@link KeyHasher} used to hash Table Keys.
+     * @param indexer         An {@link Indexer} that can be used to look up Table Buckets and generate update instructions
+     *                        (in the form of {@link AttributeUpdate}s) for Table Entries in this Segment.
+     * @param getSegment      A Function that, when invoked with the name of a Segment, returns a {@link CompletableFuture}
+     *                        containing a {@link DirectSegmentAccess} for that Segment.
+     * @param executor        An Executor for async operations.
+     */
     WriterTableProcessor(@NonNull SegmentMetadata segmentMetadata, @NonNull EntrySerializer serializer, @NonNull KeyHasher hasher,
                          @NonNull Indexer indexer, @NonNull GetSegment getSegment, @NonNull ScheduledExecutorService executor) {
         this.metadata = segmentMetadata;
@@ -80,9 +90,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.indexer = indexer;
         this.getSegment = getSegment;
         this.executor = executor;
-        this.aggregator = new OperationAggregator();
+        this.aggregator = new OperationAggregator(this.indexer.getLastIndexedOffset(segmentMetadata));
         this.lastAddedOffset = new AtomicLong(-1);
-        this.lastIndexedOffset = new AtomicLong(segmentMetadata.getAttributes().getOrDefault(Attributes.TABLE_INDEX_OFFSET, 0L));
         this.closed = new AtomicBoolean();
     }
 
@@ -92,9 +101,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     @Override
     public void close() {
-        if (!this.closed.getAndSet(true)) {
-            //TODO
-        }
+        this.closed.set(true);
     }
 
     //endregion
@@ -107,29 +114,23 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         Preconditions.checkArgument(
                 operation.getStreamSegmentId() == this.metadata.getId(),
                 "Operation '%s' refers to a different Segment than this one (%s).", operation, this.metadata.getId());
-        if (this.metadata.isDeleted()) {
-            // Deleted Segment - nothing to do.
+        if (this.metadata.isDeleted()
+                || !(operation instanceof CachedStreamSegmentAppendOperation)) {
+            // Segment is either deleted or this is not an append operation. Nothing for us to do here.
             return;
         }
 
-        if (operation instanceof CachedStreamSegmentAppendOperation) {
-            CachedStreamSegmentAppendOperation append = (CachedStreamSegmentAppendOperation) operation;
-            if (this.lastAddedOffset.get() >= 0 && this.lastAddedOffset.get() != append.getStreamSegmentOffset()) {
-                throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.",
-                        operation, this.lastAddedOffset, append.getStreamSegmentOffset()));
-            }
+        CachedStreamSegmentAppendOperation append = (CachedStreamSegmentAppendOperation) operation;
+        if (this.lastAddedOffset.get() >= 0 && this.lastAddedOffset.get() != append.getStreamSegmentOffset()) {
+            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.",
+                    operation, this.lastAddedOffset, append.getStreamSegmentOffset()));
+        }
 
-            if (append.getStreamSegmentOffset() < this.lastIndexedOffset.get()) {
-                // Operation is already indexed.
-                return;
-            }
-
-            // If not, add it to the internal list.
+        if (append.getStreamSegmentOffset() >= this.aggregator.getLastIndexedOffset()) {
+            // Operation has not been indexed yet; add it to the internal list so we can process it.
             this.aggregator.add(append);
             this.lastAddedOffset.set(append.getLastStreamSegmentOffset());
         }
-
-        // Nothing else interests us.
     }
 
     @Override
@@ -154,7 +155,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @Override
     public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        System.out.println("Flushing: " + this.aggregator);
         TimeoutTimer timer = new TimeoutTimer(timeout);
         WriterFlushResult result = new WriterFlushResult();
         return this.getSegment
@@ -176,67 +176,75 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .thenApply(v -> {
                     // We're done processing. Reset the aggregator.
                     this.aggregator.reset();
+                    this.aggregator.setLastIndexedOffset(this.indexer.getLastIndexedOffset(this.metadata));
                     return result;
                 });
 
     }
 
     //endregion
+
     /**
-     * Generates a List of AttributeUpdates that, when applied to the given Segment, will update the Table Index with the
-     * effect of adding the new keys.
+     * Generates a List of {@link AttributeUpdate}s that, when applied to the given Segment, will update the Table Index
+     * with the effect of adding the new keys.
      *
-     * @param indexedKeys A Map of KeyHash to List(of KeyInfo) that maps all the newly added keys (and offsets) to their
-     *                    respective KeyHashes.
+     * @param indexedKeys A Map of {@link KeyHash} to {@link KeyCollection} that maps all the newly added keys
+     *                    (and offsets) to their respective {@link KeyHash}es.
      * @param segment     The Segment to operate on.
      * @param timer       Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the desired result.
      */
     private CompletableFuture<List<AttributeUpdate>> generateAttributeUpdates(KeyIndex indexedKeys, DirectSegmentAccess segment, TimeoutTimer timer) {
-        // Process each Key in the given Map.
-        val iterator = indexedKeys.entrySet().iterator();
+        // Atomically update the Last Indexed Offset in the Segment's metadata, once we apply these changes.
         List<AttributeUpdate> attributeUpdates = new ArrayList<>();
+        if (!indexedKeys.isEmpty()) {
+            attributeUpdates.add(this.indexer.generateUpdateLastIndexedOffset(this.aggregator.getLastIndexedOffset(), indexedKeys.getLastIndexedOffset()));
+        }
+
+        // Process each Key in the given Map.
         return Futures.loop(
-                iterator::hasNext,
-                () -> {
+                indexedKeys.entrySet(),
+                item -> {
                     // Locate the Key's Bucket, then generate necessary Attribute Updates to integrate new Keys into it.
                     Exceptions.checkNotClosed(this.closed.get(), this);
-                    val current = iterator.next();
-                    KeyHash hash = current.getKey();
-                    KeyCollection newKeys = current.getValue();
+                    KeyHash hash = item.getKey();
+                    KeyCollection newKeys = item.getValue();
                     return this.indexer
                             .locateBucket(segment, hash, timer)
                             .thenComposeAsync(bucket -> getExistingKeys(bucket, segment, timer)
-                                            .thenAcceptAsync(existingKeys -> generateAttributeUpdates(hash, bucket, existingKeys, newKeys, attributeUpdates), this.executor),
+                                            .thenApplyAsync(existingKeys -> {
+                                                generateAttributeUpdates(hash, bucket, existingKeys, newKeys, attributeUpdates);
+                                                return true;
+                                            }, this.executor),
                                     this.executor);
                 }, this.executor)
                       .thenApply(v -> attributeUpdates);
     }
 
     /**
-     * Generates the necessary AttributeUpdates to index the given KeyHash in the given TableBucket, given the existence
-     * of the given Keys and the new Keys to add.
+     * Generates the necessary {@link AttributeUpdate}s to index the given {@link KeyHash} in the given {@link TableBucket},
+     * given the existence of the given Keys and the new Keys to add.
      *
      * Backpointer updates:
      * - We need to handle overwritten Keys, as well as linking the new Keys.
-     * - When an existing Key is overwritten, the Key after it needs to be linked to the Key before it (and its link to the
-     * Key before it removed). No other links between existing Keys need to be changed.
+     * - When an existing Key is overwritten, the Key after it needs to be linked to the Key before it (and its link to
+     * the Key before it removed). No other links between existing Keys need to be changed.
      * - New Keys need to be linked between each other, and the first one linked to the last of existing Keys.
      *
      * TableBucket updates:
-     * - We simply need to have the TableBucket point to the last key in newKeys.
+     * - We simply need to have the {@link TableBucket} point to the last key in newKeys.
      * - TODO: (advanced) begin with smaller tree, then expand as needed.
      *
-     * @param hash             The TableBucket Hash.
-     * @param bucket           The TableBucket.
-     * @param existingKeys     A Map of existing Keys in the TableBucket.
+     * @param hash             The {@link TableBucket} {@link KeyHash}.
+     * @param bucket           The {@link TableBucket}.
+     * @param existingKeys     A Map of existing Keys in the {@link TableBucket}.
      * @param newKeys          A Map of new Keys to add (or update).
-     * @param attributeUpdates A List of AttributeUpdates to collect into.
+     * @param attributeUpdates A List of {@link AttributeUpdate}s to collect into.
      */
     private void generateAttributeUpdates(KeyHash hash, TableBucket bucket, KeyCollection existingKeys, KeyCollection newKeys,
                                           List<AttributeUpdate> attributeUpdates) {
         if (newKeys.isEmpty()) {
-            // Nothing to do. Bail out now or risk damaging the TableBucket.
+            // Nothing to do.
             return;
         }
 
@@ -249,32 +257,34 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
         // Process all existing Keys, in order of Offsets, and either unlink them (if replaced) or update pointers as needed.
         existingKeys.entrySet().stream()
-                    .sorted(Comparator.comparingLong(Map.Entry::getValue))
+                    .sorted(Comparator.comparingLong(e -> e.getValue().getOffset()))
                     .forEach(e -> {
-                        if (newKeys.containsKey(e.getKey())) {
-                            // This one has been replaced; delete any backpointer originating from it.
-                            attributeUpdates.add(this.indexer.generateBackpointerRemoval(e.getValue()));
+                        boolean replaced = newKeys.containsKey(e.getKey());
+                        if (replaced) {
+                            // This one has been replaced or removed; delete any backpointer originating from it.
+                            attributeUpdates.add(this.indexer.generateBackpointerRemoval(e.getValue().getOffset()));
                             previousReplaced.set(true);
                         } else if (previousReplaced.get()) {
-                            // This one hasn't been replaced, however its previous one has been.
+                            // This one hasn't been replaced or removed, however its previous one has been.
                             // Repoint it to whatever key is now ahead of it, or remove it (if previousOffset is nothing).
-                            attributeUpdates.add(this.indexer.generateBackpointerUpdate(e.getValue(), previousOffset.get()));
+                            attributeUpdates.add(this.indexer.generateBackpointerUpdate(e.getValue().getOffset(), previousOffset.get()));
                             previousReplaced.set(false);
-                            previousOffset.set(e.getValue());
+                            previousOffset.set(e.getValue().getOffset());
                         }
                     });
 
         // Process all the new Keys, in order of offsets, and add any backpointers as needed, making sure to also link them
         // to whatever surviving existing Keys we might still have.
         newKeys.entrySet().stream()
-               .sorted(Comparator.comparingLong(Map.Entry::getValue))
+               .filter(e -> !e.getValue().isDeleted())
+               .sorted(Comparator.comparingLong(e -> e.getValue().getOffset()))
                .forEach(e -> {
                    if (previousOffset.get() != Attributes.NULL_ATTRIBUTE_VALUE) {
                        // Only add a backpointer if we have another Key ahead of it.
-                       attributeUpdates.add(this.indexer.generateBackpointerUpdate(e.getValue(), previousOffset.get()));
+                       attributeUpdates.add(this.indexer.generateBackpointerUpdate(e.getValue().getOffset(), previousOffset.get()));
                    }
 
-                   previousOffset.set(e.getValue());
+                   previousOffset.set(e.getValue().getOffset());
                });
 
         // 2. Update the TableBucket location to point to the last Key in newKeys.
@@ -282,9 +292,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     }
 
     /**
-     * Collects all existing Keys for the given TableBucket.
+     * Collects all existing Keys for the given {@link TableBucket}.
      *
-     * @param bucket  The TableBucket to collect Keys for.
+     * @param bucket  The {@link TableBucket} to collect Keys for.
      * @param segment The Segment to operate on.
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain a Map of Keys to Offsets within the Segment. All the
@@ -311,25 +321,24 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     AsyncReadResultProcessor.process(readResult, builder, this.executor);
                     return builder.getResult()
                                   .thenComposeAsync(keyView -> {
-                                      result.put(new HashedArray(keyView.getCopy()), offset.get());
+                                      result.put(new HashedArray(keyView.getCopy()), new KeyUpdate(offset.get(), false));
                                       return this.indexer.getBackpointerOffset(segment, offset.get(), timer.getRemaining())
                                                          .thenAccept(offset::set);
                                   }, this.executor);
                 },
                 this.executor)
                       .thenApply(v -> result);
-
     }
 
     /**
-     * Reads all the Keys from the given Segment between the given offsets and indexes them, first by their KeyHash,
+     * Reads all the Keys from the given Segment between the given offsets and indexes them, first by their {@link KeyHash},
      * and them with their Segment Offsets.
      *
      * @param segment     The InputStream to process.
      * @param firstOffset The first offset in the Segment to start reading Keys at.
      * @param lastOffset  The last offset in the Segment to read Keys at.
      * @param timer Timer for the operation.
-     * @return A Map of KeyHashes to a List of KeyInfo (the list may not necessarily be ordered by any criterion).
+     * @return A Map of {@link KeyHash}es to a List of KeyInfo (the list may not necessarily be ordered by any criterion).
      */
     @SneakyThrows(IOException.class)
     private KeyIndex readAndIndexKeys(DirectSegmentAccess segment, long firstOffset, long lastOffset, TimeoutTimer timer) {
@@ -341,6 +350,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             }
         }
 
+        // Keep track of the last offset that we indexed.
+        indexedKeys.setLastIndexedOffset(segmentOffset);
         return indexedKeys;
     }
 
@@ -366,10 +377,13 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
 
         // Index the Key. If it was used before, it must have had a lower offset, so this supersedes it.
-        keyCollection.put(key, entryOffset);
+        keyCollection.put(key, new KeyUpdate(entryOffset, h.isDeletion()));
 
         // We don't care about the value; so skip over it.
-        input.skip(h.getValueLength());
+        if (h.getValueLength() > 0) {
+            IOUtils.skipFully(input, h.getValueLength());
+        }
+
         return h.getTotalLength();
     }
 
@@ -402,25 +416,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     //endregion
 
-    //region KeyInfo
-
-    @RequiredArgsConstructor
-    private static class KeyInfo {
-        final long offset;
-        final byte[] key;
-
-        boolean matches(KeyInfo other) {
-            return Arrays.equals(this.key, other.key);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Offset = %d, KeyLength = %d", this.offset, this.key.length);
-        }
-    }
-
-    //endregion
-
     //region OperationAggregator
 
     @ThreadSafe
@@ -433,9 +428,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         private long lastOffset;
         @GuardedBy("this")
         private int count;
+        @GuardedBy("this")
+        private long lastIndexedOffset;
 
-        OperationAggregator() {
+        OperationAggregator(long lastIndexedOffset) {
             reset();
+            this.lastIndexedOffset = lastIndexedOffset;
         }
 
         synchronized void reset() {
@@ -471,6 +469,14 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             return this.lastOffset;
         }
 
+        synchronized long getLastIndexedOffset() {
+            return this.lastIndexedOffset;
+        }
+
+        synchronized void setLastIndexedOffset(long value) {
+            this.lastIndexedOffset = value;
+        }
+
         @Override
         public synchronized String toString() {
             return String.format("Count = %d, FirstSN = %d, FirstOffset = %d, LastOffset = %d",
@@ -480,14 +486,32 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     //endregion
 
+    @Data
+    private static class KeyUpdate {
+        private final long offset;
+        private final boolean deleted;
+
+        @Override
+        public String toString() {
+            return String.format("%sOffset=%s", this.deleted ? "[DELETED] " : "", this.offset);
+        }
+    }
+
     /**
      * Collection of Keys to their Segment Offsets.
      */
-    private static class KeyCollection extends HashMap<HashedArray, Long> {
+    private static class KeyCollection extends HashMap<HashedArray, KeyUpdate> {
+
     }
 
     private static class KeyIndex extends HashMap<KeyHash, KeyCollection> {
+        @Getter
+        private long lastIndexedOffset = 0L;
 
+        void setLastIndexedOffset(long value) {
+            Preconditions.checkState(value > this.lastIndexedOffset, "lastIndexedOffset must increase");
+            this.lastIndexedOffset = value;
+        }
     }
 
     @FunctionalInterface

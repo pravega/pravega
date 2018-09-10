@@ -150,7 +150,11 @@ class EntrySerializer {
         }
 
         int getTotalLength() {
-            return HEADER_LENGTH + this.keyLength + this.valueLength;
+            return HEADER_LENGTH + this.keyLength + Math.max(0, this.valueLength);
+        }
+
+        boolean isDeletion() {
+            return this.valueLength < 0;
         }
 
         @Override

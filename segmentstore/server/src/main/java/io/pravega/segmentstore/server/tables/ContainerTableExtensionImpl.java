@@ -15,8 +15,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
@@ -124,9 +122,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentContainer.createStreamSegment(segmentName,
-                Collections.singleton(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 1)),
-                timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, this.keyIndex.getIndexer().generateInitialTableAttributes(), timeout);
     }
 
     @Override
