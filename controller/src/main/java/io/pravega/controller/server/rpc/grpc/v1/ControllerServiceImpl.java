@@ -347,7 +347,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             log.error("Controller api failed with error: ", ex);
-                            String errorDescription = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(ex) : cause.getMessage();
+                            String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(Status.INTERNAL
                                     .withCause(cause)
                                     .withDescription(errorDescription)
