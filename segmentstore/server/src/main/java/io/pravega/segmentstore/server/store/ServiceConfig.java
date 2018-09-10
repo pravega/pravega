@@ -48,7 +48,7 @@ public class ServiceConfig {
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
-    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", true);
+    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
