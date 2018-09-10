@@ -7,9 +7,8 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables.impl;
+package io.pravega.client.tables;
 
-import io.pravega.client.tables.KeyVersion;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -29,7 +28,7 @@ public class TableKey<KeyT> {
     private final KeyT key;
 
     /**
-     * The Version. If null, any updates for this Key will be non-conditional (blind).
+     * The Version. If null, any updates for this Key will be unconditional.
      */
     private final KeyVersion version;
 

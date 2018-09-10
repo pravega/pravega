@@ -10,6 +10,8 @@
 package io.pravega.client.tables.impl;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.tables.TableEntry;
+import io.pravega.client.tables.TableKey;
 import java.util.function.Consumer;
 
 /**

@@ -22,22 +22,20 @@ public interface TableManager extends AutoCloseable {
     /**
      * Creates a new instance of TableManager.
      *
-     * @param scope         The Scope string.
      * @param controllerUri The Controller URI.
      * @return Instance of TableManager implementation.
      */
-    static TableManager create(String scope, URI controllerUri) {
-        return create(scope, ClientConfig.builder().controllerURI(controllerUri).build());
+    static TableManager create(URI controllerUri) {
+        return create(ClientConfig.builder().controllerURI(controllerUri).build());
     }
 
     /**
      * Creates a new instance of TableManager.
      *
-     * @param scope        The Scope string.
      * @param clientConfig Configuration for the client.
      * @return Instance of Stream Manager implementation.
      */
-    static TableManager create(String scope, ClientConfig clientConfig) {
+    static TableManager create(ClientConfig clientConfig) {
         throw new UnsupportedOperationException("not yet implemented");
     }
 

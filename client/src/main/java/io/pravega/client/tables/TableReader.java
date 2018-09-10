@@ -29,14 +29,14 @@ public interface TableReader<KeyT, ValueT> extends AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the requested result. If no such Key exists, this
      * will be completed with a null value.
      */
-    CompletableFuture<GetResult> get(KeyT key);
+    CompletableFuture<TableEntry<KeyT, ValueT>> get(KeyT key);
 
     /**
      * Gets the latest values for the given Keys.
      *
      * @param keys A Collection of Keys to get values for.
-     * @return A CompletableFuture that, when completed, will contain a map of {@link KeyT} to {@link GetResult} for those
+     * @return A CompletableFuture that, when completed, will contain a map of {@link KeyT} to {@link TableEntry} for those
      * keys that have a value in the index. All other keys will not be included.
      */
-    CompletableFuture<Map<KeyT, GetResult<ValueT>>> get(Collection<KeyT> keys);
+    CompletableFuture<Map<KeyT, TableEntry<KeyT, ValueT>>> get(Collection<KeyT> keys);
 }

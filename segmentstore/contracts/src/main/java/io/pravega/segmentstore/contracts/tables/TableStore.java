@@ -24,21 +24,21 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines all operations that are supported on Table Segments.
  *
- * Conditional Updates vs Blind Updates
+ * Conditional vs Unconditional Updates
  * * The {@link #put(String, List, Duration)} and {@link #remove(String, Collection, Duration)} methods support conditional
  * updates.
  * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableEntry#getKey()#hasVersion()} true,
  * or if at least one of the {@link TableKey} instances in the remove() call has {@link TableKey#hasVersion()} true, then
  * the operation will perform a Conditional Update. If the "hasVersion()" method returns false for ALL the items in the
- * respective collections, then the operation will perform a Blind Update.
+ * respective collections, then the operation will perform an Unconditional Update.
  * * Conditional Updates compare the provided {@link TableKey#getVersion()} or {@link TableEntry#getKey()#getVersion()}
  * against the version of the Key in the specified Table Segment. If the versions match, the Update (insert, update, remove)
  * will be allowed, otherwise it will be rejected. For a batched update (a Collection of {@link TableKey} or {@link TableEntry}),
  * all the items in the collection must meet the version comparison criteria in order for the entire batch to be accepted
  * (all items in the Collection will either all be accepted or all be rejected). Any Conditional Update (batch or not)
  * will be atomically checked-and-applied.
- * * Blind Updates (insert, update, remove) will take effect regardless of what the current Key version exists in the
- * Table Segment.
+ * * Unconditional Updates (insert, update, remove) will take effect regardless of what the current Key version exists in
+ * the Table Segment.
  */
 @Beta
 public interface TableStore {
@@ -120,7 +120,7 @@ public interface TableStore {
      * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#getKey()#hasVersion()}
      *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
      *                    Update. If {@link TableEntry#getKey()#hasVersion()} returns false for ALL items in the list, then this
-     *                    will perform a Blind update.
+     *                    will perform an Unconditional update.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a List with the current version of the each TableEntry
      * Key provided. The versions will be in the same order as the TableEntry instances provided. If the operation failed,
@@ -143,7 +143,7 @@ public interface TableStore {
      * @param keys        A Collection of {@link TableKey} instances to remove. If {@link TableKey#hasVersion()} returns
      *                    true for at least one of the TableKeys in this collection, then this will perform an atomic
      *                    Conditional Update (Removal). If {@link TableKey#hasVersion()} returns false for ALL items in
-     *                    the collection, then this will perform a Blind Update (Removal).
+     *                    the collection, then this will perform an Unconditional Update (Removal).
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation completed. If the operation failed,
      * the future will be failed with the causing exception. Notable exceptions:
