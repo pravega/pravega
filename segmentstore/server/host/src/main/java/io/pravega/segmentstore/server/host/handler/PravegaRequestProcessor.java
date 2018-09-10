@@ -452,7 +452,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             connection.close();
         } else if (u instanceof AuthenticationException) {
             log.warn("Authentication error during '{}'.", operation);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", operation, u);

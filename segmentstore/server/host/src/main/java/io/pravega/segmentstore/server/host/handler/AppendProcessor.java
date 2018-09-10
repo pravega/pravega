@@ -361,7 +361,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.close();
         } else if (u instanceof AuthenticationException) {
             log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);

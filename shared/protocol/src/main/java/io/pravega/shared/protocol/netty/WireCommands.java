@@ -1322,6 +1322,7 @@ public final class WireCommands {
     public static final class AuthTokenCheckFailed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;
+        final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1331,11 +1332,13 @@ public final class WireCommands {
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
+            out.writeUTF(serverStackTrace);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             long requestId = in.readLong();
-            return new AuthTokenCheckFailed(requestId);
+            String serverStackTrace = in.readUTF();
+            return new AuthTokenCheckFailed(requestId, serverStackTrace);
         }
     }
 }

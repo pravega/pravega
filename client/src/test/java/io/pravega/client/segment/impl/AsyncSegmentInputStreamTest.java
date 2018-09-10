@@ -64,7 +64,7 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
         @Override
         public Void answer(InvocationOnMock invocation) throws Throwable {
-            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(100));
+            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(100, "SomeException"));
             return null;
         }
         }).doAnswer(new Answer<Void>() {
