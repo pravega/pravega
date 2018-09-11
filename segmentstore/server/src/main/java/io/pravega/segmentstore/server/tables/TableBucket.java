@@ -19,17 +19,13 @@ import lombok.NonNull;
 
 /**
  * Metadata about a Table Bucket.
- * <
- * This object is constructed with every access call to the TableService and is a function of the input Key and existing
- * Table State. As such, it may or may not contain a full path to the Bucket itself.
  *
- * If this list is empty or partial (getLastNode().isIndexNode() == true), then this does not lead to a bucket itself, and
- * means the following:
- * - During a read: the sought Key does not exist
- * - During a write: the sought Key does not collide with any other key.
+ * Every instance of this object is a function of a Key and existing Table State. As such, it may or may not contain a
+ * full path to the Table Bucket itself (for example, if an existing path points to another Key, however the Key used
+ * to generate this only partially shares that path but is not otherwise in the table, then we'll have a partial path).
  *
- * If this list is complete (getLastNode() != null && getLastNode.isIndexNode() == false), then this points to a real bucket,
- * and means the following:
+ * If the node path is complete (getLastNode() != null && getLastNode.isIndexNode() == false), then this points to a real
+ * bucket, and means the following:
  * - getLastNode().getValue() points to an Offset within the Segment where the latest value for any Key in this Bucket is
  * written.
  * - During a read: the sought value is either at the given offset or will need to be located by means of backpointers (not stored here).
@@ -40,13 +36,36 @@ import lombok.NonNull;
 class TableBucket {
     static final long NO_NODE = -1;
     /**
-     * An ordered list of all Nodes that lead to this bucket.
+     * An ordered list of all Nodes (the path) that lead to this bucket.
      */
     @Getter
     private final List<Node> nodes;
 
+    /**
+     * Gets the last {@link Node} in the node path, or null if the path is empty.
+     */
     Node getLastNode() {
         return this.nodes.isEmpty() ? null : this.nodes.get(this.nodes.size() - 1);
+    }
+
+    @Override
+    public int hashCode() {
+        Node last = getLastNode();
+        return last == null ? 0 : Long.hashCode(last.value);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof TableBucket) {
+            // Each TableBucket is defined by the last node in its node path. If the last node is a data node,
+            // then that will contain a pointer to a segment offset (which uniquely defines the bucket). Otherwise the
+            // combination of Node.key and Node.value also uniquely defines this bucket.
+            TableBucket other = (TableBucket) obj;
+            return this.nodes.size() == other.nodes.size()
+                    && Node.equals(this.getLastNode(), other.getLastNode());
+        }
+
+        return false;
     }
 
     @Override
@@ -54,23 +73,7 @@ class TableBucket {
         return String.format("Nodes = %s, LastNode = {%s}", this.nodes.size(), getLastNode());
     }
 
-    public static class TableBucketBuilder {
-        @Getter
-        private Node lastNode;
-
-        TableBucketBuilder() {
-            this.nodes = new ArrayList<>();
-        }
-
-        TableBucketBuilder node(Node node) {
-            this.lastNode = node;
-            if (node != null) {
-                this.nodes.add(node);
-            }
-
-            return this;
-        }
-    }
+    //region Node
 
     /**
      * Metadata about a Node in a Bucket.
@@ -92,6 +95,14 @@ class TableBucket {
          */
         private final long value;
 
+        /**
+         * Creates a new instance of the Node class.
+         *
+         * @param indexNode True if this represents an Index node, false otherwise.
+         * @param key       A {@link UUID} representing the Key of this Node.
+         * @param value     The value stored in this node.
+         * @throws IllegalArgumentException If indexNodes == true and value exceeds {@link Integer#MAX_VALUE}.
+         */
         Node(boolean indexNode, @NonNull UUID key, long value) {
             this.indexNode = indexNode;
             this.key = key;
@@ -99,9 +110,39 @@ class TableBucket {
             Preconditions.checkArgument(!this.indexNode || value <= Integer.MAX_VALUE, "Invalid value for index node.");
         }
 
+        static boolean equals(Node n1, Node n2) {
+            return n1 == null && n2 == null
+                    || (n1 != null && n2 != null && n1.key.equals(n2.key) && n1.value == n2.value);
+
+        }
+
         @Override
         public String toString() {
             return String.format("Key={%s}, Value=%s, Index=%s", this.key, this.value, this.indexNode);
         }
     }
+
+    //endregion
+
+    //region Builder
+
+    static class TableBucketBuilder {
+        @Getter
+        private Node lastNode;
+
+        TableBucketBuilder() {
+            this.nodes = new ArrayList<>();
+        }
+
+        TableBucketBuilder node(Node node) {
+            this.lastNode = node;
+            if (node != null) {
+                this.nodes.add(node);
+            }
+
+            return this;
+        }
+    }
+
+    //endregion
 }
