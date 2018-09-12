@@ -46,7 +46,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
-    private final Indexer indexer;
     private final EntrySerializer serializer;
     private final AtomicBoolean closed;
 
@@ -68,7 +67,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.cacheManager = cacheManager;
         this.executor = executor;
         this.hasher = KeyHasher.sha512(HASH_CONFIG);
-        this.indexer = new Indexer(this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
     }
@@ -98,7 +96,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new WriterTableProcessor(metadata, this.serializer, this.hasher, this.indexer,
+        return Collections.singletonList(new WriterTableProcessor(metadata, this.serializer, this.hasher,
                 this.segmentContainer::forSegment, this.executor));
     }
 

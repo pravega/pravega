@@ -144,6 +144,8 @@ class EntrySerializer {
         return targetOffset + key.getLength();
     }
 
+    //endregion
+
     //region Headers
 
     /**
