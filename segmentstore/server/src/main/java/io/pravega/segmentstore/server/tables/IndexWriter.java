@@ -98,7 +98,7 @@ class IndexWriter extends IndexReader {
                 keyUpdates,
                 item -> {
                     // Locate the Key's Bucket using the key's Hash.
-                    KeyHash hash = this.hasher.hash(item.getKey().getArray());
+                    KeyHash hash = this.hasher.hash(item.getKey());
                     return locateBucket(segment, hash, timer)
                             .thenApply(bucket -> {
                                 // Add the bucket to the result and record this Key as a "new" key in it.
@@ -115,7 +115,8 @@ class IndexWriter extends IndexReader {
      * onto the given Segment.
      *
      * @param segment            A {@link DirectSegmentAccess} representing the Segment to apply the updates to.
-     * @param bucketUpdates      A Collection of {@link BucketUpdate} instances to apply.
+     * @param bucketUpdates      A Collection of {@link BucketUpdate} instances to apply. Each such instance refers to
+     *                           a different {@link TableBucket} and contains the existing state and changes for it alone.
      * @param firstIndexedOffset The first offset in the Segment that is indexed. This will be used as a conditional update
      *                           constraint (matched against the Segment's {@link Attributes#TABLE_INDEX_OFFSET}) to verify
      *                           the update will not corrupt the data (i.e., we do not overlap with another update).
@@ -175,8 +176,14 @@ class IndexWriter extends IndexReader {
             return;
         }
 
+        // Sanity check: If we get a full bucket (that points to a data node), then it must have at least one existing key,
+        // otherwise (index buckets) must not have any.
+        boolean indexBucket = bucketUpdate.getBucket().getLastNode() == null || bucketUpdate.getBucket().getLastNode().isIndexNode();
+        Preconditions.checkArgument(indexBucket == bucketUpdate.getExistingKeys().isEmpty(),
+                "Index Buckets must have no existing keys, while non-index Buckets must not have.");
+
         // Group all Keys by Key Hash. This will help us define the new buckets.
-        val bucketsByHash = groupByKeyHash(bucketUpdate);
+        val bucketsByHash = bucketUpdate.groupByHash(this.hasher::hash);
 
         // Keep track of the new sub-bucket offsets.
         HashMap<KeyHash, Long> newBucketOffsets = new HashMap<>();
@@ -186,10 +193,10 @@ class IndexWriter extends IndexReader {
         for (val entry : bucketsByHash.entrySet()) {
             // All Keys in this bucket have the same full hash. If there is more than one key per such hash, then we have
             // a collision, which must be resolved.
-            BucketUpdate bucket = entry.getValue();
-            generateBackpointerUpdates(bucket, attributeUpdates);
+            BucketUpdate update = entry.getValue();
+            generateBackpointerUpdates(update, attributeUpdates);
 
-            val bucketOffset = bucket.getBucketOffset();
+            val bucketOffset = update.getBucketOffset();
             if (bucketOffset >= 0) {
                 // We have an update.
                 newBucketOffsets.put(entry.getKey(), bucketOffset);
@@ -203,30 +210,6 @@ class IndexWriter extends IndexReader {
         } else {
             generateBucketUpdate(bucketUpdate.getBucket(), newBucketOffsets, attributeUpdates);
         }
-    }
-
-    /**
-     * Groups all the keys (existing and updates) in the given {@link BucketUpdate} by their full {@link KeyHash}.
-     *
-     * @param bucketUpdate The BucketUpdate to group keys from. This object will not be altered.
-     * @return A HashMap of {@link KeyHash} to {@link BucketUpdate}. Each pair groups Keys (Existing and Updates) by their
-     * full KeyHashes.
-     */
-    private HashMap<KeyHash, BucketUpdate> groupByKeyHash(BucketUpdate bucketUpdate) {
-        val bucketsByHash = new HashMap<KeyHash, BucketUpdate>();
-
-        for (val e : bucketUpdate.getExistingKeys()) {
-            val hash = this.hasher.hash(e.getKey().getArray());
-            val bi = bucketsByHash.computeIfAbsent(hash, ignored -> new BucketUpdate(bucketUpdate.getBucket()));
-            bi.withExistingKey(e);
-        }
-
-        for (val e : bucketUpdate.getKeyUpdates()) {
-            val hash = this.hasher.hash(e.getKey().getArray());
-            val bi = bucketsByHash.computeIfAbsent(hash, ignored -> new BucketUpdate(bucketUpdate.getBucket()));
-            bi.withKeyUpdate(e);
-        }
-        return bucketsByHash;
     }
 
     /**
@@ -351,8 +334,8 @@ class IndexWriter extends IndexReader {
             if (newNodeCount == 0) {
                 // We haven't allocated anything. Figure out if we need to update the Primary Hash node or a Secondary Hash node.
                 UUID key = hashIndex == 0
-                        ? this.attributeCalculator.getPrimaryHashAttributeKey(keyHash.get(hashIndex))
-                        : this.attributeCalculator.getSecondaryHashAttributeKey(keyHash.get(hashIndex), (int) last.getValue());
+                        ? this.attributeCalculator.getPrimaryHashAttributeKey(keyHash.getPart(hashIndex))
+                        : this.attributeCalculator.getSecondaryHashAttributeKey(keyHash.getPart(hashIndex), (int) last.getValue());
 
                 // Set the node value.
                 attributeUpdates.add(generateAttributeUpdate(key, indexNode, newNodeCount, bucketSegmentOffset));
@@ -363,7 +346,7 @@ class IndexWriter extends IndexReader {
                 final int currentCount = newNodeCount;
                 attributeUpdates.add(generateAttributeUpdate(
                         new AttributeReference<>(Attributes.TABLE_NODE_ID,
-                                nodeId -> this.attributeCalculator.getSecondaryHashAttributeKey(keyHash.get(currentHashIndex), (int) (long) nodeId + currentCount - 1)),
+                                nodeId -> this.attributeCalculator.getSecondaryHashAttributeKey(keyHash.getPart(currentHashIndex), (int) (long) nodeId + currentCount - 1)),
                         indexNode, currentCount, bucketSegmentOffset));
             }
 

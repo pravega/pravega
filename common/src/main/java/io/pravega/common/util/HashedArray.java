@@ -10,6 +10,9 @@
 package io.pravega.common.util;
 
 import io.pravega.common.hash.HashHelper;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.Arrays;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -17,7 +20,7 @@ import lombok.NonNull;
  * Array Wrapper that provides a {@link Object#hashCode()} and {@link Object#equals(Object)} method.
  * Suitable for using as {@link java.util.HashMap} key.
  */
-public class HashedArray {
+public class HashedArray implements ArrayView {
     private static final HashHelper HASH = HashHelper.seededWith(HashedArray.class.getName());
     @Getter
     protected final byte[] array;
@@ -65,4 +68,48 @@ public class HashedArray {
 
         return true;
     }
+
+    //region ArrayView Implementation
+
+    @Override
+    public byte get(int index) {
+        return this.array[index];
+    }
+
+    @Override
+    public int getLength() {
+        return this.array.length;
+    }
+
+    @Override
+    public byte[] array() {
+        return this.array;
+    }
+
+    @Override
+    public int arrayOffset() {
+        return 0;
+    }
+
+    @Override
+    public InputStream getReader() {
+        return new ByteArrayInputStream(this.array);
+    }
+
+    @Override
+    public InputStream getReader(int offset, int length) {
+        return new ByteArrayInputStream(this.array, offset, length);
+    }
+
+    @Override
+    public void copyTo(byte[] target, int targetOffset, int length) {
+
+    }
+
+    @Override
+    public byte[] getCopy() {
+        return Arrays.copyOf(this.array, this.array.length);
+    }
+
+    //endregion
 }

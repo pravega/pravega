@@ -30,7 +30,7 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
      * @param hash   The raw hash.
      * @param config Hash Configuration.
      */
-    KeyHash(byte[] hash, @NonNull HashConfig config) {
+    public KeyHash(byte[] hash, @NonNull HashConfig config) {
         super(hash);
         this.parts = new ByteArraySegment[config.getHashCount()];
         for (int i = 0; i < this.parts.length; i++) {
@@ -45,7 +45,7 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
      * @param index Hash index.
      * @return An ArrayView representing the hash with given index.
      */
-    public ByteArraySegment get(int index) {
+    public ByteArraySegment getPart(int index) {
         return this.parts[index];
     }
 

@@ -9,8 +9,13 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.server.tables.hashing.HashConfig;
+import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.util.Comparator;
+import java.util.Map;
+import java.util.function.Function;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -55,4 +60,46 @@ public class BucketUpdateTests {
             Assert.assertEquals("Unexpected value for isDeleted " + i, i % 2 == 0, u.isDeleted());
         }
     }
+
+    /**
+     * Tests the {@link BucketUpdate#groupByHash} method.
+     */
+    @Test
+    public void testGroupByHash() {
+        int count = 5;
+        val bucket = TableBucket.builder().build();
+        val bu = new BucketUpdate(bucket);
+        for (int i = 0; i < count; i++) {
+            bu.withExistingKey(new KeyInfo(new HashedArray(new byte[]{(byte) i}), i));
+            bu.withKeyUpdate(new KeyUpdate(new HashedArray(new byte[]{(byte) i}), i + 1, i % 2 == 0));
+        }
+
+        // We define a binary hasher, that hashes based on the parity of the first byte in the key.
+        val hashes = new KeyHash[]{
+                new KeyHash(new byte[]{(byte) 0}, HashConfig.of(1)),
+                new KeyHash(new byte[]{(byte) 1}, HashConfig.of(1))};
+        Function<ArrayView, KeyHash> hasher = key -> new KeyHash(hashes[(key.get(0) % 2)].getArray(), HashConfig.of(1));
+
+        // Group using this hasher.
+        val groups = bu.groupByHash(hasher);
+
+        // Verify correctness.
+        Assert.assertEquals("Unexpected number of groups.", 2, groups.size());
+        testHashGroup(groups, hashes[0], bucket, hasher);
+        testHashGroup(groups, hashes[1], bucket, hasher);
+    }
+
+    private void testHashGroup(Map<KeyHash, BucketUpdate> groups, KeyHash hash, TableBucket bucket, Function<ArrayView, KeyHash> hasher) {
+        val g = groups.get(hash);
+        Assert.assertEquals("Unexpected bucket.", bucket, g.getBucket());
+        Assert.assertNotNull("Couldn't find the group for hash 0.", g);
+        for (val info : g.getExistingKeys()) {
+            Assert.assertEquals("Not expecting this key.", hasher.apply(info.getKey()), hash);
+        }
+
+        for (val update : g.getExistingKeys()) {
+            Assert.assertEquals("Not expecting this update.", hasher.apply(update.getKey()), hash);
+        }
+    }
+
 }

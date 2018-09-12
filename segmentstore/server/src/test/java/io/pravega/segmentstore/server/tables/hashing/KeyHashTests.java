@@ -41,7 +41,7 @@ public class KeyHashTests {
         for (int i = 0; i < hash.hashCount(); i++) {
             val eo = hashConfig.getOffsets(i);
             val expected = new ByteArraySegment(rawHash, eo.getLeft(), eo.getRight() - eo.getLeft());
-            val actualGet = hash.get(i);
+            val actualGet = hash.getPart(i);
             val actualIterator = iterator.next();
             Assert.assertEquals("Unexpected hash length (get).", expected.getLength(), actualGet.getLength());
             Assert.assertEquals("Unexpected hash length (iterator).", expected.getLength(), actualIterator.getLength());
