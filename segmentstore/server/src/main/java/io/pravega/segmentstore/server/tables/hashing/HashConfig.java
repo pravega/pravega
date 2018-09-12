@@ -52,7 +52,7 @@ public class HashConfig {
     /**
      * Gets a value representing the minimum number of bytes that a Hash function must generate in order to use this config.
      */
-    int getMinHashLengthBytes() {
+    public int getMinHashLengthBytes() {
         return this.endByteOffsets[this.endByteOffsets.length - 1];
     }
 
