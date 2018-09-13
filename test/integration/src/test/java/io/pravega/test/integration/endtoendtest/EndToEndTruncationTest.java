@@ -130,7 +130,7 @@ public class EndToEndTruncationTest {
     }
     
     @Test(timeout = 7000)
-    public void trstTruncationOffsets() throws InterruptedException, ExecutionException, TimeoutException,
+    public void testTruncationOffsets() throws InterruptedException, ExecutionException, TimeoutException,
                                         TruncatedDataException, ReinitializationRequiredException {
         String endpoint = "localhost";
         String scope = "scope";
