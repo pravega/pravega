@@ -131,7 +131,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             throw new SegmentTruncatedException();
         }
         while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
-            if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
+            if (receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
             Futures.await(outstandingRequest, timeout);
