@@ -62,7 +62,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
-    private boolean atCheckpoint;
+    private String atCheckpoint;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
 
@@ -150,20 +150,19 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
         try {
+            if (atCheckpoint != null) {
+                groupState.checkpoint(atCheckpoint, getPosition());
+                releaseSegmentsIfNeeded();
+                atCheckpoint = null;
+            }
             String checkpoint = groupState.getCheckpoint();
-            if (checkpoint == null) {
-                if (atCheckpoint) {
-                    releaseSegmentsIfNeeded();
-                    atCheckpoint = false;
-                }
-                acquireSegmentsIfNeeded();
-                return null;
-            } else {
+            if (checkpoint != null) {
                 log.info("{} at checkpoint {}", this, checkpoint);
-                groupState.checkpoint(checkpoint, getPosition());
-                atCheckpoint = true;
+                atCheckpoint = checkpoint;
                 return checkpoint;
             }
+            acquireSegmentsIfNeeded();
+            return null;
         } catch (ReinitializationRequiredException e) {
             close();
             throw e;
