@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
@@ -64,6 +65,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
     private final AuthHelper authHelper;
+    // Send to the client server traces on error message replies.
+    private final boolean replyWithStackTraceOnError;
 
     @Override
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
@@ -331,8 +334,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
-    private static <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator,
-                                                                 Function<String, CompletableFuture<T>> call, final StreamObserver<T> streamObserver) {
+    private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
+                                                          final StreamObserver<T> streamObserver) {
         try {
             String delegationToken;
             delegationToken = authenticator.get();
@@ -344,9 +347,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             log.error("Controller api failed with error: ", ex);
+                            String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(Status.INTERNAL
                                     .withCause(cause)
-                                    .withDescription(cause.getMessage())
+                                    .withDescription(errorDescription)
                                     .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);

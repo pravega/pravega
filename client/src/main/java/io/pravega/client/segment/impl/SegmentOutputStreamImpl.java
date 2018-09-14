@@ -290,7 +290,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            failConnection(new ConnectionFailedException());
+            failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
         /**
@@ -313,13 +313,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             final String segment = noSuchSegment.getSegment();
             if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
-                log.info("Transaction Segment: {} no longer exists since the txn is aborted", noSuchSegment.getSegment());
+                log.info("Transaction Segment: {} no longer exists since the txn is aborted. {}", noSuchSegment.getSegment(),
+                        noSuchSegment.getServerStackTrace());
                 //close the connection and update the exception to SegmentSealed.
                 state.failConnection(new SegmentSealedException(segment));
             } else {
                 state.failConnection(new NoSuchSegmentException(segment));
-                log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
-                        noSuchSegment.getSegment(), writerId);
+                log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment. {}",
+                        noSuchSegment.getSegment(), writerId, noSuchSegment.getServerStackTrace());
                 invokeResendCallBack(noSuchSegment);
             }
         }
