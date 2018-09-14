@@ -13,7 +13,7 @@ You may obtain a copy of the License at
 The following will be the primary feature focus areas for our upcoming release.
 
 ## Retention Policy Implementation
-Retention policies allow an operator to define a specific Stream size or data age.  Any data beyond this threshold will automatically be purged.
+Retention policies allow an operator to define a specific Stream size or data age.  Any data beyond this threshold will be automatically be purged.
 
 ## Transactions API
 The current transactions API is functional, however it is cumbersome and requires detailed knowledge of Pravega to configure appropriate values such as timeouts.  This work will simplify the API and automate as many timeouts as possible.
@@ -26,26 +26,26 @@ This will expose a new low-level reader API that provides access the low level b
 
 ## Security
 Security for this release will focus on support for securing Pravega external interfaces along with basic access controls on stream access and administration.
--  Access Control on Stream operations
--  Auth between Clients and Controller/SegmentStore
--  Auth between SegmentStore and Tier 2 Storage
+-  Access Control on Stream operations.
+-  Auth between Clients and Controller/SegmentStore.
+-  Auth between SegmentStore and Tier 2 Storage.
 
 ## Pravega Connectors
 Pravega ecosystem interconnectivity will be augmented with the following:
--  Expanded Flink connector support (batch & table API support)
--  Logstash connector
+-  Expanded Flink connector support (batch & table API support).
+-  Logstash connector.
 -  Others also under consideration (Interested in writing a connector? Talk to us...)
 
 
 # Future Items
-The following items are new features that we wish to build in upcoming Pravega releases, however no active work is currently underway.  Please reach out on the Pravega channels if you're interested in picking one of these up.
+The following items are new features that we wish to build in upcoming Pravega releases, however many active work is currently underway.  Please reach out on the Pravega channels if you're interested in picking one of these up.
 
--  Operational features
+-  Operational Features
   -  Non-disruptive and rolling upgrades for Pravega
   -  Provide default Failure Detector
   -  Exposing information for administration purposes
   -  Ability to define throughput quotas and other QoS guarantees
--  Pravega connectors / integration
+-  Pravega Connectors / Integration
   -  Kafka API Compatibility (Producer and Consumer APIs)
   -  Spark connectors (source/sink)
   -  REST Proxy for Reader/Writer (REST proxy for Admin operations is already there)
