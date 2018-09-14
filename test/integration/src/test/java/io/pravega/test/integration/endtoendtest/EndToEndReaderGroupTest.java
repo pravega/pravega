@@ -23,6 +23,7 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -43,11 +44,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URI;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndReaderGroupTest {
@@ -95,11 +98,7 @@ public class EndToEndReaderGroupTest {
 
     @Test(timeout = 30000)
     public void testReaderOffline() throws Exception {
-        StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
-                                                        .build();
+        StreamConfiguration config = getStreamConfig("test", "test");
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
         controller.createStream(config).get();
@@ -142,5 +141,83 @@ public class EndToEndReaderGroupTest {
 
         eventRead = reader2.readNextEvent(10000);
         assertEquals("data1", eventRead.getEvent());
+    }
+
+    @Test(timeout = 30000)
+    public void testMultiScopeReaderGroup() throws Exception {
+        LocalController controller = (LocalController) controllerWrapper.getController();
+
+        // Config of two streams with same name and different scopes.
+        String defaultScope = "test";
+        String scopeA = "scopeA";
+        String scopeB = "scopeB";
+        String streamName = "test";
+
+        // Create Scopes
+        controllerWrapper.getControllerService().createScope(defaultScope).get();
+        controllerWrapper.getControllerService().createScope(scopeA).get();
+        controllerWrapper.getControllerService().createScope(scopeB).get();
+
+        // Create Streams.
+        controller.createStream(getStreamConfig(scopeA, streamName)).get();
+        controller.createStream(getStreamConfig(scopeB, streamName)).get();
+
+        // Create ReaderGroup and reader.
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(streamName, controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory,
+                                                                     connectionFactory);
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder()
+                                                                 .disableAutomaticCheckpoints()
+                                                                 .stream(Stream.of(scopeA, streamName))
+                                                                 .stream(Stream.of(scopeB, streamName))
+                                                                 .build());
+
+        ReaderGroup readerGroup = groupManager.getReaderGroup("group");
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", "group", new JavaSerializer<>(),
+                                                                       ReaderConfig.builder().build());
+
+        // Read empty stream.
+        EventRead<String> eventRead = reader1.readNextEvent(100);
+        assertNull("Event read should be null since no events are written", eventRead.getEvent());
+
+        // Write to scopeA stream.
+        writeTestEvent(scopeA, streamName, 0);
+        eventRead = reader1.readNextEvent(10000);
+        assertEquals("0", eventRead.getEvent());
+
+        // Write to scopeB stream.
+        writeTestEvent(scopeB, streamName, 1);
+        eventRead = reader1.readNextEvent(10000);
+        assertEquals("1", eventRead.getEvent());
+
+        // Verify ReaderGroup.getStreamNames().
+        Set<String> managedStreams = readerGroup.getStreamNames();
+        assertTrue(managedStreams.contains(Stream.of(scopeA, streamName).getScopedName()));
+        assertTrue(managedStreams.contains(Stream.of(scopeB, streamName).getScopedName()));
+    }
+
+    private StreamConfiguration getStreamConfig(String scope, String streamName) {
+        return StreamConfiguration.builder()
+                                  .scope(scope)
+                                  .streamName(streamName)
+                                  .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
+                                  .build();
+    }
+
+    private void writeTestEvent(String scope, String streamName, int eventId) {
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
+
+        writer.writeEvent( "0", Integer.toString(eventId)).join();
     }
 }

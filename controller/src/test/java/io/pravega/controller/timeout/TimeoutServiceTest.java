@@ -19,6 +19,7 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -102,11 +103,11 @@ public class TimeoutServiceTest {
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                new SegmentHelper(), executor, hostId, connectionFactory, false, "");
+                new SegmentHelper(), executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
-                new LinkedBlockingQueue<>(5), connectionFactory, false, "");
-        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                new LinkedBlockingQueue<>(5), connectionFactory, AuthHelper.getDisabledAuthHelper());
+                streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
         // Create TimeoutService
@@ -245,11 +246,11 @@ public class TimeoutServiceTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, hostStore, taskMetadataStore,
-                new SegmentHelper(), executor, "2", connectionFactory,  false, "");
+                new SegmentHelper(), executor, "2", connectionFactory,  AuthHelper.getDisabledAuthHelper());
         @Cleanup
         StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2, hostStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, "2", TimeoutServiceConfig.defaultConfig(),
-                new LinkedBlockingQueue<>(5), connectionFactory, false, "");
+                new LinkedBlockingQueue<>(5), connectionFactory, AuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks2.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 

@@ -38,7 +38,7 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
     @Override
     protected Invocation.Builder addAuthHeaders(Invocation.Builder request) {
         MultivaluedMap<String, Object> map = new MultivaluedHashMap<>();
-        map.addAll(HttpHeaders.AUTHORIZATION, "method:testHandler", "username:arvind", "password:1111_aaaa");
+        map.addAll(HttpHeaders.AUTHORIZATION, TestUtils.basicAuthToken("admin", "1111_aaaa"));
         return request.headers(map);
     }
 }

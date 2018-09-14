@@ -27,7 +27,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -55,7 +54,6 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -174,12 +172,8 @@ public class OffsetTruncationTest {
         StreamCut streamCut = cp.asImpl().getPositions().values().iterator().next();
         assertTrue(streamManager.truncateStream(SCOPE, STREAM, streamCut));
 
-        // Just after the truncation, trying to read the whole stream should raise a TruncatedDataException.
+        // Just after the truncation, read events from the offset defined in truncate call onwards.
         final String newGroupName = READER_GROUP + "new";
-        groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
-        assertThrows(TruncatedDataException.class, () -> Futures.allOf(readDummyEvents(clientFactory, newGroupName, PARALLELISM)).join());
-
-        // Read again, now expecting to read events from the offset defined in truncate call onwards.
         groupManager.createReaderGroup(newGroupName, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
         futures = readDummyEvents(clientFactory, newGroupName, PARALLELISM);
         Futures.allOf(futures).join();

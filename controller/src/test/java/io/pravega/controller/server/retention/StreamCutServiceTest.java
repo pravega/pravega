@@ -18,6 +18,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -64,7 +65,7 @@ public abstract class StreamCutServiceTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory,
-               false, "");
+               AuthHelper.getDisabledAuthHelper());
         service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor);
         service.startAsync();
         service.awaitRunning();

@@ -49,9 +49,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -66,6 +64,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
     private static final String SEGMENT = "test/0";
+    private static final String TXN_SEGMENT = "scope/stream/0.#epoch.0#transaction.00000000000000000000000000000001";
     private static final int SERVICE_PORT = 12345;
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 1, 2);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
@@ -858,5 +857,74 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+    }
+
+    @Test(timeout = 10000)
+    public void testFlushDuringTransactionAbort() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(1, cid, TXN_SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, TXN_SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        // Write an Event.
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack));
+        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertFalse(ack.isDone()); //writer is not complete until a response from Segment Store is received.
+
+        // Validate that flush() is blocking until there is a response from Segment Store.
+        AssertExtensions.assertBlocks(() -> {
+            // A flush() should throw a SegmentSealedException.
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        }, () -> {
+            // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT));
+        });
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+    }
+
+    @Test(timeout = 10000)
+    public void testCloseDuringTransactionAbort() throws Exception {
+
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(1, cid, TXN_SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, TXN_SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        // Write an Event.
+        CompletableFuture<Void> ack1 = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack1));
+        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertFalse(ack1.isDone()); //writer is not complete until a response from Segment Store is received.
+
+        // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT));
+
+        //Trigger a second write.
+        CompletableFuture<Void> ack2 = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack2));
+
+        // Closing the Segment writer should cause a SegmentSealedException.
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.close());
     }
 }
