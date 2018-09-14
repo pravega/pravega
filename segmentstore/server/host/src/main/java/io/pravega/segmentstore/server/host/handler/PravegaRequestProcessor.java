@@ -150,6 +150,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param connection    The ServerConnection to attach to (and send responses to).
      * @param statsRecorder (Optional) A StatsRecorder for Metrics.
      * @param tokenVerifier  Verifier class that verifies delegation token.
+     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder,
                             DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {

@@ -126,6 +126,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param next          The RequestProcessor to invoke next.
      * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
      * @param tokenVerifier Delegation token verifier.
+     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
                     DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
