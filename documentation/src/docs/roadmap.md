@@ -13,7 +13,7 @@ You may obtain a copy of the License at
 The following will be the primary feature focus areas for our upcoming release.
 
 ## Retention Policy Implementation
-Retention policies allow an operator to define a specific Stream size or data age.  Any data beyond this threshold will be automatically be purged.
+Retention policies allow an operator to define a specific Stream size or data age.  Any data beyond this threshold will be automatically purged.
 
 ## Transactions API
 The current transactions API is functional, however it is cumbersome and requires detailed knowledge of Pravega to configure appropriate values such as timeouts.  This work will simplify the API and automate as many timeouts as possible.
