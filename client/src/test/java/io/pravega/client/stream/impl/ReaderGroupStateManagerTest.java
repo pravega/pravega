@@ -36,6 +36,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Test;
@@ -708,6 +709,65 @@ public class ReaderGroupStateManagerTest {
         readerState2.checkpoint("CP1", new PositionImpl(Collections.emptyMap()));
         assertTrue(stateSynchronizer.getState().isCheckpointComplete("CP1"));
         assertEquals(segments, stateSynchronizer.getState().getPositionsForCompletedCheckpoint("CP1"));
+    }
+
+    @Test(timeout = 10000)
+    public void testCheckpointUpdatesAssignedSegments() throws ReinitializationRequiredException {
+        String scope = "scope";
+        String stream = "stream";
+        String checkpointId = "checkpoint";
+        String reader1 = "reader1";
+        String reader2 = "reader2";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        Segment segment0 = new Segment(scope, stream, 0);
+        Segment segment1 = new Segment(scope, stream, 1);
+        Segment segment2 = new Segment(scope, stream, 2);
+        MockController controller = new MockControllerWithSuccessors(endpoint.getEndpoint(), endpoint.getPort(),
+                connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of(), ""));
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+                streamFactory, streamFactory, streamFactory);
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
+        Map<Segment, Long> segments = ImmutableMap.of(segment0, 0L, segment1, 1L, segment2, 2L);
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
+                segments, Collections.emptyMap()));
+        val readerState1 = new ReaderGroupStateManager(reader1, stateSynchronizer, controller, null);
+        readerState1.initializeReader(0);
+        val readerState2 = new ReaderGroupStateManager(reader2, stateSynchronizer, controller, null);
+        readerState2.initializeReader(0);
+
+        // Assert that readers initially got no assigned segments.
+        assertNull(readerState1.findSegmentToReleaseIfRequired());
+        assertNull(readerState2.findSegmentToReleaseIfRequired());
+
+        // Assert that both readers have acquired all the segments.
+        assertEquals(segments.size(), readerState1.acquireNewSegmentsIfNeeded(0).size() +
+                readerState2.acquireNewSegmentsIfNeeded(0).size());
+        assertEquals(Collections.emptyMap(), stateSynchronizer.getState().getUnassignedSegments());
+
+        // Initialize checkpoint in state synchronizer.
+        stateSynchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId));
+        stateSynchronizer.fetchUpdates();
+        assertEquals(checkpointId, readerState1.getCheckpoint());
+        assertEquals(checkpointId, readerState2.getCheckpoint());
+
+        // Create some positions for all the segments in the stream > than the initial ones.
+        Map<Segment, Long> checkpointPositions = new HashMap<>();
+        IntStream.range(0, segments.size()).forEach(segNum -> checkpointPositions.put(new Segment(scope, stream, segNum), 10L));
+
+        // This should update assigned segments offsets with the checkpoint positions.
+        readerState1.checkpoint(checkpointId, new PositionImpl(checkpointPositions));
+        readerState2.checkpoint(checkpointId, new PositionImpl(checkpointPositions));
+        assertTrue(stateSynchronizer.getState().isCheckpointComplete(checkpointId));
+
+        // Verify that assigned getPositions() retrieves the updated segment offsets.
+        Map<Stream, Map<Segment, Long>> readergroupPositions = new HashMap<>();
+        readergroupPositions.put(Stream.of(scope, stream), checkpointPositions);
+        assertEquals(stateSynchronizer.getState().getPositions(), readergroupPositions);
     }
     
     @Test(timeout = 10000)

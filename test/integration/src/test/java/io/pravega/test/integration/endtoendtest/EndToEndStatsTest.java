@@ -71,7 +71,7 @@ public class EndToEndStatsTest {
         statsRecorder = new TestStatsRecorder();
 
         server = new PravegaConnectionListener(false, "localhost", servicePort, store,
-                statsRecorder, null, null, null);
+                statsRecorder, null, null, null, true);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

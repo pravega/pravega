@@ -9,26 +9,19 @@
  */
 package io.pravega.client.stream.impl;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.common.concurrent.Futures;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.common.concurrent.Futures.getException;
 
 /**
  * Pinger is used to send pings to renew the transaction lease for active transactions.
@@ -90,25 +83,25 @@ public class Pinger implements AutoCloseable {
         }
     }
 
-    /*
+    /**
      *  Ping all the transactions present in the list. Controller client performs retries in case of a failures. On a
      *  failure the particular transaction it is removed from the ping list.
      */
     private void pingTransactions() {
         log.info("Start sending transaction pings.");
-        Map<UUID, CompletableFuture<Void>> pingResult =
-                txnList.stream().collect(Collectors.toMap(Function.identity(),
-                        uuid -> {
-                            log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
-                            return controller.pingTransaction(stream, uuid, txnLeaseMillis);
-                        }));
-        Futures.allOf(pingResult.values())
-               .whenComplete((v, ex) -> pingResult.entrySet().stream()
-                                                  .filter(e -> !Futures.isSuccessful(e.getValue()))
-                                                  .forEach(e -> {
-                                                      log.warn("Ping Transaction for txn ID:{} failed", e.getKey(),
-                                                              getException(e.getValue()));
-                                                  }));
+        txnList.stream().forEach(uuid -> {
+            try {
+                log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
+                controller.pingTransaction(stream, uuid, txnLeaseMillis)
+                .exceptionally(e -> {
+                    log.warn("Ping Transaction for txn ID:{} failed", uuid, e);
+                    return null;
+                });
+            } catch (Exception e) {
+                // Suppressing exception to prevent future pings from not being executed. 
+                log.warn("Encountered exception when attepting to ping transactions", e);
+            }
+        });
         log.trace("Completed sending transaction pings.");
     }
 

@@ -106,22 +106,25 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : future of whether it was done or not
      */
     @Override
-    public CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, long createTimestamp) {
+    public CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, long createTimestamp, int startingSegmentNumber) {
 
         return checkScopeExists()
-                .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp))
+                .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp, startingSegmentNumber))
                 .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
                         .thenCompose((Void v) -> createConfigurationIfAbsent(StreamConfigurationRecord.complete(createStreamResponse.getConfiguration())))
                         .thenCompose((Void v) -> createTruncationDataIfAbsent(StreamTruncationRecord.EMPTY))
                         .thenCompose((Void v) -> createStateIfAbsent(State.CREATING))
                         .thenCompose((Void v) -> createNewSegmentTableWithIndex(createStreamResponse.getConfiguration(),
-                                createStreamResponse.getTimestamp()))
+                                createStreamResponse.getTimestamp(), createStreamResponse.getStartingSegmentNumber()))
                         .thenCompose((Void v) -> createHistoryIndexIfAbsent(new Data<>(
                                 TableHelper.createHistoryIndex(), null)))
                         .thenCompose((Void v) -> {
                             final int numSegments = createStreamResponse.getConfiguration().getScalingPolicy().getMinNumSegments();
                             final byte[] historyTable = TableHelper.createHistoryTable(createStreamResponse.getTimestamp(),
-                                    IntStream.range(0, numSegments).boxed().map(x -> computeSegmentId(x, 0)).collect(Collectors.toList()));
+                                    IntStream.range(createStreamResponse.getStartingSegmentNumber(), createStreamResponse.getStartingSegmentNumber() + numSegments)
+                                             .boxed()
+                                             .map(x -> computeSegmentId(x, 0))
+                                             .collect(Collectors.toList()));
                             return createHistoryTableIfAbsent(new Data<>(historyTable, null));
                         })
                         .thenCompose((Void v) -> createSealedSegmentsRecord(new SealedSegmentsRecord(Collections.emptyMap()).toByteArray()))
@@ -129,7 +132,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                         .thenApply((Void v) -> createStreamResponse));
     }
 
-    private CompletableFuture<Void> createNewSegmentTableWithIndex(final StreamConfiguration configuration, long timestamp) {
+    private CompletableFuture<Void> createNewSegmentTableWithIndex(final StreamConfiguration configuration, long timestamp, int startingSegmentNumber) {
         final int numSegments = configuration.getScalingPolicy().getMinNumSegments();
         final double keyRangeChunk = 1.0 / numSegments;
 
@@ -138,7 +141,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
                 .map(x -> new AbstractMap.SimpleEntry<>(x * keyRangeChunk, (x + 1) * keyRangeChunk))
                 .collect(Collectors.toList());
 
-        final Pair<byte[], byte[]> segmentTableAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp);
+        final Pair<byte[], byte[]> segmentTableAndIndex = TableHelper.createSegmentTableAndIndex(newRanges, timestamp, startingSegmentNumber);
 
         return createSegmentIndexIfAbsent(new Data<>(segmentTableAndIndex.getKey(), null))
                 .thenCompose((Void v) -> createSegmentTableIfAbsent(new Data<>(segmentTableAndIndex.getValue(), null)));
@@ -405,7 +408,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
      * @return : list of active segment numbers at given time stamp
      */
     @Override
-    public CompletableFuture<List<Long>> getActiveSegments(final long timestamp) {
+    public CompletableFuture<Map<Long, Long>> getActiveSegments(final long timestamp) {
         return getTruncationRecord(false)
                 .thenCompose(truncationRecord -> getHistoryIndex()
                         .thenCompose(historyIndex -> getHistoryTable()
@@ -1325,6 +1328,11 @@ public abstract class PersistentStreamBase<T> implements Stream {
             });
     }
 
+    @Override
+    public CompletableFuture<Integer> getStartingSegmentNumber() {
+        return getSegmentIndex().thenApply(segmentIndex -> TableHelper.getStartingSegmentNumber(segmentIndex.getData()));
+    }
+
     private CompletableFuture<Void> checkState(Predicate<State> predicate) {
         return getState(true)
                 .thenAccept(currState -> {
@@ -1396,7 +1404,7 @@ public abstract class PersistentStreamBase<T> implements Stream {
 
     abstract CompletableFuture<Void> deleteStream();
 
-    abstract CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime);
+    abstract CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime, final int startingSegmentNumber);
 
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 

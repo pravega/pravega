@@ -17,38 +17,42 @@ A set of Readers can be grouped together in order that the set of Events in a St
 Each Reader in a ReaderGroup is assigned zero or more Segments.
 The Reader assigned to a Segment is the only Reader within the ReaderGroup that reads Events from that Segment.  This is the fundamental mechanism by which Pravega makes ordering guarantees of Event delivery to a Reader – a Reader will receive Events in the order they were published into a Segment.
 There are several challenges associated with this mechanism:
--	How to maintain the mapping of which Reader within a ReaderGroup is assigned which Segment
--	How to manage the above mapping when Segments split and merge
--	How to manage the above mapping when Readers are added to the ReaderGroup 
--	How to manage the above mapping when Readers leave the ReaderGroup either by an explicit operation or the Reader becoming unavailable due to network outage or the Reader process failing
 
-To solve these problems we can use [[StateSynchronizer|StateSynchronizer-design]] to enable readers to coordinate among themselves.
+- How to maintain the mapping of which Reader within a ReaderGroup is assigned which Segment
+- How to manage the above mapping when Segments split and merge
+- How to manage the above mapping when Readers are added to the ReaderGroup 
+- How to manage the above mapping when Readers leave the ReaderGroup either by an explicit operation or the Reader becoming unavailable due to network outage or the Reader process failing
+
+To solve these problems we can use [StateSynchronizer](state-synchronizer-design.md) to enable readers to coordinate among themselves.
 
 ### How Consistent replicated state can be used to solve the problem
 A consistent replicated state object representing the ReaderGroup metadata will be created in each reader.  This ReaderGroup metadata consists of:
-* a map of online readers to the segments they own
-* a list of positions in segments that can be taken over.
+
+- a map of online readers to the segments they own
+- a list of positions in segments that can be taken over.
+
 Every time the Readers in a ReaderGroup change, the state can be updated. Similarly each time one of the readers is going to start reading from a new segment, it can update the replicated state. 
 This allows all readers to know about all the other Readers in their ReaderGroup and which segments they own.
 
 Given this information:
-* A new reader can infer which segments are available to read from. (By virtue of it being absent from the state)
-* Dealing with a segment being merged becomes easy, because the last reader to reach the end of its pre-merge segment knows it can freely take ownership of the new segment.
-* Readers can see their relative load and how they are progressing relative to the other readers in their group and can decide to transfer segments if things are out of balance.
-* This allows readers to take action directly to ensure all the events are read without the need for some external tracker.
+
+- A new reader can infer which segments are available to read from. (By virtue of it being absent from the state)
+- Dealing with a segment being merged becomes easy, because the last reader to reach the end of its pre-merge segment knows it can freely take ownership of the new segment.
+- Readers can see their relative load and how they are progressing relative to the other readers in their group and can decide to transfer segments if things are out of balance.
+- This allows readers to take action directly to ensure all the events are read without the need for some external tracker.
 
 ## ReaderGroup APIs
-The external APIs to manage ReaderGroups could be added to the StreamManager object. They would consist of:
-
+The external APIs to manage ReaderGroups could be added to the StreamManager object. They consist of:
+```
     ReaderGroup createReaderGroup(String name, Stream stream, ReaderGroupConfig config);
     ReaderGroup getReaderGroup(String name, Stream stream);
     void deleteReaderGroup(ReaderGroup group);
-
-When a ReaderGroup is created, it creates a [[StateSynchronizer|StateSynchronizer-design]] shared by the readers. To join a ReaderGroup readers would just specify it in their configuration:
-
+```
+When a ReaderGroup is created, it creates a [StateSynchronizer](state-synchronizer-design.md) shared by the readers. To join a ReaderGroup readers would just specify it in their configuration:
+```
     ReaderConfig cc = new ReaderConfig(props);
     Reader<T> reader = a_stream.createReader("my_reader_id", "my_reader_group", cc);
-
+```
 When readers join the group they use the state to determine which segments to read from. When they shut down they update the state so that other readers can take over their segments.
 
 # Failure detector

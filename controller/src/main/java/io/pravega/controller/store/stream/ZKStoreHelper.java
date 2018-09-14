@@ -31,19 +31,6 @@ import org.apache.zookeeper.KeeperException;
 
 @Slf4j
 public class ZKStoreHelper {
-    static final String BUCKET_ROOT_PATH = "/buckets";
-    static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
-    static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
-    static final String RETENTION_PATH = BUCKET_PATH + "/%s";
-    static final String COUNTER_PATH = "/counter";
-    private static final String TRANSACTION_ROOT_PATH = "/transactions";
-    private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    private static final String SCOPE_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
-    static final String STREAM_TX_ROOT = SCOPE_TX_ROOT + "/%s";
-    private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String SCOPE_COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
-    static final String COMPLETED_TX_PATH = SCOPE_COMPLETED_TX_PATH + "/%s";
-
     @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework client;
     private final Executor executor;

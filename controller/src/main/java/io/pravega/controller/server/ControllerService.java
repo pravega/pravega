@@ -156,9 +156,9 @@ public class ControllerService {
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
         return streamStore.getActiveSegments(scope, stream, timestamp, null, executor).thenApply(segments -> {
-            return segments.stream()
-                           .map(number -> ModelHelper.createSegmentId(scope, stream, number))
-                           .collect(Collectors.toMap(id -> id, id -> 0L));
+            return segments.entrySet().stream()
+                           .collect(Collectors.toMap(entry -> ModelHelper.createSegmentId(scope, stream, entry.getKey()),
+                                   Map.Entry::getValue));
             //TODO: Implement https://github.com/pravega/pravega/issues/191  (Which will supply a value besides 0)
         });
     }

@@ -20,6 +20,7 @@ PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_AUTORECOVERY=${BK_AUTORECOVERY:-"false"}
+BK_useHostNameAsBookieID=${BK_useHostNameAsBookieID:-"false"}
 
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 
@@ -43,6 +44,7 @@ sed -i 's|# zkLedgersRootPath=/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' 
 
 sed -i '/autoRecoveryDaemonEnabled/d' ${BK_HOME}/conf/bk_server.conf
 echo autoRecoveryDaemonEnabled=${BK_AUTORECOVERY} >> ${BK_HOME}/conf/bk_server.conf
+echo useHostNameAsBookieID=${BK_useHostNameAsBookieID} >> ${BK_HOME}/conf/bk_server.conf
 
 echo "
 tlsProvider=OpenSSL

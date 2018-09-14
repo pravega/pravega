@@ -10,11 +10,14 @@
 package io.pravega.controller.server.rpc.auth;
 
 import io.grpc.ServerBuilder;
+import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.common.auth.AuthenticationException;
+import io.pravega.client.stream.impl.Credentials;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -25,8 +28,6 @@ import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.io.FileWriter;
 import java.net.URI;
-import javax.ws.rs.core.MultivaluedHashMap;
-import javax.ws.rs.core.MultivaluedMap;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -98,62 +99,66 @@ public class PravegaAuthManagerTest {
                 .retryAttempts(1).build(),
                 executor);
 
-        MultivaluedMap<String, String> map = new MultivaluedHashMap<>();
-
-        //Without specifying a valid handler.
+        //Malformed authorization header.
         assertThrows(AuthenticationException.class, () ->
-                manager.authenticate("hi", map, AuthHandler.Permissions.READ));
+                manager.authenticateAndAuthorize("hi", "", AuthHandler.Permissions.READ));
 
         //Non existent interceptor method.
-        map.add("method", "invalid");
         assertThrows(AuthenticationException.class, () ->
-        manager.authenticate("hi", map, AuthHandler.Permissions.READ));
+        manager.authenticateAndAuthorize("hi", credentials("invalid", ""), AuthHandler.Permissions.READ));
 
-        //Specify a valid method but no parameters for default interceptor.
-        map.putSingle("method", "Pravega-Default");
-        assertThrows(AuthenticationException.class, () ->
-        manager.authenticate("hi", map, AuthHandler.Permissions.READ));
+        //Specify a valid method but malformed parameters for password interceptor.
+        assertThrows(IllegalArgumentException.class, () ->
+        manager.authenticateAndAuthorize("hi", credentials(AuthConstants.BASIC, ":"), AuthHandler.Permissions.READ));
 
-        //Specify a valid method but no password for default interceptor.
-        map.putSingle("username", "dummy3");
+        //Specify a valid method but incorrect password for password interceptor.
         assertThrows(AuthenticationException.class, () ->
-                manager.authenticate("hi", map, AuthHandler.Permissions.READ));
+                manager.authenticateAndAuthorize("hi", basic("dummy3", "wrong"), AuthHandler.Permissions.READ));
 
         //Specify a valid method and parameters but invalid resource for default interceptor.
-        map.putSingle("password", "password");
         assertFalse("Not existent resource should return false",
-                manager.authenticate("invalid", map, AuthHandler.Permissions.READ));
+                manager.authenticateAndAuthorize("invalid", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         //Valid parameters for default interceptor
-        map.putSingle("username", "dummy3");
-        map.putSingle("password", "password");
         assertTrue("Read access for read resource should return true",
-                manager.authenticate("readresource", map, AuthHandler.Permissions.READ));
+                manager.authenticateAndAuthorize("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         //Stream/scope access should be extended to segment.
         assertTrue("Read access for read resource should return true",
-                manager.authenticate("readresource/segment", map, AuthHandler.Permissions.READ));
+                manager.authenticateAndAuthorize("readresource/segment", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         //Levels of access
         assertFalse("Write access for read resource should return false",
-                manager.authenticate("readresource", map, AuthHandler.Permissions.READ_UPDATE));
+                manager.authenticateAndAuthorize("readresource", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
 
         assertTrue("Read access for write resource should return true",
-                manager.authenticate("totalaccess", map, AuthHandler.Permissions.READ));
+                manager.authenticateAndAuthorize("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ));
 
         assertTrue("Write access for write resource should return true",
-                manager.authenticate("totalaccess", map, AuthHandler.Permissions.READ_UPDATE));
+                manager.authenticateAndAuthorize("totalaccess", basic("dummy3", "password"), AuthHandler.Permissions.READ_UPDATE));
 
         //Check the wildcard access
-        map.putSingle("username", "dummy4");
         assertTrue("Write access for write resource should return true",
-                manager.authenticate("totalaccess", map, AuthHandler.Permissions.READ_UPDATE));
+                manager.authenticateAndAuthorize("totalaccess", basic("dummy4", "password"), AuthHandler.Permissions.READ_UPDATE));
 
-        map.putSingle("method", "testHandler");
-        assertTrue("Test handler should be called", manager.authenticate("any", map, AuthHandler.Permissions.READ));
+        assertTrue("Test handler should be called", manager.authenticateAndAuthorize("any", testHandler(), AuthHandler.Permissions.READ));
 
         assertThrows(RetriesExhaustedException.class, () -> controllerClient.createScope("hi").join());
     }
 
+    private static String credentials(String scheme, String token) {
+        return scheme + " " + token;
+    }
 
+    private static String credentials(Credentials credentials) {
+        return credentials(credentials.getAuthenticationType(), credentials.getAuthenticationToken());
+    }
+
+    private static String basic(String userName, String password) {
+        return credentials(new DefaultCredentials(password, userName));
+    }
+
+    private static String testHandler() {
+        return credentials("testHandler", "token");
+    }
 }
