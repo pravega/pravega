@@ -155,7 +155,7 @@ We discuss the elements of the diagram in detail next.
  <img src="./img/ControllerSystemDiagram.png" width="624" height="334" />
 
 <p align="center">
-  <b>Controller Process Diagram</b></p>
+  <i>Controller Process Diagram</i></p>
 
 
 Components <a name="components"></a>
@@ -360,8 +360,8 @@ history table to determine successors of any given segment.
 
 ##### Stream State<a name="streamState"></a>
  Znode which captures the state of the stream. It is an enum with
- values from Creating, Active, Updating, Scaling, Truncating, Sealing,
- and Sealed*.* Once Active, a stream transitions between performing a
+ values from *Creating, Active, Updating, Scaling, Truncating, Sealing,
+ and Sealed*. Once Active, a stream transitions between performing a
  specific operation and active until it is sealed. A transition map is
  defined in the
  [State](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/tables/State.java)
@@ -411,7 +411,7 @@ being processed by same controller instance, it is suboptimal to read
 the value by querying zookeeper every time. So we have introduced an
 in-memory cache that each stream store maintains. It caches retrieved
 metadata per stream so that there is maximum one copy of the data per
-stream in the cache. We have two in-memory caches – a) a cache of
+stream in the cache. There are two in-memory caches: a) a cache of
 multiple stream objects in the store, b) cache properties of a stream in
 the stream object.
 
@@ -585,12 +585,12 @@ satisfy ordering guarantee, we overlay Concurrent Event Processor with
 Serialized Request Handler, which queues up events from the same stream
 in an in-memory queue and processes them in order.
 
-Commit Transaction processing is implemented on a dedicated Serial Event
+*Commit Transaction* processing is implemented on a dedicated Serial Event
 Processor because we want strong Commit ordering while ensuring that
 commit does not interfere with processing of other kinds of requests on
 the stream.
 
-Abort Transaction processing is implemented on a dedicated Concurrent
+*Abort Transaction* processing is implemented on a dedicated Concurrent
 Event Processor which performs abort processing on transactions from
 across streams concurrently.
 
@@ -629,7 +629,7 @@ cases as applicable via background policy manager (auto-scale and retention).
 <img src="./img/RequestProcessing.png" width="600" height="300" />
 
 <p align="center">
-  <b>Request processing</b>
+  <i>Request processing</i>
 </p>
 
 #### Create Stream<a name="createStream"></a>
@@ -678,7 +678,7 @@ stream. If metadata is updated, the event processes and proceeds with
 executing the task. If the metadata is not updated within the desired
 time frame, the event is discarded.
 
-Once scale processing starts, it first sets the stream state SCALING.
+Once scale processing starts, it first sets the stream state *SCALING*.
 This is followed by creating new segments in segment stores. After
 successfully creating new segments, it updates the history table with a
 partial record corresponding to new epoch which contains list of
@@ -701,7 +701,7 @@ to ACTIVE.
 Truncate follows similar mechanism to update and has a temporary
 stream-property for truncation that is used to supply input for truncate
 stream. Once truncate workflow identifies that it can proceed, it first
-sets the state to TRUNCATING. Truncate workflow then looks at the
+sets the state to *TRUNCATING*. Truncate workflow then looks at the
 requested stream-cut, and checks if it is greater than or equal to the
 existing truncation point, only then is it a valid input for truncation
 and the workflow commences. The truncation workflow takes the requested
@@ -800,10 +800,9 @@ ensure all promises made with respect to either are honored and
 enforced.
 
 <img src="./img/TransactionManagement.png" width="600" height="300" />
-Normal Text
 
 <p align="center">
-  <b>Transaction Management Diagram</b>
+  <i>Transaction Management Diagram</i>
 </p>
 
 
