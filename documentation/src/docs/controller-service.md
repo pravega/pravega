@@ -95,9 +95,9 @@ background workers.
 
 The controller exposes two endpoints which can be used to interact with
 a controller service. The first port is for providing programmatic
-access for pravega clients and is implemented as an RPC using gRPC. The
+access for pravega clients and is implemented as an `RPC` using `gRPC`. The
 other endpoint is for administrative operations and is implemented as a
-REST endpoint.
+`REST` endpoint.
 
 ### Stream Management <a name="controllerAsStreamManager"></a>
 
@@ -107,7 +107,9 @@ Specifically, it is responsible for creating, updating, scaling,
 truncating, sealing and deleting streams.
 
 The Stream Management can be broadly divided into three categories:
+
 1. Stream Abstraction  
+
 A stream can be viewed as a series of dynamically changing segment sets
 where the stream transitions from one set of consistent segments to the
 next. Controller is the place for creating and managing this stream abstraction. 
@@ -119,6 +121,7 @@ controller also performs roles of Policy Manager for policies like
 retention and scale.
 
 2. Automated policy Management  
+
 Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the stream. Presently we
 have two policies that users can define, namely [Scaling Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
 [Retention Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java). 
@@ -126,6 +129,7 @@ Scaling policy describes if and under what circumstances a stream should automat
 Retention policy describes a policy about how much data to retain within a stream. 
 
 3. [Transaction](pravega-concepts.md#transactions) Management  
+
 Implementing transactions requires the manipulation of segments. With
 each transaction, Pravega creates a set of transaction segments, which
 are later merged onto the stream segments upon commit or discarded upon
@@ -150,7 +154,9 @@ We discuss the elements of the diagram in detail next.
 
  <img src="./img/ControllerSystemDiagram.png" width="624" height="334" />
 
-Controller Process Diagram
+<p align="center">
+  <b>Controller Process Diagram</b></p>
+
 
 Components <a name="components"></a>
 ----------
@@ -158,14 +164,14 @@ Components <a name="components"></a>
 ### Service Endpoints <a name="serviceEndpoints"></a>
 
 There are two ports exposed by controller: client-controller APIs and
-administration APIs. The client controller communication is implemented as RPC which
+administration APIs. The client controller communication is implemented as `RPC` which
 exposes APIs to perform all stream related control plane operations.
 Apart from this controller also exposes an administrative API set
-implemented as REST. 
+implemented as `REST`. 
 
 Each endpoint performs appropriate call to the *Controller Service backend subsystem*
 which has the actual implementation for various create, read, update and
-delete (CRUD) operations on entities owned and managed by controller.
+delete (**CRUD**) operations on entities owned and managed by controller.
 
  ##### gRPC  
 Client Controller communication endpoint is implemented as a [gRPC](https://grpc.io/)
@@ -174,7 +180,7 @@ interface. The complete list of APIs can be found
 This exposes APIs used by Pravega clients (readers, writers and stream
 manager) and enables stream management. Requests enabled by this API
 include creating, modifying, and deleting streams.
-The underlying gRPC framework provides both synchronous and asynchronous programming models. 
+The underlying `gRPC` framework provides both synchronous and asynchronous programming models. 
 We use the asynchronous model in our client controller interactions so that the client thread does not block on the response from the server.  
 To be able to append to and read data from streams, writers and readers
 query controller to get active segment sets, successor and predecessor
@@ -183,17 +189,17 @@ specific API calls to request controller to create and commit
 transactions.
  
  ##### REST  
-For administration, the controller implements and exposes a REST
+For administration, the controller implements and exposes a `REST`
 interface. This includes API calls for stream management as well as
 other administration API primarily dealing with creation and deletion of
-scopes. We use swagger to describe our REST APIs. The swagger yaml file
+scopes. We use swagger to describe our `REST` APIs. The swagger yaml file
 can be found
 [here](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger).
 
 ### Controller Service<a name="controllerService"></a>
 
-This is the backend layer behind the controller endpoints (gRPC and
-REST). All the business logic required to serve controller API calls are
+This is the backend layer behind the controller endpoints (`gRPC and
+REST`). All the business logic required to serve controller API calls are
 implemented here. This layer contains handles to all other subsystems like the various store implementations
 (stream store, host store and checkpoint store) and background processing frameworks (task framework, event processor framework). 
 Stores are interfaces that provide access to various types of metadata managed by Controller. Background
@@ -303,7 +309,7 @@ i-*th* row corresponding to metadata for segment id *i*. It is important
 to note that each row in the segment table is of fixed size. As new
 segments are added, they are assigned new segment ids in a strictly
 increasing order. So this table is very efficient in creating new
-segments and querying segment information response with O(1) processing
+segments and querying segment information response with *O(1)* processing
 for both these operations.
 
 * History Table <a name="historyTable"></a>  
@@ -620,20 +626,22 @@ stream. These workflows include create, scale, truncation, update, seal,
 and delete. These workflows are invoked both via direct APIs and in some
 cases as applicable via background policy manager (auto-scale and retention).
 
-<img src="./img/RequestProcessing.png" width="624" height="338" />
+<img src="./img/RequestProcessing.png" width="600" height="300" />
 
-Request Processing Flow
+<p align="center">
+  <b>Request processing</b>
+</p>
 
 #### Create Stream<a name="createStream"></a>
 
 Create stream is implemented as a task on Task Framework. Create stream
 workflow first creates initial stream metadata with stream state set to
-CREATING*.* Following this, it identifies segment containers that should
+*CREATING*. Following this, it identifies segment containers that should
 own and create segments for this stream and calls create-segment
 concurrently. Once all create segments complete, the create stream task
 completes thus moving the stream to ACTIVE state. All failures are
 retried few times with exponential backoffs. However, if it is unable to
-complete any step, the stream is left dangling in CREATING state. * *
+complete any step, the stream is left dangling in *CREATING* state.
 
 #### Update Stream
 
@@ -728,7 +736,7 @@ this stream is cleaned up.
 
 ### Stream Policy Manager<a name="streamPolicyManager"></a>
 As described earlier, there are two types of user defined policies that controller is responsible for enforcing, namely Automatic Scaling and Automatic Retention. 
-Controller is not just the store for stream policy but it actively enforces those user-defined policies for their streams. 
+Controller is not just the store for stream policy but it actively enforces those user defined policies for their streams. 
 
 #### Scaling infrastructure<a name="scalingInfra"></a>
 
@@ -791,9 +799,13 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 
-<img src="./img/TransactionManagement.png" width="624" height="340" />
+<img src="./img/TransactionManagement.png" width="600" height="300" />
+Normal Text
 
-Transaction Management Diagram
+<p align="center">
+  <b>Transaction Management Diagram</b>
+</p>
+
 
 Client calls into controller process to create, ping commit or abort
 transactions. Each of these requests is received on controller and handled by the Transaction Utility module which 
@@ -803,11 +815,11 @@ implements the business logic for processing each request.
 
 Writers interact with Controller to create new transactions. Controller Service passes the create transaction request to Transaction Utility module.
 The create transaction function in the module performs follows steps in order to create a transaction:
+
 1. Generates a unique UUID for the transaction. 
 2. It fetches current active set of segments for the stream from metadata store and its corresponding epoch identifier from the history. 
 3. It creates a new transaction record in the zookeeper using the metadata store interface. 
-4. It then requests segment store to create special transaction segments that are inherently linked to the parent active
-segments. 
+4. It then requests segment store to create special transaction segments that are inherently linked to the parent active segments. 
 
 While creating transactions, controller ensures that parent segments are not sealed as we attempt to create corresponding transaction segments. 
 And during the lifespan of a transaction, should a scale commence, it should wait for transactions on older epoch to finish before the scale proceeds
