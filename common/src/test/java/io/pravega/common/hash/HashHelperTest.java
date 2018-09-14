@@ -63,6 +63,16 @@ public class HashHelperTest {
     }
 
     @Test
+    public void testHashToBucketByteArray() {
+        val rnd = new Random(0);
+        testBucketUniformity(HashHelper::hashToBucket, () -> {
+            byte[] r = new byte[16];
+            rnd.nextBytes(r);
+            return r;
+        });
+    }
+
+    @Test
     public void testHashToBucketUUID() {
         val r = new Random(0);
         testBucketUniformity(HashHelper::hashToBucket, () -> new UUID(r.nextLong(), r.nextLong()));

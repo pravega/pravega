@@ -74,6 +74,10 @@ public class HashHelper {
                 numBuckets);
     }
 
+    public int hashToBucket(byte[] array, int numBuckets) {
+        return Hashing.consistentHash(hash.hashBytes(array), numBuckets);
+    }
+
     /**
      * Returns a double uniformly randomly distributed between 0 and 1 using the hash function.
      *

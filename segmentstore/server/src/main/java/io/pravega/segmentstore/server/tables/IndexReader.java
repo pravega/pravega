@@ -66,19 +66,19 @@ class IndexReader {
     /**
      * Locates a Bucket in the given Segment's Extended Attribute Index.
      *
-     * @param segment A DirectSegmentAccess providing access to the Segment to look into.
      * @param keyHash The the Hash pertaining to the lookup key.
+     * @param segment A DirectSegmentAccess providing access to the Segment to look into.
      * @param timer   Timer for the operation.
      * @return A Future that, when completed, will contain the requested Bucket information.
      */
-    CompletableFuture<TableBucket> locateBucket(DirectSegmentAccess segment, KeyHash keyHash, TimeoutTimer timer) {
+    CompletableFuture<TableBucket> locateBucket(KeyHash keyHash, DirectSegmentAccess segment, TimeoutTimer timer) {
         Iterator<ArrayView> hashIterator = keyHash.iterator();
         Preconditions.checkArgument(hashIterator.hasNext(), "No hashes given");
 
         // Fetch Primary Hash, then fetch Secondary Hashes EAs until: 1) we reach a data node OR 2) the EA entry is missing.
         UUID phKey = this.attributeCalculator.getPrimaryHashAttributeKey(hashIterator.next());
         val builder = TableBucket.builder();
-        return fetchNode(segment, phKey, builder, timer)
+        return fetchNode(phKey, builder, segment, timer)
                 .thenCompose(v -> Futures.loop(
                         () -> canContinueLookup(builder.getLastNode(), hashIterator),
                         () -> {
@@ -87,7 +87,7 @@ class IndexReader {
                                     hashIterator.next(), (int) builder.getLastNode().getValue());
 
                             // Fetch the value of the EA Key.
-                            return fetchNode(segment, shKey, builder, timer);
+                            return fetchNode(shKey, builder, segment, timer);
                         },
                         this.executor))
                 .thenApply(v -> builder.build());
@@ -96,12 +96,12 @@ class IndexReader {
     /**
      * Looks up a Backpointer offset.
      *
-     * @param segment A DirectSegmentAccess providing access to the Segment to search in.
      * @param offset  The offset to find a backpointer from.
+     * @param segment A DirectSegmentAccess providing access to the Segment to search in.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the backpointer offset, or -1 if no such pointer exists.
      */
-    CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
+    CompletableFuture<Long> getBackpointerOffset(long offset, DirectSegmentAccess segment, Duration timeout) {
         UUID key = this.attributeCalculator.getBackpointerAttributeKey(offset);
         return segment.getAttributes(Collections.singleton(key), false, timeout)
                       .thenApply(attributes -> {
@@ -121,7 +121,11 @@ class IndexReader {
         return this.attributeCalculator.extractValue(node.getValue());
     }
 
-    private CompletableFuture<Void> fetchNode(DirectSegmentAccess segment, UUID key, TableBucket.TableBucketBuilder builder, TimeoutTimer timer) {
+    private CompletableFuture<Void> fetchNode(UUID key, TableBucket.TableBucketBuilder builder, DirectSegmentAccess segment, TimeoutTimer timer) {
+        // Fetch the node from the Segment's attributes, but we really shouldn't be caching the value, as it will only
+        // slow the retrieval down (it needs to be queued up in the Segment Container's processing queue, etc.) and it
+        // provides little value. For pure retrievals, the Key Hash itself will be cached alongside with its offset,
+        // while for updates, this value may be changed anyway, at which point it will be cached.
         return segment
                 .getAttributes(Collections.singleton(key), false, timer.getRemaining())
                 .thenAcceptAsync(attributes -> {

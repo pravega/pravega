@@ -160,7 +160,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                             .groupByBucket(indexedKeys.values(), segment, timer)
                             .thenComposeAsync(bucketUpdates -> getExistingKeys(bucketUpdates, segment, timer), this.executor)
                             .thenComposeAsync(bucketUpdates ->
-                                            this.indexWriter.updateBuckets(segment, bucketUpdates, this.aggregator.getLastIndexedOffset(),
+                                            this.indexWriter.updateBuckets(bucketUpdates, segment, this.aggregator.getLastIndexedOffset(),
                                                     indexedKeys.getLastIndexedOffset(), timer.getRemaining()),
                                     this.executor)
                             .thenApply(result::withFlushedAttributes);
@@ -303,7 +303,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                             .thenComposeAsync(keyView -> {
                                 HashedArray key = new HashedArray(keyView.getCopy());
                                 bucketUpdate.withExistingKey(new KeyInfo(key, offset.get()));
-                                return this.indexWriter.getBackpointerOffset(segment, offset.get(), timer.getRemaining())
+                                return this.indexWriter.getBackpointerOffset(offset.get(), segment, timer.getRemaining())
                                                        .thenAccept(offset::set);
                             }, this.executor);
                 },

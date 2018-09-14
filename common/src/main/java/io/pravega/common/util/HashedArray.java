@@ -103,7 +103,7 @@ public class HashedArray implements ArrayView {
 
     @Override
     public void copyTo(byte[] target, int targetOffset, int length) {
-
+        System.arraycopy(this.array, 0, target, targetOffset, length);
     }
 
     @Override
