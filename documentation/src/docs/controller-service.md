@@ -173,7 +173,7 @@ Each endpoint performs appropriate call to the *Controller Service backend subsy
 which has the actual implementation for various create, read, update and
 delete (**CRUD**) operations on entities owned and managed by controller.
 
- ##### gRPC  
+##### gRPC  
 Client Controller communication endpoint is implemented as a [gRPC](https://grpc.io/)
 interface. The complete list of APIs can be found
 [here](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto).
@@ -188,7 +188,7 @@ segments while working with a stream. For transactions, the client uses
 specific API calls to request controller to create and commit
 transactions.
  
- ##### REST  
+##### REST  
 For administration, the controller implements and exposes a `REST`
 interface. This includes API calls for stream management as well as
 other administration API primarily dealing with creation and deletion of
@@ -450,6 +450,7 @@ to all nodes under the bucket. Presently this entails running periodic
 workflows to capture stream-cuts (called Retention-Set) for each stream at desired frequencies.
 
 ##### Retention Set
+
  One retention set per stream is stored under the corresponding
  bucket/stream Znode. As we compute stream-cuts periodically, we keep
  preserving them under this Znode. As some automatic truncation is
@@ -627,7 +628,6 @@ and delete. These workflows are invoked both via direct APIs and in some
 cases as applicable via background policy manager (auto-scale and retention).
 
 <img src="./img/RequestProcessing.png" width="600" height="300" />
-
 <p align="center">
   <i>Request processing</i>
 </p>
@@ -800,7 +800,6 @@ ensure all promises made with respect to either are honored and
 enforced.
 
 <img src="./img/TransactionManagement.png" width="600" height="300" />
-
 <p align="center">
   <i>Transaction Management Diagram</i>
 </p>
