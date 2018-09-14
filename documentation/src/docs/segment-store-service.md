@@ -11,60 +11,60 @@ You may obtain a copy of the License at
 
 The Pravega Segment Store Service is a subsystem that lies at the heart of the entire Pravega deployment. It is the main access point for managing Stream Segments, providing the ability to create, delete and modify/access their contents. The Pravega Client communicates with the Pravega Stream Controller to figure out which Segments need to be used (for a Stream), and both the Stream Controller and the Client deal with the Segment Store Service to actually operate on them.
 
-The basic idea behind the Segment Store Service is that it buffers incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Segment into a fewer (but larger) ones.
+The basic idea behind the Segment Store Service is that, it buffers the incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Segment into a fewer (but larger) ones.
 
 The Pravega Segment Store Service can provide the following guarantees:
 
 - Stream Segments that are unlimited in length, with append-only semantics, yet supporting arbitrary-offset reads.
-- No throughput degradation when performing small appends, regardless of the performance of the underlying Tier-2 storage system.
+- No throughput degradation when performing small appends, regardless of the performance of the underlying Tier 2 storage system.
 - Multiple concurrent writers to the same Segment.
  - Order is guaranteed within the context of a single writer, but appends from multiple concurrent writers will be added in the order in which they were received (appends are atomic without interleaving their contents).
 - Writing to and reading from a Segment concurrently with relatively low latency between writing and reading.
 
 # Terminology
-Throughout the rest of this document, we will use the following terminology:
+The follwoing terminologies are used throughout the document:
 
-- _Stream Segment_ or _Segment_: A contiguous sequence of bytes. Similar to a file with no size limit. This is a part of a Stream, limited both temporally and laterally (by key). The scope of Streams and mapping Stream Segments to such Streams is beyond the purpose of this document.
-- _Tier-2 storage_ or _Permanent Storage_: The final resting place of the data.
-- _Tier-1 storage_: Fast append storage, used for durably buffering incoming appends before distribution to Tier-2 Storage.
+- _Stream Segment_ or _Segment_: A contiguous sequence of bytes, similar to a file of unbounded size. This is a part of a Stream, limited both temporally and laterally (by key). The scope of Streams and mapping Stream Segments to such Streams is beyond the purpose of this document.
+- _Tier 2 Storage_ or _Permanent Storage_: The final resting place of the data.
+- _Tier 1 Storage_: Fast append storage, used for durably buffering incoming appends before distributing to Tier 2 Storage.
 - _Cache_: A key-value local cache with no expectation of durability.
 - _Pravega Segment Store Service_ or _Segment Store_: The Service that this document describes. 
 - _Transaction_: A sequence of appends that are related to a Segment, which, if persisted, would make up a contiguous range of bytes within it. This is used for ingesting very large records or for accumulating data that may or may not be persisted into the Segment (but its fate cannot be determined until later in the future).
-    - Note that at the Pravega level, a Transaction applies to an entire Stream. In this document, a Transaction applies to a single Segment.
+    - **Note:** At the Pravega level, a Transaction applies to an entire Stream. In this document, a Transaction applies to a single Segment.
 
 # Architecture
 The _Segment Store_ is made up of the following components:
 
-- _Pravega Node_: a host running a Pravega Process.
+- _Pravega Node_: A host running a Pravega Process.
 - _Stream Segment Container_ (or _Segment Container_): A logical grouping of Stream Segments. The mapping of Segments to Containers is deterministic and does not require any persistent store; Segments are mapped to Containers via a hash function (based on the Segment's name).
-- _Durable Data Log Adapter_ (or _DurableDataLog_): an abstraction layer for Tier-1 Storage.
-- _Storage Adapter_: an abstraction layer for Tier-2 Storage.
+- _Durable Data Log Adapter_ (or _Durable Data Log_): An abstraction layer for Tier 1 Storage.
+- _Storage Adapter_: An abstraction layer for Tier 2 Storage.
 - _Cache_: an abstraction layer for append data caching.
-- _Streaming Client_: an API that can be used to communicate with the Pravega Segment Store.
-- _Segment Container Manager_: a component that can be used to determine the lifecycle of Segment Containers on a Pravega Node. This is used to start or stop Segment Containers based on an external coordination service (such as the Pravega Controller).
+- _Streaming Client_: An API that can be used to communicate with the Pravega Segment Store.
+- _Segment Container Manager_: A component that can be used to determine the lifecycle of Segment Containers on a Pravega Node. This is used to start or stop Segment Containers based on an external coordination service (such as the Pravega Controller).
 
-The Segment Store handles writes by first writing them to a log (Durable Data Log) on a fast storage (SSDs preferably) and immediately acking back to the client after they have been persisted there. Subsequently, those writes are then aggregated into larger chunks and written in the background to Tier-2 storage. Data for appends that have been acknowledged (and are in Tier-1) but not yet in Tier-2 is stored in the Cache (in addition to Tier-1). Once such data has been written to Tier-2 Storage, it may or may not be kept in the Cache, depending on a number of factors, such as Cache utilization/pressure and access patterns.
+The Segment Store handles writes by first writing them to a log (_Durable Data Log_) on a fast storage (SSDs preferably) and immediately acking back to the client after they have been persisted there. Subsequently, those writes are then aggregated into larger chunks and written in the background to Tier 2 storage. Data for appends that have been acknowledged (and are in Tier 1) but not yet in Tier 2 is stored in the Cache (in addition to Tier 1). Once such data has been written to Tier 2 Storage, it may or may not be kept in the Cache, depending on a number of factors, such as Cache utilization/pressure and access patterns.
 
-More details about each component described above can be found in the **Components** section (below).
+More details about each component described above can be found in the [Components](#Components) section.
 
 ## System Diagram
 
 ![System Diagram](img/Segment.Store.Components.png)
 
-In this image, we show the major components of the Segment Store (for simplicity, only one Segment Container is depicted). All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in one form or another, and adding it would only clutter the diagram.
+In the above diagram, the major components of the Segment Store is shown and for simplicity, only one Segment Container is depicted. All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in one form or another, and adding it would only clutter the diagram.
 
-More detailed diagrams can be found under the **Data Flow** section (below).
+More detailed diagrams can be found under the [Data Flow](#Data Flow) section.
 
 # Components
 
 ## Segment Containers
 Segment Containers are a logical grouping of Segments, and are responsible for all operations on those Segments within their span. A Segment Container is made of multiple sub-components:
 
-- _Segment Container Metadata_: A collection of Segment-specific metadata that describe the current state of each Segment (how much data in Tier-2, how much in Tier-1, whether it is sealed, etc.), as well as other misc info about each Container.
-- _Durable Log_: The Container writes every operation it receives to this log and acks back only when the log says it has been accepted and durably persisted..
-- _Read Index_: An in-memory index of where data can be read from. The Container delegates all read requests to it, and it is responsible for fetching the data from wherever it is currently located (Cache, Tier-1 Storage or Tier-2 Storage).
-- _Cache_: Used to store data for appends that exist in Tier-1 only (not yet in Tier-2), as well as blocks of data that support reads.
-- _Storage Writer_: Processes the durable log operations and applies them to Tier-2 storage (in the order in which they were received). This component is also the one that coalesces multiple operations together, for better back-end throughput.
+- _Segment Container Metadata_: A collection of Segment-specific metadata that describe the current state of each Segment (how much data in Tier 2, how much in Tier 1, whether it is sealed, etc.), as well as other miscellaneous info about each Container.
+- _Durable Log_: The Container writes every operation it receives to this log and acks back only when the log says it has been accepted and durably persisted.
+- _Read Index_: An in-memory index of where data can be read from. The Container delegates all read requests to it, and it is responsible for fetching the data from wherever it is currently located (Cache, Tier 1 Storage or Tier2 Storage).
+- _Cache_: Used to store data for appends that exist in Tier 1 only (not yet in Tier 2), as well as blocks of data that support reads.
+- _Storage Writer_: Processes the durable log operations and applies them to Tier 2 storage (in the order in which they were received). This component is also the one that coalesces multiple operations together, for better back-end throughput.
 
 ### Segment Container Metadata
 The Segment Container Metadata is critical to the good functioning and synchronization of its components. This metadata is shared across all components and it comes at two levels: Container-wide Metadata and per-Segment Metadata. Each serves a different purpose and is described below.
@@ -74,50 +74,50 @@ Each **Segment Container** needs to keep some general-purpose metadata that affe
 
 - _Operation Sequence Number_: The largest sequence number assigned by the _Durable Log_. Every time a new Operation is received and successfully processed by the _Durable Log_, this number is incremented (its value never decreases or otherwise roll back, even if an operation failed to be persisted).
     - The Operation Sequence Number is guaranteed to be strict-monotonic increasing (no two Operations have the same value, and an Operation will always have a larger Sequence Number than all Operations before it).
-- _Epoch_: A number that is incremented every time a successful recovery (Container Start) happens. This value is durably incremented and stored as part of recovery and can be used for a number of cases (a good use is Tier-2 fencing for HDFS, which doesn't provide a good, native mechanism for that).
-- _Active Segment Metadata_: Information about each active Segment (see next section below). A Segment is active if it has had activity (read or write) recently and is currently loaded in memory. If a Segment is not used for a while, or if there are many Segments currently active, a Segment becomes inactive by having its outstanding metadata flushed to Tier-2 Storage and evicted from memory.
-- _Tier-1 Metadata_: Various pieces of information that can be used to accurately truncate the Tier-1 Storage Log once all operations prior to that point have been durably stored to Tier-2.
-- _Checkpoints_: Container Metadata is periodically checkpointed by having its entire snapshot (including Active Segments) serialized to Tier-1. A Checkpoint serves as a Truncation Point for Tier-1, meaning it contains all the updates that have been made to the Container via all the processed operations before it so we no longer need those operations in order to reconstruct the Metadata. If we truncate Tier-1 on a Checkpoint, then we can use information from Tier-2 and this Checkpoint to reconstruct what is in the Metadata previously, without relying on any operation prior to it in Tier-1. 
+- _Epoch_: A number that is incremented every time a successful recovery (Container Start) happens. This value is durably incremented and stored as part of recovery and can be used for a number of cases (a good use is Tier 2 fencing for HDFS, which doesn't provide a good, native mechanism for that).
+- _Active Segment Metadata_: Information about each active Segment (see next section below). A Segment is active if it has had activity (read or write) recently and is currently loaded in memory. If a Segment is not used for a while, or if there are many Segments currently active, a Segment becomes inactive by having its outstanding metadata flushed to Tier 2 Storage and evicted from memory.
+- _Tier 1 Metadata_: Various pieces of information that can be used to accurately truncate the Tier 1 Storage Log once all operations prior to that point have been durably stored to Tier 2.
+- _Checkpoints_: Container Metadata is periodically checkpointed by having its entire snapshot (including Active Segments) serialized to Tier 1. A Checkpoint serves as a Truncation Point for Tier 1, meaning it contains all the updates that have been made to the Container via all the processed operations before it, so we no longer need those operations in order to reconstruct the Metadata. If we truncate Tier 1 on a Checkpoint, then we can use information from Tier 2 and this Checkpoint to reconstruct what is in the Metadata previously, without relying on any operation prior to it in Tier 1. 
 
 #### Segment Metadata
 Each Segment Container needs to keep per-segment metadata, which it uses to keep track of the state of each segment as it processes operations for it. The metadata can be volatile (it can be fully rebuilt upon recovery) and contains the following properties for each segment that is currently in use:
 
-- `Name` the name of the Segment.
+- `Name`: The name of the Segment.
 - `Id`: Internally assigned unique Segment Id. This is used to refer to Segments, which is preferred to the Name. This Id is sticky for the lifetime of the Segment, which means that even if the Segment becomes inactive, a future reactivation will have it mapped to the same Id.
-- `StartOffset` (also known as `TruncationOffset`): the lowest offset of the data that is available for reading. A non-truncated segment will have Start Offset equal to 0, while subsequent Truncate operations will increase (but never decrease) this number. 
-- `StorageLength`: the highest offset of the data that exists in Tier-2 Storage.
-- `Length`: the highest offset of the committed data in Tier-1 Storage.
-- `LastModified`: the timestamp of the last processed (and acknowledged) append.
-- `IsSealed`: whether the Segment is closed for appends (this value may not have been applied to Tier-2 Storage yet).
-- `IsSealedInStorage`: whether the Segment is closed for appends (and this has been persisted in Tier-2 Storage).
-- `IsMerged`: whether this Segment has been merged into another one (but this has not yet been persisted in Tier-2 Storage). This only applies for Transactions. Once the merger is persisted into Tier-2, the Transaction Segment does not exist anymore (so `IsDeleted` will become true).
-- `IsDeleted`: whether the Segment is deleted or has recently been merged into another Segment. This only applies for recently deleted Segments, and not for Segments that never existed.
+- `StartOffset` (also known as `TruncationOffset`): The lowest offset of the data that is available for reading. A non-truncated segment will have Start Offset equal to 0, while subsequent Truncate operations will increase (but never decrease) this number. 
+- `StorageLength`: The highest offset of the data that exists in Tier 2 Storage.
+- `Length`: The highest offset of the committed data in Tier 1 Storage.
+- `LastModified`: The timestamp of the last processed (and acknowledged) append.
+- `IsSealed`: Whether the Segment is closed for appends (this value may not have been applied to Tier 2 Storage yet).
+- `IsSealedInStorage`: Whether the Segment is closed for appends (and this has been persisted in Tier 2 Storage).
+- `IsMerged`: Whether this Segment has been merged into another one (but this has not yet been persisted in Tier 2 Storage). This only applies for Transactions. Once the merger is persisted into Tier 2, the Transaction Segment does not exist anymore (so `IsDeleted` will become true).
+- `IsDeleted`: Whether the Segment is deleted or has recently been merged into another Segment. This only applies for recently deleted Segments, and not for Segments that never existed.
 
-The following are **always** true for any Segment:
+The following are always **true** for any Segment:
 
 - `StorageLength` <= `Length`
 - `StartOffset` <= `Length`
 
 ### Log Operations
 
-A _Log Operation_ is the basic unit that is enqueued in the Durable Log. It does not represent an action, per se, but is the base for several serializable operations (we can serialize multiple types of operations, not just Appends). Each Operation is the result of an external action (which denote the alteration of a Segment), or an internal trigger, such as Metadata maintenance operations.
+A _Log Operation_ is the basic unit that is enqueued in the _Durable Log_. It does not represent an action, per se, but is the base for several serializable operations (we can serialize multiple types of operations, not just Appends). Each Operation is the result of an external action (which denote the alteration of a Segment), or an internal trigger, such as Metadata maintenance operations.
 
 Every Log Operation has the following elements:
-- `SequenceNumber`: the unique sequence number assigned to this entry (see more under _Container Metadata_).
+- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#container Metadata).
 
-These are the various types of Log Operations: 
+The following are the various types of Log Operations: 
 
-- _Storage Operations_ represent operations that need to be applied to the underlying Tier-2 Storage:
+- _Storage Operations_ represent operations that need to be applied to the underlying Tier 2 Storage:
     - `StreamSegmentAppendOperation`: Represents an Append to a particular Segment.
     - `CachedStreamSegmentAppendOperation`: Same as `StreamSegmentAppendOperation`, but this is for internal use (instead of having an actual data payload, it points to a location in the cache from where the data can be retrieved).
-    - `StreamSegmentSealOperation`: When processed, it sets a flag in the in-memory metadata that no more appends can be received. When the Storage Writer processes it, it marks the Segment as read-only in Tier-2 Storage.
+    - `StreamSegmentSealOperation`: When processed, it sets a flag in the in-memory metadata that no more appends can be received. When the Storage Writer processes it, it marks the Segment as read-only in Tier 2 Storage.
     - `StreamSegmentTruncateOperation`: Truncates a Segment at a particular offset. This causes the Segment's `StartOffset` to change.
     - `MergeTransactionOperation`: Indicates that a Transaction is to be merged into its parent Segment.
 - _Metadata Operations_ are auxiliary operations that indicate a change to the Container Metadata. They can be the result of an external operation (we received an request for a Segment we never knew about before, so we must assign a unique Id to it) or to snapshot the entire Metadata (which helps with recovery and cleaning up Tier-1 Storage). The purpose of the _Metadata Operations_ is to reduce the amount of time needed for failover recovery (when needed):
-    - `StreamSegmentMapOperation`: maps an Id to a Segment Name.
-    - `TransactionMapOperation`: maps an Id to a Transaction and to its Parent Segment.
+    - `StreamSegmentMapOperation`: Maps an Id to a Segment Name.
+    - `TransactionMapOperation`: Maps an Id to a Transaction and to its Parent Segment.
     - `UpdateAttributesOperation`: Updates any attributes on a Segment.
-    - `MetadataCheckpoint` includes an entire snapshot of the Metadata. This can be useful when during recovery - this contains all metadata up to this point, which is a sufficient base for all operations after it.
+    - `MetadataCheckpoint`: Includes an entire snapshot of the Metadata. This can be useful when during recovery.This contains all metadata up to this point, which is a sufficient base for all operations after it.
 
 ### Durable Log
 
@@ -128,11 +128,11 @@ The _Durable Log_ is the central component that handles all Log Operations. All 
 1. All received operations are added to an _Operation Queue_  (the caller receives a Future which will be completed when the operation is durably persisted)
 2. The _Operation Processor_ picks all operations currently available in the queue (if the queue is empty, it will wait until at least one Operation is added).
 3. The _Operation Processor_ runs as a continuous loop (in a background thread), and has four main stages.
-    1. Dequeue all outstanding Operations from the Operation Queue (described above)
-    2. Pre-process the Operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign Sequence Numbers, etc.)
-    3. Write the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a Data Frame is complete (full or no more operations to add), the Data Frame Builder sends the Data Frame to the _Durable Data Log. Note that an Operation may span multiple DataFrames - the goal is to make best use of the Durable Data Log throughput capacity by making writes as large as possible (but also taking into account that there may be a maximum size limit per write).
-4. When a DataFrame has been durably persisted in the Durable Data Log, the Operation Processor post-processes all operations that were fully written so far (adds them to in-memory structures, updates indices, etc.) and completes the Futures associated with them.
-5. The _Operation Processor_ works asynchronously, in that it does not wait for a particular Data Frame to be written before starting another one and sending it to the Durable Data Log. As such, multiple DataFrames may be in flight (but in a specific order), and the Operation Processor relies on certain ordering guarantees from the Durable Data Log (if a particular DataFrame was acked, then all DataFrames prior to that were also committed successfully, in the right order).  
+    a. Dequeue all outstanding Operations from the Operation Queue (described above)
+    b. Pre-process the Operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign Sequence Numbers, etc.)
+    c. Write the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a Data Frame is complete (full or no more operations to add), the Data Frame Builder sends the Data Frame to the _Durable Data Log_. Note that, an Operation may span multiple DataFrames - the goal is to make best use of the Durable Data Log throughput capacity by making writes as large as possible (but also taking into account that there may be a maximum size limit per write).
+4. When a DataFrame has been durably persisted in the _Durable Data Log_, the Operation Processor post-processes all operations that were fully written so far (adds them to in-memory structures, updates indices, etc.) and completes the Futures associated with them.
+5. The _Operation Processor_ works asynchronously, in that it does not wait for a particular Data Frame to be written before starting another one and sending it to the _Durable Data Log_. As such, multiple DataFrames may be in flight (but in a specific order), and the Operation Processor relies on certain ordering guarantees from the _Durable Data Log_ (if a particular DataFrame was acked, then all DataFrames prior to that were also committed successfully, in the right order).  
      - The Operation Processor does not do any write throttling (it leaves that to the Durable Data Log implementation), but it control the size of the Data Frames that get sent to it.
 
 #### Truncation
