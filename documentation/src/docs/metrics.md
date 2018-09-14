@@ -21,10 +21,11 @@ public interface StatsProvider {
     DynamicLogger createDynamicLogger();
 }
 ```
-* start(): Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics service. 
-* close(): Shutdown of Metrics service.
-* createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
-* createDynamicLogger(): Create a dynamic logger.
+
+- start(): Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics service. 
+- close(): Shutdown of Metrics service.
+- createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
+- createDynamicLogger(): Create a dynamic logger.
 
 ## 1.2. Metric Logger — interface StatsLogger
 Using this interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric OpStatsLogger, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
@@ -37,11 +38,12 @@ public interface StatsLogger {
     StatsLogger createScopeLogger(String scope);
 }
 ```
-* createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics.
-* createCounter(): Register and get a Counter metric.
-* createMeter(): Create and register a Meter metric.
-* registerGauge(): Register a Gauge metric. 
-* createScopeLogger(): Create the stats logger under given scope name.
+
+- createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics.
+- createCounter(): Register and get a Counter metric.
+- createMeter(): Create and register a Meter metric.
+- registerGauge(): Register a Gauge metric.
+- createScopeLogger(): Create the stats logger under given scope name.
 
 ### 1.3. Metric Sub Logger — OpStatsLogger
 OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, ReadSegment, we could use it to record the number of operation, time/duration of each operation.
@@ -55,12 +57,13 @@ public interface OpStatsLogger {
     void clear();
 }
 ```
-* reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
-* reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  
-* reportSuccessValue() : Used to track Histogram of a success value.
-* reportFailValue() : Used to track Histogram of a failed value. 
-* toOpStatsData() :  Used to support JMX exports and inner test.
-* clear : Used to clear stats for this operation.
+
+- reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
+- reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  
+- reportSuccessValue() : Used to track Histogram of a success value.
+- reportFailValue() : Used to track Histogram of a failed value. 
+- toOpStatsData() :  Used to support JMX exports and inner test.
+- clear : Used to clear stats for this operation.
 
 ### 1.4 Metric Logger — interface DynamicLogger
 A simple interface that only exposes simple type metrics: Counter/Gauge/Meter.
@@ -74,12 +77,13 @@ void freezeGaugeValue(String name);
 void recordMeterEvents(String name, long number);
 }
 ```
-* incCounterValue() : Increase Counter with given value
-* updateCounterValue() : Updates the counter with given value
-* freezeCounter() : Notifies that the counter will not be updated
-* reportGaugeValue() : Reports Gauge value
-* freezeGaugeValue() : Notifies that the gauge value will not be updated.
-* recordMeterEvents()  : Record the occurrence of a given number of events in Meter.
+
+- incCounterValue() : Increase Counter with given value.
+- updateCounterValue() : Updates the counter with given value.
+- freezeCounter() : Notifies that the counter will not be updated.
+- reportGaugeValue() : Reports Gauge value.
+- freezeGaugeValue() : Notifies that the gauge value will not be updated.
+- recordMeterEvents()  : Record the occurrence of a given number of events in Meter.
 
 
 # 2. Example for starting a Metric service
@@ -310,15 +314,15 @@ public class MetricsConfig extends ComponentConfig {
 # 4. Steps to add your own Metrics
 * Step 1. When start a segment store/controller service, start a Metrics service as a sub service. Reference above example in ServiceStarter.start()
 ```java
+public class AddMetrics {
         statsProvider = MetricsProvider.getProvider();
         statsProvider.start(metricsConfig);    
-```
-* Step 2. In the class that need Metrics: get StatsLogger through MetricsProvider; then get Metrics from StatsLogger; at last report it at the right place.
-```java
-    static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); < --- 1
+    // Step 2. In the class that need Metrics: get StatsLogger through MetricsProvider; then get Metrics from StatsLogger; at last report it at the right place.
+
+    static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); // <--- 1
     static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     
-    public static class Metrics { < --- 2
+     static class Metrics { // < --- 2
         //Using Stats Logger
         static final String CREATE_STREAM = "stream_created"; 
         static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(CREATE_STREAM);
@@ -332,7 +336,7 @@ public class MetricsConfig extends ComponentConfig {
     }
    
     //to report success or increment
-    Metrics.CREATE_STREAM.reportSuccessValue(1); < --- 3
+    Metrics.CREATE_STREAM.reportSuccessValue(1); // < --- 3
     Metrics.createStreamSegment.reportSuccessEvent(timer.getElapsed());
     DYNAMIC_LOGGER.incCounterValue(Metrics.SEGMENT_READ_BYTES, 1);
     DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0);
@@ -344,11 +348,13 @@ public class MetricsConfig extends ComponentConfig {
     //to freeze
     DYNAMIC_LOGGER.freezeCounter(Metrics.SEGMENT_READ_BYTES);
     DYNAMIC_LOGGER.freezeGaugeValue(OPEN_TRANSACTIONS);
-  ```
+}
+```
+
 # 5. Available Metrics and their names
 
-* Metrics in Segment Store Service
-````
+- Metrics in Segment Store Service.
+```
 segmentstore.segment_read_latency_ms
 segmentstore.segment_write_latency_ms 
 segmentstore.segment_create_latency_ms
@@ -356,25 +362,26 @@ segmentstore.segment_create_latency_ms
 //Dynamic
 segmentstore.segment_read_bytes.$scope.$stream.$segment.Counter
 segmentstore.segment_write_bytes.$scope.$stream.$segment.Counter
-````
+```
 
-* Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate	
-````
+- Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate.	
+```
 hdfs.tier2_read_latency_ms
 hdfs.tier2_write_latency_ms
 
 //Dynamic
 hdfs.tire2_read_bytes.Counter
 hdfs.tier2_write_bytes.Counter
-````
-* Cache Metrics
-````
+```
+
+- Cache Metrics
+```
 rocksdb.cache_insert_latency
 rocksdb.cache_get_latency
-````
+```
 
-* Tier-1 DurableDataLog Metrics: Read/Write Latency, Read/Write Rate	
-````
+- Tier-1 DurableDataLog Metrics: Read/Write Latency, Read/Write Rate.	
+```
 bookkeeper.bookkeeper_total_write_latency
 bookkeeper.bookkeeper_write_latency
 bookkeeper.bookkeeper_write_bytes
@@ -383,10 +390,10 @@ bookkeeper.bookkeeper_write_queue_fill
 
 //Dynamic
 bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
-````
+```
 
-* Container-specific metrics
-````
+- Container-specific metrics.
+```
 process_operations_latency.$containerId
 process_operations_batch_size.$containerId
 operation_queue_size.$containerId
@@ -412,11 +419,10 @@ container_merge_segment_count.$containerId.Meter
 container_seal_count.$containerId.Meter
 container_truncate_count.$containerId.Meter
 active_segments.$containerId.Gauge
-````
+```
 
-* Metrics in Controller 
-
-````
+- Metrics in Controller. 
+```
 controller.stream_created
 controller.stream_sealed
 controller.stream_deleted
@@ -431,15 +437,16 @@ controller.segments_count.$scope.$stream.Gauge
 controller.$scope.$stream.segments_splits.$scope.$stream.Counter
 controller.$scope.$stream.segments_merges.$scope.$stream.Counter
 controller.retention_frequency.$scope.$stream.Meter
-controller.truncated_size..$scope.$stream.Gauge
-````
-* General Metrics
-````
+controller.truncated_size.$scope.$stream.Gauge
+```
+
+- General Metrics.
+```
 cache_size_bytes
 cache_gen
 thread_pool_queue_size
 thread_pool_active_threads
-````
+```
 # 6. Useful links
 * [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)

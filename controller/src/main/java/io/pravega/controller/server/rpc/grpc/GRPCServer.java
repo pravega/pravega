@@ -15,6 +15,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import java.io.File;
@@ -42,9 +43,10 @@ public class GRPCServer extends AbstractIdleService {
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig) {
         this.objectId = "gRPCServer";
         this.config = serverConfig;
+        AuthHelper authHelper = new AuthHelper(serverConfig.isAuthorizationEnabled(), serverConfig.getTokenSigningKey());
         ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
-                .addService(new ControllerServiceImpl(controllerService, serverConfig.getTokenSigningKey(), serverConfig.isAuthorizationEnabled()));
+                .addService(new ControllerServiceImpl(controllerService, authHelper));
         if (serverConfig.isAuthorizationEnabled()) {
             this.pravegaAuthManager = new PravegaAuthManager(serverConfig);
             this.pravegaAuthManager.registerInterceptors(builder);

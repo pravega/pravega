@@ -113,12 +113,7 @@ public class BatchClientImpl implements BatchClient {
     private CompletableFuture<StreamCut> fetchHeadStreamCut(final Stream stream) {
         //Fetch segments pointing to the current HEAD of the stream.
         return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(), stream.getStreamName()), 0L)
-                .thenApply( s -> {
-                    //fetch the correct start offset from Segment store.
-                    Map<Segment, Long> pos = s.keySet().stream().map(this::segmentToInfo)
-                            .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getStartingOffset));
-                    return new StreamCutImpl(stream, pos);
-                });
+                .thenApply( s -> new StreamCutImpl(stream, s));
     }
 
     private CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {

@@ -26,7 +26,7 @@ Java 8
 
 Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
 If you prefer to build Pravega yourself, you can download the code and run `./gradlew distribution`. More 
-details are shown in the Pravega [README.md](../../../README.md).
+details are shown in the Pravega [README.md](https://github.com/pravega/pravega/blob/master/README.md).
 
 ```
 $ tar xfvz pravega-<version>.tgz
@@ -109,3 +109,4 @@ No more events from examples/helloStream
 
 See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
     HelloWorldReader application.
+
