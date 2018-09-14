@@ -152,7 +152,7 @@ System diagram <a name="systemDiagram"></a>
 The following diagram shows the main components of a controller process.
 We discuss the elements of the diagram in detail next.
 
- <img src="./img/ControllerSystemDiagram.png" width="624" height="334" />
+ ![controller system_diagram](img/ControllerSystemDiagram.png)
 
 <p align="center">
   <i>Controller Process Diagram</i></p>
@@ -631,6 +631,8 @@ cases as applicable via background policy manager (auto-scale and retention).
 <p align="center">
   <i>Request processing</i>
 </p>
+![request processing](img/RequestProcessing.png)
+Request Processing Flow
 
 #### Create Stream<a name="createStream"></a>
 
@@ -799,10 +801,12 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 
+
 <img src="./img/TransactionManagement.png" width="600" height="300" />
 <p align="center">
   <i>Transaction Management Diagram</i>
 </p>
+![transaction management](img/TransactionManagement.png)
 
 
 Client calls into controller process to create, ping commit or abort

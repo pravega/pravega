@@ -48,14 +48,12 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SystemTestRunner.class)
 public class StreamsAndScopesManagementTest {
 
-    private static final int NUM_SCOPES = 5;
-    private static final int NUM_STREAMS = 20;
+    private static final int NUM_SCOPES = 3;
+    private static final int NUM_STREAMS = 5;
     private static final int NUM_EVENTS = 100;
-    // Until the issue below is solved, TEST_ITERATIONS cannot be > 1.
-    // TODO: Re-creation of Streams cannot be tested (Issue https://github.com/pravega/pravega/issues/2641).
-    private static final int TEST_ITERATIONS = 1;
+    private static final int TEST_ITERATIONS = 3;
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(12 * 60);
+    public Timeout globalTimeout = Timeout.seconds(20 * 60);
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4,
             "StreamsAndScopesManagementTest-controller");

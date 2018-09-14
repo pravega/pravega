@@ -71,7 +71,7 @@ public class EndToEndAutoScaleDownTest {
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder, null, null, null);
+                    statsRecorder, null, null, null, true);
             server.startListening();
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();

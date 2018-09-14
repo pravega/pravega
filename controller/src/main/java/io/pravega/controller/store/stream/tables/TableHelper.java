@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream.tables;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.Segment;
@@ -81,6 +80,8 @@ public class TableHelper {
                 creationTime = historyRecord.get().getScaleTime();
             }
 
+            // Ensure that the segment number requested matches the segment number read from segment table.
+            assert getSegmentNumber(segmentId) == record.getSegmentNumber();
             return new Segment(segmentId,
                     creationTime,
                     record.getRoutingKeyStart(),
@@ -95,13 +96,14 @@ public class TableHelper {
     }
 
     /**
-     * This method reads segment table and returns total number of segments in the table.
+     * This method reads segment table and returns the next segment number to be created in the stream (i.e., highest
+     * segment number + 1).
      *
      * @param segmentIndex segment table index
      * @param segmentTable segment table
-     * @return total number of segments in the stream.
+     * @return next segment number to be created in the stream.
      */
-    public static int getSegmentCount(final byte[] segmentIndex, final byte[] segmentTable) {
+    public static int getNextSegmentNumber(final byte[] segmentIndex, final byte[] segmentTable) {
         Optional<SegmentRecord> segmentRecord = SegmentRecord.readLatest(segmentIndex, segmentTable);
         assert segmentRecord.isPresent();
         return segmentRecord.get().getSegmentNumber() + 1;
@@ -135,38 +137,42 @@ public class TableHelper {
      * @param truncationRecord truncation record
      * @return list of active segments.
      */
-    public static List<Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
+    public static Map<Long, Long> getActiveSegments(final long timestamp, final byte[] historyIndex, final byte[] historyTable,
                                                final byte[] segmentIndex, final byte[] segmentTable,
                                                final StreamTruncationRecord truncationRecord) {
         final HistoryRecord record = findRecordInHistoryTable(timestamp, historyIndex, historyTable);
 
-        List<Long> segments;
+        Map<Long, Long> segments;
         if (truncationRecord == null) {
-            segments = record.getSegments();
+            segments = record.getSegments().stream().collect(Collectors.toMap(x -> x, x -> 0L));
         } else {
             // case 1: if record.epoch is before truncation, simply pick the truncation stream cut
             if (record.getEpoch() < truncationRecord.getTruncationEpochLow()) {
-                segments = Lists.newArrayList(truncationRecord.getStreamCut().keySet());
+                segments = truncationRecord.getStreamCut();
             } else if (record.getEpoch() > truncationRecord.getTruncationEpochHigh()) {
                 // case 2: if record.epoch is after truncation, simply use the record epoch
-                segments = record.getSegments();
+                segments = record.getSegments().stream().collect(Collectors.toMap(x -> x, 
+                        x -> truncationRecord.getStreamCut().getOrDefault(x, 0L)));
             } else {
                 // case 3: overlap between requested epoch and stream cut.
                 // take segments from stream cut that are from or after this epoch.
                 // take remaining segments from this epoch.
-                segments = new ArrayList<>();
+                segments = new HashMap<>();
                 // all segments from stream cut that have epoch >= this epoch
                 List<Long> fromStreamCut = truncationRecord.getCutEpochMap().entrySet().stream()
                         .filter(x -> x.getValue() >= record.getEpoch())
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
 
-                segments.addAll(fromStreamCut);
+                // add segments from the truncation record with corresponding offsets 
+                fromStreamCut.forEach(x -> segments.put(x, truncationRecord.getStreamCut().get(x)));
+                
                 // put remaining segments as those that dont overlap with ones taken from streamCut.
+                // Note: we will use the head of these segments, basically offset = 0
                 record.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(y ->
                         getSegment(x, segmentIndex, segmentTable, historyIndex, historyTable)
                                 .overlaps(getSegment(y, segmentIndex, segmentTable, historyIndex, historyTable))))
-                        .forEach(segments::add);
+                        .forEach(x -> segments.put(x, 0L));
             }
         }
         return segments;
@@ -452,14 +458,14 @@ public class TableHelper {
      *
      * @param newRanges             ranges
      * @param timeStamp             timestamp
+     * @param startingSegmentNumber starting segment number for the stream.
      * @return pair of serialized segment index and segment table.
      */
-    public static Pair<byte[], byte[]> createSegmentTableAndIndex(
-            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-            final long timeStamp) {
+    public static Pair<byte[], byte[]> createSegmentTableAndIndex(final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                                  final long timeStamp, final int startingSegmentNumber) {
         final ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
         final ByteArrayOutputStream segmentIndex = new ByteArrayOutputStream();
-        writeToSegmentTableAndIndex(0, 0, newRanges, timeStamp, segmentStream, segmentIndex);
+        writeToSegmentTableAndIndex(startingSegmentNumber, 0, newRanges, timeStamp, segmentStream, segmentIndex);
 
         return new ImmutablePair<>(segmentIndex.toByteArray(), segmentStream.toByteArray());
     }
@@ -501,6 +507,12 @@ public class TableHelper {
                                                     long timeStamp,
                                                     ByteArrayOutputStream segmentStream,
                                                     ByteArrayOutputStream indexStream) {
+
+        // Initialize segment index in the case of a stream re-creation (startingSegmentNumber > 0).
+        if (indexStream.size() == 0 && startingSegmentNumber > 0) {
+            initializeTableAndIndexWithStatingSegmentNumber(startingSegmentNumber, indexStream);
+        }
+
         IntStream.range(0, newRanges.size())
                 .forEach(
                         x -> {
@@ -517,6 +529,27 @@ public class TableHelper {
                             }
                         }
                 );
+    }
+
+    /**
+     * This method initializes the segment index for a starting segment number. This consists of creating
+     * startingSegmentNumber dummy entries in segment index to be able of creating segments from a specific starting
+     * segment number onwards, while keeping metadata compatibility with older versions where stream segments were
+     * supposed to start by 0.
+     *
+     * @param startingSegmentNumber Starting segment number for this stream.
+     * @param segmentIndex Segment index
+     */
+    private static void initializeTableAndIndexWithStatingSegmentNumber(int startingSegmentNumber,
+                                                                        ByteArrayOutputStream segmentIndex) {
+        IntStream.range(0, startingSegmentNumber)
+                 .forEach(x -> {
+                     try {
+                         segmentIndex.write(new SegmentIndexRecord(0, 0).toByteArray());
+                     } catch (IOException e) {
+                         throw Lombok.sneakyThrow(e);
+                     }
+                 });
     }
 
     /**
@@ -931,10 +964,10 @@ public class TableHelper {
         Preconditions.checkState(activeEpoch.getSegments().containsAll(segmentsToSeal), "Invalid epoch transition request");
 
         int newEpoch = activeEpoch.getEpoch() + 1;
-        int segmentCount = getSegmentCount(segmentIndex, segmentTable);
+        int nextSegmentNumber = getNextSegmentNumber(segmentIndex, segmentTable);
         Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
         IntStream.range(0, newRanges.size()).forEach(x -> {
-            newSegments.put(computeSegmentId(segmentCount + x, newEpoch), newRanges.get(x));
+            newSegments.put(computeSegmentId(nextSegmentNumber + x, newEpoch), newRanges.get(x));
         });
         return new EpochTransitionRecord(activeEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
                 ImmutableMap.copyOf(newSegments));
@@ -1086,5 +1119,16 @@ public class TableHelper {
      */
     public static long generalizedSegmentId(long segmentId, UUID txId) {
         return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
+    }
+
+    /**
+     * This method provides the starting segment number for this stream that is stored in the first position of the
+     * segment index.
+     *
+     * @param segmentIndex segment index
+     * @return starting segment number for this stream.
+     */
+    public static int getStartingSegmentNumber(byte[] segmentIndex) {
+        return SegmentIndexRecord.getStartingSegmentNumberFromIndex(segmentIndex);
     }
 }
