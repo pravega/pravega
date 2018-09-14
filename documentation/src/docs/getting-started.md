@@ -87,7 +87,7 @@ _Example HelloWorldWriter output_
 Writing message: 'hello world' with routing-key: 'helloRoutingKey' to stream 'examples / helloStream'
 ...
 ```
-See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.1/pravega-client-examples/README.md) file in the standalone-examples for more details
+See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the standalone-examples for more details
     on running the HelloWorldWriter with different parameters.
 
 **Run the sample "HelloWorldReader"**
@@ -107,5 +107,5 @@ No more events from examples/helloStream
 ...
 ```
 
-See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.1/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
+See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
     HelloWorldReader application.
