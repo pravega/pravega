@@ -34,7 +34,7 @@ Security for this release will focus on support for securing Pravega external in
 Pravega ecosystem interconnectivity will be augmented with the following:
 -  Expanded Flink connector support (batch & table API support).
 -  Logstash connector.
--  Others also under consideration (Interested in writing a connector? Talk to us [Slack Channel](https://pravega-io.slack.com/))
+-  Others also under consideration (Interested in writing a connector? Talk to us on [Slack](https://pravega-io.slack.com/))
 
 
 
