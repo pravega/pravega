@@ -660,7 +660,7 @@ update processing is delayed by pushing event the back in the in-memory
 queue until it deems the event expired. If it finds the property to be
 updated during this period, before the expiry, the event is processed
 and update stream operation is performed. Now that the processing
-starts, it first sets the state to UPDATING. Following this the stream
+starts, it first sets the state to *UPDATING*. Following this the stream
 configuration is updated in the metadata store followed by notifying
 segment stores for all active segments of the stream about change in
 policy. Now the state is reset to ACTIVE.
@@ -726,7 +726,7 @@ is marked as SEALED in the stream metadata.
 #### Delete Stream<a name="deleteStream"></a>
 
 Delete stream can be requested via an explicit API call into controller.
-The request first verifies if the stream is in SEALED state. Only sealed
+The request first verifies if the stream is in *SEALED* state. Only sealed
 streams can be deleted and an event to this effect is posted in request
 stream. When the event is picked for processing, it verifies the stream
 state again and then proceeds to delete all segments that belong to this
