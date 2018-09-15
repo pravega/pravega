@@ -42,23 +42,17 @@ import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiControllerTest {
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadScheduledExecutor();
+public class MultiControllerTest extends AbstractSystemTest {
+
+    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
-
     @Environment
-    public static void setup() throws MarathonException, ExecutionException {
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.info("Zookeeper service details: {}", zkUris);
-
-        Service controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller");
+    public static void initialize() throws MarathonException, ExecutionException {
+        URI zkUris = startZookeeperInstance();
+        Service controllerService = Utils.createPravegaControllerService(zkUris, "multicontroller");
         if (!controllerService.isRunning()) {
             controllerService.start(true);
         }
@@ -66,7 +60,6 @@ public class MultiControllerTest {
 
         List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service  details: {}", conUris);
-
     }
 
     @Before
@@ -96,12 +89,11 @@ public class MultiControllerTest {
 
     @After
     public void tearDown() {
-        ExecutorServiceHelpers.shutdown(EXECUTOR_SERVICE);
+        ExecutorServiceHelpers.shutdown(executorService);
         if (controllerService != null && controllerService.isRunning()) {
             controllerService.stop();
             controllerService.clean();
         }
-
     }
 
     /**
@@ -163,7 +155,6 @@ public class MultiControllerTest {
             Assert.assertTrue(createScopeWithSimpleRetry(
                     "scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()));
         }
-
     }
 
     private boolean createScopeWithSimpleRetry(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
@@ -173,12 +164,12 @@ public class MultiControllerTest {
                 .clientConfig(ClientConfig.builder()
                         .controllerURI(controllerURI)
                         .build())
-                .build(), EXECUTOR_SERVICE);
+                .build(), executorService);
 
         CompletableFuture<Boolean> retryResult = Retry.withExpBackoff(500, 2, 10, 5000)
                 .retryingOn(Exception.class)
                 .throwingOn(IllegalArgumentException.class)
-                .runAsync(() -> controllerClient.createScope(scopeName), EXECUTOR_SERVICE);
+                .runAsync(() -> controllerClient.createScope(scopeName), executorService);
 
         return retryResult.get();
     }
@@ -189,7 +180,7 @@ public class MultiControllerTest {
                 .clientConfig(ClientConfig.builder()
                         .controllerURI(controllerURI)
                         .build())
-                .build(), EXECUTOR_SERVICE);
+                .build(), executorService);
         return controllerClient.createScope(scopeName).get();
     }
 }
