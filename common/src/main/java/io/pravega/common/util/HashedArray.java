@@ -13,7 +13,6 @@ import io.pravega.common.hash.HashHelper;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Arrays;
-import lombok.Getter;
 import lombok.NonNull;
 
 /**
@@ -22,7 +21,6 @@ import lombok.NonNull;
  */
 public class HashedArray implements ArrayView {
     private static final HashHelper HASH = HashHelper.seededWith(HashedArray.class.getName());
-    @Getter
     protected final byte[] array;
     private final int hashCode;
 

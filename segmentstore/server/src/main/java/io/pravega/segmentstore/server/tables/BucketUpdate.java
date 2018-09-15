@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -96,9 +97,19 @@ class BucketUpdate {
      * @return The bucket offset, or -1 if no such offset (i.e., if everything in this bucket was deleted).
      */
     long getBucketOffset() {
-        return this.updatedKeys.values().stream()
-                               .filter(u -> !u.isDeleted())
-                               .mapToLong(KeyUpdate::getOffset).max().orElse(-1);
+        val nonDeletionUpdates = this.updatedKeys.entrySet().stream()
+                                                 .filter(u -> !u.getValue().isDeleted())
+                                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (nonDeletionUpdates.size() > 0) {
+            // We have non-deletion updates. The new offset must be here.
+            return nonDeletionUpdates.values().stream()
+                                     .mapToLong(KeyUpdate::getOffset).max().orElse(-1);
+        }
+
+        // No updates (or all updates are deletions). Get the offset from the remaining existing keys (if any left).
+        return this.existingKeys.values().stream()
+                                .filter(ek -> !nonDeletionUpdates.containsKey(ek.getKey()))
+                                .mapToLong(KeyInfo::getOffset).max().orElse(-1);
     }
 
     /**

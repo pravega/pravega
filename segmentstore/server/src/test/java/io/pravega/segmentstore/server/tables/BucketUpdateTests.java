@@ -52,9 +52,9 @@ public class BucketUpdateTests {
         for (int i = 0; i < count; i++) {
             val e = existingIterator.next();
             val u = updatesIterator.next();
-            Assert.assertEquals("Unexpected key for existing " + i, (byte) i, e.getKey().getArray()[0]);
+            Assert.assertEquals("Unexpected key for existing " + i, (byte) i, e.getKey().array()[0]);
             Assert.assertEquals("Unexpected offset for existing " + i, i, e.getOffset());
-            Assert.assertEquals("Unexpected key for update " + i, (byte) -i, u.getKey().getArray()[0]);
+            Assert.assertEquals("Unexpected key for update " + i, (byte) -i, u.getKey().array()[0]);
             Assert.assertEquals("Unexpected offset for update " + i, i, u.getOffset());
             Assert.assertEquals("Unexpected value for isDeleted " + i, i % 2 == 0, u.isDeleted());
         }

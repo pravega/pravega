@@ -13,7 +13,9 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
@@ -63,4 +65,17 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
     public Iterator<ArrayView> iterator() {
         return Iterators.forArray(this.parts);
     }
+
+    private String getSignature(){
+        return Arrays.stream(this.parts)
+                     .map(p -> p.get(p.getLength() - 1))
+                     .map(Object::toString)
+                     .collect(Collectors.joining(""));
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s, Sig=%s", super.toString(), getSignature());
+    }
+
 }
