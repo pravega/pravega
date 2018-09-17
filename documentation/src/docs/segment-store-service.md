@@ -105,7 +105,7 @@ The following are always **true** for any Segment:
 A _Log Operation_ is the basic unit that is enqueued in the _Durable Log_. It does not represent an action, per se, but is the base for several serializable operations (we can serialize multiple types of operations, not just Appends). Each Operation is the result of an external action (which denote the alteration of a Segment), or an internal trigger, such as Metadata maintenance operations.
 
 Every Log Operation has the following elements:
-- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#Container_Metadata).
+- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#Container_Metadata)) section.
 
 The following are the various types of Log Operations: 
 
@@ -119,7 +119,7 @@ The following are the various types of Log Operations:
     - `StreamSegmentMapOperation`: Maps an Id to a Segment Name.
     - `TransactionMapOperation`: Maps an Id to a Transaction and to its Parent Segment.
     - `UpdateAttributesOperation`: Updates any attributes on a Segment.
-    - `MetadataCheckpoint`: Includes an entire snapshot of the Metadata. This can be useful when during recovery.This contains all metadata up to this point, which is a sufficient base for all operations after it.
+    - `MetadataCheckpoint`: Includes an entire snapshot of the Metadata. This can be useful during recovery.This contains all metadata up to this point, which is a sufficient base for all operations after it.
 
 ### Durable Log <a name="Durable_Log"></a>
 
