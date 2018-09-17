@@ -55,7 +55,8 @@ In the above diagram, the major components of the Segment Store is shown and for
 
 More detailed diagrams can be found under the [Data Flow](#Data Flow) section.
 
-# Components
+# Components <a name="Components"></a>
+
 
 ## Segment Containers
 Segment Containers are a logical grouping of Segments, and are responsible for all operations on those Segments within their span. A Segment Container is made of multiple sub-components:
@@ -69,7 +70,8 @@ Segment Containers are a logical grouping of Segments, and are responsible for a
 ### Segment Container Metadata
 The Segment Container Metadata is critical to the good functioning and synchronization of its components. This metadata is shared across all components and it comes at two levels: Container-wide Metadata and per-Segment Metadata. Each serves a different purpose and is described below.
 
-#### Container Metadata
+#### Container Metadata <a name="Container Metadata"></a>
+
 Each **Segment Container** needs to keep some general-purpose metadata that affects all operations inside the container:
 
 - _Operation Sequence Number_: The largest sequence number assigned by the _Durable Log_. Every time a new Operation is received and successfully processed by the _Durable Log_, this number is incremented (its value never decreases or otherwise roll back, even if an operation failed to be persisted).
@@ -119,7 +121,7 @@ The following are the various types of Log Operations:
     - `UpdateAttributesOperation`: Updates any attributes on a Segment.
     - `MetadataCheckpoint`: Includes an entire snapshot of the Metadata. This can be useful when during recovery.This contains all metadata up to this point, which is a sufficient base for all operations after it.
 
-### Durable Log
+### Durable Log <a name="Durable Log"></a>
 
 The _Durable Log_ is the central component that handles all Log Operations. All Operations (which are created by the Container) are added to the _Durable Log_, which processes them in the order in which they were received. It is made up of a few other components, all of which are working towards a single goal of processing all incoming operations as quickly as possible, without compromising data integrity.
 
@@ -130,9 +132,12 @@ The _Durable Log_ is the central component that handles all Log Operations. All 
 2. The _Operation Processor_ picks all operations currently available in the queue (if the queue is empty, it will wait until at least one Operation is added).
 
 3. The _Operation Processor_ runs as a continuous loop (in a background thread), and has four main stages.
-    a. _Dequeue_ all outstanding Operations from the Operation Queue (described above).
-    b. _Pre-process_ the Operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign Sequence Numbers, etc.)
-    c. _Write_ the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a _Data Frame_ is complete (full or no more operations to add), the _Data Frame_ Builder sends the _Data Frame_ to the _Durable Data Log_. Note that, an Operation may span multiple _DataFrames_, but the goal is to make best use of the _Durable Data Log_ throughput capacity by making writes as large as possible considering the maximum size limit per write.
+   
+ a. _Dequeue_ all outstanding Operations from the Operation Queue (described above).
+
+ b. _Pre-process_ the Operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign Sequence Numbers, etc.)
+
+ c. _Write_ the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a _Data Frame_ is complete (full or no more operations to add), the _Data Frame_ Builder sends the _Data Frame_ to the _Durable Data Log_. Note that, an Operation may span multiple _DataFrames_, but the goal is to make best use of the _Durable Data Log_ throughput capacity by making writes as large as possible considering the maximum size limit per write.
 
 4. When a _Data Frame_ has been durably persisted in the _Durable Data Log_, the Operation Processor post-processes all operations that were fully written so far. It adds them to in-memory structures, updates indices, etc., and completes the Futures associated with them.
 
@@ -150,7 +155,8 @@ The _Operation Processor_ is a sub-component of the _Durable Log_ that deals wit
 #### Operation Metadata Updater
 The _Operation Metadata Updater_ is a sub-component of the _Durable Log_ that is responsible with validating operations based on the current state of the metadata, as well as update the Metadata after a successful commit of an operation. Internally it has various mechanisms to handle failures, and it can rollback certain changes in failure situations.
 
-#### Durable Data Log
+#### Durable Data Log <a name="Durable Data Log"></a>
+
 The _Durable Data Log_ is an abstraction layer to an external component that provides append-only semantics. It is supposed to be a system which provides very fast appends to a log, that guarantees the durability and consistency of the written data. The read performance is not so much a factor, because we do not read directly from this component. Read is performed on it when we need to recover the contents of the _Durable Log_.
 
 As explained above, Log Operations are serialized into _Data Frames_ (with a single Operation able to span multiple such Frames if needed), and these _Data Frames_ are then serialized as entries into this _Durable Data Log_. This is used only as a fail-safe, and we only need to read these Frames back if we need to perform recovery (in which case we need to deserialize all Log Operations contained in them, in the same order in which they were received).
@@ -160,7 +166,8 @@ The _In-Memory Operation Log_ contains committed (and replicated) Log Operations
 
 The Memory Log is essentially a chain of Log Operations ordered by the time when the Operation was received. We always add at one end, and we remove from the other. When we truncate the _Durable Data Log_ the Memory Log is also truncated at the same location.
 
-### Read Index
+### Read Index <a name="Read Index"></a>
+
 The _Read Index_ helps the Segment Container perform reads from streams at arbitrary offsets. While the _Durable Log_ records (and can only replay) data in the order in which it is received, the _Read Index_ can access the data in a random fashion. The _Read Index_ is made of multiple _Segment Read Indices_ (one per live segment).
 
 The _Segment Read Index_ is a data structure that is used to serve reads from memory, as well as pull data from Tier 2 Storage and provide _Future Reads_ (tail reads) when data is not yet available. When a read request is received, the _Segment Read Index_ returns a read iterator that will return data as long as the read request parameters have not yet been satisfied. The iterator will either fetch data that is immediately available in memory, or request data from Tier 2 storage (and bring it to memory) or, if it reached the current end of the Segment, return a Future that will be completed when new data is added (thus providing tailing or future reads).
@@ -219,7 +226,8 @@ A note about **Tier 2 Truncation**:
 - If a Tier 2 implementation does not natively support truncation from the beginning of a file with offset preservation (i.e., a Segment of length 100 is truncated at offset 50, then offsets 0..49 are deleted, but offsets 50-99 are available and are not shifted down), then the **Segment Store** provides a wrapper on top of a generic Tier 2 implementation that can do that.
 - The `RollingStorage` Tier 2 wrapper splits a Segment into multiple _Segment Chunks_ and exposes them as a single Segment to the upper layers. _Segment Chunks_ that have been truncated out, are deleted automatically. This is not a very precise application (since it relies heavily on a rollover policy dictating granularity), but it is a practical solution for those cases when the real Tier 2 implementation does not provide the features that we need.  
 
-# Data Flow
+# Data Flow <a name="Data Flow"></a>
+
 Here are a few examples on how data flows inside the Pravega Segment Store Service.
 
 ## Appends
