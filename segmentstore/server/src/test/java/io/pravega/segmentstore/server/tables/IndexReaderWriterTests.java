@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -289,7 +290,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testUpdateRemove() {
-        testUpdateRemove(DEFAULT_HASHER);
+        testUpdateAndRemove(DEFAULT_HASHER);
     }
 
     /**
@@ -298,15 +299,49 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testUpdateRemoveCollisions() {
-        testUpdateRemove(COLLISION_HASHER);
+        testUpdateAndRemove(COLLISION_HASHER);
     }
 
     //endregion
 
     //region Helpers
 
-    private void testUpdateRemove(KeyHasher hasher) {
-        // TODO: implement.
+    private void testUpdate(KeyHasher hasher, int updateBatchSize) {
+        val rnd = new Random(0);
+        val w = newWriter(hasher);
+        val segment = newMock(w);
+
+        // Generate batches and update them at once.
+        long offset = 0;
+        val keys = new HashMap<Long, HashedArray>();
+        while (keys.size() < KEY_COUNT) {
+            int batchSize = Math.min(updateBatchSize, KEY_COUNT - keys.size());
+            val batch = generateUpdateBatch(batchSize, offset, rnd);
+            offset = updateKeys(batch, w, keys, segment);
+        }
+
+        // Verify index.
+        checkIndex(keys.values(), keys, w, hasher, segment);
+
+        // Update the keys using the requested batch size.
+        val toUpdate = new ArrayList<HashedArray>(keys.values());
+        int i = 0;
+        while (i < toUpdate.size()) {
+            val batch = new HashMap<HashedArray, Long>();
+            int batchSize = Math.min(updateBatchSize, toUpdate.size() - i);
+            int batchOffset = 0;
+            while (batch.size() < batchSize) {
+                val key = toUpdate.get(i);
+                batch.put(key, encodeOffset(offset + batchOffset, false));
+                batchOffset += key.getLength();
+                i++;
+            }
+
+            offset = updateKeys(batch, w, keys, segment);
+        }
+
+        // Verify index.
+        checkIndex(keys.values(), keys, w, hasher, segment);
     }
 
     private void testRemove(KeyHasher hasher, int removeBatchSize) {
@@ -353,42 +388,58 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of nodes left after complete removal.", expectedAttributeCount, attributeCount);
     }
 
-    private void testUpdate(KeyHasher hasher, int updateBatchSize) {
+    private void testUpdateAndRemove(KeyHasher hasher) {
+        final int batchSizeBase = 200;
+        final int iterationCount = 200; // This should be smaller than batchSizeBase.
         val rnd = new Random(0);
         val w = newWriter(hasher);
         val segment = newMock(w);
 
         // Generate batches and update them at once.
         long offset = 0;
-        val keys = new HashMap<Long, HashedArray>();
-        while (keys.size() < KEY_COUNT) {
-            int batchSize = Math.min(updateBatchSize, KEY_COUNT - keys.size());
-            val batch = generateUpdateBatch(batchSize, offset, rnd);
-            offset = updateKeys(batch, w, keys, segment);
+        val existingKeys = new HashMap<Long, HashedArray>();
+        val allKeys = new HashSet<HashedArray>();
+        int maxUpdateBatchSize = batchSizeBase + 1;
+        int maxRemoveBatchSize = 1;
+        for (int i = 0; i < iterationCount; i++) {
+            // Insert/Update a set of keys. With every iteration, we update fewer and fewer.
+            int updateBatchSize = rnd.nextInt(maxUpdateBatchSize) + 1;
+            val updateBatch = generateUpdateBatch(updateBatchSize, offset, rnd);
+            offset = updateKeys(updateBatch, w, existingKeys, segment);
+            allKeys.addAll(updateBatch.keySet());
+
+            // Remove a set of keys. With every iteration, we remove more and more.
+            // Pick existing keys at random, and delete them.
+            int removeBatchSize = rnd.nextInt(maxRemoveBatchSize) + 1;
+            val removeBatch = new HashMap<HashedArray, Long>();
+            val remainingKeys = new ArrayList<HashedArray>(existingKeys.values());
+            int batchOffset = 0;
+            while (removeBatch.size() < removeBatchSize && removeBatch.size() < remainingKeys.size()) {
+                HashedArray key;
+                do {
+                    key = remainingKeys.get(rnd.nextInt(remainingKeys.size()));
+                } while (removeBatch.containsKey(key));
+
+                removeBatch.put(key, encodeOffset(offset + batchOffset, true));
+            }
+
+            // Pick a non-existing key, and add it too.
+            HashedArray nonExistingKey;
+            do {
+                byte[] b = new byte[rnd.nextInt(MAX_KEY_LENGTH) + 1];
+                rnd.nextBytes(b);
+                nonExistingKey = new HashedArray(b);
+            } while (allKeys.contains(nonExistingKey));
+            removeBatch.put(nonExistingKey, encodeOffset(offset + batchOffset, true));
+
+            // Apply the removal.
+            offset = updateKeys(removeBatch, w, existingKeys, segment);
+            maxUpdateBatchSize -= batchSizeBase / iterationCount;
+            maxRemoveBatchSize += batchSizeBase / iterationCount;
         }
 
         // Verify index.
-        checkIndex(keys.values(), keys, w, hasher, segment);
-
-        // Update the keys using the requested batch size.
-        val toUpdate = new ArrayList<HashedArray>(keys.values());
-        int i = 0;
-        while (i < toUpdate.size()) {
-            val batch = new HashMap<HashedArray, Long>();
-            int batchSize = Math.min(updateBatchSize, toUpdate.size() - i);
-            int batchOffset = 0;
-            while (batch.size() < batchSize) {
-                val key = toUpdate.get(i);
-                batch.put(key, encodeOffset(offset + batchOffset, false));
-                batchOffset += key.getLength();
-                i++;
-            }
-
-            offset = updateKeys(batch, w, keys, segment);
-        }
-
-        // Verify index. TODO: eliminate non-existent keys.
-        checkIndex(keys.values(), keys, w, hasher, segment);
+        checkIndex(allKeys, existingKeys, w, hasher, segment);
     }
 
     private long updateKeys(Map<HashedArray, Long> keysWithOffset, IndexWriter w, HashMap<Long, HashedArray> existingKeys, SegmentAttributeMock segment) {
