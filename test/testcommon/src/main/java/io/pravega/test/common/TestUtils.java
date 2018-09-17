@@ -11,10 +11,13 @@ package io.pravega.test.common;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Random;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -70,5 +73,17 @@ public class TestUtils {
         if (!condition.get() && remainingMillis <= 0) {
             throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
+    }
+
+    /**
+     * Generates an auth token using the Basic authentication scheme.
+     * @param username the username to use.
+     * @param password the password to use.
+     * @return an en encoded token.
+     */
+    public static String basicAuthToken(String username, String password) {
+        String decoded = String.format("%s:%s", username, password);
+        String encoded = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
     }
 }

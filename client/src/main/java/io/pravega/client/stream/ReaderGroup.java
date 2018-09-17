@@ -129,7 +129,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     Set<String> getOnlineReaders();
 
     /**
-     * Returns the set of stream names which was used to configure this group.
+     * Returns the set of scoped stream names which was used to configure this group.
      *
      * @return Set of streams for this group.
      */

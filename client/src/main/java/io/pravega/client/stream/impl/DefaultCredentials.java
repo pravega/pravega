@@ -9,30 +9,33 @@
  */
 package io.pravega.client.stream.impl;
 
-import com.google.common.collect.ImmutableMap;
+import io.pravega.auth.AuthConstants;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import lombok.EqualsAndHashCode;
 
-import java.util.Map;
-
+/**
+ * Username/password credentials for basic authentication.
+ */
 @EqualsAndHashCode
 public class DefaultCredentials implements Credentials {
     
     private static final long serialVersionUID = 1L;
 
-    private final ImmutableMap<String, String> credsMap;
+    private final String token;
 
     public DefaultCredentials(String password, String userName) {
-        credsMap = ImmutableMap.of("userName", userName,
-                "password", password);
+        String decoded = userName + ":" + password;
+        this.token = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
     public String getAuthenticationType() {
-        return "Pravega-Default";
+        return AuthConstants.BASIC;
     }
 
     @Override
-    public Map<String, String> getAuthParameters() {
-        return credsMap;
+    public String getAuthenticationToken() {
+        return token;
     }
 }

@@ -12,14 +12,11 @@ package io.pravega.test.system;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
@@ -30,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -46,16 +44,15 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class StreamsAndScopesManagementTest {
+public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
 
-    private static final int NUM_SCOPES = 5;
-    private static final int NUM_STREAMS = 20;
+    private static final int NUM_SCOPES = 3;
+    private static final int NUM_STREAMS = 5;
     private static final int NUM_EVENTS = 100;
-    // Until the issue below is solved, TEST_ITERATIONS cannot be > 1.
-    // TODO: Re-creation of Streams cannot be tested (Issue https://github.com/pravega/pravega/issues/2641).
-    private static final int TEST_ITERATIONS = 1;
+    private static final int TEST_ITERATIONS = 3;
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(12 * 60);
+
+    public Timeout globalTimeout = Timeout.seconds(20 * 60);
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4,
             "StreamsAndScopesManagementTest-controller");
@@ -71,45 +68,11 @@ public class StreamsAndScopesManagementTest {
      * @throws MarathonException When error in setup.
      */
     @Environment
-    public static void initialize() throws MarathonException {
-
-        // 1. Check if zk is running, if not start it.
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        // Get the zk ip details and pass it to bk, host, controller.
-        URI zkUri = zkUris.get(0);
-
-        // 2. Check if bk is running, otherwise start, get the zk ip.
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        // 3. Start controller.
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega controller service details: {}", conUris);
-
-        // 4.Start segmentstore.
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service details: {}", segUris);
+    public static void initialize() throws MarathonException, ExecutionException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
@@ -233,16 +196,6 @@ public class StreamsAndScopesManagementTest {
             log.info("Sealing and deleting an already deleted stream {}/{}.", scope, stream);
             assertThrows(RuntimeException.class, () -> streamManager.sealStream(scope, stream));
             assertFalse(streamManager.deleteStream(scope, stream));
-        }
-    }
-
-    private void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        for (int i = 0; i < totalEvents; i++) {
-            writer.writeEvent(String.valueOf(i)).join();
-            log.debug("Writing event: {} to stream {}", i, streamName);
         }
     }
 

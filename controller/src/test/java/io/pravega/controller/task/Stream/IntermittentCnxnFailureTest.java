@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -90,10 +91,10 @@ public class IntermittentCnxnFailureTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
                 taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, false, "");
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, false, "");
+                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);

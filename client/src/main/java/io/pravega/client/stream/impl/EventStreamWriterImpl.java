@@ -297,12 +297,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
     @Override
     public Transaction<Type> beginTxn() {
         TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
-                                                         RuntimeException::new);
+                RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    segmentSealedCallBack, config, txnSegments.getSteamSegments().getDelegationToken());
+                    config, txnSegments.getSteamSegments().getDelegationToken());
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
@@ -321,7 +321,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, segmentSealedCallBack, config, segments.getDelegationToken());
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
