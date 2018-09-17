@@ -37,6 +37,7 @@ public interface BatchClient {
      * @param stream the stream.
      * @return stream information.
      */
+    @Deprecated
     CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
     /**

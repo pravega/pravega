@@ -13,16 +13,36 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.batch.StreamInfo;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInfo;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
+import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -31,19 +51,28 @@ import lombok.extern.slf4j.Slf4j;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
+    private ConnectionFactory connectionFactory;
+    private SegmentMetadataClientFactory segmentMetadataClientFactory;
 
+    @GuardedBy("this")
+    private AtomicReference<String> latestDelegationToken;
     private final ScheduledExecutorService executor; 
     
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
-
+        this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this.latestDelegationToken = new AtomicReference<>();
     }
 
     @VisibleForTesting
-    public StreamManagerImpl(Controller controller) {
+    public StreamManagerImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.executor = null;
         this.controller = controller;
+        this.connectionFactory = connectionFactory;
+        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this.latestDelegationToken = new AtomicReference<>();
     }
 
     @Override
@@ -102,6 +131,40 @@ public class StreamManagerImpl implements StreamManager {
     public boolean deleteScope(String scopeName) {
         return Futures.getAndHandleExceptions(controller.deleteScope(scopeName),
                 RuntimeException::new);
+    }
+
+    @Override
+    public CompletableFuture<StreamInfo> getStreamInfo(Stream stream) {
+        return null;
+    }
+
+    private CompletableFuture<StreamCut> fetchHeadStreamCut(final Stream stream) {
+        //Fetch segments pointing to the current HEAD of the stream.
+        return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(), stream.getStreamName()), 0L)
+                         .thenApply( s -> new StreamCutImpl(stream, s));
+    }
+
+    private CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {
+        return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
+                         .thenApply(s -> {
+                             synchronized (this) {
+                                 latestDelegationToken.set(s.getDelegationToken());
+                             }
+                             Map<Segment, Long> pos =
+                                     s.getSegments().stream().map(this::segmentToInfo)
+                                      .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
+                             return new StreamCutImpl(stream, pos);
+                         });
+    }
+
+    private SegmentInfo segmentToInfo(Segment s) {
+        String delegationToken;
+        synchronized (this) {
+            delegationToken = latestDelegationToken.get();
+        }
+        @Cleanup
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, delegationToken);
+        return client.getSegmentInfo();
     }
 
     @Override

@@ -9,11 +9,15 @@
  */
 package io.pravega.client.admin;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.batch.StreamInfo;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
@@ -112,6 +116,15 @@ public interface StreamManager extends AutoCloseable {
      * @return True if scope is deleted
      */
     boolean deleteScope(String scopeName);
+
+    @Beta
+    /**
+     * Get information about a given Stream, {@link StreamInfo}.
+     *
+     * @param stream the stream.
+     * @return stream information.
+     */
+    CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
     
     /**
      * Closes the stream manager.
