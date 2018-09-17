@@ -15,22 +15,21 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 ## Key Features 
 
--   Exactly-Once Semantics - Ensure that each event is delivered and processed exactly once, with exact ordering guarantees, despite failures in clients, servers or the network.
+-   Exactly-Once Semantics:- Pravega ensures that each event is delivered and processed exactly once, with exact ordering guarantees, despite failures in clients, servers or the network.
 
--   Auto Scaling - Unlike systems with static partitioning, Pravega can automatically scale individual data streams to accommodate changes in data ingestion rate.
+-   Auto Scaling:- Pravega performs auto scaling by automatically scaling the individual data streams to accommodate changes in data ingestion rate.
 
--   Distributed Computing Primitive - Pravega is great for distributed computing; it can be used as a data storage mechanism, for messaging between processes and for other distributed computing services such as leader election.
+-   Distributed Computing Primitive:- Pravega is very efficient in performing distributed computing. It can be used as a data storage mechanism. It can be used for messaging between processes and for other distributed computing services such as leader election.
 
--   Write Efficiency - Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
+-   Write Efficiency:- Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
 
--   Unlimited Retention - Ingest, process and retain data in streams forever. Use same paradigm to access both real-time and historical events stored in Pravega.
+-   Unlimited Retention:- Pravega performs ingestion, processing and retains data in streams forever. Pravega uses the same paradigm to access both real-time and historical events stored in it.
 
--   Storage Efficiency - Use Pravega to build pipelines of data processing, combining batch, real-time and other applications without duplicating data for every step of the pipeline.
+-   Storage Efficiency:-  Pravega is used to build pipelines of data processing. It is used to combine batch, real-time and other applications without duplicating data for every step of the pipeline.
 
--   Durability - Don't compromise between performance, durability and consistency.
-    Pravega persists and protects data before the write operation is acknowledged to the client.
+-   Durability:- Pravega do not compromise between performance, durability and consistency. Pravega persists and protects data before the write operation is acknowledged to the client.
     
--   Transaction Support - A developer uses a Pravega Transaction to ensure that a set of events are written to a stream atomically.
+-   Transaction Support:-  Pravega Transaction is used by the developer to ensure that a set of events are written to a stream atomically.
 
 
 ## Releases
@@ -52,15 +51,14 @@ Pravega can be installed locally or in a distributed environment. The installati
 ## Support
 
 Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help. 
-Open an issue if you found a bug on [Github
-Issues](https://github.com/pravega/pravega/issues).
+Please open an issue in [Github
+Issues](https://github.com/pravega/pravega/issues) if you found a bug.
 
 ## Contributing
 
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-[Here](contributing.md) we describe how to
-contribute to Pravega! You can see the roadmap document [here](roadmap.md).
+We describe how to contribute to Pravega [here](contributing.md)! You can see the roadmap document [here](roadmap.md).
 
 ## About
 
