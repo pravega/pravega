@@ -103,6 +103,17 @@ class AttributeCalculator {
         return new UUID(BACKPOINTER_MSB, offset);
     }
 
+    /**
+     * Determines if the given Attribute Key is Backpointer.
+     *
+     * @param key The Key to test.
+     * @return True if backpointer, false otherwise.
+     */
+    @VisibleForTesting
+    boolean isBackpointerAttributeKey(UUID key) {
+        return key.getMostSignificantBits() == BACKPOINTER_MSB;
+    }
+
     //endregion
 
     //region Attribute Values

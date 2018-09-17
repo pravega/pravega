@@ -77,7 +77,7 @@ class IndexWriter extends IndexReader {
      * @return A Collection of {@link AttributeUpdate}s.
      */
     Collection<AttributeUpdate> generateInitialTableAttributes() {
-        return Arrays.asList(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 1L),
+        return Arrays.asList(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 0L),
                 new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
     }
 
@@ -239,8 +239,8 @@ class IndexWriter extends IndexReader {
     }
 
     /**
-     * Generates a sequence of AttributeUpdates that will create or update the necessary Table Buckets based on the given
-     * KeyHashes.
+     * Generates a sequence of {@link AttributeUpdate}s that will create or update the necessary Table Buckets based on
+     * the given KeyHashes.
      *
      * Notes:
      * - If keyHashes.size() == 1, then bucket will be updated to point to whatever value is stored in the keyHashes entry.
@@ -252,17 +252,17 @@ class IndexWriter extends IndexReader {
      * @param keyHashes        A Map of {@link KeyHash} to Offsets representing the Hashes that currently mapped to
      *                         the given bucket, and for which we need to generate updates (to either alter the given
      *                         bucket or create sub-buckets).
-     * @param nodeIdOffset     The number of Index Nodes already created.
-     * @param attributeUpdates A List of AttributeUpdates to collect updates in.
-     * @return The number of new index nodes added.
+     * @param nodeIdOffset     The offset (from {@link Attributes#TABLE_NODE_ID}) that indicates the next available Id
+     *                         to use when allocating a new Index Node.
+     * @param attributeUpdates   A List of {@link AttributeUpdate}s to collect updates in.
+     * @return The number of new index nodes allocated.
      */
     private int generateBucketUpdate(TableBucket bucket, Map<KeyHash, Long> keyHashes, int nodeIdOffset, List<AttributeUpdate> attributeUpdates) {
         // Figure out where we need to start from:
         // - If the bucket is empty, we start at the beginning (hashIndex = 0)
         // - If the bucket points to a data node, that will need to be replaced (hashIndex = NodeCount - 1)
         // - If the bucket points to an index node, we will have to continue (hashIndex = NodeCount)
-        TableBucket.Node last = bucket.getLastNode();
-        int initialHashIndex = last == null || last.isIndexNode()
+        int initialHashIndex = bucket.isPartial()
                 ? bucket.getNodes().size()
                 : bucket.getNodes().size() - 1;
         Preconditions.checkArgument(initialHashIndex <= this.hasher.getHashPartCount(), "Unable to update TableBucket since existing node count "
@@ -270,11 +270,19 @@ class IndexWriter extends IndexReader {
 
         // Generate any updates necessary, by doing a depth-first recursion down to each branch before moving on to adjacent ones.
         val rootGroup = new KeyHashGroup(initialHashIndex - 1, -1, null, keyHashes);
-        //return generateBucketUpdate(rootGroup, -1, nodeIdOffset, last, attributeUpdates);
-        return generateBucketUpdate(rootGroup, nodeIdOffset, last, attributeUpdates);
+        return generateBucketUpdate(rootGroup, nodeIdOffset, bucket.getLastNode(), attributeUpdates);
     }
 
-    // TODO: javadoc here, and below
+    /**
+     * Generates a sequence of {@link AttributeUpdate}s that will create or or update the necessary Table Buckets for
+     * the given {@link KeyHashGroup}.
+     *
+     * @param group              The {@link KeyHashGroup} to generate updates for.
+     * @param parentNodeIdOffset The Node Id offset for the parent index node (on top of {@link Attributes#TABLE_NODE_ID}).
+     * @param last               The existing {@link TableBucket}'s last node. All updates will be linked from this node.
+     * @param attributeUpdates   A List of {@link AttributeUpdate}s to collect updates in.
+     * @return The number of new index nodes allocated.
+     */
     private int generateBucketUpdate(KeyHashGroup group, int parentNodeIdOffset, TableBucket.Node last, List<AttributeUpdate> attributeUpdates) {
         Preconditions.checkState(group.getHashIndex() < this.hasher.getHashPartCount(), "Unable to update TableBucket; " +
                 "reached the maximum hash count (%s) but there are still hashes to index.", this.hasher.getHashPartCount());
@@ -284,7 +292,7 @@ class IndexWriter extends IndexReader {
         for (val subGroup : subGroups) {
             boolean dataNode = subGroup.getHashes().size() == 1;
             if (dataNode) {
-                generateDataNodeUpdate(subGroup, parentNodeIdOffset, last, attributeUpdates);
+                attributeUpdates.add(generateDataNodeUpdate(subGroup, parentNodeIdOffset, last));
             } else {
                 // Index node.
                 // We need to allocate a new index node. Its offset will be based on the parent node id offset, plus how
@@ -309,41 +317,101 @@ class IndexWriter extends IndexReader {
         return newNodeCount;
     }
 
-    private void generateDataNodeUpdate(KeyHashGroup group, int nodeIdOffset, TableBucket.Node last, List<AttributeUpdate> attributeUpdates) {
+    /**
+     * Generates an {@link AttributeUpdate} or {@link AttributeUpdateByReference} that will create (a new) or update
+     * (an existing) Data Node using the given information.
+     *
+     * @param group              The {@link KeyHashGroup} to generate the update for.
+     * @param parentNodeIdOffset The Node Id offset for the parent index node (on top of {@link Attributes#TABLE_NODE_ID}).
+     *                           This only applies if this Data Node is not a top-level node (i.e., if it has parents).
+     * @param last               The existing {@link TableBucket}'s last node. All updates will be linked from this node.
+     * @return An {@link AttributeUpdate} .
+     */
+    private AttributeUpdate generateDataNodeUpdate(KeyHashGroup group, int parentNodeIdOffset, TableBucket.Node last) {
         long value = getDataNodeValue(group);
         if (group.isFirstLevel()) {
+            // Top-level Data Node. No parents, so no need to reference the parentNodeIdOffset. Just generate the Key.
             UUID attributeId = getFirstLevelAttributeKey(group, last);
-            attributeUpdates.add(new AttributeUpdate(attributeId, AttributeUpdateType.Replace, value));
+            return new AttributeUpdate(attributeId, AttributeUpdateType.Replace, value);
         } else {
-            val idReference = getNonFirstLevelAttributeKey(group, nodeIdOffset);
-            attributeUpdates.add(new AttributeUpdateByReference(idReference, AttributeUpdateType.Replace, value));
+            // This data node has parents. Need to figure out what the parent's Id is, so we require a Reference.
+            val idReference = getNonFirstLevelAttributeKey(group, parentNodeIdOffset);
+            return new AttributeUpdateByReference(idReference, AttributeUpdateType.Replace, value);
         }
     }
 
-    private UUID getFirstLevelAttributeKey(KeyHashGroup group, TableBucket.Node last) {
-        return group.getHashIndex() == 0
-                ? this.attributeCalculator.getPrimaryHashAttributeKey(group.getHashPart())
-                : (last.isIndexNode() ? this.attributeCalculator.getSecondaryHashAttributeKey(group.getHashPart(), (int) last.getValue()) : last.getKey());
+    /**
+     * Generates a {@link UUID} which represents an Attribute ID for a node (Index or Data) that is either top-level (no parents)
+     * or for which the parent is already present in the Segment's attributes (i.e., it has an assigned Node Id).
+     *
+     * @param group          The {@link KeyHashGroup} to generate for.
+     * @param lastBucketNode The last existing Node in the TableBucket we want to update.
+     * @return The UUID.
+     */
+    private UUID getFirstLevelAttributeKey(KeyHashGroup group, TableBucket.Node lastBucketNode) {
+        if (group.getHashIndex() == 0) {
+            // Top-level. Generate Primary Hash.
+            return this.attributeCalculator.getPrimaryHashAttributeKey(group.getHashPart());
+        } else if (lastBucketNode.isIndexNode()) {
+            // We have a parent that is an index node, so must not touch it, but link from it; generate a
+            // Secondary hash to expand the branch based on our parent's Node Id.
+            return this.attributeCalculator.getSecondaryHashAttributeKey(group.getHashPart(), (int) lastBucketNode.getValue());
+        } else {
+            // We have a "parent", but this is a data node. We need to replace it with whatever we have in store. If we
+            // have multiple keys (and the hashes haven't been exhausted), we will replace this data node with one or more
+            // index nodes. If we have a single key, then we'll just update this entry.
+            return lastBucketNode.getKey();
+        }
     }
 
+    /**
+     * Generates an {@link AttributeReference} that, when evaluated, will yield a {@link UUID} representing the Key for
+     * a node (Index or Data) that has parents, but whose parents are not yet present in the Index (i.e., their Node Ids
+     * are generated as part of the same update batch as this node). This reference will calculate this node's Id based
+     * on the {@link Attributes#TABLE_NODE_ID} value to which it add the requested offset.
+     *
+     * @param group        The {@link KeyHashGroup} to generate for.
+     * @param nodeIdOffset The Node Id offset to use to calculate this Node's Id.
+     * @return An {@link AttributeReference}.
+     */
     private AttributeReference<UUID> getNonFirstLevelAttributeKey(KeyHashGroup group, int nodeIdOffset) {
         assert nodeIdOffset >= 0;
         return new AttributeReference<>(Attributes.TABLE_NODE_ID,
                 nodeId -> this.attributeCalculator.getSecondaryHashAttributeKey(group.getHashPart(), (int) (long) nodeId + nodeIdOffset));
     }
 
+    /**
+     * Generates an {@link AttributeReference} that, when evaluated, will yield a Long representing the value of an Index
+     * node.
+     *
+     * @param nodeIdOffset The Node Id offset to use to calculate this Node's Id.
+     * @return An {@link AttributeReference}.
+     */
     private AttributeReference<Long> getIndexNodeValue(int nodeIdOffset) {
         assert nodeIdOffset >= 0;
         return new AttributeReference<>(Attributes.TABLE_NODE_ID,
                 value -> this.attributeCalculator.getIndexNodeAttributeValue(value + nodeIdOffset));
     }
 
-    private long getDataNodeValue(KeyHashGroup g) {
-        long bucketSegmentOffset = g.hashes.values().stream().findFirst().orElse(-1L);
+    /**
+     * Calculates the value to store in a Data Node.
+     *
+     * @param group The {@link KeyHashGroup} to calculate the value for.
+     * @return The value.
+     */
+    private long getDataNodeValue(KeyHashGroup group) {
+        long bucketSegmentOffset = group.getHashes().values().stream().findFirst().orElse(-1L);
         assert bucketSegmentOffset >= 0;
         return this.attributeCalculator.getSegmentOffsetAttributeValue(bucketSegmentOffset);
     }
 
+    /**
+     * Generates a Collection of {@link KeyHashGroup} based on the {@link KeyHash}es present in the given group, but
+     * regrouped by the next available Hash Index (incremented from the given {@link KeyHashGroup#getHashIndex()}.
+     *
+     * @param group The {@link KeyHashGroup} to regroup.
+     * @return A Collection of {@link KeyHashGroup}s.
+     */
     private Collection<KeyHashGroup> generateNextGroup(KeyHashGroup group) {
         int hashIndex = group.getHashIndex() + 1;
         int depth = group.getDepth() + 1;
@@ -368,15 +436,14 @@ class IndexWriter extends IndexReader {
      * @param attributeUpdates A List of AttributeUpdates to collect updates in.
      */
     private void generateBucketDelete(TableBucket bucket, List<AttributeUpdate> attributeUpdates) {
-        TableBucket.Node last = bucket.getLastNode();
-        if (last == null || last.isIndexNode()) {
+        if (bucket.isPartial()) {
             // This bucket path does not lead to an actual data node. Nothing we can do here.
             return;
         }
 
         // We need to be careful with deletes: we cannot delete the whole path (since it may be partially shared), so
         // the only thing we can delete is the data node. We'll delete the whole path during a compaction.
-        attributeUpdates.add(new AttributeUpdate(last.getKey(), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE));
+        attributeUpdates.add(new AttributeUpdate(bucket.getLastNode().getKey(), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE));
     }
 
     /**
@@ -410,14 +477,19 @@ class IndexWriter extends IndexReader {
         AtomicBoolean previousReplaced = new AtomicBoolean(false);
 
         // Process all existing Keys, in order of Offsets, and either unlink them (if replaced) or update pointers as needed.
+        AtomicBoolean first = new AtomicBoolean(true);
         update.getExistingKeys().stream()
               .sorted(Comparator.comparingLong(KeyInfo::getOffset))
               .forEach(keyInfo -> {
                   boolean replaced = update.isKeyUpdated(keyInfo.getKey());
                   if (replaced) {
                       // This one has been replaced or removed; delete any backpointer originating from it.
-                      attributeUpdates.add(generateBackpointerRemoval(keyInfo.getOffset()));
-                      previousReplaced.set(true);
+                      if (!first.get()) {
+                          // ... except if this is the first one in the list, which means it doesn't have a backpointer.
+                          attributeUpdates.add(generateBackpointerRemoval(keyInfo.getOffset()));
+                      }
+
+                      previousReplaced.set(true); // Record that this has been replaced.
                   } else {
                       if (previousReplaced.get()) {
                           // This one hasn't been replaced or removed, however its previous one has been.
@@ -426,8 +498,10 @@ class IndexWriter extends IndexReader {
                           previousReplaced.set(false);
                       }
 
-                      previousOffset.set(keyInfo.getOffset());
+                      previousOffset.set(keyInfo.getOffset()); // Record the last valid offset.
                   }
+
+                  first.set(false);
               });
 
         // Process all the new Keys, in order of offsets, and add any backpointers as needed, making sure to also link them

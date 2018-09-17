@@ -37,7 +37,7 @@ public abstract class KeyHasher {
      * @param key The Key to hash.
      * @return A new {@link KeyHash}.
      */
-    public KeyHash hash(@NonNull byte[] key){
+    public KeyHash hash(@NonNull byte[] key) {
         return hash(new ByteArraySegment(key));
     }
 

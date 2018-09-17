@@ -54,8 +54,8 @@ public class KeyHashTests {
         Assert.assertFalse("Iterator has more elements.", iterator.hasNext());
 
         AssertExtensions.assertThrows(
-                "get() worked with illegal argument.",
-                () -> hash.get(hash.hashCount()),
+                "getPart() worked with illegal argument.",
+                () -> hash.getPart(hash.hashCount()),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 }

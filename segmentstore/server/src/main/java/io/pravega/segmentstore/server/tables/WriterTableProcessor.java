@@ -283,8 +283,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private CompletableFuture<Void> getExistingKeys(BucketUpdate bucketUpdate, DirectSegmentAccess segment, TimeoutTimer timer) {
         final int maxReadLength = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
-        TableBucket.Node lastNode = bucketUpdate.getBucket().getLastNode();
-        if (lastNode == null || lastNode.isIndexNode()) {
+        if (bucketUpdate.getBucket().isPartial()) {
             // Incomplete bucket, so it can't have any data.
             return CompletableFuture.completedFuture(null);
         }
@@ -292,7 +291,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         // Get all Key locations, using the bucket's last offset and backpointers.
         // Get all the Keys from the segment by reading from it.
         // Add them to the result.
-        AtomicLong offset = new AtomicLong(this.indexWriter.getOffset(lastNode));
+        AtomicLong offset = new AtomicLong(this.indexWriter.getOffset(bucketUpdate.getBucket().getLastNode()));
         return Futures.loop(
                 () -> offset.get() >= 0,
                 () -> {

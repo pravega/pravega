@@ -16,7 +16,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -35,6 +34,7 @@ class BucketUpdate {
     private final TableBucket bucket;
     private final Map<HashedArray, KeyInfo> existingKeys = new HashMap<>();
     private final Map<HashedArray, KeyUpdate> updatedKeys = new HashMap<>();
+    private long maxUpdateOffset = -1;
 
     //endregion
 
@@ -58,6 +58,9 @@ class BucketUpdate {
      */
     void withKeyUpdate(KeyUpdate update) {
         this.updatedKeys.put(update.getKey(), update);
+        if (!update.isDeleted()) {
+            this.maxUpdateOffset = Math.max(update.getOffset(), this.maxUpdateOffset);
+        }
     }
 
     /**
@@ -97,19 +100,15 @@ class BucketUpdate {
      * @return The bucket offset, or -1 if no such offset (i.e., if everything in this bucket was deleted).
      */
     long getBucketOffset() {
-        val nonDeletionUpdates = this.updatedKeys.entrySet().stream()
-                                                 .filter(u -> !u.getValue().isDeleted())
-                                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        if (nonDeletionUpdates.size() > 0) {
-            // We have non-deletion updates. The new offset must be here.
-            return nonDeletionUpdates.values().stream()
-                                     .mapToLong(KeyUpdate::getOffset).max().orElse(-1);
+        if (this.maxUpdateOffset >= 0) {
+            // We have non-deletion updates; return the pre-computed value.
+            return this.maxUpdateOffset;
+        } else {
+            // No updates (or all updates are deletions). Get the offset from the remaining existing keys (if any left).
+            return this.existingKeys.values().stream()
+                                    .filter(ek -> !this.updatedKeys.containsKey(ek.getKey()))
+                                    .mapToLong(KeyInfo::getOffset).max().orElse(-1);
         }
-
-        // No updates (or all updates are deletions). Get the offset from the remaining existing keys (if any left).
-        return this.existingKeys.values().stream()
-                                .filter(ek -> !nonDeletionUpdates.containsKey(ek.getKey()))
-                                .mapToLong(KeyInfo::getOffset).max().orElse(-1);
     }
 
     /**

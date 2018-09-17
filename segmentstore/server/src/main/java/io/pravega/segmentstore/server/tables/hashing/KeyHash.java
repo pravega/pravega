@@ -66,16 +66,25 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
         return Iterators.forArray(this.parts);
     }
 
-    private String getSignature(){
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    private String getSignature() {
         return Arrays.stream(this.parts)
                      .map(p -> p.get(p.getLength() - 1))
                      .map(Object::toString)
-                     .collect(Collectors.joining(""));
+                     .collect(Collectors.joining(":"));
     }
 
     @Override
     public String toString() {
         return String.format("%s, Sig=%s", super.toString(), getSignature());
     }
-
 }

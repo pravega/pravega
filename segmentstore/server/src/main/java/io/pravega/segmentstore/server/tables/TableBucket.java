@@ -48,6 +48,16 @@ class TableBucket {
         return this.nodes.isEmpty() ? null : this.nodes.get(this.nodes.size() - 1);
     }
 
+    /**
+     * Gets a value indicating whether this bucket is incomplete. A bucket is incomplete if it doesn't point to a data
+     * node (i.e., no node path or partial node path).
+     *
+     * @return True if partial, false if it points to a data node.
+     */
+    boolean isPartial() {
+        return this.nodes.isEmpty() || this.nodes.get(this.nodes.size() - 1).isIndexNode();
+    }
+
     @Override
     public int hashCode() {
         Node last = getLastNode();

@@ -39,6 +39,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -51,25 +52,31 @@ import org.junit.Test;
  * Unit tests for the {@link IndexReader} and {@link IndexWriter} classes.
  */
 public class IndexReaderWriterTests extends ThreadPooledTestSuite {
+    private static final int KEY_COUNT = 10240; // This is chosen so that the COLLISION_HASHER generates 10 collisions per key.
+    private static final int UPDATE_BATCH_SIZE = 1000;
+    private static final int REMOVE_BATCH_SIZE = 1000;
+    private static final int MAX_KEY_LENGTH = 512;
+    private static final long NO_OFFSET = -1L;
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+
     //region Test Hashers
 
     // Default Hashing uses a SHA512 hashing, which produces very few collisions. This is the same as used in the non-test
     // version of the code.
-    private static final HashConfig DEFAULT_HASH_CONFIG = HashConfig.of(16, 12, 12, 12, 12);
-    private static final KeyHasher DEFAULT_HASHER = KeyHasher.sha512(DEFAULT_HASH_CONFIG);
-
-    // Collision Hashing "bucketizes" the SHA512 hash into much smaller buckets with each accepting a very narrow
-    // range [0..4) of values. This will produce a lot of collisions, which helps us test adjustable tree depth and
-    // collision resolutions in the indexer.
-    private static final HashConfig COLLISION_HASH_CONFIG = HashConfig.of(
+    private static final HashConfig HASH_CONFIG = HashConfig.of(
             AttributeCalculator.PRIMARY_HASH_LENGTH,
             AttributeCalculator.SECONDARY_HASH_LENGTH,
             AttributeCalculator.SECONDARY_HASH_LENGTH,
             AttributeCalculator.SECONDARY_HASH_LENGTH,
             AttributeCalculator.SECONDARY_HASH_LENGTH);
+    private static final KeyHasher DEFAULT_HASHER = KeyHasher.sha512(HASH_CONFIG);
+
+    // Collision Hashing "bucketizes" the SHA512 hash into much smaller buckets with each accepting a very narrow
+    // range [0..4) of values. This will produce a lot of collisions, which helps us test adjustable tree depth and
+    // collision resolutions in the indexer.
     private static final int COLLISION_HASH_BASE = 4;
-    private static final int COLLISION_HASH_BUCKETS = (int) Math.pow(COLLISION_HASH_BASE, COLLISION_HASH_CONFIG.getHashCount());
-    private static final KeyHasher COLLISION_HASHER = KeyHasher.custom(IndexReaderWriterTests::hashWithCollisions, COLLISION_HASH_CONFIG);
+    private static final int COLLISION_HASH_BUCKETS = (int) Math.pow(COLLISION_HASH_BASE, HASH_CONFIG.getHashCount());
+    private static final KeyHasher COLLISION_HASHER = KeyHasher.custom(IndexReaderWriterTests::hashWithCollisions, HASH_CONFIG);
 
     private static byte[] hashWithCollisions(ArrayView arrayView) {
         // Generate SHA512 hash. We'll use this as the basis for our collision-prone hash.
@@ -81,9 +88,9 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // Split the hash value into parts, and generate the final hash. The final hash must still be the same length as
         // the original, so we'll fill it with 0s and only populate one byte of each Hash Part with some value we calculate
         // below.
-        byte[] result = new byte[COLLISION_HASH_CONFIG.getMinHashLengthBytes()];
+        byte[] result = new byte[HASH_CONFIG.getMinHashLengthBytes()];
         int resultOffset = 0;
-        for (int i = 0; i < COLLISION_HASH_CONFIG.getHashCount(); i++) {
+        for (int i = 0; i < HASH_CONFIG.getHashCount(); i++) {
             resultOffset += baseHash.getPart(i).getLength(); // Only populate one byte per part. Skip the rest.
             result[resultOffset - 1] = (byte) (hashValue % COLLISION_HASH_BASE);
             hashValue /= COLLISION_HASH_BASE;
@@ -95,12 +102,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     //endregion
-
-    private static final int KEY_COUNT = COLLISION_HASH_BUCKETS * 10;
-    private static final int UPDATE_BATCH_SIZE = 1000;
-    private static final int MAX_KEY_LENGTH = 512;
-    private static final long NO_OFFSET = -1L;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Override
     protected int getThreadPoolSize() {
@@ -157,7 +158,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val updates = w.generateInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         Assert.assertEquals("Unexpected number of updates generated.", 2, values.size());
-        Assert.assertEquals("Unexpected value for TableNodeID.", 1L, (long) values.get(Attributes.TABLE_NODE_ID));
+        Assert.assertEquals("Unexpected value for TableNodeID.", 0L, (long) values.get(Attributes.TABLE_NODE_ID));
         Assert.assertEquals("Unexpected value for TableIndexOffset.", 0L, (long) values.get(Attributes.TABLE_INDEX_OFFSET));
     }
 
@@ -182,7 +183,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
             // Generate keys, and record them where needed.
             for (int j = 0; j < hashesPerBucket; j++) {
-                byte[] key = new byte[DEFAULT_HASH_CONFIG.getMinHashLengthBytes() * 4];
+                byte[] key = new byte[HASH_CONFIG.getMinHashLengthBytes() * 4];
                 keyUpdates.add(new KeyUpdate(new HashedArray(key), i * hashesPerBucket + j, true));
                 rnd.nextBytes(key);
                 hashToBuckets.put(DEFAULT_HASHER.hash(key), bucket);
@@ -212,7 +213,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
-     * methods for a Single Bucket update (no removal) using a hasher that's not prone to collisions.
+     * methods for updating one entry at a time using a hasher that's not prone to collisions.
      */
     @Test
     public void testIncrementalUpdate() {
@@ -221,7 +222,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
-     * methods for a Single Bucket update (no removal) using a hasher that's very prone to collisions.
+     * methods for updating one entry at a time using a hasher that's very prone to collisions.
      */
     @Test
     public void testIncrementalUpdateCollisions() {
@@ -230,7 +231,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
-     * methods for multiple bucket updates (no removals) using a hasher that's not prone to collisions.
+     * methods for updating multiple entries at a time using a hasher that's not prone to collisions.
      */
     @Test
     public void testBulkUpdate() {
@@ -239,7 +240,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
-     * methods for multiple bucket updates (no removals) using a hasher that's very prone to collisions.
+     * methods for updating multiple entries at a time using a hasher that's very prone to collisions.
      */
     @Test
     public void testBulkUpdateCollisions() {
@@ -248,25 +249,109 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
-     * methods for a Single Bucket update that removes it.
+     * methods for removing a single entry at a time using a hasher that's not prone to collisions.
      */
     @Test
     public void testIncrementalRemove() {
-        // TODO: implement
+        testRemove(DEFAULT_HASHER, 1);
     }
 
     /**
      * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
-     * methods for multiple bucket updates made of removals.
+     * methods for removing a single entry at a time using a hasher that's very prone to collisions.
+     */
+    @Test
+    public void testIncrementalRemoveCollisions() {
+        testRemove(COLLISION_HASHER, 1);
+    }
+
+    /**
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * methods for removing multiple entries at a time using a hasher that's not prone to collisions.
      */
     @Test
     public void testBulkRemove() {
-        // TODO: implement
+        testRemove(DEFAULT_HASHER, REMOVE_BATCH_SIZE);
+    }
+
+    /**
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * methods for removing multiple entries at a time using a hasher that's very prone to collisions.
+     */
+    @Test
+    public void testBulkRemoveCollisions() {
+        testRemove(COLLISION_HASHER, REMOVE_BATCH_SIZE);
+    }
+
+    /**
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * methods for updating and removing entries using a hasher that's not prone to collisions.
+     */
+    @Test
+    public void testUpdateRemove() {
+        testUpdateRemove(DEFAULT_HASHER);
+    }
+
+    /**
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * methods for updating and removing entries using a hasher that's very prone to collisions.
+     */
+    @Test
+    public void testUpdateRemoveCollisions() {
+        testUpdateRemove(COLLISION_HASHER);
     }
 
     //endregion
 
     //region Helpers
+
+    private void testUpdateRemove(KeyHasher hasher) {
+        // TODO: implement.
+    }
+
+    private void testRemove(KeyHasher hasher, int removeBatchSize) {
+        val rnd = new Random(0);
+        val w = newWriter(hasher);
+        val segment = newMock(w);
+
+        // Bulk-insert all the keys.
+        val keys = new HashMap<Long, HashedArray>();
+        val updateBatch = generateUpdateBatch(KEY_COUNT, 0, rnd);
+        long offset = updateKeys(updateBatch, w, keys, segment);
+
+        // Remove the keys using the requested batch size.
+        val toRemove = new ArrayList<HashedArray>(keys.values());
+        int i = 0;
+        while (i < toRemove.size()) {
+            val batch = new HashMap<HashedArray, Long>();
+            int batchSize = Math.min(removeBatchSize, toRemove.size() - i);
+            int batchOffset = 0;
+            while (batch.size() < batchSize) {
+                val key = toRemove.get(i);
+                batch.put(key, encodeOffset(offset + batchOffset, true));
+                batchOffset += key.getLength();
+                i++;
+            }
+
+            offset = updateKeys(batch, w, keys, segment);
+        }
+
+        // Verify index.
+        checkIndex(toRemove, keys, w, hasher, segment);
+
+        // Since we removed all nodes, we are not expecting any collisions left, so no backpointers.
+        checkNoBackpointers(segment);
+
+        // Verify that all surviving nodes are index nodes. We do this by figuring out how many times we incremented
+        // TABLE_NODE_ID, accounting for the fact that we have number of non-index attributes too and that it starts
+        // at some predefined value.
+        val initialAttribs = w.generateInitialTableAttributes();
+        int expectedAttributeCount = (int) segment.getTableNodeId()
+                + initialAttribs.size()
+                - (int) initialAttribs.stream().filter(a -> a.getAttributeId() == Attributes.TABLE_NODE_ID).findFirst().get().getValue();
+        int attributeCount = segment.getAttributeCount();
+        Assert.assertEquals("Unexpected number of nodes left after complete removal.", expectedAttributeCount, attributeCount);
+    }
 
     private void testUpdate(KeyHasher hasher, int updateBatchSize) {
         val rnd = new Random(0);
@@ -277,22 +362,15 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         long offset = 0;
         val keys = new HashMap<Long, HashedArray>();
         while (keys.size() < KEY_COUNT) {
-            val batch = new HashMap<HashedArray, Long>();
             int batchSize = Math.min(updateBatchSize, KEY_COUNT - keys.size());
-            int batchOffset = 0;
-            for (int i = 0; i < batchSize; i++) {
-                val key = newKey(rnd);
-                batch.put(key, offset + batchOffset);
-                batchOffset += key.getLength();
-            }
-
+            val batch = generateUpdateBatch(batchSize, offset, rnd);
             offset = updateKeys(batch, w, keys, segment);
         }
 
         // Verify index.
         checkIndex(keys.values(), keys, w, hasher, segment);
 
-        // Update the keys. At each step, lookup their buckets & backpointers and verify result correctness.
+        // Update the keys using the requested batch size.
         val toUpdate = new ArrayList<HashedArray>(keys.values());
         int i = 0;
         while (i < toUpdate.size()) {
@@ -301,7 +379,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             int batchOffset = 0;
             while (batch.size() < batchSize) {
                 val key = toUpdate.get(i);
-                batch.put(key, offset + batchOffset);
+                batch.put(key, encodeOffset(offset + batchOffset, false));
                 batchOffset += key.getLength();
                 i++;
             }
@@ -309,7 +387,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             offset = updateKeys(batch, w, keys, segment);
         }
 
-        // Verify index.
+        // Verify index. TODO: eliminate non-existent keys.
         checkIndex(keys.values(), keys, w, hasher, segment);
     }
 
@@ -317,7 +395,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val timer = new TimeoutTimer(TIMEOUT);
 
         val keyUpdates = keysWithOffset.entrySet().stream()
-                                       .map(e -> new KeyUpdate(e.getKey(), e.getValue(), false))
+                                       .map(e -> new KeyUpdate(e.getKey(), decodeOffset(e.getValue()), isRemoveOffset(e.getValue())))
                                        .sorted(Comparator.comparingLong(KeyUpdate::getOffset))
                                        .collect(Collectors.toList());
 
@@ -351,12 +429,18 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
         // Record the key as being updated.
         oldOffsets.forEach(existingKeys::remove);
-        keysWithOffset.forEach((key, offset) -> existingKeys.put(offset, key));
+        keysWithOffset.forEach((key, offset) -> {
+            if (isRemoveOffset(offset)) {
+                existingKeys.remove(decodeOffset(offset), key);
+            } else {
+                existingKeys.put(decodeOffset(offset), key);
+            }
+        });
         return postIndexOffset;
     }
 
     private void checkIndex(Collection<HashedArray> allKeys, Map<Long, HashedArray> existingKeysByOffset, IndexWriter w,
-                            KeyHasher hasher, DirectSegmentAccess segment) {
+                            KeyHasher hasher, SegmentAttributeMock segment) {
         val timer = new TimeoutTimer(TIMEOUT);
 
         // Group all keys by their full hash (each hash should translate to a bucket), and make sure they're ordered by
@@ -371,15 +455,17 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             val hash = e.getKey();
             val keys = e.getValue();
             val bucket = w.locateBucket(hash, segment, timer).join();
-            //java.lang.AssertionError: Incomplete bucket returned Length=64, Hash=-1696723031, Hash2=20100
-            if (bucket.getLastNode().isIndexNode()) {
-                val b2 = w.locateBucket(hash, segment, timer).join();
-            }
-            Assert.assertFalse("Incomplete bucket returned " + hash, bucket.getLastNode().isIndexNode());
+            boolean allDeleted = keys.stream().allMatch(k -> k.getOffset() == NO_OFFSET);
+            Assert.assertEquals("Only expecting partial bucket when all its keys are deleted " + hash, allDeleted, bucket.isPartial());
             val bucketOffsets = getBucketOffsets(bucket, w, segment);
 
             // Verify that we didn't return too many or too few keys.
-            AssertExtensions.assertGreaterThan("Expected at least one offset to be returned for bucket: " + hash, 0, bucketOffsets.size());
+            if (allDeleted) {
+                Assert.assertEquals("Not expecting any offsets to be returned for bucket: " + hash, 0, bucketOffsets.size());
+            } else {
+                AssertExtensions.assertGreaterThan("Expected at least one offset to be returned for bucket: " + hash, 0, bucketOffsets.size());
+            }
+
             AssertExtensions.assertLessThanOrEqual("Too many offsets returned for bucket: " + hash, keys.size(), bucketOffsets.size());
 
             // Verify returned keys are as expected.
@@ -387,9 +473,13 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 long actualOffset = bucketOffsets.get(i);
                 long expectedOffset = keys.get(i).getOffset();
                 String id = String.format("{%s[%s]}", hash, i);
-                Assert.assertNotEquals("Offset was returned for deleted Key: " + id, NO_OFFSET, expectedOffset);
+
+                // In this loop, we do not expect to have Deleted Keys. If our Expected Offset indicates this key should
+                // have been deleted, then getBucketOffsets() should not have returned this.
+                Assert.assertNotEquals("Expecting a deleted key but found existing one: " + id, NO_OFFSET, expectedOffset);
                 Assert.assertEquals("Unexpected key offset in bucket " + id, expectedOffset, actualOffset);
             }
+
             if (bucketOffsets.size() < keys.size()) {
                 val prevKeyOffset = keys.get(bucketOffsets.size()).getOffset();
                 Assert.assertEquals("Missing key from bucket " + hash, NO_OFFSET, prevKeyOffset);
@@ -397,8 +487,14 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
     }
 
+    private void checkNoBackpointers(SegmentAttributeMock segment) {
+        val ac = new AttributeCalculator();
+        int count = segment.getAttributeCount(ac::isBackpointerAttributeKey);
+        Assert.assertEquals("Not expecting any backpointers.", 0, count);
+    }
+
     private List<Long> getBucketOffsets(TableBucket bucket, IndexWriter w, DirectSegmentAccess segment) {
-        if (bucket.getLastNode() == null || bucket.getLastNode().isIndexNode()) {
+        if (bucket.isPartial()) {
             // No data here.
             return Collections.emptyList();
         }
@@ -410,6 +506,20 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             offset = w.getBackpointerOffset(offset, segment, TIMEOUT).join();
         }
         return result;
+    }
+
+    private HashMap<HashedArray, Long> generateUpdateBatch(int batchSize, long offset, Random rnd) {
+        val batch = new HashMap<HashedArray, Long>();
+        int batchOffset = 0;
+
+        // Randomly generated keys may be duplicated, so we need to loop as long as we need to fill up the batch.
+        while (batch.size() < batchSize) {
+            val key = newKey(rnd);
+            batch.put(key, encodeOffset(offset + batchOffset, false));
+            batchOffset += key.getLength();
+        }
+
+        return batch;
     }
 
     private IndexReader newReader() {
@@ -430,10 +540,23 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         return new HashedArray(key);
     }
 
-    private SegmentAttributeMock newMock(IndexWriter writer){
+    private SegmentAttributeMock newMock(IndexWriter writer) {
         val mock = new SegmentAttributeMock();
         mock.updateAttributes(writer.generateInitialTableAttributes(), TIMEOUT).join();
         return mock;
+    }
+
+    private long encodeOffset(long offset, boolean isRemove) {
+        offset++;
+        return isRemove ? -offset : offset;
+    }
+
+    private long decodeOffset(long encodedOffset) {
+        return (encodedOffset < 0 ? -encodedOffset : encodedOffset) - 1;
+    }
+
+    private boolean isRemoveOffset(long encodedOffset) {
+        return encodedOffset < 0;
     }
 
     //endregion
@@ -474,6 +597,18 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         long getTableNodeId() {
             synchronized (this.attributes) {
                 return this.attributes.getOrDefault(Attributes.TABLE_NODE_ID, Attributes.NULL_ATTRIBUTE_VALUE);
+            }
+        }
+
+        int getAttributeCount() {
+            synchronized (this.attributes) {
+                return this.attributes.size();
+            }
+        }
+
+        int getAttributeCount(Predicate<UUID> tester) {
+            synchronized (this.attributes) {
+                return (int) this.attributes.keySet().stream().filter(tester).count();
             }
         }
 
@@ -552,7 +687,11 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                     throw new BadAttributeUpdateException("Segment", update, !hasValue, "Unsupported");
             }
 
-            this.attributes.put(update.getAttributeId(), update.getValue());
+            if (update.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
+                this.attributes.remove(update.getAttributeId());
+            } else {
+                this.attributes.put(update.getAttributeId(), update.getValue());
+            }
         }
 
         @GuardedBy("attributes")

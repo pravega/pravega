@@ -34,15 +34,20 @@ public class TableBucketTests {
         Assert.assertNull("Expecting builder.getLastNode() to be null.", builder.getLastNode());
         val nodes = new ArrayList<TableBucket.Node>();
         for (int i = 0; i < nodeCount; i++) {
-            val node = new TableBucket.Node(i < nodeCount - 1, new UUID(i, i), i + 1);
+            boolean indexNode = i < nodeCount - 1;
+            val node = new TableBucket.Node(indexNode, new UUID(i, i), i + 1);
             nodes.add(node);
             builder.node(node);
             Assert.assertEquals("Unexpected builder.getLastNode.", node, builder.getLastNode());
+            if (indexNode) {
+                Assert.assertTrue("Unexpected value for isPartial() for non-data bucket.", builder.build().isPartial());
+            }
         }
 
         val tb = builder.build();
         AssertExtensions.assertListEquals("Unexpected node list.", nodes, tb.getNodes(), Object::equals);
         Assert.assertEquals("Unexpected last node.", nodes.get(nodes.size() - 1), tb.getLastNode());
+        Assert.assertFalse("Unexpected value for isPartial() for data bucket.", tb.isPartial());
     }
 
     /**

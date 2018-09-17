@@ -10,12 +10,14 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.HashedArray;
-import lombok.Data;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Represents an update to a particular Key.
  */
-@Data
+@RequiredArgsConstructor
+@Getter
 class KeyInfo {
     /**
      * The Key.

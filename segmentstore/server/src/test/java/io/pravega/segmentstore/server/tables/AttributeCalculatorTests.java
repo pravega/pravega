@@ -63,6 +63,7 @@ public class AttributeCalculatorTests {
                 () -> ac.getPrimaryHashAttributeKey(new ByteArraySegment(hashBuffer, 0, AttributeCalculator.PRIMARY_HASH_LENGTH - 1)),
                 ex -> ex instanceof IllegalArgumentException);
     }
+
     /**
      * Tests the getSecondaryHashAttributeKey() method.
      */
@@ -96,6 +97,7 @@ public class AttributeCalculatorTests {
                       () -> ac.getSecondaryHashAttributeKey(new ByteArraySegment(hashBuffer), nodeId),
                       ex -> ex instanceof IllegalArgumentException));
     }
+
     /**
      * Tests the getBackpointerAttributeKey() method.
      */
@@ -113,6 +115,7 @@ public class AttributeCalculatorTests {
                 () -> ac.getBackpointerAttributeKey(-1),
                 ex -> ex instanceof IllegalArgumentException);
     }
+
     /**
      * Tests getIndexNodeAttributeValue(), getSegmentOffsetAttributeValue(), extractValue() and isIndexNodePointer().
      */
@@ -131,6 +134,7 @@ public class AttributeCalculatorTests {
                 AttributeCalculator::getSegmentOffsetAttributeValue,
                 false);
     }
+
     private void testNodeAttributeValues(Collection<Long> goodValues, Collection<Long> badValues, BiFunction<AttributeCalculator, Long, Long> function, boolean indexNodes) {
         val ac = new AttributeCalculator();
         // Good values.
