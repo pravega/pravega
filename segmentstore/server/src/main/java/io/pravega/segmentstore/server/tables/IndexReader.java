@@ -18,12 +18,19 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -64,33 +71,36 @@ class IndexReader {
     }
 
     /**
-     * Locates a Bucket in the given Segment's Extended Attribute Index.
+     * Locates the {@link TableBucket}s for the given {@link KeyHash}es in the given Segment's Extended Attribute Index.
      *
-     * @param keyHash The the Hash pertaining to the lookup key.
-     * @param segment A DirectSegmentAccess providing access to the Segment to look into.
-     * @param timer   Timer for the operation.
+     * @param keyHashes A Collection of {@link KeyHash}es to look up {@link TableBucket}s for.
+     * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.
+     * @param timer     Timer for the operation.
      * @return A Future that, when completed, will contain the requested Bucket information.
      */
-    CompletableFuture<TableBucket> locateBucket(KeyHash keyHash, DirectSegmentAccess segment, TimeoutTimer timer) {
-        Iterator<ArrayView> hashIterator = keyHash.iterator();
-        Preconditions.checkArgument(hashIterator.hasNext(), "No hashes given");
+    CompletableFuture<Map<KeyHash, TableBucket>> locateBuckets(Collection<KeyHash> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+        val toFetch = keyHashes.stream()
+                               .map(HashBucketBuilderPair::new)
+                               .collect(Collectors.toList());
+        val result = new HashMap<KeyHash, TableBucket>();
+        return Futures.loop(
+                () -> !toFetch.isEmpty(),
+                () -> fetchNextNodes(toFetch, segment, timer)
+                        .thenRun(() -> {
+                            val newToFetch = new ArrayList<HashBucketBuilderPair>();
+                            toFetch.forEach(builder -> {
+                                if (tryContinueLookup(builder)) {
+                                    newToFetch.add(builder);
+                                } else {
+                                    result.put(builder.keyHash, builder.builder.build());
+                                }
+                            });
 
-        // Fetch Primary Hash, then fetch Secondary Hashes EAs until: 1) we reach a data node OR 2) the EA entry is missing.
-        UUID phKey = this.attributeCalculator.getPrimaryHashAttributeKey(hashIterator.next());
-        val builder = TableBucket.builder();
-        return fetchNode(phKey, builder, segment, timer)
-                .thenCompose(v -> Futures.loop(
-                        () -> canContinueLookup(builder.getLastNode(), hashIterator),
-                        () -> {
-                            // Calculate EA Key for this secondary hash.
-                            UUID shKey = this.attributeCalculator.getSecondaryHashAttributeKey(
-                                    hashIterator.next(), (int) builder.getLastNode().getValue());
-
-                            // Fetch the value of the EA Key.
-                            return fetchNode(shKey, builder, segment, timer);
-                        },
-                        this.executor))
-                .thenApply(v -> builder.build());
+                            toFetch.clear();
+                            toFetch.addAll(newToFetch);
+                        }),
+                this.executor)
+                      .thenApply(v -> result);
     }
 
     /**
@@ -121,31 +131,66 @@ class IndexReader {
         return this.attributeCalculator.extractValue(node.getValue());
     }
 
-    private CompletableFuture<Void> fetchNode(UUID key, TableBucket.TableBucketBuilder builder, DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<Void> fetchNextNodes(Collection<HashBucketBuilderPair> builders, DirectSegmentAccess segment, TimeoutTimer timer) {
         // Fetch the node from the Segment's attributes, but we really shouldn't be caching the value, as it will only
         // slow the retrieval down (it needs to be queued up in the Segment Container's processing queue, etc.) and it
         // provides little value. For pure retrievals, the Key Hash itself will be cached alongside with its offset,
         // while for updates, this value may be changed anyway, at which point it will be cached.
+        val toFetch = builders.stream().collect(Collectors.groupingBy(HashBucketBuilderPair::getCurrentKey));
         return segment
-                .getAttributes(Collections.singleton(key), false, timer.getRemaining())
-                .thenAcceptAsync(attributes -> {
-                    long nodeValue = attributes.getOrDefault(key, Attributes.NULL_ATTRIBUTE_VALUE);
+                .getAttributes(toFetch.keySet(), false, timer.getRemaining())
+                .thenAcceptAsync(attributes -> builders.forEach(b -> {
+                    long nodeValue = attributes.getOrDefault(b.getCurrentKey(), Attributes.NULL_ATTRIBUTE_VALUE);
                     if (nodeValue == Attributes.NULL_ATTRIBUTE_VALUE) {
                         // Found an index node that does not have any sub-branches for this hash.
-                        builder.node(null);
+                        b.builder.node(null);
                     } else {
                         // We found a sub-node, record it.
-                        builder.node(new TableBucket.Node(
+                        b.builder.node(new TableBucket.Node(
                                 this.attributeCalculator.isIndexNodePointer(nodeValue),
-                                key,
+                                b.getCurrentKey(),
                                 this.attributeCalculator.extractValue(nodeValue)));
                     }
-                }, this.executor);
+                }), this.executor);
     }
 
-    private boolean canContinueLookup(TableBucket.Node lastNode, Iterator<?> hashIterator) {
-        return lastNode != null && lastNode.isIndexNode() && hashIterator.hasNext();
+    private boolean tryContinueLookup(HashBucketBuilderPair b) {
+        val last = b.builder.getLastNode();
+        return last != null && last.isIndexNode() && b.moveNext();
     }
 
     //endregion
+
+    @RequiredArgsConstructor
+    private class HashBucketBuilderPair {
+        final KeyHash keyHash;
+        final Iterator<ArrayView> hashIterator;
+        final TableBucket.TableBucketBuilder builder;
+        final AtomicReference<UUID> currentKey;
+
+        HashBucketBuilderPair(KeyHash keyHash) {
+            this.keyHash = keyHash;
+            this.hashIterator = keyHash.iterator();
+            this.builder = TableBucket.builder();
+            this.currentKey = new AtomicReference<>();
+            moveNext();
+        }
+
+        UUID getCurrentKey() {
+            return this.currentKey.get();
+        }
+
+        boolean moveNext() {
+            if (!this.hashIterator.hasNext()) {
+                this.currentKey.set(null);
+                return false;
+            }
+
+            val lastNode = this.builder.getLastNode();
+            this.currentKey.set(lastNode == null
+                    ? attributeCalculator.getPrimaryHashAttributeKey(this.hashIterator.next())
+                    : attributeCalculator.getSecondaryHashAttributeKey(this.hashIterator.next(), (int) lastNode.getValue()));
+            return true;
+        }
+    }
 }

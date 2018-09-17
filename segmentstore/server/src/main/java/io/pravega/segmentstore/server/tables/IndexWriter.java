@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeReference;
@@ -36,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.val;
@@ -95,22 +95,19 @@ class IndexWriter extends IndexReader {
      * @return A CompletableFuture that, when completed, will contain the a collection of {@link BucketUpdate}s.
      */
     CompletableFuture<Collection<BucketUpdate>> groupByBucket(Collection<KeyUpdate> keyUpdates, DirectSegmentAccess segment, TimeoutTimer timer) {
-        val result = new HashMap<TableBucket, BucketUpdate>();
+        val updatesByHash = keyUpdates.stream()
+                                      .collect(Collectors.groupingBy(k -> this.hasher.hash(k.getKey())));
+        return locateBuckets(updatesByHash.keySet(), segment, timer)
+                .thenApplyAsync(buckets -> {
+                    val result = new HashMap<TableBucket, BucketUpdate>();
+                    buckets.forEach((keyHash, bucket) -> {
+                        // Add the bucket to the result and record this Key as a "new" key in it.
+                        BucketUpdate bu = result.computeIfAbsent(bucket, BucketUpdate::new);
+                        updatesByHash.get(keyHash).forEach(bu::withKeyUpdate);
+                    });
 
-        return Futures.loop(
-                keyUpdates,
-                item -> {
-                    // Locate the Key's Bucket using the key's Hash.
-                    KeyHash hash = this.hasher.hash(item.getKey());
-                    return locateBucket(hash, segment, timer)
-                            .thenApply(bucket -> {
-                                // Add the bucket to the result and record this Key as a "new" key in it.
-                                BucketUpdate bu = result.computeIfAbsent(bucket, BucketUpdate::new);
-                                bu.withKeyUpdate(item);
-                                return true;
-                            });
-                }, this.executor)
-                      .thenApply(v -> result.values());
+                    return result.values();
+                }, this.executor);
     }
 
     /**

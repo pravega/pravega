@@ -213,7 +213,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     //region IndexReader and IndexWriter combined tests
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for updating one entry at a time using a hasher that's not prone to collisions.
      */
     @Test
@@ -222,7 +222,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for updating one entry at a time using a hasher that's very prone to collisions.
      */
     @Test
@@ -231,7 +231,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for updating multiple entries at a time using a hasher that's not prone to collisions.
      */
     @Test
@@ -240,7 +240,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for updating multiple entries at a time using a hasher that's very prone to collisions.
      */
     @Test
@@ -249,7 +249,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for removing a single entry at a time using a hasher that's not prone to collisions.
      */
     @Test
@@ -258,7 +258,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for removing a single entry at a time using a hasher that's very prone to collisions.
      */
     @Test
@@ -267,7 +267,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for removing multiple entries at a time using a hasher that's not prone to collisions.
      */
     @Test
@@ -276,7 +276,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for removing multiple entries at a time using a hasher that's very prone to collisions.
      */
     @Test
@@ -285,7 +285,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for updating and removing entries using a hasher that's not prone to collisions.
      */
     @Test
@@ -294,7 +294,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBucket} and {@link IndexReader#getBackpointerOffset}
+     * Tests the {@link IndexWriter#updateBuckets}, {@link IndexReader#locateBuckets} and {@link IndexReader#getBackpointerOffset}
      * methods for updating and removing entries using a hasher that's very prone to collisions.
      */
     @Test
@@ -502,10 +502,12 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                 .map(key -> new KeyInfo(key, existingKeys.getOrDefault(key, NO_OFFSET)))
                                 .sorted((k1, k2) -> Long.compare(k2.getOffset(), k1.getOffset())) // Reverse order.
                                 .collect(Collectors.groupingBy(keyInfo -> hasher.hash(keyInfo.getKey())));
+        val buckets = w.locateBuckets(keysByHash.keySet(), segment, timer).join();
         for (val e : keysByHash.entrySet()) {
             val hash = e.getKey();
             val keys = e.getValue();
-            val bucket = w.locateBucket(hash, segment, timer).join();
+            val bucket = buckets.get(hash);
+            Assert.assertNotNull("No bucket found for hash " + hash, bucket);
             boolean allDeleted = keys.stream().allMatch(k -> k.getOffset() == NO_OFFSET);
             Assert.assertEquals("Only expecting partial bucket when all its keys are deleted " + hash, allDeleted, bucket.isPartial());
             val bucketOffsets = getBucketOffsets(bucket, w, segment);
@@ -615,7 +617,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     //region CustomLocateBucketIndexer
 
     /**
-     * IndexWriter where the locateBucket method has been overridden to return specific values.
+     * IndexWriter where the locateBuckets method has been overridden to return specific values.
      */
     private static class CustomLocateBucketIndexer extends IndexWriter {
         private final Map<KeyHash, TableBucket> buckets;
@@ -626,8 +628,9 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<TableBucket> locateBucket(KeyHash hash, DirectSegmentAccess segment, TimeoutTimer timer) {
-            return CompletableFuture.completedFuture(buckets.get(hash));
+        public CompletableFuture<Map<KeyHash, TableBucket>> locateBuckets(Collection<KeyHash> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+            return CompletableFuture.completedFuture(
+                    keyHashes.stream().collect(Collectors.toMap(k -> k, buckets::get)));
         }
     }
 
