@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: StreamCuts
 
-This section describes `StreamCuts` and it's usage with streaming clients and batch clients.
+This section describes `StreamCut`s and its usage with streaming clients and batch clients.
 
 ## Pre-requisites
 
@@ -18,7 +18,7 @@ Familiarity with [Pravega Concepts](pravega-concepts.md).
 ## Definition
 
 A Pravega stream is formed by one or multiple parallel segments for storing/reading events. A Pravega stream
-is elastic, as it handles the changes in the number of parallel segments along time to accommodate the
+is elastic, as it handles the changes in the number of parallel segments along time to accommodate
 fluctuating workloads. A `StreamCut` represents a consistent position in the stream. It contains
 a set of segments and offset pairs for a single stream which represents the complete keyspace at a given
 point in time. The offset always points to the event boundary and hence there will be no offset pointing to
@@ -32,7 +32,7 @@ and the `StreamCut` pointing to the head of the stream post truncation would hav
 ```StreamCut.UNBOUNDED``` is used to represent such a position in the stream and the user can use it to
 specify this ever changing stream position (both head and tail of the stream).
 
-It should be noted that `StreamCuts` obtained using the streaming client and batch client can be used
+It should be noted that `StreamCut`s obtained using the streaming client and batch client can be used
 interchangeably.
 
 ## StreamCut with Reader
@@ -44,7 +44,7 @@ following API ```io.pravega.client.stream.ReaderGroup.getStreamCuts ```. This AP
 
 A `StreamCut` can be used to configure a ReaderGroup to enable bounded processing of a Stream. The start
 and/or end `StreamCut` of a Stream can be passed as part of the ReaderGroup configuration. The below example
-shows the different ways to use `StreamCuts` as part of the ReaderGroup configuration.
+shows the different ways to use `StreamCut`s as part of the ReaderGroup configuration.
 
 ```java
 /*
@@ -85,10 +85,10 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
 ```
-BatchClient can be used to perform bounded processing of the stream given the start and end `StreamCuts`. BatchClient API ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
-fetch segments which reside between the given startStreamCut and endStreamCut. With the retrieved segment information, the user can consume all the events in parallel without adhering to time ordering of events.
+BatchClient can be used to perform bounded processing of the stream given the start and end `StreamCut`s. BatchClient API ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
+fetch segments which reside between the given `startStreamCut` and `endStreamCut`. With the retrieved segment information, the user can consume all the events in parallel without adhering to time ordering of events.
 
-It must be noted that passing ```StreamCut.UNBOUNDED``` to startStreamCut and endStreamCut will result in using the current head of stream and the current tail of the stream, respectively.
+It must be noted that passing ```StreamCut.UNBOUNDED``` to `startStreamCut` and `endStreamCut` will result in using the current head of stream and the current tail of the stream, respectively.
 
 
 We have provided a simple yet illustrative example of using StreamCut [here.](https://github.com/pravega/pravega-samples/tree/v0.3.2/pravega-client-examples/src/main/java/io/pravega/example/streamcuts).
