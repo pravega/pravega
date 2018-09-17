@@ -152,7 +152,7 @@ System diagram <a name="systemDiagram"></a>
 The following diagram shows the main components of a controller process.
 We discuss the elements of the diagram in detail next.
 
- <img src="./img/ControllerSystemDiagram.png" width="624" height="334" />
+ ![controller system_diagram](img/ControllerSystemDiagram.png)
 
 <p align="center">
   <i>Controller Process Diagram</i></p>
@@ -188,7 +188,7 @@ segments while working with a stream. For transactions, the client uses
 specific API calls to request controller to create and commit
 transactions.
  
-##### REST  
+
 For administration, the controller implements and exposes a `REST`
 interface. This includes API calls for stream management as well as
 other administration API primarily dealing with creation and deletion of
@@ -631,6 +631,7 @@ cases as applicable via background policy manager (auto-scale and retention).
 <p align="center">
   <i>Request processing</i>
 </p>
+![request processing](img/RequestProcessing.png)
 
 #### Create Stream<a name="createStream"></a>
 
@@ -803,6 +804,7 @@ enforced.
 <p align="center">
   <i>Transaction Management Diagram</i>
 </p>
+![transaction management](img/TransactionManagement.png)
 
 
 Client calls into controller process to create, ping commit or abort

@@ -26,7 +26,7 @@ Java 8
 
 Download the Pravega release from the [github releases page](https://github.com/pravega/pravega/releases).
 If you prefer to build Pravega yourself, you can download the code and run `./gradlew distribution`. More 
-details are shown in the Pravega [README.md](../../../README.md).
+details are shown in the Pravega [README.md](https://github.com/pravega/pravega/blob/master/README.md).
 
 ```
 $ tar xfvz pravega-<version>.tgz
@@ -56,6 +56,7 @@ It is very simple to run a sample pravega App. Pravega maintains a separate gith
 
 Download and run the "Hello World" Pravega sample reader and writer apps. Pravega
 dependencies will be pulled from maven central.
+
 
 **Note:** The samples can also use a locally compiled version of Pravega. For more information
 about this see the note on maven publishing in the [README.md](../../../README.md).

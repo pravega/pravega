@@ -28,6 +28,7 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.retention.StreamCutService;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
@@ -157,14 +158,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             SegmentHelper segmentHelper = new SegmentHelper();
 
+            AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
+                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory,
-                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory,
-                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
+                    connectionFactory, authHelper);
 
             streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, retentionExecutor);
             log.info("starting auto retention service asynchronously");

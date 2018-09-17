@@ -18,6 +18,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -108,7 +109,7 @@ public class TaskTest {
                 executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
                                                                           .controllerURI(URI.create("tcp://localhost"))
                                                                           .build()),
-                false, "");
+                AuthHelper.getDisabledAuthHelper());
     }
 
     @Before
@@ -228,7 +229,7 @@ public class TaskTest {
         // Create objects.
         @Cleanup
         StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class),  false, "");
+                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class),  AuthHelper.getDisabledAuthHelper());
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 

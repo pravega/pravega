@@ -214,11 +214,11 @@ public class ReaderGroupState implements Revisioned {
         Set<String> result = new HashSet<>();
         for (Map<Segment, Long> segments : assignedSegments.values()) {
             for (Segment segment : segments.keySet()) {
-                result.add(segment.getStreamName());
+                result.add(segment.getScopedStreamName());
             }
         }
         for (Segment segment : unassignedSegments.keySet()) {
-            result.add(segment.getStreamName());
+            result.add(segment.getScopedStreamName());
         }
         return result;
     }
@@ -827,6 +827,12 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
+
+            // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
+            final Map<Segment, Long> readerPositions = state.assignedSegments.get(readerId);
+            for (Entry<Segment, Long> entry : positions.entrySet()) {
+                readerPositions.replace(entry.getKey(), entry.getValue());
+            }
         }
         
         private static class CheckpointReaderBuilder implements ObjectBuilder<CheckpointReader> {

@@ -115,7 +115,7 @@ public abstract class StreamMetadataStoreTest {
         List<Segment> segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(2, segments.size());
 
-        List<Long> historicalSegments = store.getActiveSegments(scope, stream1, 10L, null, executor).get();
+        Map<Long, Long> historicalSegments = store.getActiveSegments(scope, stream1, 10L, null, executor).get();
         assertEquals(2, historicalSegments.size());
 
         segments = store.getActiveSegments(scope, stream2, null, executor).get();
@@ -866,6 +866,30 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
+    public void streamCutTest() throws Exception {
+        final String scope = "ScopeStreamCut";
+        final String stream = "StreamCut";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).get();
+
+        store.createStream(scope, stream, configuration, start, null, executor).get();
+        store.setState(scope, stream, State.ACTIVE, null, executor).get();
+
+        Map<Long, Long> invalid = new HashMap<>();
+        invalid.put(0L, 0L);
+
+        Map<Long, Long> valid = new HashMap<>();
+        valid.put(0L, 0L);
+        valid.put(1L, 0L);
+
+        assertTrue(store.isStreamCutValid(scope, stream, valid, null, executor).join());
+        assertFalse(store.isStreamCutValid(scope, stream, invalid, null, executor).join());
+    }
+
+    @Test
     public void retentionSetTest() throws Exception {
         final String scope = "ScopeRetain";
         final String stream = "StreamRetain";
@@ -1017,5 +1041,35 @@ public abstract class StreamMetadataStoreTest {
         store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
         // endregion
     }
-}
 
+    @Test
+    public void getSafeStartingSegmentNumberForTest() {
+        final String scope = "RecreationScope";
+        final String stream = "RecreatedStream";
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+                                                                     .scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).join();
+
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i * policy.getMinNumSegments(), (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
+            store.createStream(scope, stream, configuration, start, null, executor).join();
+            store.setState(scope, stream, State.ACTIVE, null, executor).join();
+            store.setSealed(scope, stream, null, executor).join();
+            store.deleteStream(scope, stream, null, executor).join();
+        }
+    }
+
+    @Test
+    public void recordLastStreamSegmentTest() {
+        final String scope = "RecreationScope2";
+        final String stream = "RecreatedStream2";
+
+        for (int i = 0; i < 10; i++) {
+            ((AbstractStreamMetadataStore) store).recordLastStreamSegment(scope, stream, i, null, executor).join();
+            assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
+        }
+    }
+}

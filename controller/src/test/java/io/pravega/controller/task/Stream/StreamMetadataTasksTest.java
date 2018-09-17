@@ -36,6 +36,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -82,7 +83,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
 import lombok.Data;
 import lombok.Getter;
 import org.apache.curator.framework.CuratorFramework;
@@ -142,10 +142,11 @@ public class StreamMetadataTasksTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore,
                 taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  authEnabled, "key"));
+                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key")));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory, authEnabled, "key");
+                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory,
+                new AuthHelper(authEnabled, "key"));
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
