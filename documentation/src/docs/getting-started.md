@@ -37,7 +37,9 @@ $ tar xfvz pravega-<version>.tgz
 This launches all the components of Pravega on your local machine.
 
 **Note:** This is for testing/demo purposes only, *do not* use this mode of deployment 
-in Production! More options to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
+in Production! 
+
+More options to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
            
 
 ```
@@ -52,7 +54,7 @@ More options and additional ways to run Pravega can be found in [Running Pravega
 ## Running a sample Pravega App
 
 It is very simple to run a sample pravega App. Pravega maintains a separate github repository for sample applications.  It is located at:
-[https://github.com/pravega/pravega-samples](https://github.com/pravega/pravega-samples)
+[Pravega Samples](https://github.com/pravega/pravega-samples)
 
 Download and run the "Hello World" Pravega sample reader and writer apps. Pravega
 dependencies will be pulled from maven central.
