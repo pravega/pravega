@@ -10,19 +10,12 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.hash.HashHelper;
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
-import io.pravega.segmentstore.contracts.AttributeReference;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
-import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.tables.hashing.HashConfig;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.test.common.AssertExtensions;
@@ -40,11 +33,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.ThreadSafe;
-import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -53,56 +42,12 @@ import org.junit.Test;
  * Unit tests for the {@link IndexReader} and {@link IndexWriter} classes.
  */
 public class IndexReaderWriterTests extends ThreadPooledTestSuite {
-    private static final int KEY_COUNT = 10240; // This is chosen so that the COLLISION_HASHER generates 10 collisions per key.
+    private static final int KEY_COUNT = KeyHashers.COLLISION_HASH_BUCKETS * 10;
     private static final int UPDATE_BATCH_SIZE = 1000;
     private static final int REMOVE_BATCH_SIZE = 1000;
     private static final int MAX_KEY_LENGTH = 512;
     private static final long NO_OFFSET = -1L;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-
-    //region Test Hashers
-
-    // Default Hashing uses a SHA512 hashing, which produces very few collisions. This is the same as used in the non-test
-    // version of the code.
-    private static final HashConfig HASH_CONFIG = HashConfig.of(
-            AttributeCalculator.PRIMARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH);
-    private static final KeyHasher DEFAULT_HASHER = KeyHasher.sha512(HASH_CONFIG);
-
-    // Collision Hashing "bucketizes" the SHA512 hash into much smaller buckets with each accepting a very narrow
-    // range [0..4) of values. This will produce a lot of collisions, which helps us test adjustable tree depth and
-    // collision resolutions in the indexer.
-    private static final int COLLISION_HASH_BASE = 4;
-    private static final int COLLISION_HASH_BUCKETS = (int) Math.pow(COLLISION_HASH_BASE, HASH_CONFIG.getHashCount());
-    private static final KeyHasher COLLISION_HASHER = KeyHasher.custom(IndexReaderWriterTests::hashWithCollisions, HASH_CONFIG);
-
-    private static byte[] hashWithCollisions(ArrayView arrayView) {
-        // Generate SHA512 hash. We'll use this as the basis for our collision-prone hash.
-        val baseHash = DEFAULT_HASHER.hash(arrayView);
-
-        // "Bucketize" it into COLLISION_HASH_BUCKETS buckets (i.e., hash value will be in interval [0..COLLISION_HASH_BUCKETS)).
-        int hashValue = HashHelper.seededWith(IndexReaderWriterTests.class.getName()).hashToBucket(baseHash.array(), COLLISION_HASH_BUCKETS);
-
-        // Split the hash value into parts, and generate the final hash. The final hash must still be the same length as
-        // the original, so we'll fill it with 0s and only populate one byte of each Hash Part with some value we calculate
-        // below.
-        byte[] result = new byte[HASH_CONFIG.getMinHashLengthBytes()];
-        int resultOffset = 0;
-        for (int i = 0; i < HASH_CONFIG.getHashCount(); i++) {
-            resultOffset += baseHash.getPart(i).getLength(); // Only populate one byte per part. Skip the rest.
-            result[resultOffset - 1] = (byte) (hashValue % COLLISION_HASH_BASE);
-            hashValue /= COLLISION_HASH_BASE;
-        }
-
-        // At the end, we should have a COLLISION_HASH_CONFIG.getMinHashLengthBytes() hash, with each hash part being 1 byte
-        // containing values from 0 (inclusive) until COLLISION_HASH_BASE (exclusive).
-        return result;
-    }
-
-    //endregion
 
     @Override
     protected int getThreadPoolSize() {
@@ -155,7 +100,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGenerateInitialTableAttributes() {
-        val w = newWriter();
+        val w = newWriter(KeyHashers.DEFAULT_HASHER);
         val updates = w.generateInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         Assert.assertEquals("Unexpected number of updates generated.", 2, values.size());
@@ -184,15 +129,15 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
             // Generate keys, and record them where needed.
             for (int j = 0; j < hashesPerBucket; j++) {
-                byte[] key = new byte[HASH_CONFIG.getMinHashLengthBytes() * 4];
+                byte[] key = new byte[KeyHashers.HASH_CONFIG.getMinHashLengthBytes() * 4];
                 keyUpdates.add(new KeyUpdate(new HashedArray(key), i * hashesPerBucket + j, true));
                 rnd.nextBytes(key);
-                hashToBuckets.put(DEFAULT_HASHER.hash(key), bucket);
+                hashToBuckets.put(KeyHashers.DEFAULT_HASHER.hash(key), bucket);
             }
         }
 
         // Group updates by bucket. Since we override locateBucket, we do not need a segment access, hence safe to pass null.
-        val w = new CustomLocateBucketIndexer(DEFAULT_HASHER, executorService(), hashToBuckets);
+        val w = new CustomLocateBucketIndexer(KeyHashers.DEFAULT_HASHER, executorService(), hashToBuckets);
         val allKeyUpdates = new ArrayList<KeyUpdate>();
         bucketsToKeys.values().forEach(allKeyUpdates::addAll);
         val bucketUpdates = w.groupByBucket(allKeyUpdates, null, new TimeoutTimer(TIMEOUT)).join();
@@ -218,7 +163,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testIncrementalUpdate() {
-        testUpdate(DEFAULT_HASHER, 1);
+        testUpdate(KeyHashers.DEFAULT_HASHER, 1);
     }
 
     /**
@@ -227,7 +172,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testIncrementalUpdateCollisions() {
-        testUpdate(COLLISION_HASHER, 1);
+        testUpdate(KeyHashers.COLLISION_HASHER, 1);
     }
 
     /**
@@ -236,7 +181,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBulkUpdate() {
-        testUpdate(DEFAULT_HASHER, UPDATE_BATCH_SIZE);
+        testUpdate(KeyHashers.DEFAULT_HASHER, UPDATE_BATCH_SIZE);
     }
 
     /**
@@ -245,7 +190,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBulkUpdateCollisions() {
-        testUpdate(COLLISION_HASHER, UPDATE_BATCH_SIZE);
+        testUpdate(KeyHashers.COLLISION_HASHER, UPDATE_BATCH_SIZE);
     }
 
     /**
@@ -254,7 +199,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testIncrementalRemove() {
-        testRemove(DEFAULT_HASHER, 1);
+        testRemove(KeyHashers.DEFAULT_HASHER, 1);
     }
 
     /**
@@ -263,7 +208,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testIncrementalRemoveCollisions() {
-        testRemove(COLLISION_HASHER, 1);
+        testRemove(KeyHashers.COLLISION_HASHER, 1);
     }
 
     /**
@@ -272,7 +217,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBulkRemove() {
-        testRemove(DEFAULT_HASHER, REMOVE_BATCH_SIZE);
+        testRemove(KeyHashers.DEFAULT_HASHER, REMOVE_BATCH_SIZE);
     }
 
     /**
@@ -281,7 +226,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBulkRemoveCollisions() {
-        testRemove(COLLISION_HASHER, REMOVE_BATCH_SIZE);
+        testRemove(KeyHashers.COLLISION_HASHER, REMOVE_BATCH_SIZE);
     }
 
     /**
@@ -290,7 +235,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testUpdateRemove() {
-        testUpdateAndRemove(DEFAULT_HASHER);
+        testUpdateAndRemove(KeyHashers.DEFAULT_HASHER);
     }
 
     /**
@@ -299,7 +244,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testUpdateRemoveCollisions() {
-        testUpdateAndRemove(COLLISION_HASHER);
+        testUpdateAndRemove(KeyHashers.COLLISION_HASHER);
     }
 
     //endregion
@@ -442,7 +387,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         checkIndex(allKeys, existingKeys, w, hasher, segment);
     }
 
-    private long updateKeys(Map<HashedArray, Long> keysWithOffset, IndexWriter w, HashMap<Long, HashedArray> existingKeys, SegmentAttributeMock segment) {
+    private long updateKeys(Map<HashedArray, Long> keysWithOffset, IndexWriter w, HashMap<Long, HashedArray> existingKeys, SegmentMock segment) {
         val timer = new TimeoutTimer(TIMEOUT);
 
         val keyUpdates = keysWithOffset.entrySet().stream()
@@ -491,7 +436,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     private void checkIndex(Collection<HashedArray> allKeys, Map<Long, HashedArray> existingKeysByOffset, IndexWriter w,
-                            KeyHasher hasher, SegmentAttributeMock segment) {
+                            KeyHasher hasher, SegmentMock segment) {
         val timer = new TimeoutTimer(TIMEOUT);
 
         // Group all keys by their full hash (each hash should translate to a bucket), and make sure they're ordered by
@@ -540,7 +485,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkNoBackpointers(SegmentAttributeMock segment) {
+    private void checkNoBackpointers(SegmentMock segment) {
         val ac = new AttributeCalculator();
         int count = segment.getAttributeCount(ac::isBackpointerAttributeKey);
         Assert.assertEquals("Not expecting any backpointers.", 0, count);
@@ -579,10 +524,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         return new IndexReader(executorService());
     }
 
-    private IndexWriter newWriter() {
-        return newWriter(DEFAULT_HASHER);
-    }
-
     private IndexWriter newWriter(KeyHasher hasher) {
         return new IndexWriter(hasher, executorService());
     }
@@ -593,8 +534,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         return new HashedArray(key);
     }
 
-    private SegmentAttributeMock newMock(IndexWriter writer) {
-        val mock = new SegmentAttributeMock();
+    private SegmentMock newMock(IndexWriter writer) {
+        val mock = new SegmentMock(executorService());
         mock.updateAttributes(writer.generateInitialTableAttributes(), TIMEOUT).join();
         return mock;
     }
@@ -632,165 +573,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(
                     keyHashes.stream().collect(Collectors.toMap(k -> k, buckets::get)));
         }
-    }
-
-    //endregion
-
-    //region SegmentAttributeMock
-
-    /**
-     * {@link DirectSegmentAccess} implementation that only handles attribute updates and retrievals. This accurately mocks
-     * the behavior of the entire Segment Container with respect to Attributes, without dealing with all the complexities
-     * behind the actual implementation.
-     */
-    @ThreadSafe
-    private class SegmentAttributeMock implements DirectSegmentAccess {
-        @GuardedBy("attributes")
-        private final HashMap<UUID, Long> attributes = new HashMap<>();
-
-        long getTableNodeId() {
-            synchronized (this.attributes) {
-                return this.attributes.getOrDefault(Attributes.TABLE_NODE_ID, Attributes.NULL_ATTRIBUTE_VALUE);
-            }
-        }
-
-        int getAttributeCount() {
-            synchronized (this.attributes) {
-                return this.attributes.size();
-            }
-        }
-
-        int getAttributeCount(Predicate<UUID> tester) {
-            synchronized (this.attributes) {
-                return (int) this.attributes.keySet().stream().filter(tester).count();
-            }
-        }
-
-        @Override
-        public CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout) {
-            return CompletableFuture.supplyAsync(() -> {
-                synchronized (this.attributes) {
-                    return attributeIds.stream()
-                            .collect(Collectors.toMap(id -> id, id -> this.attributes.getOrDefault(id, Attributes.NULL_ATTRIBUTE_VALUE)));
-                }
-            }, executorService());
-        }
-
-        @Override
-        public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            return CompletableFuture.runAsync(() -> {
-                synchronized (this.attributes) {
-                    attributeUpdates.forEach(this::updateAttribute);
-                }
-            }, executorService());
-        }
-
-        @GuardedBy("attributes")
-        @SneakyThrows(BadAttributeUpdateException.class)
-        private void updateAttribute(AttributeUpdate update) {
-            if (update instanceof AttributeUpdateByReference) {
-                AttributeUpdateByReference updateByRef = (AttributeUpdateByReference) update;
-                AttributeReference<UUID> idRef = updateByRef.getIdReference();
-                if (idRef != null) {
-                    updateByRef.setAttributeId(getReferenceValue(idRef, updateByRef));
-                }
-
-                AttributeReference<Long> valueRef = updateByRef.getValueReference();
-                if (valueRef != null) {
-                    updateByRef.setValue(getReferenceValue(valueRef, updateByRef));
-                }
-            }
-
-            long newValue = update.getValue();
-            boolean hasValue = false;
-            long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
-            if (this.attributes.containsKey(update.getAttributeId())) {
-                hasValue = true;
-                previousValue = this.attributes.get(update.getAttributeId());
-            }
-
-            switch (update.getUpdateType()) {
-                case ReplaceIfGreater:
-                    if (hasValue && newValue <= previousValue) {
-                        throw new BadAttributeUpdateException("Segment", update, false, "GreaterThan");
-                    }
-
-                    break;
-                case ReplaceIfEquals:
-                    if (update.getComparisonValue() != previousValue || !hasValue) {
-                        throw new BadAttributeUpdateException("Segment", update, !hasValue, "ReplaceIfEquals");
-                    }
-
-                    break;
-                case None:
-                    if (hasValue) {
-                        throw new BadAttributeUpdateException("Segment", update, false, "NoUpdate");
-                    }
-
-                    break;
-                case Accumulate:
-                    if (hasValue) {
-                        newValue += previousValue;
-                        update.setValue(newValue);
-                    }
-
-                    break;
-                case Replace:
-                    break;
-                default:
-                    throw new BadAttributeUpdateException("Segment", update, !hasValue, "Unsupported");
-            }
-
-            if (update.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
-                this.attributes.remove(update.getAttributeId());
-            } else {
-                this.attributes.put(update.getAttributeId(), update.getValue());
-            }
-        }
-
-        @GuardedBy("attributes")
-        private <T> T getReferenceValue(AttributeReference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
-            UUID attributeId = ref.getAttributeId();
-            if (this.attributes.containsKey(attributeId)) {
-                return ref.getTransformation().apply(this.attributes.get(attributeId));
-            } else {
-                throw new BadAttributeUpdateException("Segment", updateByRef, true, "AttributeRef");
-            }
-        }
-
-        //region Unused methods
-
-        @Override
-        public long getSegmentId() {
-            return 0;
-        }
-
-        @Override
-        public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
-            throw new UnsupportedOperationException("append");
-        }
-
-        @Override
-        public ReadResult read(long offset, int maxLength, Duration timeout) {
-            throw new UnsupportedOperationException("read");
-        }
-
-        @Override
-        public SegmentProperties getInfo() {
-            throw new UnsupportedOperationException("getInfo");
-        }
-
-        @Override
-        public CompletableFuture<Long> seal(Duration timeout) {
-            throw new UnsupportedOperationException("seal");
-        }
-
-        @Override
-        public CompletableFuture<Void> truncate(long offset, Duration timeout) {
-            throw new UnsupportedOperationException("offset");
-        }
-
-        //endregion
     }
 
     //endregion

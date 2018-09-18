@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.HashedArray;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -22,6 +23,7 @@ class KeyInfo {
     /**
      * The Key.
      */
+    @NonNull
     private final HashedArray key;
 
     /**

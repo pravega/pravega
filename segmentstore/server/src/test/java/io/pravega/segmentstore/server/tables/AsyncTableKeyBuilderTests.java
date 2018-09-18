@@ -12,27 +12,19 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.ReadResult;
-import io.pravega.segmentstore.contracts.ReadResultEntry;
-import io.pravega.segmentstore.contracts.ReadResultEntryContents;
-import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
-import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Test;
 
@@ -64,7 +56,7 @@ public class AsyncTableKeyBuilderTests extends ThreadPooledTestSuite {
             // Start a new builder & processor for this key-serialization pair.
             val keyBuilder = new AsyncTableKeyBuilder(SERIALIZER, new TimeoutTimer(TIMEOUT));
             @Cleanup
-            val rr = new ByteArrayReadResult(e.getValue(), e.getValue().length, 1);
+            val rr = new ReadResultMock(e.getValue(), e.getValue().length, 1);
             AsyncReadResultProcessor.process(rr, keyBuilder, executorService());
 
             // Get the result and compare it with the original key.
@@ -83,7 +75,7 @@ public class AsyncTableKeyBuilderTests extends ThreadPooledTestSuite {
         // Start a new builder & processor for this key-serialization pair.
         val keyBuilder = new AsyncTableKeyBuilder(SERIALIZER, new TimeoutTimer(TIMEOUT));
         @Cleanup
-        val rr = new ByteArrayReadResult(data, data.length, 1);
+        val rr = new ReadResultMock(data, data.length, 1);
         AsyncReadResultProcessor.process(rr, keyBuilder, executorService());
 
         AssertExtensions.assertThrows(
@@ -101,7 +93,7 @@ public class AsyncTableKeyBuilderTests extends ThreadPooledTestSuite {
             // Start a new builder & processor for this key-serialization pair.
             val keyBuilder = new AsyncTableKeyBuilder(SERIALIZER, new TimeoutTimer(TIMEOUT));
             @Cleanup
-            val rr = new ByteArrayReadResult(e.getValue(), e.getKey().length - 1, 1);
+            val rr = new ReadResultMock(e.getValue(), e.getKey().length - 1, 1);
             AsyncReadResultProcessor.process(rr, keyBuilder, executorService());
 
             AssertExtensions.assertThrows(
@@ -125,65 +117,4 @@ public class AsyncTableKeyBuilderTests extends ThreadPooledTestSuite {
 
         return result;
     }
-
-    //region ByteArrayReadResult
-
-    @RequiredArgsConstructor
-    @Getter
-    private static class ByteArrayReadResult implements ReadResult {
-        private final byte[] data;
-        private final int maxResultLength;
-        private final int entryLength;
-        private int consumedLength;
-        private boolean closed;
-
-        @Override
-        public long getStreamSegmentStartOffset() {
-            return 0;
-        }
-
-        @Override
-        public void close() {
-            this.closed = true;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return this.consumedLength < this.maxResultLength;
-        }
-
-        @Override
-        public ReadResultEntry next() {
-            if (!hasNext()) {
-                return null;
-            }
-
-            int offset = this.consumedLength;
-            int length = Math.min(this.entryLength, this.maxResultLength - offset);
-            this.consumedLength += length;
-            return new Entry(offset, length);
-        }
-
-        @RequiredArgsConstructor
-        @Getter
-        private class Entry implements ReadResultEntry {
-            private final long streamSegmentOffset;
-            private final int requestedReadLength;
-            private final CompletableFuture<ReadResultEntryContents> content = new CompletableFuture<>();
-
-            @Override
-            public ReadResultEntryType getType() {
-                return ReadResultEntryType.Cache;
-            }
-
-            @Override
-            public void requestContent(Duration timeout) {
-                this.content.complete(new ReadResultEntryContents(
-                        new ByteArrayInputStream(data, (int) this.streamSegmentOffset, this.requestedReadLength),
-                        this.requestedReadLength));
-            }
-        }
-    }
-
-    //endregion
 }
