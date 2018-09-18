@@ -51,6 +51,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
     private static final int NUM_EVENTS = 100;
     private static final int TEST_ITERATIONS = 3;
     @Rule
+
     public Timeout globalTimeout = Timeout.seconds(20 * 60);
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4,

@@ -54,6 +54,7 @@ More options and additional ways to run Pravega can be found in [Running Pravega
 ## Running a sample Pravega App
 
 It is very simple to run a sample pravega App. Pravega maintains a separate github repository for sample applications.  It is located at:
+
 [Pravega Samples](https://github.com/pravega/pravega-samples)
 
 Download and run the "Hello World" Pravega sample reader and writer apps. Pravega
@@ -111,4 +112,3 @@ No more events from examples/helloStream
 
 See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
     HelloWorldReader application.
-
