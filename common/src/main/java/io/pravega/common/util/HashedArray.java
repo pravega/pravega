@@ -10,27 +10,32 @@
 package io.pravega.common.util;
 
 import io.pravega.common.hash.HashHelper;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.Arrays;
-import lombok.NonNull;
 
 /**
- * Array Wrapper that provides a {@link Object#hashCode()} and {@link Object#equals(Object)} method.
+ * Byte Array Wrapper that provides a {@link Object#hashCode()} and {@link Object#equals(Object)} method.
  * Suitable for using as {@link java.util.HashMap} key.
  */
-public class HashedArray implements ArrayView {
+public class HashedArray extends ByteArraySegment {
     private static final HashHelper HASH = HashHelper.seededWith(HashedArray.class.getName());
-    protected final byte[] array;
     private final int hashCode;
 
     /**
      * Creates a new instance of the HashedArray class.
-     * @param array An array to wrap.
+     * @param array A byte array to wrap.
      */
-    public HashedArray(@NonNull byte[] array) {
-        this.array = array;
+    public HashedArray(byte[] array) {
+        super(array, 0, array.length);
         this.hashCode = HASH.hash(array, 0, array.length);
+    }
+
+    /**
+     * Creates a new instance of the HashedArray class.
+     *
+     * @param array An {@link ArrayView} to wrap.
+     */
+    public HashedArray(ArrayView array) {
+        super(array.array(), array.arrayOffset(), array.getLength());
+        this.hashCode = HASH.hash(array.array(), array.arrayOffset(), array.getLength());
     }
 
     @Override
@@ -42,7 +47,7 @@ public class HashedArray implements ArrayView {
     public boolean equals(Object obj) {
         if (obj instanceof HashedArray) {
             HashedArray ha = (HashedArray) obj;
-            return this.hashCode == ha.hashCode && arrayEquals(this.array, ha.array);
+            return this.hashCode == ha.hashCode && arrayEquals(ha);
         }
 
         return false;
@@ -50,64 +55,25 @@ public class HashedArray implements ArrayView {
 
     @Override
     public String toString() {
-        return String.format("Length=%d, Hash=%d", this.array.length, this.hashCode);
+        return String.format("Length=%d, Hash=%d", getLength(), this.hashCode);
     }
 
-    private boolean arrayEquals(byte[] a1, byte[] a2) {
-        if (a1.length != a2.length) {
+    private boolean arrayEquals(HashedArray other) {
+        int len = getLength();
+        if (len != other.getLength()) {
             return false;
         }
 
-        for (int i = 0; i < a1.length; i++) {
-            if (a1[i] != a2[i]) {
+        byte[] a1 = this.array();
+        int o1 = this.arrayOffset();
+        byte[] a2 = other.array();
+        int o2 = other.arrayOffset();
+        for (int i = 0; i < len; i++) {
+            if (a1[o1 + i] != a2[o2 + i]) {
                 return false;
             }
         }
 
         return true;
     }
-
-    //region ArrayView Implementation
-
-    @Override
-    public byte get(int index) {
-        return this.array[index];
-    }
-
-    @Override
-    public int getLength() {
-        return this.array.length;
-    }
-
-    @Override
-    public byte[] array() {
-        return this.array;
-    }
-
-    @Override
-    public int arrayOffset() {
-        return 0;
-    }
-
-    @Override
-    public InputStream getReader() {
-        return new ByteArrayInputStream(this.array);
-    }
-
-    @Override
-    public InputStream getReader(int offset, int length) {
-        return new ByteArrayInputStream(this.array, offset, length);
-    }
-
-    @Override
-    public void copyTo(byte[] target, int targetOffset, int length) {
-        System.arraycopy(this.array, 0, target, targetOffset, length);
-    }
-
-    @Override
-    public byte[] getCopy() {
-        return Arrays.copyOf(this.array, this.array.length);
-    }
-
-    //endregion
 }

@@ -541,7 +541,7 @@ class IndexWriter extends IndexReader {
             val result = new HashMap<HashedArray, KeyHashGroup>();
             for (val e : this.hashes.entrySet()) {
                 KeyHash hash = e.getKey();
-                val hashPart = new HashedArray(hash.getPart(hashIndex).getCopy()); // TODO: maybe getPart returns a HashedArray.
+                val hashPart = new HashedArray(hash.getPart(hashIndex));
                 KeyHashGroup newGroup = result.computeIfAbsent(hashPart, ignored -> new KeyHashGroup(hashIndex, depth, hashPart, new HashMap<>()));
                 newGroup.hashes.put(e.getKey(), e.getValue());
             }

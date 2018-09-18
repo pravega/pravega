@@ -46,19 +46,24 @@ public class HashedArrayTests {
         }
     }
 
-    private List<byte[]> copy(List<byte[]> source) {
-        return source.stream().map(a -> Arrays.copyOf(a, a.length)).collect(Collectors.toList());
+    private List<ByteArraySegment> copy(List<ByteArraySegment> source) {
+        return source.stream()
+                     .map(a -> new ByteArraySegment(Arrays.copyOf(a.array(), a.array().length), a.arrayOffset(), a.getLength()))
+                     .collect(Collectors.toList());
     }
 
-    private List<byte[]> generate() {
+    private List<ByteArraySegment> generate() {
+        final int padding = 10;
         val rnd = new Random(0);
-        val result = new ArrayList<byte[]>();
-        result.add(new byte[0]); // Throw in an empty one too.
+        val result = new ArrayList<ByteArraySegment>();
+        result.add(new ByteArraySegment(new byte[0])); // Throw in an empty one too.
         int lastLength = 0;
         for (int i = 0; i < COUNT; i++) {
-            int length = i % 2 == 0 ? lastLength : rnd.nextInt(MAX_LENGTH);
-            byte[] array = new byte[length];
+            int length = (i % 2 == 0 && lastLength > 0) ? lastLength : rnd.nextInt(MAX_LENGTH);
+            byte[] array = new byte[length + padding];
             rnd.nextBytes(array);
+            int arrayOffset = rnd.nextInt(padding);
+            result.add(new ByteArraySegment(array, arrayOffset, length));
             lastLength = length;
         }
 
