@@ -285,7 +285,7 @@ class IndexWriter extends IndexReader {
                 "reached the maximum hash count (%s) but there are still hashes to index.", this.hasher.getHashPartCount());
 
         int newNodeCount = 0;
-        val subGroups = generateNextGroup(group);
+        val subGroups = group.generateNextGroup();
         for (val subGroup : subGroups) {
             boolean dataNode = subGroup.getHashes().size() == 1;
             if (dataNode) {
@@ -400,27 +400,6 @@ class IndexWriter extends IndexReader {
         long bucketSegmentOffset = group.getHashes().values().stream().findFirst().orElse(-1L);
         assert bucketSegmentOffset >= 0;
         return this.attributeCalculator.getSegmentOffsetAttributeValue(bucketSegmentOffset);
-    }
-
-    /**
-     * Generates a Collection of {@link KeyHashGroup} based on the {@link KeyHash}es present in the given group, but
-     * regrouped by the next available Hash Index (incremented from the given {@link KeyHashGroup#getHashIndex()}.
-     *
-     * @param group The {@link KeyHashGroup} to regroup.
-     * @return A Collection of {@link KeyHashGroup}s.
-     */
-    private Collection<KeyHashGroup> generateNextGroup(KeyHashGroup group) {
-        int hashIndex = group.getHashIndex() + 1;
-        int depth = group.getDepth() + 1;
-        val result = new HashMap<HashedArray, KeyHashGroup>();
-        for (val e : group.getHashes().entrySet()) {
-            KeyHash hash = e.getKey();
-            val hashPart = new HashedArray(hash.getPart(hashIndex).getCopy()); // TODO: maybe getPart returns a HashedArray.
-            KeyHashGroup newGroup = result.computeIfAbsent(hashPart, ignored -> new KeyHashGroup(hashIndex, depth, hashPart, new HashMap<>()));
-            newGroup.hashes.put(e.getKey(), e.getValue());
-        }
-
-        return result.values();
     }
 
     /**
@@ -548,6 +527,26 @@ class IndexWriter extends IndexReader {
 
         boolean isFirstLevel() {
             return this.depth == 0;
+        }
+
+        /**
+         * Generates a Collection of {@link KeyHashGroup} based on the {@link KeyHash}es present in this group, but
+         * regrouped by the next available Hash Index (incremented from the given {@link KeyHashGroup#getHashIndex()}.
+         *
+         * @return A Collection of {@link KeyHashGroup}s.
+         */
+        Collection<KeyHashGroup> generateNextGroup() {
+            int hashIndex = this.hashIndex + 1;
+            int depth = this.depth + 1;
+            val result = new HashMap<HashedArray, KeyHashGroup>();
+            for (val e : this.hashes.entrySet()) {
+                KeyHash hash = e.getKey();
+                val hashPart = new HashedArray(hash.getPart(hashIndex).getCopy()); // TODO: maybe getPart returns a HashedArray.
+                KeyHashGroup newGroup = result.computeIfAbsent(hashPart, ignored -> new KeyHashGroup(hashIndex, depth, hashPart, new HashMap<>()));
+                newGroup.hashes.put(e.getKey(), e.getValue());
+            }
+
+            return result.values();
         }
     }
 

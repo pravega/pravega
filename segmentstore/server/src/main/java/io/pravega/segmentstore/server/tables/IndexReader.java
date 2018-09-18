@@ -88,11 +88,12 @@ class IndexReader {
                 () -> fetchNextNodes(toFetch, segment, timer)
                         .thenRun(() -> {
                             val newToFetch = new ArrayList<HashBucketBuilderPair>();
-                            toFetch.forEach(builder -> {
-                                if (tryContinueLookup(builder)) {
-                                    newToFetch.add(builder);
+                            toFetch.forEach(b -> {
+                                val last = b.builder.getLastNode();
+                                if (last != null && last.isIndexNode() && b.moveNext()) {
+                                    newToFetch.add(b);
                                 } else {
-                                    result.put(builder.keyHash, builder.builder.build());
+                                    result.put(b.keyHash, b.builder.build());
                                 }
                             });
 
@@ -152,11 +153,6 @@ class IndexReader {
                                 this.attributeCalculator.extractValue(nodeValue)));
                     }
                 }), this.executor);
-    }
-
-    private boolean tryContinueLookup(HashBucketBuilderPair b) {
-        val last = b.builder.getLastNode();
-        return last != null && last.isIndexNode() && b.moveNext();
     }
 
     //endregion
