@@ -114,9 +114,14 @@ public class StreamCutImpl extends StreamCutInternal {
         return builder.toString();
     }
 
-    public static StreamCutInternal from(String textualRepresentation) {
-        Exceptions.checkNotNullOrEmpty(textualRepresentation, "textualRepresentation");
-        String[] split = decompressFromBase64(textualRepresentation).split(":", 5);
+    /**
+     * Obtains the a StreamCut object from its compact Base64 representation obtained via {@link StreamCutImpl#asText()}.
+     * @param base64String Compact Base64 representation of StreamCut.
+     * @return The StreamCut object.
+     */
+    public static StreamCutInternal from(String base64String) {
+        Exceptions.checkNotNullOrEmpty(base64String, "base64String");
+        String[] split = decompressFromBase64(base64String).split(":", 5);
         Preconditions.checkArgument(split.length == 5, "Invalid string representation of StreamCut");
 
         final Stream stream = Stream.of(split[1]);
