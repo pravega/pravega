@@ -386,6 +386,22 @@ public interface StreamMetadataStore {
                                                            final Executor executor);
 
     /**
+     * Method to validate stream cut based on its definition - disjoint sets that cover the entire range of keyspace.
+     *
+     * @param scope scope name
+     * @param streamName stream name
+     * @param streamCut stream cut to validate
+     * @param context execution context
+     * @param executor executor
+     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
+     */
+    CompletableFuture<Boolean> isStreamCutValid(final String scope,
+                                                final String streamName,
+                                                final Map<Long, Long> streamCut,
+                                                final OperationContext context,
+                                                final Executor executor);
+
+    /**
      * Scales in or out the currently set of active segments of a stream.
      *
      * @param scope          stream scope
