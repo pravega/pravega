@@ -300,7 +300,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     AsyncReadResultProcessor.process(readResult, builder, this.executor);
                     return builder.getResult()
                             .thenComposeAsync(keyView -> {
-                                HashedArray key = new HashedArray(keyView.getCopy());
+                                HashedArray key = new HashedArray(keyView);
                                 bucketUpdate.withExistingKey(new KeyInfo(key, offset.get()));
                                 return this.indexWriter.getBackpointerOffset(offset.get(), segment, timer.getRemaining())
                                                        .thenAccept(offset::set);

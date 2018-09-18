@@ -590,6 +590,7 @@ public final class Futures {
      *                 will complete when the given element has been processed. This function is invoked every time the
      *                 loopBody needs to execute.
      * @param executor An Executor that is used to execute the condition and the loop support code.
+     * @param <T>      Type of items in the given iterable.
      * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
      * the loopBody throws/returns Exceptions, these will be set as the result of this returned Future.
      */
