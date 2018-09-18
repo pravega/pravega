@@ -211,6 +211,13 @@ public class CheckpointTest {
         assertEquals("Checkpoint", read.getCheckpointName());
         assertNull(read.getEvent());
         
+        read = reader1.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+        assertEquals(testString, read.getEvent());
+        read = reader2.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+        assertNull(read.getEvent());
+        
         Checkpoint cpResult = checkpoint.get(5, TimeUnit.SECONDS);
         assertTrue(checkpoint.isDone());
         assertEquals("Checkpoint", cpResult.getName());
