@@ -12,12 +12,12 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.Unpooled;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -290,7 +290,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            failConnection(new ConnectionFailedException());
+            failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
         /**
@@ -313,13 +313,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
             final String segment = noSuchSegment.getSegment();
             if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
-                log.info("Transaction Segment: {} no longer exists since the txn is aborted", noSuchSegment.getSegment());
+                log.info("Transaction Segment: {} no longer exists since the txn is aborted. {}", noSuchSegment.getSegment(),
+                        noSuchSegment.getServerStackTrace());
                 //close the connection and update the exception to SegmentSealed.
                 state.failConnection(new SegmentSealedException(segment));
             } else {
                 state.failConnection(new NoSuchSegmentException(segment));
-                log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment.",
-                        noSuchSegment.getSegment(), writerId);
+                log.info("Segment being written to {} by writer {} no longer exists due to Stream Truncation, resending to the newer segment. {}",
+                        noSuchSegment.getSegment(), writerId, noSuchSegment.getServerStackTrace());
                 invokeResendCallBack(noSuchSegment);
             }
         }

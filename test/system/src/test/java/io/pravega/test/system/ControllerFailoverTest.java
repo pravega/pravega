@@ -39,7 +39,9 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 /**
@@ -47,60 +49,22 @@ import org.junit.runner.RunWith;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ControllerFailoverTest {
-    private static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(5);
+public class ControllerFailoverTest extends AbstractSystemTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(3 * 60);
+
+    private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private Service controllerService1 = null;
     private URI controllerURIDirect = null;
 
     @Environment
-    public static void setup() throws MarathonException, ExecutionException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service controllerService = Utils.createPravegaControllerService(zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-        Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
-        log.debug("Pravega Controller service  details: {}", conUris);
-        // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
-
-        URI controllerURI = URI.create("tcp://" + String.join(",", uris));
-        log.info("Controller Service direct URI: {}", controllerURI);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
+    public static void initialize() throws MarathonException, ExecutionException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 2);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
-
 
     @Before
     public void getControllerInfo() {
@@ -126,7 +90,7 @@ public class ControllerFailoverTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
     }
 
-    @Test(timeout = 180000)
+    @Test
     public void failoverTest() throws InterruptedException, ExecutionException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
@@ -136,13 +100,12 @@ public class ControllerFailoverTest {
         newRangesToCreate.put(0.0, 0.25);
         newRangesToCreate.put(0.25, 0.5);
         long lease = 29000;
-        long maxExecutionTime = 60000;
 
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
                                     .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
-                                    .build(), EXECUTOR_SERVICE);
+                                    .build(), executorService);
 
         // Create scope, stream, and a transaction with high timeout value.
         controller1.createScope(scope).join();
@@ -183,7 +146,7 @@ public class ControllerFailoverTest {
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
                                     .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
-                                    .build(), EXECUTOR_SERVICE);
+                                    .build(), executorService);
 
         // Fetch status of transaction.
         log.info("Fetching status of transaction {}, time elapsed since its creation={}",

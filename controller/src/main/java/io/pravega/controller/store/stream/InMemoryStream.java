@@ -114,7 +114,7 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<CreateStreamResponse> checkStreamExists(StreamConfiguration configuration, long timestamp) {
+    CompletableFuture<CreateStreamResponse> checkStreamExists(StreamConfiguration configuration, long timestamp, final int startingSegmentNumber) {
         CompletableFuture<CreateStreamResponse> result = new CompletableFuture<>();
 
         final long time;
@@ -128,34 +128,34 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
 
         if (time != Long.MIN_VALUE) {
             if (config != null) {
-                handleStreamMetadataExists(timestamp, result, time, config.getStreamConfiguration(), currentState);
+                handleStreamMetadataExists(timestamp, result, time, startingSegmentNumber, config.getStreamConfiguration(), currentState);
             } else {
-                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time));
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, time, startingSegmentNumber));
             }
         } else {
-            result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, timestamp));
+            result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW, configuration, timestamp, startingSegmentNumber));
         }
 
         return result;
     }
 
     private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
-                                            final StreamConfiguration config, Data<Integer> currentState) {
+                                            final int startingSegmentNumber, final StreamConfiguration config, Data<Integer> currentState) {
         if (currentState != null) {
             State stateVal = StateRecord.parse(currentState.getData()).getState();
             if (stateVal.equals(State.UNKNOWN) || stateVal.equals(State.CREATING)) {
                 CreateStreamResponse.CreateStatus status;
                 status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
                         CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-                result.complete(new CreateStreamResponse(status, config, time));
+                result.complete(new CreateStreamResponse(status, config, time, startingSegmentNumber));
             } else {
-                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time));
+                result.complete(new CreateStreamResponse(CreateStreamResponse.CreateStatus.EXISTS_ACTIVE, config, time, startingSegmentNumber));
             }
         } else {
             CreateStreamResponse.CreateStatus status = (time == timestamp) ? CreateStreamResponse.CreateStatus.NEW :
                     CreateStreamResponse.CreateStatus.EXISTS_CREATING;
 
-            result.complete(new CreateStreamResponse(status, config, time));
+            result.complete(new CreateStreamResponse(status, config, time, startingSegmentNumber));
         }
     }
 

@@ -18,3 +18,5 @@ out/
 .metadata/
 .recommenders/
 *.log
+.nb-gradle
+.nb-gradle-properties
