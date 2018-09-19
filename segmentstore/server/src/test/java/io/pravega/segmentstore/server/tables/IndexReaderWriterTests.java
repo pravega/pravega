@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -405,16 +404,17 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // Fetch existing keys.
         val oldOffsets = new ArrayList<Long>();
         for (val bu : bucketUpdates) {
-            getBucketOffsets(bu.getBucket(), w, segment).forEach(offset -> {
-                HashedArray existingKey = existingKeys.getOrDefault(offset, null);
-                Assert.assertNotNull("Existing bucket points to non-existing key.", existingKey);
-                bu.withExistingKey(new KeyInfo(existingKey, offset));
+            w.getBucketOffsets(bu.getBucket(), segment, timer).join()
+             .forEach(offset -> {
+                 HashedArray existingKey = existingKeys.getOrDefault(offset, null);
+                 Assert.assertNotNull("Existing bucket points to non-existing key.", existingKey);
+                 bu.withExistingKey(new KeyInfo(existingKey, offset));
 
                 // Key replacement; remove this offset.
                 if (keysWithOffset.containsKey(existingKey)) {
                     oldOffsets.add(offset);
                 }
-            });
+             });
         }
 
         // Apply the updates.
@@ -455,7 +455,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             Assert.assertNotNull("No bucket found for hash " + hash, bucket);
             boolean allDeleted = keys.stream().allMatch(k -> k.getOffset() == NO_OFFSET);
             Assert.assertEquals("Only expecting partial bucket when all its keys are deleted " + hash, allDeleted, bucket.isPartial());
-            val bucketOffsets = getBucketOffsets(bucket, w, segment);
+            val bucketOffsets = w.getBucketOffsets(bucket, segment, timer).join();
 
             // Verify that we didn't return too many or too few keys.
             if (allDeleted) {
@@ -487,23 +487,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     private void checkNoBackpointers(SegmentMock segment) {
         val ac = new AttributeCalculator();
-        int count = segment.getAttributeCount(ac::isBackpointerAttributeKey);
+        int count = segment.getAttributeCount((id, value) -> ac.isBackpointerAttributeKey(id) && value != Attributes.NULL_ATTRIBUTE_VALUE);
         Assert.assertEquals("Not expecting any backpointers.", 0, count);
-    }
-
-    private List<Long> getBucketOffsets(TableBucket bucket, IndexWriter w, DirectSegmentAccess segment) {
-        if (bucket.isPartial()) {
-            // No data here.
-            return Collections.emptyList();
-        }
-
-        val result = new ArrayList<Long>();
-        long offset = w.getOffset(bucket.getLastNode());
-        while (offset >= 0) {
-            result.add(offset);
-            offset = w.getBackpointerOffset(offset, segment, TIMEOUT).join();
-        }
-        return result;
     }
 
     private HashMap<HashedArray, Long> generateUpdateBatch(int batchSize, long offset, Random rnd) {

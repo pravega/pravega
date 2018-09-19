@@ -11,9 +11,11 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -24,6 +26,7 @@ import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -31,11 +34,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,9 +54,10 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     private static final long SEGMENT_ID = 12345L;
     private static final String SEGMENT_NAME = "Segment";
     private static final long INITIAL_LAST_INDEXED_OFFSET = 1000L;
-    private static final int MAX_KEY_LENGTH = 8 * 1024;
-    private static final int MAX_VALUE_LENGTH = 1024; // We don't care about values that much here.
+    private static final int MAX_KEY_LENGTH = 1024;
+    private static final int MAX_VALUE_LENGTH = 128; // We don't care about values that much here.
     private static final int UPDATE_COUNT = 10000;
+    private static final int UPDATE_BATCH_SIZE = 689;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
@@ -109,30 +117,122 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the {@link WriterTableProcessor#flush} method, without any induced errors.
+     * Tests the {@link WriterTableProcessor#flush} method using a non-collision-prone KeyHasher.
      */
     @Test
-    public void testFlushNoErrors() throws Exception {
+    public void testFlush() throws Exception {
+        testFlushWithHasher(KeyHashers.DEFAULT_HASHER);
+    }
+
+    /**
+     * Tests the {@link WriterTableProcessor#flush} method using a collision-prone KeyHasher.
+     */
+    @Test
+    public void testFlushCollisions() throws Exception {
+        testFlushWithHasher(KeyHashers.COLLISION_HASHER);
+    }
+
+    private void testFlushWithHasher(KeyHasher hasher) throws Exception {
         // Generate a set of operations, each containing one or more entries. Each entry is an update or a remove.
         // Towards the beginning we have more updates than removes, then removes will prevail.
         @Cleanup
-        val context = new TestContext();
-        val expectedData = generateAndPopulateEntries(context);
+        val context = new TestContext(hasher);
+        val batches = generateAndPopulateEntries(context);
+        val allKeys = new HashMap<HashedArray, KeyHash>(); // All keys, whether added or removed.
 
-        // TODO: finish up the test.
+        for (val batch : batches) {
+            for (val op : batch.operations) {
+                context.processor.add(op);
+            }
+
+            // Pre-flush validation.
+            Assert.assertTrue("Unexpected value from mustFlush() when there are outstanding operations.", context.processor.mustFlush());
+            Assert.assertEquals("Unexpected LUSN before call to flush().",
+                    batch.operations.get(0).getSequenceNumber(), context.processor.getLowestUncommittedSequenceNumber());
+
+            // Flush.
+            context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            // Post-flush validation.
+            Assert.assertFalse("Unexpected value from mustFlush() after call to flush().", context.processor.mustFlush());
+            Assert.assertEquals("Unexpected LUSN after call to flush().",
+                    Operation.NO_SEQUENCE_NUMBER, context.processor.getLowestUncommittedSequenceNumber());
+
+            // Verify correctness.
+            batch.expectedEntries.keySet().forEach(k -> allKeys.put(k, context.keyHasher.hash(k)));
+            checkIndex(batch.expectedEntries, allKeys, context);
+        }
     }
 
-    private Map<HashedArray, ArrayView> generateAndPopulateEntries(TestContext context) throws Exception {
-        val result = new HashMap<HashedArray, ArrayView>();
-        val allKeys = new ArrayList<HashedArray>(); // Need a list so we can efficiently pick removal candidates.
-        for (int i = 0; i < UPDATE_COUNT; i++) {
+    private void checkIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, KeyHash> allKeys, TestContext context) throws Exception {
+        // Get all the buckets associated with the given keys.
+        val timer = new TimeoutTimer(TIMEOUT);
+        val bucketsByHash = context.indexReader.locateBuckets(allKeys.values(), context.segmentMock, timer)
+                                               .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Index the existing Keys by their current offsets.
+        val keysByOffset = existingEntries.entrySet().stream()
+                                          .collect(Collectors.toMap(e -> e.getValue().getKey().getVersion(), Map.Entry::getKey));
+
+        // Load up all the offsets for all buckets.
+        val buckets = bucketsByHash.values().stream().distinct()
+                                   .collect(Collectors.toMap(b -> b, b -> context.indexReader.getBucketOffsets(b, context.segmentMock, timer).join()));
+
+        // Loop through all the bucket's offsets and verify that those offsets do point to existing keys.
+        for (val e : buckets.entrySet()) {
+            val bucketOffsets = e.getValue();
+            for (val offset : bucketOffsets) {
+                Assert.assertTrue("Found Bucket Offset that points to non-existing key.", keysByOffset.containsKey(offset));
+            }
+        }
+
+        // Loop through each key in allKeys and verify that if it's expected to exist, it is indeed included in the appropriate
+        // TableBucket, otherwise it is not included in any bucket.
+        for (val e : allKeys.entrySet()) {
+            val key = e.getKey();
+            val tableEntry = existingEntries.get(key);
+            val bucket = bucketsByHash.get(e.getValue());
+            Assert.assertNotNull("Test error: no bucket found.", bucket);
+            val bucketOffsets = buckets.get(bucket);
+            if (tableEntry != null) {
+                // This key should exist: just verify the TableEntry's offset (Key Version) exists in the Bucket's offset list.
+                Assert.assertTrue("Non-deleted key was not included in a Table Bucket.", bucketOffsets.contains(tableEntry.getKey().getVersion()));
+            } else {
+                // Verify that all the keys that the Table Bucket points to do not match our key. Use our existing offset-key cache for that.
+                for (val offset : bucketOffsets) {
+                    val keyAtOffset = keysByOffset.get(offset);
+                    Assert.assertNotEquals("Deleted key was still included in a Table Bucket.", key, keyAtOffset);
+                }
+            }
+        }
+    }
+
+    private ArrayList<TestBatchData> generateAndPopulateEntries(TestContext context) {
+        val result = new ArrayList<TestBatchData>();
+        int count = 0;
+        while (count < UPDATE_COUNT) {
+            int batchSize = Math.min(UPDATE_BATCH_SIZE, UPDATE_COUNT - count);
+            Map<HashedArray, TableEntry> prevState = result.isEmpty()
+                    ? Collections.emptyMap()
+                    : result.get(result.size() - 1).expectedEntries;
+            result.add(generateAndPopulateEntriesBatch(batchSize, prevState, context));
+            count += batchSize;
+        }
+
+        return result;
+    }
+
+    private TestBatchData generateAndPopulateEntriesBatch(int batchSize, Map<HashedArray, TableEntry> initialState, TestContext context) {
+        val result = new TestBatchData(new HashMap<>(initialState));
+        val allKeys = new ArrayList<HashedArray>(initialState.keySet()); // Need a list so we can efficiently pick removal candidates.
+        for (int i = 0; i < batchSize; i++) {
             // We only generate a remove if we have something to remove.
             boolean remove = allKeys.size() > 0 && (context.random.nextDouble() < REMOVE_FRACTION);
             StreamSegmentAppendOperation append;
             if (remove) {
                 val key = allKeys.get(context.random.nextInt(allKeys.size()));
                 append = generateRawRemove(TableKey.unversioned(key), context.metadata.getLength(), context);
-                result.remove(key);
+                result.expectedEntries.remove(key);
                 allKeys.remove(key);
             } else {
                 // Generate a new Table Entry.
@@ -141,9 +241,10 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                 byte[] valueData = new byte[context.random.nextInt(MAX_VALUE_LENGTH)];
                 context.random.nextBytes(valueData);
                 val key = new HashedArray(keyData);
-                val value = new ByteArraySegment(valueData);
-                append = generateRawAppend(TableEntry.unversioned(key, value), context.metadata.getLength(), context);
-                result.put(key, value);
+                val offset = context.metadata.getLength();
+                val entry = TableEntry.versioned(key, new ByteArraySegment(valueData), offset);
+                append = generateRawAppend(entry, offset, context);
+                result.expectedEntries.put(key, entry);
                 allKeys.add(key);
             }
 
@@ -151,8 +252,8 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             context.metadata.setLength(context.metadata.getLength() + append.getLength());
             context.segmentMock.append(append.getData(), null, TIMEOUT).join();
 
-            // Add to processor.
-            context.processor.add(append);
+            // Add to result.
+            result.operations.add(new CachedStreamSegmentAppendOperation(append));
         }
 
         return result;
@@ -184,12 +285,21 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         return append;
     }
 
+    @RequiredArgsConstructor
+    private class TestBatchData {
+        final HashMap<HashedArray, TableEntry> expectedEntries;
+        final List<CachedStreamSegmentAppendOperation> operations = new ArrayList<>();
+    }
+
+    //region TestContext
+
     private class TestContext implements AutoCloseable {
         final UpdateableSegmentMetadata metadata;
         final EntrySerializer serializer;
         final KeyHasher keyHasher;
         final SegmentMock segmentMock;
         final WriterTableProcessor processor;
+        final IndexReader indexReader;
         final Random random;
         final AtomicLong sequenceNumber;
 
@@ -201,11 +311,12 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, 0);
             this.serializer = new EntrySerializer();
             this.keyHasher = hasher;
-            this.segmentMock = new SegmentMock(executorService());
+            this.segmentMock = new SegmentMock(this.metadata, executorService());
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
             this.processor = new WriterTableProcessor(this.metadata, this.serializer, this.keyHasher, this::getSegment, executorService());
+            this.indexReader = new IndexReader(executorService());
         }
 
         @Override
@@ -223,8 +334,8 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.segmentMock.updateAttributes(w.generateInitialTableAttributes(), TIMEOUT).join();
 
             // Pre-populate the TABLE_INDEX_OFFSET.
-            this.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, INITIAL_LAST_INDEXED_OFFSET));
-            this.metadata.setLength(INITIAL_LAST_INDEXED_OFFSET);
+            this.segmentMock.updateAttributes(
+                    Collections.singleton(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)), TIMEOUT).join();
             this.segmentMock.append(new byte[(int) INITIAL_LAST_INDEXED_OFFSET], null, TIMEOUT).join();
         }
 
@@ -233,4 +344,6 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             return CompletableFuture.supplyAsync(() -> this.segmentMock, executorService());
         }
     }
+
+    //endregion
 }

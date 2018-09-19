@@ -19,14 +19,16 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -42,25 +44,34 @@ import lombok.SneakyThrows;
 @RequiredArgsConstructor
 class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
-    private final HashMap<UUID, Long> attributes = new HashMap<>();
+    private final UpdateableSegmentMetadata metadata;
+    @GuardedBy("this")
     private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
     private final ScheduledExecutorService executor;
 
+    SegmentMock(ScheduledExecutorService executor) {
+        this(new StreamSegmentMetadata("Mock", 0, 0), executor);
+    }
+
     long getTableNodeId() {
         synchronized (this) {
-            return this.attributes.getOrDefault(Attributes.TABLE_NODE_ID, Attributes.NULL_ATTRIBUTE_VALUE);
+            return this.metadata.getAttributes().getOrDefault(Attributes.TABLE_NODE_ID, Attributes.NULL_ATTRIBUTE_VALUE);
         }
     }
 
+    /**
+     * Gets the number of non-deleted attributes.
+     */
     int getAttributeCount() {
-        synchronized (this) {
-            return this.attributes.size();
-        }
+        return getAttributeCount((k, v) -> v != Attributes.NULL_ATTRIBUTE_VALUE);
     }
 
-    int getAttributeCount(Predicate<UUID> tester) {
+    /**
+     * Gets the number of attributes that match the given filter.
+     */
+    int getAttributeCount(BiPredicate<UUID, Long> tester) {
         synchronized (this) {
-            return (int) this.attributes.keySet().stream().filter(tester).count();
+            return (int) this.metadata.getAttributes().entrySet().stream().filter(e -> tester.test(e.getKey(), e.getValue())).count();
         }
     }
 
@@ -69,12 +80,16 @@ class SegmentMock implements DirectSegmentAccess {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
             // this method should only be used for constucting the test data.
-            long offset = this.contents.size();
-            this.contents.write(data);
-            if (attributeUpdates != null) {
-                attributeUpdates.forEach(this::updateAttribute);
-            }
+            long offset;
+            synchronized (this) {
+                offset = this.contents.size();
+                this.contents.write(data);
+                if (attributeUpdates != null) {
+                    attributeUpdates.forEach(this::updateAttribute);
+                }
 
+                this.metadata.setLength(this.contents.size());
+            }
             return offset;
         }, this.executor);
     }
@@ -97,7 +112,7 @@ class SegmentMock implements DirectSegmentAccess {
         return CompletableFuture.supplyAsync(() -> {
             synchronized (this) {
                 return attributeIds.stream()
-                                   .collect(Collectors.toMap(id -> id, id -> this.attributes.getOrDefault(id, Attributes.NULL_ATTRIBUTE_VALUE)));
+                                   .collect(Collectors.toMap(id -> id, id -> this.metadata.getAttributes().getOrDefault(id, Attributes.NULL_ATTRIBUTE_VALUE)));
             }
         }, this.executor);
     }
@@ -105,7 +120,7 @@ class SegmentMock implements DirectSegmentAccess {
     @Override
     public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.runAsync(() -> {
-            synchronized (this.attributes) {
+            synchronized (this) {
                 attributeUpdates.forEach(this::updateAttribute);
             }
         }, this.executor);
@@ -130,9 +145,9 @@ class SegmentMock implements DirectSegmentAccess {
         long newValue = update.getValue();
         boolean hasValue = false;
         long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
-        if (this.attributes.containsKey(update.getAttributeId())) {
+        if (this.metadata.getAttributes().containsKey(update.getAttributeId())) {
             hasValue = true;
-            previousValue = this.attributes.get(update.getAttributeId());
+            previousValue = this.metadata.getAttributes().get(update.getAttributeId());
         }
 
         switch (update.getUpdateType()) {
@@ -144,7 +159,8 @@ class SegmentMock implements DirectSegmentAccess {
                 break;
             case ReplaceIfEquals:
                 if (update.getComparisonValue() != previousValue || !hasValue) {
-                    throw new BadAttributeUpdateException("Segment", update, !hasValue, "ReplaceIfEquals");
+                    throw new BadAttributeUpdateException("Segment", update, !hasValue,
+                            String.format("ReplaceIfEquals (E=%s, A=%s)", previousValue, update.getComparisonValue()));
                 }
 
                 break;
@@ -167,18 +183,14 @@ class SegmentMock implements DirectSegmentAccess {
                 throw new BadAttributeUpdateException("Segment", update, !hasValue, "Unsupported");
         }
 
-        if (update.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
-            this.attributes.remove(update.getAttributeId());
-        } else {
-            this.attributes.put(update.getAttributeId(), update.getValue());
-        }
+        this.metadata.updateAttributes(Collections.singletonMap(update.getAttributeId(), update.getValue()));
     }
 
     @GuardedBy("this")
     private <T> T getReferenceValue(AttributeReference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
         UUID attributeId = ref.getAttributeId();
-        if (this.attributes.containsKey(attributeId)) {
-            return ref.getTransformation().apply(this.attributes.get(attributeId));
+        if (this.metadata.getAttributes().containsKey(attributeId)) {
+            return ref.getTransformation().apply(this.metadata.getAttributes().get(attributeId));
         } else {
             throw new BadAttributeUpdateException("Segment", updateByRef, true, "AttributeRef");
         }
@@ -187,13 +199,13 @@ class SegmentMock implements DirectSegmentAccess {
     //region Unimplemented methods
 
     @Override
-    public long getSegmentId() {
-        return 0;
+    public synchronized long getSegmentId() {
+        return this.metadata.getId();
     }
 
     @Override
-    public SegmentProperties getInfo() {
-        throw new UnsupportedOperationException("getInfo");
+    public synchronized SegmentProperties getInfo() {
+        return this.metadata.getSnapshot();
     }
 
     @Override

@@ -381,7 +381,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     }
 
     /**
-     * Collection of Keys to their superseding {@link KeyUpdate}s.
+     * Collection of Keys to their associated {@link KeyUpdate}s.
      */
     @NotThreadSafe
     private static class KeyUpdateCollection {

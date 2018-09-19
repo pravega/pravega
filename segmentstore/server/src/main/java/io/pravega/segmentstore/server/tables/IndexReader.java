@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -23,10 +24,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.NonNull;
@@ -76,7 +79,7 @@ class IndexReader {
      * @param keyHashes A Collection of {@link KeyHash}es to look up {@link TableBucket}s for.
      * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.
      * @param timer     Timer for the operation.
-     * @return A Future that, when completed, will contain the requested Bucket information.
+     * @return A CompletableFuture that, when completed, will contain the requested Bucket information.
      */
     CompletableFuture<Map<KeyHash, TableBucket>> locateBuckets(Collection<KeyHash> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
         val toFetch = keyHashes.stream()
@@ -119,6 +122,35 @@ class IndexReader {
                           long result = attributes.getOrDefault(key, Attributes.NULL_ATTRIBUTE_VALUE);
                           return result == Attributes.NULL_ATTRIBUTE_VALUE ? -1 : result;
                       });
+    }
+
+    /**
+     * Gets the offsets for all the Table Entries in the given {@link TableBucket}.
+     *
+     * @param bucket  The {@link TableBucket} to get offsets for.
+     * @param segment A {@link DirectSegmentAccess}
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain a List of offsets, with the first offset being the
+     * {@link TableBucket}'s offset itself, then descending down in the order of backpointers. If the {@link TableBucket}
+     * is partial, then the list will be empty.
+     */
+    @VisibleForTesting
+    CompletableFuture<List<Long>> getBucketOffsets(TableBucket bucket, DirectSegmentAccess segment, TimeoutTimer timer) {
+        if (bucket.isPartial()) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+
+        val result = new ArrayList<Long>();
+        AtomicLong offset = new AtomicLong(getOffset(bucket.getLastNode()));
+        return Futures.loop(
+                () -> offset.get() >= 0,
+                () -> {
+                    result.add(offset.get());
+                    return getBackpointerOffset(offset.get(), segment, timer.getRemaining());
+                },
+                offset::set,
+                this.executor)
+                      .thenApply(v -> result);
     }
 
     /**
