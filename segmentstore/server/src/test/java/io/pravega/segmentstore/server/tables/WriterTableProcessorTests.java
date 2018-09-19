@@ -89,6 +89,12 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected LUSN after ignored add().",
                 Operation.NO_SEQUENCE_NUMBER, context.processor.getLowestUncommittedSequenceNumber());
 
+        // Post-last indexed offset (not allowing gaps)
+        AssertExtensions.assertThrows(
+                "add() allowed first append to be after the last indexed offset.",
+                () -> context.processor.add(generateRandomEntryAppend(INITIAL_LAST_INDEXED_OFFSET + 1, context)),
+                ex -> ex instanceof DataCorruptionException);
+
         // Non-contiguous appends.
         val validAppend = generateRandomEntryAppend(INITIAL_LAST_INDEXED_OFFSET, context);
         context.processor.add(validAppend);
@@ -130,6 +136,74 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     @Test
     public void testFlushCollisions() throws Exception {
         testFlushWithHasher(KeyHashers.COLLISION_HASHER);
+    }
+
+    /**
+     * Tests the ability to reconcile the {@link Attributes#TABLE_INDEX_OFFSET} value when that changes behind the scenes.
+     */
+    @Test
+    public void testReconcileTableIndexOffset() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+
+        // Generate two TableEntries, write them to the segment and queue them into the processor.
+        val e1 = TableEntry.unversioned(new ByteArraySegment("k1".getBytes()), new ByteArraySegment("v1".getBytes()));
+        val e2 = TableEntry.unversioned(new ByteArraySegment("k2".getBytes()), new ByteArraySegment("v2".getBytes()));
+        val append1 = generateRawAppend(e1, INITIAL_LAST_INDEXED_OFFSET, context);
+        val append2 = generateRawAppend(e2, append1.getLastStreamSegmentOffset(), context);
+        context.segmentMock.append(append1.getData(), null, TIMEOUT).join();
+        context.segmentMock.append(append2.getData(), null, TIMEOUT).join();
+        context.processor.add(new CachedStreamSegmentAppendOperation(append1));
+        context.processor.add(new CachedStreamSegmentAppendOperation(append2));
+
+        // 1. TABLE_INDEX_OFFSET changes to smaller than first append
+        context.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, INITIAL_LAST_INDEXED_OFFSET - 1));
+        int attributeCountBefore = context.segmentMock.getAttributeCount();
+        AssertExtensions.assertThrows(
+                "flush() worked when TABLE_INDEX_OFFSET decreased.",
+                () -> context.processor.flush(TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+        int attributeCountAfter = context.segmentMock.getAttributeCount();
+        Assert.assertEquals("flush() seems to have modified the index after failed attempt", attributeCountBefore, attributeCountAfter);
+        Assert.assertEquals("flush() seems to have modified the index after failed attempt.",
+                INITIAL_LAST_INDEXED_OFFSET - 1, context.indexReader.getLastIndexedOffset(context.metadata));
+
+        // 2. TABLE_INDEX_OFFSET changes to middle of append.
+        context.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, INITIAL_LAST_INDEXED_OFFSET + 1));
+        attributeCountBefore = context.segmentMock.getAttributeCount();
+        AssertExtensions.assertThrows(
+                "flush() worked when TABLE_INDEX_OFFSET changed to middle of append.",
+                () -> context.processor.flush(TIMEOUT),
+                ex -> ex instanceof DataCorruptionException);
+        attributeCountAfter = context.segmentMock.getAttributeCount();
+        Assert.assertEquals("flush() seems to have modified the index after failed attempt", attributeCountBefore, attributeCountAfter);
+        Assert.assertEquals("flush() seems to have modified the index after failed attempt.",
+                INITIAL_LAST_INDEXED_OFFSET + 1, context.indexReader.getLastIndexedOffset(context.metadata));
+
+        // 3. TABLE_INDEX_OFFSET changes after the first append, but before the second one.
+        context.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, append2.getStreamSegmentOffset()));
+        attributeCountBefore = context.segmentMock.getAttributeCount();
+        context.processor.flush(TIMEOUT).join();
+        attributeCountAfter = context.segmentMock.getAttributeCount();
+        AssertExtensions.assertGreaterThan("flush() did not modify the index partial reconciliation.", attributeCountBefore, attributeCountAfter);
+        Assert.assertEquals("flush() did not modify the index partial reconciliation.",
+                append2.getLastStreamSegmentOffset(), context.indexReader.getLastIndexedOffset(context.metadata));
+        Assert.assertFalse("Unexpected result from mustFlush() after partial reconciliation.", context.processor.mustFlush());
+
+        // 4. TABLE_INDEX_OFFSET changes beyond the last append.
+        val e3 = TableEntry.unversioned(new ByteArraySegment("k3".getBytes()), new ByteArraySegment("v3".getBytes()));
+        val append3 = generateRawAppend(e3, append2.getLastStreamSegmentOffset(), context);
+        context.segmentMock.append(append3.getData(), null, TIMEOUT).join();
+        context.processor.add(new CachedStreamSegmentAppendOperation(append3));
+        context.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, append3.getLastStreamSegmentOffset() + 1));
+
+        attributeCountBefore = context.segmentMock.getAttributeCount();
+        context.processor.flush(TIMEOUT).join();
+        attributeCountAfter = context.segmentMock.getAttributeCount();
+        Assert.assertEquals("flush() seems to have modified the index after full reconciliation.", attributeCountBefore, attributeCountAfter);
+        Assert.assertEquals("flush() did not properly update TABLE_INDEX_OFFSET after full reconciliation.",
+                append3.getLastStreamSegmentOffset() + 1, context.indexReader.getLastIndexedOffset(context.metadata));
+        Assert.assertFalse("Unexpected result from mustFlush() after full reconciliation.", context.processor.mustFlush());
     }
 
     private void testFlushWithHasher(KeyHasher hasher) throws Exception {

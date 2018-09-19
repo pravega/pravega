@@ -16,6 +16,8 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -44,6 +46,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import lombok.val;
 import org.apache.commons.io.IOUtils;
 
 /**
@@ -113,9 +116,19 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
 
         CachedStreamSegmentAppendOperation append = (CachedStreamSegmentAppendOperation) operation;
-        if (this.lastAddedOffset.get() >= 0 && this.lastAddedOffset.get() != append.getStreamSegmentOffset()) {
-            throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.",
-                    operation, this.lastAddedOffset, append.getStreamSegmentOffset()));
+        if (this.lastAddedOffset.get() >= 0) {
+            // We have processed at least one operation so far. Verify operations are contiguous.
+            if (this.lastAddedOffset.get() != append.getStreamSegmentOffset()) {
+                throw new DataCorruptionException(String.format("Wrong offset for Operation '%s'. Expected: %s, actual: %d.",
+                        operation, this.lastAddedOffset, append.getStreamSegmentOffset()));
+            }
+        } else {
+            // We haven't processed any operation so far (this is the first). Verify that we are resuming from an expected
+            // offset and not skipping any updates.
+            if (this.aggregator.getLastIndexedOffset() < append.getStreamSegmentOffset()) {
+                throw new DataCorruptionException(String.format("Operation '%s' begins after LAST_INDEXED_OFFSET. Expected: %s, actual: %d.",
+                        operation, this.aggregator.getLastIndexedOffset(), append.getStreamSegmentOffset()));
+            }
         }
 
         if (append.getStreamSegmentOffset() >= this.aggregator.getLastIndexedOffset()) {
@@ -152,17 +165,58 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.getSegment
                 .apply(this.metadata.getName(), timer.getRemaining())
-                .thenComposeAsync(segment -> flush(segment, timer), this.executor)
+                .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer), this.executor)
                 .thenApply(v -> {
                     // We're done processing. Reset the aggregator.
                     this.aggregator.reset();
                     this.aggregator.setLastIndexedOffset(this.indexWriter.getLastIndexedOffset(this.metadata));
                     return new WriterFlushResult();
                 });
-
     }
 
-    private CompletableFuture<?> flush(DirectSegmentAccess segment, TimeoutTimer timer) {
+    //endregion
+
+    //region Helpers
+
+    /**
+     * Performs a flush attempt, and retries it in case it failed with {@link BadAttributeUpdateException} for the
+     * {@link Attributes#TABLE_INDEX_OFFSET} attribute.
+     *
+     * In case of a retry, it reconciles the cached value for the {@link Attributes#TABLE_INDEX_OFFSET} attribute and
+     * updates any internal state.
+     *
+     * @param segment A {@link DirectSegmentAccess} representing the Segment to flush on.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the flush has completed successfully. If the
+     * operation failed, it will be failed with the appropriate exception. Notable exceptions:
+     * <ul>
+     * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link Attributes#TABLE_INDEX_OFFSET} attribute
+     * failed (for the second attempt) or on any other attribute failed (for any attempt).
+     * <li>{@link DataCorruptionException} If the reconciliation failed (in which case no flush is attempted.
+     * </ul>
+     */
+    private CompletableFuture<Integer> flushWithSingleRetry(DirectSegmentAccess segment, TimeoutTimer timer) {
+        return Futures.exceptionallyComposeExpecting(
+                flushOnce(segment, timer),
+                this::canRetryFlushException,
+                () -> {
+                    reconcileTableIndexOffset();
+                    return flushOnce(segment, timer);
+                });
+    }
+
+    /**
+     * Performs a single flush attempt.
+     *
+     * @param segment A {@link DirectSegmentAccess} representing the Segment to flush on.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the flush has completed successfully. If the
+     * operation failed, it will be failed with the appropriate exception. Notable exceptions:
+     * <ul>
+     * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link Attributes#TABLE_INDEX_OFFSET} attribute failed.
+     * </ul>
+     */
+    private CompletableFuture<Integer> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
 
@@ -177,9 +231,31 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                         this.executor);
     }
 
-    //endregion
+    @SneakyThrows(DataCorruptionException.class)
+    private void reconcileTableIndexOffset() {
+        long tableIndexOffset = this.indexWriter.getLastIndexedOffset(this.metadata);
+        if (tableIndexOffset < this.aggregator.getLastIndexedOffset()) {
+            // This should not happen, ever!
+            throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
+                            + "It lower than our known value (%s).",
+                    tableIndexOffset, this.metadata.getId(), this.aggregator.getLastIndexedOffset()));
+        }
 
-    //region Helpers
+        if (!this.aggregator.setLastIndexedOffset(tableIndexOffset)) {
+            throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
+                            + "Most likely it does not conform to an append boundary.  Existing value: %s.",
+                    tableIndexOffset, this.metadata.getId(), this.aggregator.getLastIndexedOffset()));
+        }
+    }
+
+    private boolean canRetryFlushException(Throwable ex) {
+        if (ex instanceof BadAttributeUpdateException) {
+            val bau = (BadAttributeUpdateException) ex;
+            return bau.getAttributeId() != null && bau.getAttributeId().equals(Attributes.TABLE_INDEX_OFFSET);
+        }
+
+        return false;
+    }
 
     /**
      * Reads all the Keys from the given Segment between the given offsets and indexes them by key.
@@ -319,38 +395,35 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         @GuardedBy("this")
         private long firstSeqNo;
         @GuardedBy("this")
-        private long firstOffset;
-        @GuardedBy("this")
         private long lastOffset;
         @GuardedBy("this")
-        private int count;
-        @GuardedBy("this")
         private long lastIndexedOffset;
+        @GuardedBy("this")
+        private final ArrayList<Long> appendOffsets;
 
         OperationAggregator(long lastIndexedOffset) {
+            this.appendOffsets = new ArrayList<>();
             reset();
             this.lastIndexedOffset = lastIndexedOffset;
         }
 
         synchronized void reset() {
             this.firstSeqNo = Operation.NO_SEQUENCE_NUMBER;
-            this.firstOffset = -1;
             this.lastOffset = -1;
-            this.count = 0;
+            this.appendOffsets.clear();
         }
 
         synchronized void add(CachedStreamSegmentAppendOperation op) {
-            if (this.count == 0) {
+            if (this.appendOffsets.size() == 0) {
                 this.firstSeqNo = op.getSequenceNumber();
-                this.firstOffset = op.getStreamSegmentOffset();
             }
 
             this.lastOffset = op.getLastStreamSegmentOffset();
-            this.count++;
+            this.appendOffsets.add(op.getStreamSegmentOffset());
         }
 
         synchronized boolean isEmpty() {
-            return this.count == 0;
+            return this.appendOffsets.isEmpty();
         }
 
         synchronized long getFirstSequenceNumber() {
@@ -358,7 +431,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
 
         synchronized long getFirstOffset() {
-            return this.firstOffset;
+            return this.appendOffsets.size() == 0 ? -1 : this.appendOffsets.get(0);
         }
 
         synchronized long getLastOffset() {
@@ -369,14 +442,31 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             return this.lastIndexedOffset;
         }
 
-        synchronized void setLastIndexedOffset(long value) {
+        synchronized boolean setLastIndexedOffset(long value) {
+            if (this.appendOffsets.size() > 0) {
+                if (value >= getLastOffset()) {
+                    // Clear everything - anyway we do not have enough info to determine if this is valid or not.
+                    reset();
+                } else {
+                    // First, make sure we set this to a valid value.
+                    int index = this.appendOffsets.indexOf(value);
+                    if (index < 0) {
+                        return false;
+                    }
+
+                    // Clear out smaller offsets.
+                    this.appendOffsets.subList(0, index).clear();
+                }
+            }
+
             this.lastIndexedOffset = value;
+            return true;
         }
 
         @Override
         public synchronized String toString() {
-            return String.format("Count = %d, FirstSN = %d, FirstOffset = %d, LastOffset = %d",
-                    this.count, this.firstSeqNo, this.firstOffset, this.lastOffset);
+            return String.format("Count = %d, FirstSN = %d, FirstOffset = %d, LastOffset = %d, LIdx = %s",
+                    this.appendOffsets.size(), this.firstSeqNo, getFirstOffset(), getLastOffset(), getLastIndexedOffset());
         }
     }
 

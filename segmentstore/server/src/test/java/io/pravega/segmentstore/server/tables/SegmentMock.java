@@ -23,7 +23,7 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +34,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.val;
 
 /**
  * {@link DirectSegmentAccess} implementation that only handles attribute updates/retrievals and segment reads. This
@@ -85,7 +86,9 @@ class SegmentMock implements DirectSegmentAccess {
                 offset = this.contents.size();
                 this.contents.write(data);
                 if (attributeUpdates != null) {
-                    attributeUpdates.forEach(this::updateAttribute);
+                    val updatedValues = new HashMap<UUID, Long>();
+                    attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
+                    this.metadata.updateAttributes(updatedValues);
                 }
 
                 this.metadata.setLength(this.contents.size());
@@ -121,14 +124,16 @@ class SegmentMock implements DirectSegmentAccess {
     public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.runAsync(() -> {
             synchronized (this) {
-                attributeUpdates.forEach(this::updateAttribute);
+                val updatedValues = new HashMap<UUID, Long>();
+                attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
+                this.metadata.updateAttributes(updatedValues);
             }
         }, this.executor);
     }
 
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
-    private void updateAttribute(AttributeUpdate update) {
+    private void collectAttributeValue(AttributeUpdate update, Map<UUID, Long> values) {
         if (update instanceof AttributeUpdateByReference) {
             AttributeUpdateByReference updateByRef = (AttributeUpdateByReference) update;
             AttributeReference<UUID> idRef = updateByRef.getIdReference();
@@ -183,7 +188,7 @@ class SegmentMock implements DirectSegmentAccess {
                 throw new BadAttributeUpdateException("Segment", update, !hasValue, "Unsupported");
         }
 
-        this.metadata.updateAttributes(Collections.singletonMap(update.getAttributeId(), update.getValue()));
+        values.put(update.getAttributeId(), update.getValue());
     }
 
     @GuardedBy("this")
