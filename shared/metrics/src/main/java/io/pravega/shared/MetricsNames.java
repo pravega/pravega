@@ -46,14 +46,14 @@ public final class MetricsNames {
     public static final String STORAGE_WRITE_BYTES = "segmentstore.storage.write_bytes";        // Counter
 
     //Cache (RocksDB) stats
-    public static final String CACHE_INSERT_LATENCY = "segmentstore.cache.insert_latency";
-    public static final String CACHE_GET_LATENCY = "segment.store.cache.get_latency";
+    public static final String CACHE_INSERT_LATENCY = "segmentstore.cache.insert_latency_ms";
+    public static final String CACHE_GET_LATENCY = "segment.store.cache.get_latency_ms";
     public static final String CACHE_TOTAL_SIZE_BYTES = "segmentstore.cache.size_bytes";
     public static final String CACHE_GENERATION_SPREAD = "segmentstore.cache.gen";
 
     //DurableDataLog (Tier1) stats
-    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency"; // Including Queue
-    public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency";  // Exclusively the write to BK.
+    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency_ms"; // Including Queue
+    public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency_ms";  // Exclusively the write to BK.
     public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";
     public static final String BK_WRITE_QUEUE_SIZE = "segmentstore.bookkeeper.write_queue_size";
     public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.bookkeeper.write_queue_fill";
@@ -71,8 +71,8 @@ public final class MetricsNames {
     public static final String CONTAINER_MERGE_SEGMENT_COUNT = "segmentstore.container.merge_segment_count";
     public static final String CONTAINER_SEAL_COUNT = "segmentstore.container.seal_count";
     public static final String CONTAINER_TRUNCATE_COUNT = "segmentstore.container.truncate_count";
-    public static final String PROCESS_OPERATIONS_LATENCY = "segmentstore.process.operations_latency";
-    public static final String PROCESS_OPERATIONS_BATCH_SIZE = "segmentstore.process.operations_batch_size";
+    public static final String PROCESS_OPERATIONS_LATENCY = "segmentstore.process_operations.latency_ms";
+    public static final String PROCESS_OPERATIONS_BATCH_SIZE = "segmentstore.process_operations.batch_size";
     public static final String OPERATION_QUEUE_SIZE = "segmentstore.operation.queue_size";
     public static final String OPERATION_PROCESSOR_IN_FLIGHT = "segmentstore.operation.processor_in_flight";
     public static final String OPERATION_QUEUE_WAIT_TIME = "segmentstore.operation.queue_wait_time";
