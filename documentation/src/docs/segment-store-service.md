@@ -11,7 +11,7 @@ You may obtain a copy of the License at
 
 The Pravega Segment Store Service is a subsystem that lies at the heart of the entire Pravega deployment. It is the main access point for managing Stream Segments, providing the ability to _create_, _delete_ and _modify/access_ their contents. The Pravega Client communicates with the Pravega Stream Controller to figure out which Segments need to be used (for a Stream), and both the Stream Controller and the Client deal with the Segment Store Service to actually operate on them.
 
-The basic idea behind the Segment Store Service is that, it buffers the incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Segment into a fewer (but larger) ones.
+The basic idea behind the Segment Store Service is that it buffers the incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Segment into a fewer (but larger) ones.
 
 The Pravega Segment Store Service can provide the following guarantees:
 
@@ -22,7 +22,7 @@ The Pravega Segment Store Service can provide the following guarantees:
 - Writing to and reading from a Segment concurrently with relatively low latency between writing and reading.
 
 # Terminology
-The follwoing terminologies are used throughout the document:
+The following terminologies are used throughout the document:
 
 - _Stream Segment_ or _Segment_: A contiguous sequence of bytes, similar to a file of unbounded size. This is a part of a Stream, limited both temporally and laterally (by key). The scope of Streams and mapping Stream Segments to such Streams is beyond the purpose of this document.
 - _Tier 2 Storage_ or _Permanent Storage_: The final resting place of the data.
@@ -51,7 +51,7 @@ More details about each component described above can be found in the [Component
 
 ![System Diagram](img/Segment.Store.Components.png)
 
-In the above diagram, the major components of the Segment Store is shown and for simplicity, only one Segment Container is depicted. All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in one form or another, and adding it would only clutter the diagram.
+In the above diagram, the major components of the Segment Store are shown. But for simplicity, only one Segment Container is depicted. All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in one form or another, and adding it would only clutter the diagram.
 
 More detailed diagrams can be found under the [Data Flow](#Data_Flow) section.
 
@@ -63,7 +63,7 @@ Segment Containers are a logical grouping of Segments, and are responsible for a
 
 - _Segment Container Metadata_: A collection of Segment-specific metadata that describe the current state of each Segment (how much data in Tier 2, how much in Tier 1, whether it is sealed, etc.), as well as other miscellaneous info about each Container.
 - _Durable Log_: The Container writes every operation it receives to this log and acks back only when the log says it has been accepted and durably persisted.
-- _Read Index_: An in-memory index of where data can be read from. The Container delegates all read requests to it, and it is responsible for fetching the data from wherever it is currently located (Cache, Tier 1 Storage or Tier2 Storage).
+- _Read Index_: An in-memory index of where data can be read from. The Container delegates all read requests to it, and it is responsible for fetching the data from wherever it is currently located (Cache, Tier 1 Storage or Tier 2 Storage).
 - _Cache_: Used to store data for appends that exist in Tier 1 only (not yet in Tier 2), as well as blocks of data that support reads.
 - _Storage Writer_: Processes the durable log operations and applies them to Tier 2 storage (in the order in which they were received). This component is also the one that coalesces multiple operations together, for better back-end throughput.
 
@@ -119,7 +119,7 @@ The following are the various types of Log Operations:
     - `StreamSegmentMapOperation`: Maps an Id to a Segment Name.
     - `TransactionMapOperation`: Maps an Id to a Transaction and to its Parent Segment.
     - `UpdateAttributesOperation`: Updates any attributes on a Segment.
-    - `MetadataCheckpoint`: Includes an entire snapshot of the Metadata. This can be useful during recovery.This contains all metadata up to this point, which is a sufficient base for all operations after it.
+    - `MetadataCheckpoint`: Includes an entire snapshot of the Metadata. This can be useful during recovery. This contains all metadata up to this point, which is a sufficient base for all operations after it.
 
 ### Durable Log <a name="Durable_Log"></a>
 
