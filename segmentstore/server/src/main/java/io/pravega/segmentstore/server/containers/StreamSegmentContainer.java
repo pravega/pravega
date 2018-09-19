@@ -742,6 +742,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             ensureRunning();
+            logRequest("append", this.segmentId, data.length);
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
             return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
@@ -750,6 +751,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             ensureRunning();
+            logRequest("updateAttributes", this.segmentId, attributeUpdates);
             UpdateAttributesOperation operation = new UpdateAttributesOperation(this.segmentId, attributeUpdates);
             return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout));
         }
@@ -758,6 +760,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         public CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout) {
             ensureRunning();
 
+            logRequest("getAttributes", this.segmentId, attributeIds);
             SegmentMetadata metadata = StreamSegmentContainer.this.metadata.getStreamSegmentMetadata(this.segmentId);
             TimeoutTimer timer = new TimeoutTimer(timeout);
             if (cache) {
@@ -772,6 +775,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @SneakyThrows(StreamSegmentNotExistsException.class)
         public ReadResult read(long offset, int maxLength, Duration timeout) {
             ensureRunning();
+            logRequest("read", this.segmentId, offset, maxLength);
             return StreamSegmentContainer.this.readIndex.read(this.segmentId, offset, maxLength, timeout);
         }
 
@@ -784,6 +788,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Long> seal(Duration timeout) {
             ensureRunning();
+            logRequest("sealStreamSegment", this.segmentId);
             StreamSegmentSealOperation operation = new StreamSegmentSealOperation(this.segmentId);
             return StreamSegmentContainer.this.durableLog.add(operation, timeout)
                                                          .thenApply(seqNo -> operation.getStreamSegmentOffset());
@@ -792,6 +797,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public CompletableFuture<Void> truncate(long offset, Duration timeout) {
             ensureRunning();
+            logRequest("truncateStreamSegment", this.segmentId);
             StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(this.segmentId, offset);
             return StreamSegmentContainer.this.durableLog.add(op, timeout);
         }
