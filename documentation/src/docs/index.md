@@ -31,6 +31,8 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
  
 -   **Transaction Support:** A Pravega Transaction ensures that a set of events are written to a stream atomically. This is a key feature for distributed streaming applications requiring exactly-once guarantees on their output.
 
+- **Security and pluggable role based access control:** Pravega can be deployed by the administrators securely by enabling TLS for communications and can deploy their own implementation of role based access control plugin.   
+
 ## Releases
 
 The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
@@ -46,6 +48,14 @@ You can find a list of frequently asked questions [here](faq.md).
 ## Running Pravega
 
 Pravega can be installed locally or in a distributed environment. The installation and deployment of Pravega is covered in the [Running Pravega](deployment/deployment.md) guide.
+
+## Pravega Security, Role based access control and TLS
+
+Pravega supports encryption of all communication channels and pluggable role based access control.
+Find more details here:
+1. [TLS](security/pravega-security-encryption.md)
+2. [Authorization, authentication and RBAC](security/pravega-security-authorization-authentication.md)
+
 
 ## Support
 
