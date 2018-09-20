@@ -42,12 +42,7 @@ public class BadAttributeUpdateException extends StreamSegmentException {
     public BadAttributeUpdateException(String streamSegmentName, AttributeUpdate attributeUpdate, boolean previousValueMissing, String errorMessage) {
         super(streamSegmentName, getMessage(attributeUpdate, previousValueMissing, errorMessage));
         this.previousValueMissing = previousValueMissing;
-        if (attributeUpdate != null && !(attributeUpdate instanceof AttributeUpdateByReference)) {
-            // Record the attribute id, but only for basic AttributeUpdates. By-ref, it may not have been set yet.
-            this.attributeId = attributeUpdate.getAttributeId();
-        } else {
-            this.attributeId = null;
-        }
+        this.attributeId = attributeUpdate == null ? null : attributeUpdate.getAttributeId();
     }
 
     private static String getMessage(AttributeUpdate attributeUpdate, boolean previousValueMissing, String errorMessage) {
