@@ -135,10 +135,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
         return new PositionImpl(positions);
     }
-    
+
     /**
-     * Releases or acquires segments as needed. Returns the name of the checkpoint if the reader is
-     * at one.
+     * If the last call was a checkpoint updates the reader group state to indicate it has completed
+     * and releases segments.
+     * 
+     * If a checkpoint is pending its identifier is returned. (The checkpoint will be considered
+     * complete when this is invoked again.)'
+     * 
+     * Otherwise if checks for any segments that need to be acquired.
      * 
      * Segments can only be released on the next read call following a checkpoint because this is
      * the only point we can be sure the caller has persisted their position, which is needed to be
