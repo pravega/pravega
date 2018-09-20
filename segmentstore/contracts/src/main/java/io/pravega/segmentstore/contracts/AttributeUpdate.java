@@ -29,7 +29,7 @@ public class AttributeUpdate {
     /**
      * The ID of the Attribute to update.
      */
-    private UUID attributeId;
+    private final UUID attributeId;
 
     /**
      * The UpdateType of the attribute.
