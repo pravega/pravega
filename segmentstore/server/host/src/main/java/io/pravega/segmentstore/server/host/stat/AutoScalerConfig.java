@@ -30,7 +30,7 @@ public class AutoScalerConfig {
     public static final Property<String> TLS_CERT_FILE = Property.named("tlsCertFile", "");
     public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
-    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", false);
+    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", true);
 
     public static final String COMPONENT_CODE = "autoScale";
 
