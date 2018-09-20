@@ -503,7 +503,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      */
     private <T> T getReferenceValue(AttributeReference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
         long result;
-        // First pick a value from this UpdateTransaction, then fail back to base attributes.
+        // First pick a value from this UpdateTransaction, then fall back to base attributes.
         UUID attributeId = ref.getAttributeId();
         if (this.attributeUpdates.containsKey(attributeId)) {
             result = this.attributeUpdates.get(attributeId);
