@@ -30,7 +30,7 @@ import lombok.val;
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2; // Version, Key Length, Value Length.
     static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
-    private static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
+    static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
     private static final byte CURRENT_SERIALIZATION_VERSION = 0;
     private static final int NO_VALUE = -1;
 
