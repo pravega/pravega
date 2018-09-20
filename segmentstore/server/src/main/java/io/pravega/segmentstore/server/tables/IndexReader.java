@@ -74,6 +74,20 @@ class IndexReader {
     }
 
     /**
+     * Gets the current value of the {@link Attributes#TABLE_NODE_ID} attribute from the given {@link SegmentProperties}.
+     *
+     * @param segmentInfo The {@link SegmentProperties} to examine.
+     * @return The value.
+     * @throws IllegalStateException If the stored value is missing, negative, or exceeds {@link AttributeCalculator#MAX_NODE_ID}.
+     */
+    int getTableNodeId(SegmentProperties segmentInfo) {
+        long value = segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_NODE_ID, -1L);
+        Preconditions.checkState(value >= 0 && value <= AttributeCalculator.MAX_NODE_ID,
+                "Illegal TABLE_NODE_ID. Must be non-negative and at most %s; found %s", AttributeCalculator.MAX_NODE_ID, value);
+        return (int) value;
+    }
+
+    /**
      * Locates the {@link TableBucket}s for the given {@link KeyHash}es in the given Segment's Extended Attribute Index.
      *
      * @param keyHashes A Collection of {@link KeyHash}es to look up {@link TableBucket}s for.

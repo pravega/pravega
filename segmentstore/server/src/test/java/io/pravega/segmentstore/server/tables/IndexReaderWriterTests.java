@@ -325,7 +325,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // TABLE_NODE_ID, accounting for the fact that we have number of non-index attributes too and that it starts
         // at some predefined value.
         val initialAttribs = w.generateInitialTableAttributes();
-        int expectedAttributeCount = (int) segment.getTableNodeId()
+        int expectedAttributeCount = w.getTableNodeId(segment.getInfo())
                 + initialAttribs.size()
                 - (int) initialAttribs.stream().filter(a -> a.getAttributeId() == Attributes.TABLE_NODE_ID).findFirst().get().getValue();
         int attributeCount = segment.getAttributeCount();
@@ -418,10 +418,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
 
         // Apply the updates.
-        long prevNodeId = segment.getTableNodeId();
+        int prevNodeId = w.getTableNodeId(segment.getInfo());
         val attrCount = w.updateBuckets(bucketUpdates, segment, firstKeyOffset, postIndexOffset, TIMEOUT).join();
-        long newIndexNodeCount = segment.getTableNodeId() - prevNodeId;
-        Assert.assertEquals("Unexpected number of index nodes added.", newIndexNodeCount, (long) attrCount);
+        int newIndexNodeCount = w.getTableNodeId(segment.getInfo()) - prevNodeId;
+        Assert.assertEquals("Unexpected number of index nodes added.", newIndexNodeCount, (int) attrCount);
 
         // Record the key as being updated.
         oldOffsets.forEach(existingKeys::remove);

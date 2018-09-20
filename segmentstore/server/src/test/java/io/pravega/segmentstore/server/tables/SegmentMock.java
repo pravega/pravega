@@ -11,9 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.segmentstore.contracts.AttributeReference;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateByReference;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -52,12 +50,8 @@ class SegmentMock implements DirectSegmentAccess {
 
     SegmentMock(ScheduledExecutorService executor) {
         this(new StreamSegmentMetadata("Mock", 0, 0), executor);
-    }
-
-    long getTableNodeId() {
-        synchronized (this) {
-            return this.metadata.getAttributes().getOrDefault(Attributes.TABLE_NODE_ID, Attributes.NULL_ATTRIBUTE_VALUE);
-        }
+        this.metadata.setLength(0);
+        this.metadata.setStorageLength(0);
     }
 
     /**
@@ -134,19 +128,6 @@ class SegmentMock implements DirectSegmentAccess {
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
     private void collectAttributeValue(AttributeUpdate update, Map<UUID, Long> values) {
-        if (update instanceof AttributeUpdateByReference) {
-            AttributeUpdateByReference updateByRef = (AttributeUpdateByReference) update;
-            AttributeReference<UUID> idRef = updateByRef.getIdReference();
-            if (idRef != null) {
-                updateByRef.setAttributeId(getReferenceValue(idRef, updateByRef));
-            }
-
-            AttributeReference<Long> valueRef = updateByRef.getValueReference();
-            if (valueRef != null) {
-                updateByRef.setValue(getReferenceValue(valueRef, updateByRef));
-            }
-        }
-
         long newValue = update.getValue();
         boolean hasValue = false;
         long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
@@ -191,15 +172,6 @@ class SegmentMock implements DirectSegmentAccess {
         values.put(update.getAttributeId(), update.getValue());
     }
 
-    @GuardedBy("this")
-    private <T> T getReferenceValue(AttributeReference<T> ref, AttributeUpdateByReference updateByRef) throws BadAttributeUpdateException {
-        UUID attributeId = ref.getAttributeId();
-        if (this.metadata.getAttributes().containsKey(attributeId)) {
-            return ref.getTransformation().apply(this.metadata.getAttributes().get(attributeId));
-        } else {
-            throw new BadAttributeUpdateException("Segment", updateByRef, true, "AttributeRef");
-        }
-    }
 
     //region Unimplemented methods
 
@@ -210,7 +182,7 @@ class SegmentMock implements DirectSegmentAccess {
 
     @Override
     public synchronized SegmentProperties getInfo() {
-        return this.metadata.getSnapshot();
+        return this.metadata;
     }
 
     @Override
