@@ -208,8 +208,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             } else {
                 // Find the sought entry in the segment, based on its key.
                 ArrayView key = keys.get(i);
-                searchFutures.add(findEntry(segment, key, offset, timer)
-                        .thenComposeAsync(entryInfo -> readEntry(segment, key, entryInfo, timer), this.executor));
+                searchFutures.add(findEntry(segment, key, offset, timer));
             }
         }
 
@@ -267,23 +266,25 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(s, null, timeout);
     }
 
-    private CompletableFuture<EntryInfo> findEntry(DirectSegmentAccess segment, ArrayView key, long bucketOffset, TimeoutTimer timer) {
+    private CompletableFuture<TableEntry> findEntry(DirectSegmentAccess segment, ArrayView key, long bucketOffset, TimeoutTimer timer) {
         final int maxReadLength = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
 
         // Read the Key at the current offset and check it against the sought one.
         AtomicLong offset = new AtomicLong(bucketOffset);
-        CompletableFuture<EntryInfo> result = new CompletableFuture<>();
+        CompletableFuture<TableEntry> result = new CompletableFuture<>();
         Futures.loop(
                 () -> !result.isDone(),
                 () -> {
                     ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    val keyMatcher = AsyncTableEntryReader.matchKey(key, this.serializer, timer);
-                    AsyncReadResultProcessor.process(readResult, keyMatcher, this.executor);
-                    return keyMatcher.getResult()
-                            .thenComposeAsync(header -> {
-                                if (header == null) {
+                    val entryReader = AsyncTableEntryReader.readEntry(key, offset.get(), this.serializer, timer);
+                    AsyncReadResultProcessor.process(readResult, entryReader, this.executor);
+                    return entryReader
+                            .getResult()
+                            .thenComposeAsync(entry -> {
+                                if (entry == null) {
                                     // No match: Try to use backpointers to re-get offset and repeat.
-                                    return this.keyIndex.getBackpointerOffset(segment, offset.get(), timer.getRemaining())
+                                    return this.keyIndex
+                                            .getBackpointerOffset(segment, offset.get(), timer.getRemaining())
                                             .thenAccept(newOffset -> {
                                                 offset.set(newOffset);
                                                 if (newOffset < 0) {
@@ -293,7 +294,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                             });
                                 } else {
                                     // Match.
-                                    result.complete(new EntryInfo(offset.get(), bucketOffset, header));
+                                    result.complete(entry);
                                     return CompletableFuture.<Void>completedFuture(null);
                                 }
                             }, this.executor);
@@ -304,19 +305,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     return null;
                 });
         return result;
-    }
-
-    private CompletableFuture<TableEntry> readEntry(DirectSegmentAccess segment, ArrayView key, EntryInfo entryInfo, TimeoutTimer timer) {
-        if (entryInfo == null || entryInfo.header.isDeletion()) {
-            // Couldn't find anything.
-            return CompletableFuture.completedFuture(null);
-        } else {
-            // Found it! Read the Value from the Segment and return.
-            val builder = AsyncTableEntryReader.readValue(entryInfo.header.getValueLength(), timer);
-            ReadResult readResult = segment.read(entryInfo.getValueSegmentOffset(), entryInfo.header.getValueLength(), timer.getRemaining());
-            AsyncReadResultProcessor.process(readResult, builder, this.executor);
-            return builder.getResult().thenApply(value -> TableEntry.versioned(key, value, entryInfo.header.getVersion()));
-        }
     }
 
     //endregion

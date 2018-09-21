@@ -51,6 +51,15 @@ public class TableEntry {
     }
 
     /**
+     * Creates a new instance of the TableEntry class that indicates the Key must not previously exist.
+     *
+     * @param key   The Key.
+     */
+    public static TableEntry notExists(@NonNull ArrayView key) {
+        return new TableEntry(TableKey.notExists(key), null);
+    }
+
+    /**
      * Creates a new instance of the TableEntry class with a specified version.
      *
      * @param key   The Key.

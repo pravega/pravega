@@ -20,6 +20,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.time.Duration;
@@ -46,6 +47,9 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     private final EnhancedByteArrayOutputStream readData;
     @Getter
     private final CompletableFuture<ResultT> result;
+    private final EntrySerializer serializer;
+    @Getter(AccessLevel.PROTECTED)
+    private EntrySerializer.Header header;
 
     //endregion
 
@@ -56,7 +60,8 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      *
      * @param timer Timer for the whole operation.
      */
-    private AsyncTableEntryReader(@NonNull TimeoutTimer timer) {
+    private AsyncTableEntryReader(@NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+        this.serializer = serializer;
         this.timer = timer;
         this.readData = new EnhancedByteArrayOutputStream();
         this.result = new CompletableFuture<>();
@@ -71,8 +76,8 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * @return A new instance of the {@link AsyncTableEntryReader} class. The {@link #getResult()} will be completed with
      * an {@link EntrySerializer.Header} instance once the Key is matched.
      */
-    static AsyncTableEntryReader<EntrySerializer.Header> matchKey(ArrayView soughtKey, EntrySerializer serializer, TimeoutTimer timer) {
-        return new KeyMatcher(soughtKey, serializer, timer);
+    static AsyncTableEntryReader<TableEntry> readEntry(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
+        return new EntryReader(soughtKey, keyVersion, serializer, timer);
     }
 
     /**
@@ -87,31 +92,18 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         return new KeyReader(serializer, timer);
     }
 
-    /**
-     * Creates a new {@link AsyncTableEntryReader} that can be used to read the value of a Table Entry.
-     *
-     * @param valueLength The length of the value.
-     * @param timer       Timer for the whole operation.
-     * @return A new instance of the {@link AsyncTableEntryReader} class. The {@link #getResult()} will be completed with
-     * an {@link ArrayView} instance once a value is read.
-     */
-    static AsyncTableEntryReader<ArrayView> readValue(int valueLength, TimeoutTimer timer) {
-        return new ValueReader(valueLength, timer);
-    }
-
     //endregion
 
     //region Internal Operations
 
     /**
-     * When implemented in a derived class, this method will process all the read data so far.
+     * When implemented in a derived class, this will process the data read so far.
      *
-     * @param readData A {@link ByteArraySegment} representing the data read so far.
-     * @return True if the desired result has been found (so no more reading will be done), or false if the desired result
-     * could not be generated yet and more reading is required.
-     * @throws SerializationException If unable to process a key due to a serialization issue.
+     * @param readData A {@link ByteArraySegment} representing the generated result data so far
+     * @return True if the data read so far are enough to generate a result (in which case the read processing will abort),
+     * or false if more data are needed (in which case the processing will attempt to resume).
      */
-    protected abstract boolean processReadData(ByteArraySegment readData) throws SerializationException;
+    protected abstract boolean processReadData(ByteArraySegment readData);
 
     /**
      * Completes the result with the given value.
@@ -145,7 +137,16 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             // TODO: most of these transfers are from memory to memory. It's a pity that we need an extra buffer to do the copy.
             // TODO: https://github.com/pravega/pravega/issues/2924
             this.readData.write(StreamHelpers.readAll(contents.getData(), contents.getLength()));
-            return !processReadData(this.readData.getData());
+            if (this.header == null && this.readData.size() >= EntrySerializer.HEADER_LENGTH) {
+                // We now have enough to read the header.
+                this.header = this.serializer.readHeader(this.readData.getData());
+            }
+
+            if (this.header != null) {
+                return !processReadData(this.readData.getData());
+            }
+
+            return true; // Not done yet.
         } catch (Throwable ex) {
             processError(ex);
             return false;
@@ -172,160 +173,104 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
     //endregion
 
-    //region HeaderReader
-
-    /**
-     * Base implementation for any AsyncTableEntryReader that must first read the Entry's Header.
-     */
-    static abstract class HeaderReader<T> extends AsyncTableEntryReader<T> {
-        private final EntrySerializer serializer;
-        @Getter(AccessLevel.PROTECTED)
-        private EntrySerializer.Header header;
-
-        private HeaderReader(@NonNull EntrySerializer serializer, TimeoutTimer timer) {
-            super(timer);
-            this.serializer = serializer;
-        }
-
-        /**
-         * When implemented in a derived class, this will return the minimum number of bytes needed to read before attempting
-         * to generate a result.
-         */
-        protected abstract int getMinReadLength();
-
-        /**
-         * When implemented in a derived class, this will accept the result generated and either invoke {@link #complete}
-         * or {@link #processError}.
-         *
-         * @param readData A {@link ByteArraySegment} representing the generated result data.
-         */
-        protected abstract void acceptResult(ByteArraySegment readData);
-
-        @Override
-        protected boolean processReadData(ByteArraySegment readData) throws SerializationException {
-            if (this.header == null && readData.getLength() >= EntrySerializer.HEADER_LENGTH) {
-                // We now have enough to read the header.
-                this.header = this.serializer.readHeader(readData);
-            }
-
-            if (this.header != null && readData.getLength() >= getMinReadLength()) {
-                // We read enough information.
-                acceptResult(readData);
-                return true; // We are done.
-            }
-
-            return false; // Not done; must continue reading if possible.
-        }
-    }
-
-    //endregion
-
-    //region KeyMatcher
-
-    /**
-     * AsyncTableEntryReader implementation that matches a particular Key and returns its TableEntry's Header.
-     */
-    private static class KeyMatcher extends HeaderReader<EntrySerializer.Header> {
-        private final ArrayView soughtKey;
-
-        private KeyMatcher(@NonNull ArrayView soughtKey, EntrySerializer serializer, TimeoutTimer timer) {
-            super(serializer, timer);
-            this.soughtKey = soughtKey;
-        }
-
-        @Override
-        protected int getMinReadLength() {
-            return EntrySerializer.HEADER_LENGTH + this.soughtKey.getLength();
-        }
-
-        @Override
-        protected void acceptResult(ByteArraySegment readData) {
-            val header = getHeader();
-            assert header != null : "acceptResult called with no header loaded.";
-            if (header.getKeyLength() != this.soughtKey.getLength()) {
-                // Key length mismatch.
-                complete(null);
-            }
-
-            // Compare the sought key and the data we read, byte-by-byte.
-            ByteArraySegment keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
-            for (int i = 0; i < this.soughtKey.getLength(); i++) {
-                if (this.soughtKey.get(i) != keyData.get(i)) {
-                    // Key mismatch; no point in continuing.
-                    complete(null);
-                    return;
-                }
-            }
-
-            complete(header);
-        }
-
-        @Override
-        public void processResultComplete() {
-            if (!getResult().isDone()) {
-                // We've reached the end of the read but couldn't find anything.
-                complete(null);
-            }
-        }
-    }
-
-    //endregion
-
     //region KeyReader
 
     /**
      * AsyncTableEntryReader implementation that reads a Key from a ReadResult.
      */
-    private static class KeyReader extends HeaderReader<ArrayView> {
+    private static class KeyReader extends AsyncTableEntryReader<ArrayView> {
         KeyReader(EntrySerializer serializer, TimeoutTimer timer) {
             super(serializer, timer);
         }
 
         @Override
-        protected int getMinReadLength() {
-            // The minimum length varies based on whether we know the Header or not. If we don't know it, then we need to
-            // possibly read more than needed to ensure that we don't terminate prematurely.
-            val header = getHeader();
-            return EntrySerializer.HEADER_LENGTH + (header == null ? EntrySerializer.MAX_KEY_LENGTH : header.getKeyLength());
-        }
-
-        @Override
-        protected void acceptResult(ByteArraySegment readData) {
+        protected boolean processReadData(ByteArraySegment readData) {
             val header = getHeader();
             assert header != null : "acceptResult called with no header loaded.";
-            ArrayView data = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
-            complete(data);
+
+            if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
+                // We read enough information.
+                ArrayView keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
+                complete(keyData);
+                return true; // We are done.
+            }
+
+            return false;
         }
     }
 
     //endregion
 
-    //region ValueReader
+    //region EntryReader
 
     /**
-     * AsyncTableEntryReader implementation that reads a Value from a ReadResult.
+     * AsyncTableEntryReader implementation that matches a particular Key and returns its TableEntry's Header.
      */
-    private static class ValueReader extends AsyncTableEntryReader<ArrayView> {
-        private final int valueLength;
+    private static class EntryReader extends AsyncTableEntryReader<TableEntry> {
+        private final ArrayView soughtKey;
+        private final long keyVersion;
+        private boolean keyValidated;
 
-        private ValueReader(int valueLength, TimeoutTimer timer) {
-            super(timer);
-            Preconditions.checkArgument(valueLength >= 0, "valueLength must be a positive integer.");
-            this.valueLength = valueLength;
-            if (valueLength == 0) {
-                // Value is supposed to have a zero length, so we are already done.
-                complete(new ByteArraySegment(new byte[0]));
-            }
+        private EntryReader(@NonNull ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
+            super(serializer, timer);
+            this.soughtKey = soughtKey;
+            this.keyVersion = keyVersion;
+            this.keyValidated = false;
         }
 
         @Override
+        @SuppressWarnings("ReturnCount")
         protected boolean processReadData(ByteArraySegment readData) {
-            if (readData.getLength() >= this.valueLength) {
-                complete(readData.getLength() == this.valueLength ? readData : readData.subSegment(0, this.valueLength));
-                return true; // We are done.
+            val header = getHeader();
+            assert header != null : "acceptResult called with no header loaded.";
+
+            if (header.getKeyLength() != this.soughtKey.getLength()) {
+                // Key length mismatch. This is not the Table Entry we're looking for.
+                complete(null);
+                return false;
             }
 
-            return false; // We are not done.
+            if (readData.getLength() < EntrySerializer.HEADER_LENGTH + this.soughtKey.getLength()) {
+                // The key hasn't been fully read. Need more info.
+                return false;
+            }
+
+            // The key has been read.
+            if (!this.keyValidated) {
+                // Compare the sought key and the data we read, byte-by-byte.
+                ByteArraySegment keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
+                for (int i = 0; i < this.soughtKey.getLength(); i++) {
+                    if (this.soughtKey.get(i) != keyData.get(i)) {
+                        // Key mismatch; no point in continuing.
+                        complete(null);
+                        return true;
+                    }
+                }
+
+                this.keyValidated = true;
+            }
+
+            if (header.isDeletion()) {
+                // Deleted key. We cannot read more.
+                complete(TableEntry.notExists(this.soughtKey));
+                return true;
+            }
+
+            if (readData.getLength() < header.getTotalLength()) {
+                // The value hasn't been read yet. Need more info.
+                return false;
+            }
+
+            // Fetch the value and finish up.
+            ArrayView valueData;
+            if (header.getValueLength() == 0) {
+                valueData = new ByteArraySegment(new byte[0]);
+            } else {
+                valueData = readData.subSegment(header.getValueOffset(), header.getValueLength());
+            }
+
+            complete(TableEntry.versioned(this.soughtKey, valueData, this.keyVersion));
+            return true; // Now we are truly done.
         }
     }
 
