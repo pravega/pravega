@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -52,6 +53,8 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("cacheEntries")
     private final Map<CacheKey, CacheEntry> cacheEntries;
     @GuardedBy("cacheEntries")
+    private final Map<Long, Long> segmentIndexOffsets; // TODO: this needs updating once we wire up Writer Processors.
+    @GuardedBy("cacheEntries")
     private int currentCacheGeneration;
     private final ConcurrentDependentProcessor<CacheKey, List<Long>> conditionalUpdateProcessor;
     private final AtomicBoolean closed;
@@ -66,6 +69,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
         this.indexReader = new IndexReader(executor);
         this.conditionalUpdateProcessor = new ConcurrentDependentProcessor<>(this.executor);
         this.cacheEntries = new HashMap<>();
+        this.segmentIndexOffsets = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
 
@@ -113,16 +117,25 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
 
         // Remove those entries that have a generation below the oldest permissible one.
         long sizeRemoved = 0;
-        long indexedSegmentOffset = Long.MAX_VALUE; // TODO: this needs to be based on actual segment data (use Attributes.TABLE_INDEX_OFFSET).
-        List<CacheKey> toRemove;
+        ArrayList<CacheKey> toRemove = new ArrayList<>();
+        HashSet<Long> remainingSegmentIds = new HashSet<>();
         synchronized (this.cacheEntries) {
             this.currentCacheGeneration = currentGeneration;
-            toRemove = this.cacheEntries
-                    .values().stream()
-                    .filter(e -> e.getGeneration() < oldestGeneration && e.getHighestOffset() < indexedSegmentOffset)
-                    .map(e -> e.key)
-                    .collect(Collectors.toList());
+            for (val e : this.cacheEntries.entrySet()) {
+                CacheEntry entry = e.getValue();
+                long indexedOffset = this.segmentIndexOffsets.getOrDefault(e.getKey().segmentId, 0L);
+                if (entry.getGeneration() < oldestGeneration && entry.getHighestOffset() < indexedOffset) {
+                    toRemove.add(e.getKey());
+                } else {
+                    remainingSegmentIds.add(e.getKey().segmentId);
+                }
+            }
+
+            // Clear the expired cache entries.
             toRemove.forEach(this.cacheEntries::remove);
+
+            // Remove those segment offset caches that are no longer used.
+            this.segmentIndexOffsets.keySet().removeIf(segmentId -> !remainingSegmentIds.contains(segmentId));
         }
 
         // Remove from the Cache. It's ok to do this outside of the lock as the cache is thread safe.
@@ -147,8 +160,8 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
     CompletableFuture<List<Long>> getBucketOffsets(DirectSegmentAccess segment, List<KeyHash> hashes, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
-        // If hash does not exist, place NOT_EXISTS in its spot; otherwise place correct offset.
         if (hashes.isEmpty()) {
+            // Nothing to search.
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
 
@@ -183,7 +196,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
                             // Cache the bucket's location, but only if its path is complete.
                             CacheValue newestEntry = null;
                             if (!bucket.isPartial()) {
-                                newestEntry = updateCacheIfNewer(lookupInfo.cacheKey, keyHash, new CacheValue(this.indexReader.getOffset(bucket.getLastNode())));
+                                newestEntry = updateCacheForKey(lookupInfo.cacheKey, keyHash, new CacheValue(this.indexReader.getOffset(bucket.getLastNode())));
                             }
 
                             result.set(lookupInfo.resultOffset, newestEntry == null ? TableKey.NOT_EXISTS : newestEntry.offset);
@@ -209,14 +222,14 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
 
     /**
      * Performs a Batch Update.
-     * <p>
+     *
      * If {@link UpdateBatch#isConditional()} returns true, this will execute an atomic Conditional Update based on the
      * condition items in the batch ({@link UpdateBatch#versionedItems}. The entire UpdateBatch will be conditioned on
      * those items, including those items that do not have a condition set. The entire UpdateBatch will either all be
      * committed as one unit or not at all.
-     * <p>
-     * Otherwise this will perform a Blind Update, where all the Update Items will be applied regardless of whether they
-     * already exist or what their versions are.
+     *
+     * Otherwise this will perform an Unconditional Update, where all the Update Items will be applied regardless of
+     * whether they already exist or what their versions are.
      *
      * @param segment The Segment to perform update on.
      * @param batch   The UpdateBatch to apply.
@@ -224,8 +237,9 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      *                CompletableFuture to indicate when the operation is done, containing the offset at which the batch
      *                has been written.
      * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the update succeeded. If the update failed,
-     * it will be failed with the appropriate exception. Notable exceptions:
+     * @return A CompletableFuture that, when completed, will contain a list of offsets (within the Segment) where each
+     * of the items in the batch has been persisted. If the update failed, it will be failed with the appropriate exception.
+     * Notable exceptions:
      * <ul>
      * <li>{@link KeyNotExistsException} If a Key in the UpdateBatch does not exist and was conditioned as having to exist.
      * <li>{@link BadKeyVersionException} If a Key does exist but had a version mismatch.
@@ -248,10 +262,60 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
                     keys,
                     () -> validateConditionalUpdate(segment, batch, timer)
                             .thenComposeAsync(v -> persist.get(), this.executor)
-                            .thenApplyAsync(batchOffset -> updateCacheIfNewer(batch, segment.getSegmentId(), batchOffset), this.executor));
+                            .thenApplyAsync(batchOffset -> updateCacheForBatch(batch, segment.getSegmentId(), batchOffset), this.executor));
         } else {
-            // Blind update: persist the entries and update the cache.
-            return persist.get().thenApply(batchOffset -> updateCacheIfNewer(batch, segment.getSegmentId(), batchOffset));
+            // Unconditional update: persist the entries and update the cache.
+            return persist.get().thenApply(batchOffset -> updateCacheForBatch(batch, segment.getSegmentId(), batchOffset));
+        }
+    }
+
+
+    /**
+     * Performs a Batch Removal.
+     *
+     * If {@link UpdateBatch#isConditional()} returns true, this will execute an atomic Conditional Removal based on the
+     * condition items in the batch ({@link UpdateBatch#versionedItems}. The entire UpdateBatch will be conditioned on
+     * those items, including those items that do not have a condition set. The entire UpdateBatch will either all be
+     * removed as one unit or not at all.
+     *
+     * Otherwise this will perform an Unconditional Removal, where all the Update Items will be applied regardless of
+     * whether they already exist or what their versions are.
+     *
+     * @param segment The Segment to perform removal on.
+     * @param batch   The UpdateBatch to remove.
+     * @param persist A Supplier that, when invoked, will persist the contents of the batch to the Segment and return a
+     *                CompletableFuture to indicate when the operation is done, containing the offset at which the batch
+     *                has been written.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain a list of offsets (within the Segment) where each
+     * of the items in the batch has been persisted. If the update failed, it will be failed with the appropriate exception.
+     * Notable exceptions:
+     * <ul>
+     * <li>{@link KeyNotExistsException} If a Key in the UpdateBatch does not exist and was conditioned as having to exist.
+     * <li>{@link BadKeyVersionException} If a Key does exist but had a version mismatch.
+     * </ul>
+     */
+    CompletableFuture<List<Long>> remove(DirectSegmentAccess segment, UpdateBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        if (batch.isConditional()) {
+            // Conditional removal.
+            // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
+            // serialize execution across them.
+            val keys = batch.versionedItems.stream()
+                                           .map(item -> new CacheKey(segment.getSegmentId(), item.hash.hashCode()))
+                                           .collect(Collectors.toList());
+
+            // Serialize the execution (queue it up to run only after all other currently queued up conditional updates
+            // for touched keys have finished).
+            return this.conditionalUpdateProcessor.add(
+                    keys,
+                    () -> validateConditionalUpdate(segment, batch, timer)
+                            .thenComposeAsync(v -> persist.get(), this.executor)
+                            .thenApplyAsync(batchOffset -> updateCacheForBatch(batch, segment.getSegmentId(), batchOffset), this.executor));
+        } else {
+            // Unconditional removal: persist the entries and update the cache.
+            return persist.get().thenApply(batchOffset -> updateCacheForBatch(batch, segment.getSegmentId(), batchOffset));
         }
     }
 
@@ -320,7 +384,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      * @return A List of offsets for each item in the UpdateBatch (in the same order) of where the latest value for that
      * item's Key exists now.
      */
-    private List<Long> updateCacheIfNewer(UpdateBatch batch, long segmentId, long batchOffset) {
+    private List<Long> updateCacheForBatch(UpdateBatch batch, long segmentId, long batchOffset) {
         val result = new ArrayList<Supplier<Long>>(batch.items.size());
         synchronized (this.cacheEntries) {
             int generation = this.currentCacheGeneration;
@@ -343,7 +407,7 @@ class ContainerKeyIndex implements CacheManager.Client, AutoCloseable {
      * @return The CacheEntry that exists in the Cache when this method exists. This will be newEntry or whatever Cache Entry
      * was there before (if that entry superseded the new one).
      */
-    private CacheValue updateCacheIfNewer(CacheKey cacheKey, KeyHash keyHash, CacheValue newEntry) { // TODO: CacheValue -> long
+    private CacheValue updateCacheForKey(CacheKey cacheKey, KeyHash keyHash, CacheValue newEntry) { // TODO: CacheValue -> long
         CacheEntry entry;
         int generation;
         synchronized (this.cacheEntries) {

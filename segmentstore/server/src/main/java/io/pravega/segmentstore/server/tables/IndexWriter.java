@@ -74,7 +74,7 @@ class IndexWriter extends IndexReader {
      *
      * @return A Collection of {@link AttributeUpdate}s.
      */
-    Collection<AttributeUpdate> generateInitialTableAttributes() {
+    static Collection<AttributeUpdate> generateInitialTableAttributes() {
         return Arrays.asList(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 0L),
                 new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
     }

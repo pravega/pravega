@@ -17,7 +17,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.util.Collection;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -52,7 +52,7 @@ class EntrySerializer {
      * @param entries A List of {@link TableEntry} to serialize.
      * @param target  The byte array to serialize into.
      */
-    void serializeUpdate(@NonNull List<TableEntry> entries, byte[] target) {
+    void serializeUpdate(@NonNull Collection<TableEntry> entries, byte[] target) {
         int offset = 0;
         for (TableEntry e : entries) {
             offset = serializeUpdate(e, target, offset);
@@ -112,7 +112,7 @@ class EntrySerializer {
      * @param keys   A List of {@link TableKey} to serialize for removals.
      * @param target The byte array to serialize into.
      */
-    void serializeRemoval(@NonNull List<TableKey> keys, byte[] target) {
+    void serializeRemoval(@NonNull Collection<TableKey> keys, byte[] target) {
         int offset = 0;
         for (TableKey e : keys) {
             offset = serializeRemoval(e, target, offset);

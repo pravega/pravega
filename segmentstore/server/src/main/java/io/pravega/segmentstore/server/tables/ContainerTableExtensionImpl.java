@@ -10,13 +10,12 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
@@ -42,6 +41,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -130,7 +131,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.segmentContainer.createStreamSegment(segmentName,
-                Collections.singleton(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 1)),
+                IndexWriter.generateInitialTableAttributes(),
                 timeout);
     }
 
@@ -156,28 +157,29 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<List<Long>> put(@NonNull String segmentName, @NonNull List<TableEntry> entries, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        val batch = new ContainerKeyIndex.UpdateBatch();
-        for (val e : entries) {
-            int length = this.serializer.getUpdateLength(e);
-            batch.add(e.getKey(), this.hasher.hash(e.getKey().getKey()), length);
-        }
 
-        Preconditions.checkArgument(batch.getLength() <= MAX_BATCH_SIZE, "Update Batch length (%s) exceeds the maximum limit.", MAX_BATCH_SIZE);
+        // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative offsets in
+        // the batch itself).
+        val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength);
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
-                .thenCompose(segment -> this.keyIndex.update(segment, batch,
-                        () -> {
-                            // Serialize and commit the entire batch.
-                            byte[] s = new byte[batch.getLength()];
-                            this.serializer.serializeUpdate(entries, s);
-                            return segment.append(s, null, timer.getRemaining());
-                        }, timer));
+                .thenCompose(segment -> this.keyIndex.update(segment, updateBatch,
+                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer));
     }
 
     @Override
     public CompletableFuture<Void> remove(@NonNull String segmentName, @NonNull Collection<TableKey> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+
+        // Generate an Update Batch for all the keys (since we need to know their Key Hashes and relative offsets in
+        // the batch itself).
+        val removeBatch = batch(keys, key -> key, this.serializer::getRemovalLength);
+        return this.segmentContainer
+                .forSegment(segmentName, timer.getRemaining())
+                .thenCompose(segment -> this.keyIndex.remove(segment, removeBatch,
+                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer))
+                .thenRun(Runnables.doNothing());
     }
 
     @Override
@@ -196,12 +198,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
     }
 
-    private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, List<ArrayView> keys, List<Long> offsets, TimeoutTimer timer) {
+    private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, List<ArrayView> keys, List<Long> bucketOffsets, TimeoutTimer timer) {
         List<CompletableFuture<TableEntry>> searchFutures = new ArrayList<>();
-        for (int i = 0; i < offsets.size(); i++) {
-            long offset = offsets.get(i);
+        for (int i = 0; i < bucketOffsets.size(); i++) {
+            long offset = bucketOffsets.get(i);
             if (offset == TableKey.NOT_EXISTS) {
-                // Key does not exist.
+                // Bucket does not exist, hence neither does the key.
                 searchFutures.add(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
@@ -244,10 +246,32 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //region Helpers
 
+    private <T> ContainerKeyIndex.UpdateBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength) {
+        val batch = new ContainerKeyIndex.UpdateBatch();
+        for (T item : toBatch) {
+            val length = getLength.apply(item);
+            val key = getKey.apply(item);
+            batch.add(key, this.hasher.hash(key.getKey()), length);
+        }
+
+        Preconditions.checkArgument(batch.getLength() <= MAX_BATCH_SIZE,
+                "Update Batch length (%s) exceeds the maximum limit.", MAX_BATCH_SIZE);
+        return batch;
+    }
+
+    private <T> CompletableFuture<Long> commit(Collection<T> toCommit, int serializationLength, BiConsumer<Collection<T>, byte[]> serializer,
+                                               DirectSegmentAccess segment, Duration timeout) {
+        assert serializationLength <= MAX_BATCH_SIZE;
+        byte[] s = new byte[serializationLength];
+        serializer.accept(toCommit, s);
+        return segment.append(s, null, timeout);
+    }
+
     private CompletableFuture<EntryInfo> findEntry(DirectSegmentAccess segment, ArrayView key, long bucketOffset, TimeoutTimer timer) {
         final int maxReadLength = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
-        AtomicLong offset = new AtomicLong(bucketOffset);
+
         // Read the Key at the current offset and check it against the sought one.
+        AtomicLong offset = new AtomicLong(bucketOffset);
         CompletableFuture<EntryInfo> result = new CompletableFuture<>();
         Futures.loop(
                 () -> !result.isDone(),
@@ -283,11 +307,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     private CompletableFuture<TableEntry> readEntry(DirectSegmentAccess segment, ArrayView key, EntryInfo entryInfo, TimeoutTimer timer) {
-        if (entryInfo == null) {
+        if (entryInfo == null || entryInfo.header.isDeletion()) {
             // Couldn't find anything.
             return CompletableFuture.completedFuture(null);
         } else {
-            // Found it! Read Value from Segment and return.
+            // Found it! Read the Value from the Segment and return.
             val builder = AsyncTableEntryReader.readValue(entryInfo.header.getValueLength(), timer);
             ReadResult readResult = segment.read(entryInfo.getValueSegmentOffset(), entryInfo.header.getValueLength(), timer.getRemaining());
             AsyncReadResultProcessor.process(readResult, builder, this.executor);

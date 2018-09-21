@@ -404,8 +404,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
         private void initializeSegment() {
             // Populate table-related attributes.
-            val w = new IndexWriter(this.keyHasher, executorService());
-            this.segmentMock.updateAttributes(w.generateInitialTableAttributes(), TIMEOUT).join();
+            this.segmentMock.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
 
             // Pre-populate the TABLE_INDEX_OFFSET.
             this.segmentMock.updateAttributes(
