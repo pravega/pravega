@@ -253,7 +253,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 () -> !result.isDone(),
                 () -> {
                     ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    KeyMatcher keyMatcher = new KeyMatcher(key, this.serializer, timer);
+                    val keyMatcher = AsyncTableEntryReader.matchKey(key, this.serializer, timer);
                     AsyncReadResultProcessor.process(readResult, keyMatcher, this.executor);
                     return keyMatcher.getResult()
                             .thenComposeAsync(header -> {
@@ -288,10 +288,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return CompletableFuture.completedFuture(null);
         } else {
             // Found it! Read Value from Segment and return.
-            AsyncTableEntryBuilder builder = new AsyncTableEntryBuilder(key, entryInfo.header.getValueLength(), entryInfo.bucketOffset, timer);
+            val builder = AsyncTableEntryReader.readValue(entryInfo.header.getValueLength(), timer);
             ReadResult readResult = segment.read(entryInfo.getValueSegmentOffset(), entryInfo.header.getValueLength(), timer.getRemaining());
             AsyncReadResultProcessor.process(readResult, builder, this.executor);
-            return builder.getResult();
+            return builder.getResult().thenApply(value -> TableEntry.versioned(key, value, entryInfo.header.getVersion()));
         }
     }
 
