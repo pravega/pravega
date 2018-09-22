@@ -128,7 +128,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         });
 
         if (!canPerformCheckpoint) {
-            return Futures.failedFuture(new CheckpointFailedException(rejectMessage));
+            return Futures.failedFuture(new MaxNumberOfCheckpointsExceededException(rejectMessage));
         }
 
         AtomicBoolean checkpointPending = new AtomicBoolean(true);

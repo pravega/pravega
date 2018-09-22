@@ -161,7 +161,7 @@ public class ReaderGroupImplTest {
         try {
             result.get();
         } catch (InterruptedException | ExecutionException e) {
-            assertTrue("expecting checkpoint failed exception", e.getCause() instanceof CheckpointFailedException);
+            assertTrue("expecting MaxNumberOfCheckpointsExceededException", e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
         }
     }
 

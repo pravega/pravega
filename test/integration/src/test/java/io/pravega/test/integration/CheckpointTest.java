@@ -10,7 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.impl.CheckpointFailedException;
+import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -280,7 +280,7 @@ public class CheckpointTest {
         try {
             checkpoint2.get();
         } catch (ExecutionException e) {
-            assertTrue(e.getCause() instanceof CheckpointFailedException);
+            assertTrue(e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
             assertTrue(e.getCause().getMessage()
                     .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit"));
         }
