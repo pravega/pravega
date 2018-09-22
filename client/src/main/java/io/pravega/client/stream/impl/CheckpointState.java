@@ -136,6 +136,10 @@ public class CheckpointState {
     boolean hasOngoingCheckpoint() {
         return !uncheckpointedHosts.isEmpty();
     }
+
+    int getOutstandingCheckpoints() {
+        return checkpoints.size();
+    }
     
     void clearCheckpointsBefore(String checkpointId) {
         if (checkpointPositions.containsKey(checkpointId)) {

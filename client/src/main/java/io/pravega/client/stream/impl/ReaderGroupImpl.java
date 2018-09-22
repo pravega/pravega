@@ -108,7 +108,29 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
-        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
+
+        String rejectMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit";
+
+        boolean canPerformCheckpoint = synchronizer.updateState((state, updates) -> {
+            ReaderGroupConfig config = state.getConfig();
+            CheckpointState checkpointState = state.getCheckpointState();
+            int maxOutstandingCheckpointRequest = config.getMaxOutstandingCheckpointRequest();
+            int currentOutstandingCheckpointRequest = checkpointState.getOutstandingCheckpoints();
+            if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
+                log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
+                        maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
+                return false;
+            } else {
+                updates.add(new CreateCheckpoint(checkpointName));
+                return true;
+            }
+
+        });
+
+        if (!canPerformCheckpoint) {
+            return Futures.failedFuture(new MaxNumberOfCheckpointsExceededException(rejectMessage));
+        }
+
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
         return Futures.loop(checkpointPending::get, () -> {
