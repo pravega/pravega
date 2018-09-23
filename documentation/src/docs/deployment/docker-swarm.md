@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 # Deploying in a Docker Swarm
 
 Docker Swarm can be used to quickly spin up a distributed Pravega cluster that can easily scale up and down. Unlike
-`docker-compose`, this is useful for more than just testing and development. In future it will be suitable for production workloads.
+`docker-compose`, this is useful for more than just testing and development. In future, Docker Swarm will be suitable for production workloads.
 
 ## Prerequisites
 
@@ -96,7 +96,7 @@ docker service scale pravega_bookkeeper=N
 
 ```
 
-As configured in this package, Pravega requires at least **3 BookKeeper nodes, so `N` must be >= 3.**
+As configured in this package, Pravega requires at least **3 BookKeeper nodes, (i.e., N must be >= 3.)**
 
 ## Scaling Pravega Controller
 
@@ -125,7 +125,7 @@ script to make it fairly painless:
 
 ## Tearing down
 
-All services,(including HDFS and ZooKeeper if you've deployed our package) can be destroyed with:
+All services, (including HDFS and ZooKeeper if you've deployed our package) can be destroyed using the following command.
 
 ```
 docker stack down pravega
