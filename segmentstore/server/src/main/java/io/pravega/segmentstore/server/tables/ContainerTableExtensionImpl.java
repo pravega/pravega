@@ -62,7 +62,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             AttributeCalculator.SECONDARY_HASH_LENGTH);
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     private final SegmentContainer segmentContainer;
-    private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
     private final ContainerKeyIndex keyIndex;
@@ -84,11 +83,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheFactory cacheFactory,
                                        @NonNull CacheManager cacheManager, @NonNull ScheduledExecutorService executor) {
         this.segmentContainer = segmentContainer;
-        this.cacheManager = cacheManager;
         this.executor = executor;
         this.hasher = KeyHasher.sha512(HASH_CONFIG);
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, this.executor);
-        this.cacheManager.register(this.keyIndex);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
     }
@@ -101,7 +98,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.keyIndex.close();
-            this.cacheManager.unregister(this.keyIndex);
         }
     }
 
@@ -160,7 +156,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative offsets in
         // the batch itself).
-        val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength);
+        val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenCompose(segment -> this.keyIndex.update(segment, updateBatch,
@@ -174,7 +170,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         // Generate an Update Batch for all the keys (since we need to know their Key Hashes and relative offsets in
         // the batch itself).
-        val removeBatch = batch(keys, key -> key, this.serializer::getRemovalLength);
+        val removeBatch = batch(keys, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenCompose(segment -> this.keyIndex.remove(segment, removeBatch,
@@ -245,8 +241,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //region Helpers
 
-    private <T> ContainerKeyIndex.UpdateBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength) {
-        val batch = new ContainerKeyIndex.UpdateBatch();
+    private <T> TableKeyBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength, TableKeyBatch batch) {
         for (T item : toBatch) {
             val length = getLength.apply(item);
             val key = getKey.apply(item);
