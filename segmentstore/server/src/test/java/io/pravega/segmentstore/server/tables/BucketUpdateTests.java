@@ -35,8 +35,8 @@ public class BucketUpdateTests {
         Assert.assertFalse("Not expecting any updates at this time.", bu.hasUpdates());
 
         for (int i = 0; i < count; i++) {
-            bu.withExistingKey(new KeyInfo(new HashedArray(new byte[]{(byte) i}), i));
-            bu.withKeyUpdate(new KeyUpdate(new HashedArray(new byte[]{(byte) -i}), i, i % 2 == 0));
+            bu.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(new byte[]{(byte) i}), i));
+            bu.withKeyUpdate(new BucketUpdate.KeyUpdate(new HashedArray(new byte[]{(byte) -i}), i, i % 2 == 0));
         }
 
         Assert.assertTrue("Unexpected result from isKeyUpdated for updated key.",
@@ -47,8 +47,8 @@ public class BucketUpdateTests {
         Assert.assertEquals("Unexpected existing keys count.", count, bu.getExistingKeys().size());
         Assert.assertEquals("Unexpected updated keys count.", count, bu.getKeyUpdates().size());
 
-        val existingIterator = bu.getExistingKeys().stream().sorted(Comparator.comparingLong(KeyInfo::getOffset)).iterator();
-        val updatesIterator = bu.getKeyUpdates().stream().sorted(Comparator.comparingLong(KeyInfo::getOffset)).iterator();
+        val existingIterator = bu.getExistingKeys().stream().sorted(Comparator.comparingLong(BucketUpdate.KeyInfo::getOffset)).iterator();
+        val updatesIterator = bu.getKeyUpdates().stream().sorted(Comparator.comparingLong(BucketUpdate.KeyInfo::getOffset)).iterator();
         for (int i = 0; i < count; i++) {
             val e = existingIterator.next();
             val u = updatesIterator.next();
@@ -69,8 +69,8 @@ public class BucketUpdateTests {
         val bucket = TableBucket.builder().build();
         val bu = new BucketUpdate(bucket);
         for (int i = 0; i < count; i++) {
-            bu.withExistingKey(new KeyInfo(new HashedArray(new byte[]{(byte) i}), i));
-            bu.withKeyUpdate(new KeyUpdate(new HashedArray(new byte[]{(byte) i}), i + 1, i % 2 == 0));
+            bu.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(new byte[]{(byte) i}), i));
+            bu.withKeyUpdate(new BucketUpdate.KeyUpdate(new HashedArray(new byte[]{(byte) i}), i + 1, i % 2 == 0));
         }
 
         // We define a binary hasher, that hashes based on the parity of the first byte in the key.

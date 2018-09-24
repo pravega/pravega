@@ -293,7 +293,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         HashedArray key = new HashedArray(StreamHelpers.readAll(input, h.getKeyLength()));
 
         // Index the Key. If it was used before, it must have had a lower offset, so this supersedes it.
-        keyUpdateCollection.add(new KeyUpdate(key, entryOffset, h.isDeletion()), h.getTotalLength());
+        keyUpdateCollection.add(new BucketUpdate.KeyUpdate(key, entryOffset, h.isDeletion()), h.getTotalLength());
 
         // We don't care about the value; so skip over it.
         if (h.getValueLength() > 0) {
@@ -376,7 +376,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     return keyReader.getResult()
                                   .thenComposeAsync(keyView -> {
                                       // Record the Key and its location.
-                                      bucketUpdate.withExistingKey(new KeyInfo(new HashedArray(keyView), offset.get()));
+                                      bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(keyView), offset.get()));
 
                                       // Get the next Key Location for this bucket.
                                       return this.indexWriter.getBackpointerOffset(offset.get(), segment, timer.getRemaining());
@@ -471,11 +471,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     }
 
     /**
-     * Collection of Keys to their associated {@link KeyUpdate}s.
+     * Collection of Keys to their associated {@link BucketUpdate.KeyUpdate}s.
      */
     @NotThreadSafe
     private static class KeyUpdateCollection {
-        private final HashMap<HashedArray, KeyUpdate> updates = new HashMap<>();
+        private final HashMap<HashedArray, BucketUpdate.KeyUpdate> updates = new HashMap<>();
 
         /**
          * The Segment offset before which every single byte has been indexed (i.e., the last offset of the last update).
@@ -483,7 +483,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         @Getter
         private long lastIndexedOffset = 0L;
 
-        void add(KeyUpdate update, int entryLength) {
+        void add(BucketUpdate.KeyUpdate update, int entryLength) {
             this.updates.put(update.getKey(), update);
             long lastOffset = update.getOffset() + entryLength;
             if (lastOffset > this.lastIndexedOffset) {
@@ -491,7 +491,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             }
         }
 
-        Collection<KeyUpdate> getUpdates() {
+        Collection<BucketUpdate.KeyUpdate> getUpdates() {
             return this.updates.values();
         }
     }

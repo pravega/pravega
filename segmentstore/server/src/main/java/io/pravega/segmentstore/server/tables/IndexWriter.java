@@ -84,15 +84,16 @@ class IndexWriter extends IndexReader {
     //region Updating Table Buckets
 
     /**
-     * Groups the given {@link KeyUpdate} instances by their associated buckets. These buckets may be partial
+     * Groups the given {@link BucketUpdate.KeyUpdate} instances by their associated buckets. These buckets may be partial
      * (i.e., only part of the hash matched) or a full match.
      *
-     * @param keyUpdates A Collection of {@link KeyUpdate} instances to index.
+     * @param keyUpdates A Collection of {@link BucketUpdate.KeyUpdate} instances to index.
      * @param segment    The Segment to read from.
      * @param timer      Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the a collection of {@link BucketUpdate}s.
      */
-    CompletableFuture<Collection<BucketUpdate>> groupByBucket(Collection<KeyUpdate> keyUpdates, DirectSegmentAccess segment, TimeoutTimer timer) {
+    CompletableFuture<Collection<BucketUpdate>> groupByBucket(Collection<BucketUpdate.KeyUpdate> keyUpdates,
+                                                              DirectSegmentAccess segment, TimeoutTimer timer) {
         val updatesByHash = keyUpdates.stream()
                                       .collect(Collectors.groupingBy(k -> this.hasher.hash(k.getKey())));
         return locateBuckets(updatesByHash.keySet(), segment, timer)
@@ -455,8 +456,8 @@ class IndexWriter extends IndexReader {
         // Process all existing Keys, in order of Offsets, and either unlink them (if replaced) or update pointers as needed.
         AtomicBoolean first = new AtomicBoolean(true);
         update.getExistingKeys().stream()
-                .sorted(Comparator.comparingLong(KeyInfo::getOffset))
-                .forEach(keyInfo -> {
+              .sorted(Comparator.comparingLong(BucketUpdate.KeyInfo::getOffset))
+              .forEach(keyInfo -> {
                     boolean replaced = update.isKeyUpdated(keyInfo.getKey());
                     if (replaced) {
                         // This one has been replaced or removed; delete any backpointer originating from it.
@@ -483,9 +484,9 @@ class IndexWriter extends IndexReader {
         // Process all the new Keys, in order of offsets, and add any backpointers as needed, making sure to also link them
         // to whatever surviving existing Keys we might still have.
         update.getKeyUpdates().stream()
-                .filter(keyUpdate -> !keyUpdate.isDeleted())
-                .sorted(Comparator.comparingLong(KeyUpdate::getOffset))
-                .forEach(keyUpdate -> {
+              .filter(keyUpdate -> !keyUpdate.isDeleted())
+              .sorted(Comparator.comparingLong(BucketUpdate.KeyUpdate::getOffset))
+              .forEach(keyUpdate -> {
                     if (previousOffset.get() != Attributes.NULL_ATTRIBUTE_VALUE) {
                         // Only add a backpointer if we have another Key ahead of it.
                         attributeUpdates.add(generateBackpointerUpdate(keyUpdate.getOffset(), previousOffset.get()));

@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -135,6 +136,61 @@ class BucketUpdate {
         }
 
         return bucketsByHash;
+    }
+
+    //endregion
+
+    //region KeyInfo and KeyUpdate
+
+    /**
+     * General Key Information.
+     */
+    @RequiredArgsConstructor
+    @Getter
+    static class KeyInfo {
+        /**
+         * The Key.
+         */
+        @NonNull
+        private final HashedArray key;
+
+        /**
+         * The offset at which the key exists in the Segment.
+         */
+        private final long offset;
+
+        @Override
+        public String toString() {
+            return String.format("Offset=%s, Key={%s}", this.offset, key);
+        }
+    }
+
+    /**
+     * An update to a particular Key.
+     */
+    @Getter
+    static class KeyUpdate extends KeyInfo {
+        /**
+         * If true, indicates the Key has been deleted (as opposed from being updated).
+         */
+        private final boolean deleted;
+
+        /**
+         * Creates a new instance of the KeyUpdate class.
+         *
+         * @param key     A {@link HashedArray} representing the Key that is updated.
+         * @param offset  The offset in the Segment where the update is serialized.
+         * @param deleted True if the Key has been deleted via this update, false otherwise.
+         */
+        KeyUpdate(HashedArray key, long offset, boolean deleted) {
+            super(key, offset);
+            this.deleted = deleted;
+        }
+
+        @Override
+        public String toString() {
+            return (this.deleted ? "[DELETED] " : "") + super.toString();
+        }
     }
 
     //endregion
