@@ -9,8 +9,10 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.storage.Cache;
@@ -24,9 +26,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.val;
 
+/**
+ * Cache Operations for {@link ContainerKeyIndex}.
+ */
 class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     //region Members
 
@@ -44,6 +50,12 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the ContainerKeyCache class.
+     *
+     * @param containerId  The Id of the SegmentContainer that this instance is associated with.
+     * @param cacheFactory A {@link CacheFactory} that can be used to create {@link Cache} instances.
+     */
     ContainerKeyCache(int containerId, @NonNull CacheFactory cacheFactory) {
         this.cache = cacheFactory.getCache(String.format("Container_%d_TableKeys", containerId));
         this.cacheEntries = new HashMap<>();
@@ -126,41 +138,49 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     //region Cache Operations
 
     /**
-     * Updates the contents of one or more Cache Entries related to the given TableKeyBatch. Each entry is updated only if
-     * no previous entry exists with its key or if the new entry's offset is greater than the existing Entry's offset.
+     * Updates the contents of one or more Cache Entries related to the given {@link TableKeyBatch}. Each entry is updated
+     * only if no previous entry exists with its key or if the new entry's offset is greater than the existing Entry's offset.
      *
      * @param segmentId   Segment Id that the TableKeyBatch Items belong to.
      * @param batch       An TableKeyBatch containing items whose Cache Entries need updating.
      * @param batchOffset Offset in the Segment where the first item in the TableKeyBatch has been written to.
      * @return A List of offsets for each item in the TableKeyBatch (in the same order) of where the latest value for that
-     * item's Key exists now.
+     * item's Key exists now. See {@link #updateKey(long, HashedArray, long)} return doc for interpreting these values.
      */
     List<Long> updateBatch(long segmentId, TableKeyBatch batch, long batchOffset) {
-        // TODO: handle removals.
         val result = new ArrayList<Supplier<Long>>(batch.getItems().size());
         synchronized (this.cacheEntries) {
             int generation = this.currentCacheGeneration;
             for (TableKeyBatch.Item item : batch.getItems()) {
+                // Calculate the CacheEntry offset, by factoring in the batch's offset. Adjust to negative if we are removing
+                // the KeyHash.
+                long cacheSegmentOffset = encodeValue(batchOffset + item.getOffset(), batch.isRemoval());
                 CacheKey cacheKey = new CacheKey(segmentId, item.getHash());
                 CacheEntry entry = this.cacheEntries.computeIfAbsent(cacheKey, key -> new CacheEntry(cacheKey, generation));
-                result.add(() -> entry.updateIfNewer(item.getHash(), batchOffset + item.getOffset(), generation));
+                result.add(() -> entry.updateIfNewer(item.getHash(), cacheSegmentOffset, generation));
             }
         }
 
+        // Update the Cache Entries outside of the main lock (they are thread safe), and calculate the results.
         return result.stream().map(Supplier::get).collect(Collectors.toList());
     }
 
     /**
-     * Updates the contents of a Cache Entry, but only if no previous entry exists or if the new Entry's offset is greater
-     * than the existing Entry's offset.
+     * Updates the contents of a Cache Entry associated with the given Segment Id and KeyHash, but only if the new value
+     * for segmentOffset supersedes (is higher) than the existing value (or if no existing value). This method cannot be
+     * used to remove values.
      *
-     * @param segmentId The Segment Id.
-     * @param keyHash   The KeyHash to update for.
-     * @param newOffset The Cache Entry's offset.
-     * @return The CacheEntry that exists in the Cache when this method exists. This will be newEntry or whatever Cache Entry
-     * was there before (if that entry superseded the new one).
+     * @param segmentId     The Segment Id.
+     * @param keyHash       A {@link HashedArray} representing the Key Hash to look up.
+     * @param segmentOffset The segment offset where this Key has its latest value. If positive, it indicates that the latest
+     *                      value for the key is located here. If negative, it indicates that the Key has been removed and
+     *                      the absolute value of this argument indicates the offset where the Key's removal is recorded.
+     * @return Either segmentOffset, or the offset which contains the most up-to-date information about this KeyHash.
+     * If this value does not equal segmentOffset, it means some other concurrent update changed this value, and that
+     * value prevailed. This value could be negative (see segmentOffset doc).
      */
-    Long updateKey(long segmentId, KeyHash keyHash, long newOffset) {
+    long updateKey(long segmentId, HashedArray keyHash, long segmentOffset) {
+        Preconditions.checkArgument(segmentOffset >= 0, "segmentOffset must be non-negative.");
         CacheKey key = new CacheKey(segmentId, keyHash);
         CacheEntry entry;
         int generation;
@@ -173,10 +193,17 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        return entry.updateIfNewer(keyHash, newOffset, generation);
+        return entry.updateIfNewer(keyHash, segmentOffset, generation);
     }
 
-    Long get(long segmentId, KeyHash keyHash) {
+    /**
+     * Looks up a {@link KeyHash} cached offset for the given Segment.
+     *
+     * @param segmentId The Id of the Segment to look up for.
+     * @param keyHash   A {@link HashedArray} representing the Key Hash to look up.
+     * @return A {@link GetResult} representing the sought result.
+     */
+    GetResult get(long segmentId, HashedArray keyHash) {
         CacheKey key = new CacheKey(segmentId, keyHash);
         CacheEntry entry;
         int generation;
@@ -186,6 +213,14 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
 
         return entry == null ? null : entry.get(keyHash, generation);
+    }
+
+    private long encodeValue(long segmentOffset, boolean isRemoval) {
+        return isRemoval ? -(segmentOffset + 1) : segmentOffset;
+    }
+
+    private GetResult decodeValue(long value) {
+        return value < 0 ? new GetResult(-value - 1, false) : new GetResult(value, true);
     }
 
     //endregion
@@ -202,7 +237,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         private final long segmentId;
         private final int keyHashGroup;
 
-        CacheKey(long segmentId, KeyHash hash) {
+        CacheKey(long segmentId, HashedArray hash) {
             this.segmentId = segmentId;
             this.keyHashGroup = hash.hashCode();
         }
@@ -284,12 +319,12 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         /**
          * Looks up a CacheValue in this CacheEntry that is associated with the given KeyHash.
          *
-         * @param keyHash           The KeyHash to look up.
+         * @param keyHash           The Key Hash to look up.
          * @param currentGeneration The current Cache Generation (from the Cache Manager). The internal generation will
          *                          only be updated if at least one Attribute Value is fetched (cache hit).
-         * @return A CacheValue representing the sought data, or null if nothing was found.
+         * @return See {@link ContainerKeyCache#get} return doc.
          */
-        Long get(KeyHash keyHash, int currentGeneration) {
+        GetResult get(HashedArray keyHash, int currentGeneration) {
             byte[] data = ContainerKeyCache.this.cache.get(this.key);
             int offset = locate(keyHash, data);
             if (offset >= 0) {
@@ -299,7 +334,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                     this.generation = currentGeneration;
                 }
 
-                return deserializeCacheValue(data, offset);
+                return decodeValue(deserializeCacheValue(data, offset));
             }
 
             // Nothing found.
@@ -310,24 +345,25 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          * Inserts or updates the Cache for the given KeyHash with given CacheValue, but only if it has a higher offset
          * than the existing value.
          *
-         * @param keyHash           The KeyHash to update.
-         * @param value             The value to update.
-         * @param currentGeneration The current Cache Generation (from the Cache Manager). The internal generation will
-         *                          only be updated if at least one Attribute Value is updated.
+         * @param keyHash           The Key Hash to update.
+         * @param segmentOffset     See {@link ContainerKeyCache#updateKey(long, HashedArray, long)} segmentOffset.
+         * @param currentGeneration The current Cache Generation (from the Cache Manager).
+         * @return See {@link ContainerKeyCache#updateKey} return doc.
          */
-        synchronized Long updateIfNewer(KeyHash keyHash, Long value, int currentGeneration) {
+        synchronized long updateIfNewer(HashedArray keyHash, long segmentOffset, int currentGeneration) {
+            val decodedSegmentOffset = decodeValue(segmentOffset);
             byte[] entryData = ContainerKeyCache.this.cache.get(this.key);
-            int offset = locate(keyHash, entryData);
-            if (offset < 0) {
+            int entryOffset = locate(keyHash, entryData);
+            if (entryOffset < 0) {
                 // No match. Need to create a new array, copy any existing data and add new Cache Value.
                 if (entryData == null) {
                     entryData = new byte[HEADER_LENGTH + keyHash.getLength() + VALUE_SERIALIZATION_LENGTH];
-                    offset = HEADER_LENGTH;
+                    entryOffset = HEADER_LENGTH;
                 } else {
                     byte[] newData;
                     newData = new byte[entryData.length + keyHash.getLength() + VALUE_SERIALIZATION_LENGTH];
                     System.arraycopy(entryData, 0, newData, 0, entryData.length);
-                    offset = entryData.length;
+                    entryOffset = entryData.length;
                     entryData = newData;
                 }
 
@@ -336,36 +372,36 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 BitConverter.writeInt(entryData, 0, count + 1);
 
                 // Write the Key at the latest offset.
-                keyHash.copyTo(entryData, offset, keyHash.getLength());
-                offset += keyHash.getLength();
+                keyHash.copyTo(entryData, entryOffset, keyHash.getLength());
+                entryOffset += keyHash.getLength();
             } else {
                 // We found a match. Verify if we can update it.
-                Long existingValue = deserializeCacheValue(entryData, offset);
-                if (value < existingValue) {
-                    // New Value has lower offset than existing one. Nothing else to do.
-                    return existingValue;
+                val existingOffset = decodeValue(deserializeCacheValue(entryData, entryOffset));
+                if (decodedSegmentOffset.getSegmentOffset() < existingOffset.getSegmentOffset()) {
+                    // New offset is lower than existing one. Nothing else to do.
+                    return existingOffset.getSegmentOffset();
                 }
             }
 
             // Update the value.
-            serializeCacheValue(value, entryData, offset);
+            serializeCacheValue(segmentOffset, entryData, entryOffset);
 
             // Update the cache and stats.
             ContainerKeyCache.this.cache.insert(this.key, entryData);
             this.size = entryData.length;
             this.generation = currentGeneration;
-            this.highestOffset = Math.max(this.highestOffset, value);
-            return value;
+            this.highestOffset = Math.max(this.highestOffset, decodedSegmentOffset.getSegmentOffset());
+            return decodedSegmentOffset.getSegmentOffset();
         }
 
         /**
-         * Locates the Offset of a CacheValue associated with the given KeyHash in the given Cache Entry data.
+         * Locates the offset of the given {@link HashedArray} in the given Cache Entry data.
          *
-         * @param keyHash The KeyHash to look up.
+         * @param keyHash The Key Hash to look up.
          * @param data    The array to look into.
          * @return The offset of the CacheValue associated with the KeyHash, or -1 if not found.
          */
-        private int locate(KeyHash keyHash, byte[] data) {
+        private int locate(HashedArray keyHash, byte[] data) {
             if (data != null && data.length > 0) {
                 int count = BitConverter.readInt(data, 0);
                 int offset = Integer.BYTES;
@@ -400,6 +436,23 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         private void serializeCacheValue(long value, byte[] target, int targetOffset) {
             BitConverter.writeLong(target, targetOffset, value);
         }
+    }
+
+    //endregion
+
+    //region GetResult
+
+    @Data
+    static class GetResult {
+        /**
+         * The offset within the Segment where the latest update (or removal) for the sought key was located.
+         * This value may not be accurate if {@link #isPresent()} is false.
+         */
+        private final long segmentOffset;
+        /**
+         * True if the Key is present in the cache, false otherwise.
+         */
+        private final boolean present;
     }
 
     //endregion

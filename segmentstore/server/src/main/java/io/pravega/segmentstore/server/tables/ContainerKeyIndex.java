@@ -100,12 +100,18 @@ class ContainerKeyIndex implements AutoCloseable {
         HashMap<KeyHash, Integer> toLookup = new HashMap<>();
         for (int i = 0; i < hashes.size(); i++) {
             KeyHash hash = hashes.get(i);
-            Long existingValue = this.cache.get(segment.getSegmentId(), hash);
-            if (existingValue != null) {
-                result.add(existingValue);
-            } else {
+            val existingValue = this.cache.get(segment.getSegmentId(), hash);
+            if (existingValue == null) {
+                // Key does not exist in the cache (it may or may not exist at all). Add a placeholder and keep track of
+                // it so we can look it up.
                 result.add(TableKey.NOT_EXISTS);
                 toLookup.put(hash, i);
+            } else if (existingValue.isPresent()) {
+                // Key exists.
+                result.add(existingValue.getSegmentOffset());
+            } else {
+                // Key does not exist at all (deleted or really not exists). No need to do any other lookups.
+                result.add(TableKey.NOT_EXISTS);
             }
         }
 
@@ -123,12 +129,16 @@ class ContainerKeyIndex implements AutoCloseable {
                             assert resultOffset != null : "Unable to locate resultOffset based on KeyHash";
 
                             // Cache the bucket's location, but only if its path is complete.
-                            Long highestOffset = null;
-                            if (!bucket.isPartial()) {
-                                highestOffset = this.cache.updateKey(segment.getSegmentId(), keyHash, this.indexReader.getOffset(bucket.getLastNode()));
+                            if (bucket.isPartial()) {
+                                // Incomplete bucket. What we are looking for does not exist. Do not update the information
+                                // in the cache as this would have the potential to fill up the cache with useless keys
+                                // if the application requests a lot of them (excellent DoS opportunity!).
+                                result.set(resultOffset, TableKey.NOT_EXISTS);
+                            } else {
+                                // Update the cache information.
+                                long highestOffset = this.cache.updateKey(segment.getSegmentId(), keyHash, this.indexReader.getOffset(bucket.getLastNode()));
+                                result.set(resultOffset, highestOffset);
                             }
-
-                            result.set(resultOffset, highestOffset == null ? TableKey.NOT_EXISTS : highestOffset);
                         }
 
                         return result;

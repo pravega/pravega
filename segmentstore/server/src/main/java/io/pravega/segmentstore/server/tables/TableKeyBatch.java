@@ -101,5 +101,10 @@ class TableKeyBatch {
          * The offset within the TableKeyBatch where this Item is located (NOTE: this is not the Segment Offset!).
          */
         private final int offset;
+
+        @Override
+        public String toString() {
+            return String.format("Offset = %s, Hash = %s, Key = %s", this.offset, this.hash, this.key);
+        }
     }
 }
