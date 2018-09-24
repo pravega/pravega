@@ -15,19 +15,21 @@ import lombok.Data;
 import lombok.ToString;
 
 import java.util.AbstractMap;
+import lombok.NoArgsConstructor;
 
 /**
  * Properties of a stream segment that don't change over its lifetime.
  */
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 @ToString(includeFieldNames = true)
 public class Segment {
-    private final int number;
-    private final int epoch;
-    private final long start;
-    private final double keyStart;
-    private final double keyEnd;
+    private int number;
+    private int epoch;
+    private long start;
+    private double keyStart;
+    private double keyEnd;
 
     public Segment(long segmentId, long start, double keyStart, double keyEnd) {
         this.number = StreamSegmentNameUtils.getSegmentNumber(segmentId);

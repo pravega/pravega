@@ -197,6 +197,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // deprecated since Java 10
     protected void finalize() {
         close();
     }

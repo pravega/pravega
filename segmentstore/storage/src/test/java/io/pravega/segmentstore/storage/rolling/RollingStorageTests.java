@@ -139,7 +139,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         s.seal(writeHandle);
         AssertExtensions.assertThrows(
                 "concat() allowed using a truncated segment as a source.",
-                () -> s.concat(targetSegmentHandle, 0, SEGMENT_NAME),
+                (AssertExtensions.RunnableWithException) () -> s.concat(targetSegmentHandle, 0, SEGMENT_NAME),
                 ex -> ex instanceof IllegalStateException);
     }
 
@@ -187,12 +187,12 @@ public class RollingStorageTests extends RollingStorageTestBase {
         Assert.assertFalse("Not expecting Segment to exist.", s.exists(SEGMENT_NAME));
         AssertExtensions.assertThrows(
                 "Not expecting Segment to exist (getStreamSegmentInfo).",
-                () -> s.getStreamSegmentInfo(SEGMENT_NAME),
+                (AssertExtensions.RunnableWithException) () -> s.getStreamSegmentInfo(SEGMENT_NAME),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertThrows(
                 "Not expecting Segment to exist (openHandle).",
-                () -> s.openRead(SEGMENT_NAME),
+                (AssertExtensions.RunnableWithException) () -> s.openRead(SEGMENT_NAME),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // Retry the operation and verify everything is in place.
@@ -222,7 +222,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         baseStorage.deleteFailure = sn -> sn.equals(failOnDelete) ? new IntentionalException() : null;
         AssertExtensions.assertThrows(
                 "delete() did not propagate proper exception on failure.",
-                () -> s.delete(writeHandle),
+                (AssertExtensions.RunnableWithException) () -> s.delete(writeHandle),
                 ex -> ex instanceof IntentionalException);
 
         Assert.assertTrue("Not expecting segment to be deleted yet.", s.exists(SEGMENT_NAME));
@@ -302,7 +302,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         baseStorage.deleteFailure = sn -> sn.equals(sourceHandle.getHeaderHandle().getSegmentName()) ? new IntentionalException() : null;
         AssertExtensions.assertThrows(
                 "Unexpected exception when doing native concat.",
-                () -> s.concat(targetHandle, initialTargetLength, sourceSegmentName),
+                (AssertExtensions.RunnableWithException) () -> s.concat(targetHandle, initialTargetLength, sourceSegmentName),
                 ex -> ex instanceof IntentionalException);
 
         // However, the concat should have worked, so the source segment is now inaccessible.
@@ -401,7 +401,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         for (int i = 0; i < 4; i++) {
             AssertExtensions.assertThrows(
                     "Unexpected error reported from concat.",
-                    () -> s.concat(targetHandle, initialTargetLength, sourceSegmentName),
+                    (AssertExtensions.RunnableWithException) () -> s.concat(targetHandle, initialTargetLength, sourceSegmentName),
                     ex -> ex instanceof IntentionalException);
         }
 
@@ -431,7 +431,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
         // Verify create() with existing non-Header Segment.
         AssertExtensions.assertThrows(
                 "create() allowed creating a new Segment which already existed.",
-                () -> s.create(segmentName),
+                (AssertExtensions.RunnableWithException) () -> s.create(segmentName),
                 ex -> ex instanceof StreamSegmentExistsException);
         Assert.assertTrue("Non-Header Segment does not exist after failed create() attempt.", baseStorage.exists(segmentName));
         Assert.assertFalse("A header was left behind (after create).",
@@ -560,7 +560,7 @@ public class RollingStorageTests extends RollingStorageTestBase {
                 if (!expectedExists) {
                     AssertExtensions.assertThrows(
                             "Not expecting a read from a truncated SegmentChunk to work.",
-                            () -> s.read(readHandle, segmentChunk.getLastOffset() - 1, new byte[1], 0, 1),
+                            (AssertExtensions.RunnableWithException) () -> s.read(readHandle, segmentChunk.getLastOffset() - 1, new byte[1], 0, 1),
                             ex -> ex instanceof StreamSegmentTruncatedException);
                 }
             }

@@ -139,7 +139,7 @@ public class RevisionDataOutputStreamTests {
         // And verify we can't read anything else and we'll get an exception upon close indicating we read fewer bytes than expected.
         AssertExtensions.assertThrows(
                 "Expecting EOF.",
-                () -> inputStream.readFully(new byte[1]),
+                (AssertExtensions.RunnableWithException) () -> inputStream.readFully(new byte[1]),
                 ex -> ex instanceof EOFException);
         AssertExtensions.assertThrows(
                 "Expecting an exception when reading fewer bytes than declared.",
@@ -178,7 +178,7 @@ public class RevisionDataOutputStreamTests {
         Assert.assertEquals("Unexpected length encoded.", 0, rdis.getLength());
         AssertExtensions.assertThrows(
                 "Expecting EOF.",
-                () -> rdis.readFully(new byte[1]),
+                (AssertExtensions.RunnableWithException) () -> rdis.readFully(new byte[1]),
                 ex -> ex instanceof EOFException);
     }
 
@@ -239,7 +239,7 @@ public class RevisionDataOutputStreamTests {
         Assert.assertEquals("Not expecting any more data. ", -1, inputStream.read());
         AssertExtensions.assertThrows(
                 "Expecting EOF.",
-                () -> inputStream.readFully(new byte[1]),
+                (AssertExtensions.RunnableWithException) () -> inputStream.readFully(new byte[1]),
                 ex -> ex instanceof EOFException);
     }
 

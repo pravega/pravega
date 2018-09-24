@@ -127,7 +127,7 @@ public class RevisionDataStreamCommonTests {
             if (e.getValue() < 0) {
                 AssertExtensions.assertThrows(
                         "getCompactLongLength accepted invalid input: " + e.getKey(),
-                        () -> rdos.getCompactLongLength(e.getKey()),
+                        (AssertExtensions.RunnableWithException) () -> rdos.getCompactLongLength(e.getKey()),
                         ex -> ex instanceof IllegalArgumentException);
             } else {
                 // Verify what it should be.
@@ -157,7 +157,7 @@ public class RevisionDataStreamCommonTests {
             if (e.getValue() < 0) {
                 AssertExtensions.assertThrows(
                         "getCompactIntLength accepted invalid input: " + e.getKey(),
-                        () -> rdos.getCompactIntLength(e.getKey()),
+                        (AssertExtensions.RunnableWithException) () -> rdos.getCompactIntLength(e.getKey()),
                         ex -> ex instanceof IllegalArgumentException);
             } else {
                 // Verify what it should be.
@@ -325,7 +325,7 @@ public class RevisionDataStreamCommonTests {
         for (T value : invalid) {
             AssertExtensions.assertThrows(
                     "Encoding accepted invalid value: " + value,
-                    () -> write.accept(rdos2, value),
+                    (AssertExtensions.RunnableWithException) () -> write.accept(rdos2, value),
                     ex -> ex instanceof IllegalArgumentException);
         }
     }

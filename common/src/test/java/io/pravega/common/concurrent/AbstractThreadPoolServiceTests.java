@@ -46,7 +46,7 @@ public class AbstractThreadPoolServiceTests extends ThreadPooledTestSuite {
         s.stopAsync();
         AssertExtensions.assertThrows(
                 "Service stopped even though the runFuture did not complete.",
-                () -> s.awaitTerminated(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+                (AssertExtensions.RunnableWithException) () -> s.awaitTerminated(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Unexpected state while shutting down.", Service.State.STOPPING, s.state());
 
@@ -75,7 +75,7 @@ public class AbstractThreadPoolServiceTests extends ThreadPooledTestSuite {
         s2.runFuture.completeExceptionally(new IntentionalException());
         AssertExtensions.assertThrows(
                 "Service did not fail when runFuture failed.",
-                () -> s2.awaitTerminated(),
+                (AssertExtensions.RunnableWithException) () -> s2.awaitTerminated(),
                 ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected state upon auto-shutdown (failure).", Service.State.FAILED, s2.state());
         Assert.assertTrue("Unexpected failure cause.", s2.failureCause() instanceof IntentionalException);
@@ -100,7 +100,7 @@ public class AbstractThreadPoolServiceTests extends ThreadPooledTestSuite {
         s.runFuture.complete(null);
         AssertExtensions.assertThrows(
                 "Service did not fail when a StopException has been recorded.",
-                () -> s.awaitTerminated(),
+                (AssertExtensions.RunnableWithException) () -> s.awaitTerminated(),
                 ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected state upon failed shutdown.", Service.State.FAILED, s.state());
         Assert.assertEquals("Unexpected failure cause.", correctEx, s.failureCause());
@@ -119,7 +119,7 @@ public class AbstractThreadPoolServiceTests extends ThreadPooledTestSuite {
         s.runFuture.completeExceptionally(new IntentionalException());
         AssertExtensions.assertThrows(
                 "Service did not fail when runFuture failed.",
-                () -> s.awaitTerminated(),
+                (AssertExtensions.RunnableWithException) () -> s.awaitTerminated(),
                 ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected state upon failed shutdown.", Service.State.FAILED, s.state());
         Assert.assertTrue("Unexpected failure cause.", s.failureCause() instanceof IntentionalException);
@@ -140,7 +140,7 @@ public class AbstractThreadPoolServiceTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertThrows(
                 "Service did not fail.",
-                () -> s.awaitTerminated(),
+                (AssertExtensions.RunnableWithException) () -> s.awaitTerminated(),
                 ex -> ex instanceof IllegalStateException);
         Assert.assertEquals("Unexpected state upon failed shutdown.", Service.State.FAILED, s.state());
         Assert.assertEquals("Unexpected failure cause.", stopException, s.failureCause());

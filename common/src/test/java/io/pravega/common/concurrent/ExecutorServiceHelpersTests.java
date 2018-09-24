@@ -69,7 +69,7 @@ public class ExecutorServiceHelpersTests extends ThreadPooledTestSuite {
         finallyCount.set(0);
         AssertExtensions.assertThrows(
                 "execute did not throw appropriate exception when executor was closed",
-                () -> ExecutorServiceHelpers.execute(
+                (AssertExtensions.RunnableWithException) () -> ExecutorServiceHelpers.execute(
                         runCount::incrementAndGet,
                         exceptionHolder::set,
                         finallyCount::incrementAndGet,

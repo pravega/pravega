@@ -193,7 +193,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         val innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(operation).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(operation).await());
+            Exceptions.handleInterrupted((Exceptions.InterruptibleRun) () -> waitOn.get(operation).await());
             return null;
         });
 
@@ -210,7 +210,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         futures.add(s.delete(InMemoryStorage.newHandle(segmentName, false), TIMEOUT));
         AssertExtensions.assertThrows(
                 "Second operation was invoked while the first one was still running.",
-                () -> invoked.get(op2).await(LOCK_TIMEOUT_MILLIS),
+                (AssertExtensions.RunnableWithException) () -> invoked.get(op2).await(LOCK_TIMEOUT_MILLIS),
                 ex -> ex instanceof TimeoutException);
 
         // Complete the first operation and await the second operation to begin executing, then release it too.
@@ -242,7 +242,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         val innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(segment).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(segment).await());
+            Exceptions.handleInterrupted((Exceptions.InterruptibleRun) () -> waitOn.get(segment).await());
             return null;
         });
 
@@ -301,7 +301,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
 
         val innerStorage = new TestStorage((operation, segment) -> {
             invoked.get(joiner.apply(operation, segment)).release();
-            Exceptions.handleInterrupted(() -> waitOn.get(joiner.apply(operation, segment)).await());
+            Exceptions.handleInterrupted((Exceptions.InterruptibleRun) () -> waitOn.get(joiner.apply(operation, segment)).await());
             return null;
         });
 
@@ -321,7 +321,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         waitOn.get(createSegment1Key).release();
         AssertExtensions.assertThrows(
                 "Concat was invoked while the at least one of the creates was running.",
-                () -> invoked.get(concatKey).await(LOCK_TIMEOUT_MILLIS),
+                (AssertExtensions.RunnableWithException) () -> invoked.get(concatKey).await(LOCK_TIMEOUT_MILLIS),
                 ex -> ex instanceof TimeoutException);
 
         // Finish up the "source" create and verify the concat is released.
@@ -333,12 +333,12 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         futures.add(s.write(InMemoryStorage.newHandle(segment2, false), 0, new ByteArrayInputStream(new byte[0]), 0, TIMEOUT));
         AssertExtensions.assertThrows(
                 "Write(target) was invoked while concat was running",
-                () -> invoked.get(writeSegment1Key).await(LOCK_TIMEOUT_MILLIS),
+                (AssertExtensions.RunnableWithException) () -> invoked.get(writeSegment1Key).await(LOCK_TIMEOUT_MILLIS),
                 ex -> ex instanceof TimeoutException);
 
         AssertExtensions.assertThrows(
                 "Write(source) was invoked while concat was running",
-                () -> invoked.get(writeSegment2Key).await(LOCK_TIMEOUT_MILLIS),
+                (AssertExtensions.RunnableWithException) () -> invoked.get(writeSegment2Key).await(LOCK_TIMEOUT_MILLIS),
                 ex -> ex instanceof TimeoutException);
         Assert.assertEquals("Unexpected number of active segments.", 2, s.getSegmentWithOngoingOperationsCount());
 

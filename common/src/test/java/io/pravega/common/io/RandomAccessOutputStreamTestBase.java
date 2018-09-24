@@ -39,12 +39,12 @@ public abstract class RandomAccessOutputStreamTestBase<T extends OutputStream & 
         val s = createInstance(newArray());
         AssertExtensions.assertThrows(
                 "write() allowed writing at negative position.",
-                () -> s.write(1, -1),
+                (AssertExtensions.RunnableWithException) () -> s.write(1, -1),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         AssertExtensions.assertThrows(
                 "write() allowed writing overflow position.",
-                () -> s.write(1, expectedData.length),
+                (AssertExtensions.RunnableWithException) () -> s.write(1, expectedData.length),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         for (int i = 0; i < expectedData.length; i += 3) {
@@ -69,17 +69,17 @@ public abstract class RandomAccessOutputStreamTestBase<T extends OutputStream & 
         val s = createInstance(newArray());
         AssertExtensions.assertThrows(
                 "write() allowed writing at negative position.",
-                () -> s.write(new byte[writeLength], 0, writeLength, -1),
+                (AssertExtensions.RunnableWithException) () -> s.write(new byte[writeLength], 0, writeLength, -1),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         AssertExtensions.assertThrows(
                 "write() allowed writing overflow position.",
-                () -> s.write(new byte[writeLength], 0, writeLength, INITIAL_LENGTH),
+                (AssertExtensions.RunnableWithException) () -> s.write(new byte[writeLength], 0, writeLength, INITIAL_LENGTH),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         AssertExtensions.assertThrows(
                 "write() allowed writing with out-of-bounds buffer positions.",
-                () -> s.write(new byte[writeLength], 1, writeLength + 1, 0),
+                (AssertExtensions.RunnableWithException) () -> s.write(new byte[writeLength], 1, writeLength + 1, 0),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         for (int i = 0; i < expectedData.length - writeLength; i += 2 * writeLength) {
@@ -103,7 +103,7 @@ public abstract class RandomAccessOutputStreamTestBase<T extends OutputStream & 
         } else {
             AssertExtensions.assertThrows(
                     "write() allowed writing overflow position.",
-                    () -> s.write(new byte[writeLength], 0, writeLength, INITIAL_LENGTH - writeLength / 2),
+                    (AssertExtensions.RunnableWithException) () -> s.write(new byte[writeLength], 0, writeLength, INITIAL_LENGTH - writeLength / 2),
                     ex -> ex instanceof IndexOutOfBoundsException);
         }
 
@@ -124,17 +124,17 @@ public abstract class RandomAccessOutputStreamTestBase<T extends OutputStream & 
         val s = createInstance(newArray());
         AssertExtensions.assertThrows(
                 "subStream() allowed writing at negative position.",
-                () -> s.subStream(-1, 1),
+                (AssertExtensions.RunnableWithException) () -> s.subStream(-1, 1),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         AssertExtensions.assertThrows(
                 "write() allowed writing overflow position.",
-                () -> s.subStream(INITIAL_LENGTH, 1),
+                (AssertExtensions.RunnableWithException) () -> s.subStream(INITIAL_LENGTH, 1),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         AssertExtensions.assertThrows(
                 "subStream() allowed writing overflow position + length.",
-                () -> s.subStream(INITIAL_LENGTH - 1, writeLength),
+                (AssertExtensions.RunnableWithException) () -> s.subStream(INITIAL_LENGTH - 1, writeLength),
                 ex -> ex instanceof IndexOutOfBoundsException);
 
         for (int i = 0; i < expectedData.length - writeLength; i += 2 * writeLength) {

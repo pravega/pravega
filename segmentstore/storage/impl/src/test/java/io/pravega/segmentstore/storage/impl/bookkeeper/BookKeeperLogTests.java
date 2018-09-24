@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -205,7 +206,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 // WriteFailureException (general unable to write) should be thrown.
                 AssertExtensions.assertThrows(
                         "First write did not fail with the appropriate exception.",
-                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
+                        (Supplier<CompletableFuture<LogAddress>>) () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
                                 && (ex.getCause() instanceof DataLogNotAvailableException
                                 || isLedgerClosedException(ex.getCause()))
@@ -215,7 +216,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
                 AssertExtensions.assertThrows(
                         "Second write did not fail with the appropriate exception.",
-                        () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
+                        (Supplier<CompletableFuture<LogAddress>>) () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof ObjectClosedException
                                 || ex instanceof CancellationException);
             } finally {
@@ -291,7 +292,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 for (val f: appendFutures) {
                     AssertExtensions.assertThrows(
                             "Write did not fail correctly.",
-                            () -> f.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                            (AssertExtensions.RunnableWithException) () -> f.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
                             ex -> {
                                 cancellationEncountered.set(cancellationEncountered.get() || ex instanceof CancellationException);
                                 if (cancellationEncountered.get()) {
@@ -357,7 +358,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
             } else {
                 AssertExtensions.assertThrows(
                         "Ledger not deleted from BookKeeper.",
-                        () -> Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get()),
+                        (AssertExtensions.RunnableWithException) () -> Ledgers.openFence(e.getKey(), this.factory.get().getBookKeeperClient(), this.config.get()),
                         ex -> true);
             }
         }

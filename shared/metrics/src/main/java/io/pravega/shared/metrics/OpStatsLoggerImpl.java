@@ -51,6 +51,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // deprecated since Java 10
     protected void finalize() {
         close();
     }

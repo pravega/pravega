@@ -56,7 +56,7 @@ public class IdleSegmentTest {
         this.serviceBuilder.close();
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 20000)
     public void testByteBufferEventsWithIdleSegments() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "abc";

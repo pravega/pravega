@@ -50,19 +50,19 @@ public class RollingSegmentHandleTests {
         // Active handles.
         AssertExtensions.assertThrows(
                 "setActiveChunkHandle accepted a handle when no SegmentChunks are registered.",
-                () -> h.setActiveChunkHandle(new TestHandle("foo", false)),
+                (AssertExtensions.RunnableWithException) () -> h.setActiveChunkHandle(new TestHandle("foo", false)),
                 ex -> ex instanceof IllegalStateException);
 
         val chunkName = "Chunk";
         h.addChunk(new SegmentChunk(chunkName, 0L), new TestHandle(chunkName, false));
         AssertExtensions.assertThrows(
                 "setActiveChunkHandle accepted a handle that does not match the last SegmentChunk's name.",
-                () -> h.setActiveChunkHandle(new TestHandle("foo", false)),
+                (AssertExtensions.RunnableWithException) () -> h.setActiveChunkHandle(new TestHandle("foo", false)),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
                 "setActiveChunkHandle accepted a read-only handle.",
-                () -> h.setActiveChunkHandle(new TestHandle(chunkName, true)),
+                (AssertExtensions.RunnableWithException) () -> h.setActiveChunkHandle(new TestHandle(chunkName, true)),
                 ex -> ex instanceof IllegalArgumentException);
 
         val activeHandle = new TestHandle(chunkName, false);
@@ -93,15 +93,15 @@ public class RollingSegmentHandleTests {
 
         AssertExtensions.assertThrows(
                 "addChunk allowed adding a null ActiveSegmentHandle.",
-                () -> h.addChunk(new SegmentChunk("s", 0L), null),
+                (AssertExtensions.RunnableWithException) () -> h.addChunk(new SegmentChunk("s", 0L), null),
                 ex -> ex instanceof NullPointerException);
         AssertExtensions.assertThrows(
                 "addChunk allowed adding a read-only ActiveSegmentHandle.",
-                () -> h.addChunk(new SegmentChunk("s", 0L), new TestHandle("s", true)),
+                (AssertExtensions.RunnableWithException) () -> h.addChunk(new SegmentChunk("s", 0L), new TestHandle("s", true)),
                 ex -> ex instanceof IllegalArgumentException);
         AssertExtensions.assertThrows(
                 "addChunk allowed adding an ActiveSegmentHandle with different name..",
-                () -> h.addChunk(new SegmentChunk("s", 0L), new TestHandle("s2", false)),
+                (AssertExtensions.RunnableWithException) () -> h.addChunk(new SegmentChunk("s", 0L), new TestHandle("s2", false)),
                 ex -> ex instanceof IllegalArgumentException);
         Assert.assertEquals("Not expecting any SegmentChunks to be added.", 0, h.chunks().size());
         Assert.assertNull("Not expecting the Active SegmentChunk handle to be set.", h.getActiveChunkHandle());
@@ -116,7 +116,7 @@ public class RollingSegmentHandleTests {
         Assert.assertEquals("Unexpected lastChunk.", chunk, h.lastChunk());
 
         AssertExtensions.assertThrows("addChunk allowed adding a SegmentChunk that is not contiguous.",
-                () -> h.addChunk(new SegmentChunk("s2", chunk.getLastOffset() + 1), new TestHandle("s2", false)),
+                (AssertExtensions.RunnableWithException) () -> h.addChunk(new SegmentChunk("s2", chunk.getLastOffset() + 1), new TestHandle("s2", false)),
                 ex -> ex instanceof IllegalArgumentException);
 
         chunk.markInexistent();
@@ -146,7 +146,7 @@ public class RollingSegmentHandleTests {
         firstBadList.get(0).setLength(9);
         AssertExtensions.assertThrows(
                 "addChunks allowed an incontiguous list of SegmentChunks to be added.",
-                () -> h.addChunks(firstBadList),
+                (AssertExtensions.RunnableWithException) () -> h.addChunks(firstBadList),
                 ex -> ex instanceof IllegalArgumentException);
         Assert.assertEquals("Not expecting any SegmentChunks to be added.", 0, h.chunks().size());
         Assert.assertEquals("Unexpected length().", 0, h.length());
@@ -166,7 +166,7 @@ public class RollingSegmentHandleTests {
         secondBadList.get(0).setLength(2);
         AssertExtensions.assertThrows(
                 "addChunks allowed an incontiguous list of SegmentChunks to be added.",
-                () -> h.addChunks(secondBadList),
+                (AssertExtensions.RunnableWithException) () -> h.addChunks(secondBadList),
                 ex -> ex instanceof IllegalArgumentException);
     }
 

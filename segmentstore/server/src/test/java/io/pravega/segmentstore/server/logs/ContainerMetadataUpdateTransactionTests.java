@@ -131,7 +131,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("Transaction should not be merged in metadata (yet).", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is merged (in transaction).",
-                () -> txn2.preProcessOperation(transactionAppendOp),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(transactionAppendOp),
                 ex -> ex instanceof StreamSegmentMergedException);
 
         // When StreamSegment is merged (via metadata).
@@ -139,7 +139,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertTrue("Transaction should have been merged in metadata.", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is merged (in metadata).",
-                () -> txn2.preProcessOperation(transactionAppendOp),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(transactionAppendOp),
                 ex -> ex instanceof StreamSegmentMergedException);
 
         // When StreamSegment is sealed (via transaction).
@@ -149,7 +149,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("StreamSegment should not be sealed in metadata (yet).", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is sealed (in transaction).",
-                () -> txn2.preProcessOperation(createAppendNoOffset()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createAppendNoOffset()),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         // When StreamSegment is sealed (via metadata).
@@ -157,7 +157,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertTrue("StreamSegment should have been sealed in metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Append) when Segment is sealed (in metadata).",
-                () -> txn2.preProcessOperation(createAppendNoOffset()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createAppendNoOffset()),
                 ex -> ex instanceof StreamSegmentSealedException);
     }
 
@@ -173,7 +173,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // When no pre-process has happened.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from acceptOperation() when no pre-processing was made.",
-                () -> txn.acceptOperation(appendOp),
+                (AssertExtensions.RunnableWithException) () -> txn.acceptOperation(appendOp),
                 ex -> ex instanceof MetadataUpdateException);
 
         Assert.assertEquals("acceptOperation updated the transaction even if it threw an exception.",
@@ -230,11 +230,11 @@ public class ContainerMetadataUpdateTransactionTests {
         StreamSegmentAppendOperation badAppendOp = createAppendWithOffset(offset);
         AssertExtensions.assertThrows(
                 "preProcessOperations accepted an append with the wrong offset.",
-                () -> txn.preProcessOperation(badAppendOp),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(badAppendOp),
                 ex -> ex instanceof BadOffsetException);
         AssertExtensions.assertThrows(
                 "acceptOperation accepted an append that was rejected during preProcessing.",
-                () -> txn.acceptOperation(badAppendOp),
+                (AssertExtensions.RunnableWithException) () -> txn.acceptOperation(badAppendOp),
                 ex -> ex instanceof MetadataUpdateException);
     }
 
@@ -363,7 +363,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.ReplaceIfEquals, 0, 0));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> exceptionChecker.apply(ex, true));
 
         // Append #1.
@@ -383,7 +383,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEqualsNullValue, AttributeUpdateType.ReplaceIfEquals, 1, 1));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to CAS-update an attribute with no previous value.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> exceptionChecker.apply(ex, false));
 
         // Append #2: Try to update attribute that cannot be updated.
@@ -391,7 +391,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeNoUpdate, AttributeUpdateType.None, 3));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an unmodifiable attribute.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> exceptionChecker.apply(ex, false));
 
         // Append #3: Try to update attribute with bad value for ReplaceIfGreater attribute.
@@ -399,7 +399,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, 1));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong value for ReplaceIfGreater.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> exceptionChecker.apply(ex, false));
 
         // Append #4: Try to update attribute with bad value for ReplaceIfEquals attribute.
@@ -407,7 +407,7 @@ public class ContainerMetadataUpdateTransactionTests {
         attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals, AttributeUpdateType.ReplaceIfEquals, 3, 3));
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted an operation that was trying to update an attribute with the wrong comparison value for ReplaceIfGreater.",
-                () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createOperation.apply(attributeUpdates)),
                 ex -> exceptionChecker.apply(ex, false));
 
         // Reset the attribute update list to its original state so we can do the final verification.
@@ -472,7 +472,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("Transaction should not be merged in metadata (yet).", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Seal) when Segment is merged (in transaction).",
-                () -> txn2.preProcessOperation(transactionSealOp),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(transactionSealOp),
                 ex -> ex instanceof StreamSegmentMergedException);
 
         // When StreamSegment is merged (via metadata).
@@ -480,7 +480,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertTrue("Transaction should have been merged in metadata.", metadata.getStreamSegmentMetadata(SEALED_SOURCE_ID).isMerged());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Seal) when Segment is merged (in metadata).",
-                () -> txn2.preProcessOperation(transactionSealOp),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(transactionSealOp),
                 ex -> ex instanceof StreamSegmentMergedException);
 
         // When StreamSegment is sealed (via transaction).
@@ -488,7 +488,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertFalse("StreamSegment should not be sealed in metadata (yet).", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Seal) when Segment is sealed (in transaction).",
-                () -> txn2.preProcessOperation(createSeal()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createSeal()),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         // When StreamSegment is sealed (via metadata).
@@ -496,7 +496,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertTrue("StreamSegment should have been sealed in metadata.", metadata.getStreamSegmentMetadata(SEGMENT_ID).isSealed());
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Seal) when Segment is sealed (in metadata).",
-                () -> txn2.preProcessOperation(createSeal()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createSeal()),
                 ex -> ex instanceof StreamSegmentSealedException);
     }
 
@@ -518,7 +518,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // When no pre-process has happened.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from acceptOperation() when no pre-processing was made.",
-                () -> txn.acceptOperation(sealOp),
+                (AssertExtensions.RunnableWithException) () -> txn.acceptOperation(sealOp),
                 ex -> ex instanceof MetadataUpdateException);
 
         Assert.assertFalse("acceptOperation updated the transaction even if it threw an exception.",
@@ -556,7 +556,7 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn = createUpdateTransaction(metadata);
         AssertExtensions.assertThrows(
                 "preProcess did not throw when offset is too large.",
-                () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH + 1)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH + 1)),
                 ex -> ex instanceof BadOffsetException);
 
         // Actually truncate the segment, and re-verify bounds.
@@ -567,11 +567,11 @@ public class ContainerMetadataUpdateTransactionTests {
 
         AssertExtensions.assertThrows(
                 "preProcess did not throw when offset is too small (on truncated segment).",
-                () -> txn.preProcessOperation(createTruncate(op1.getStreamSegmentOffset() - 1)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createTruncate(op1.getStreamSegmentOffset() - 1)),
                 ex -> ex instanceof BadOffsetException);
         AssertExtensions.assertThrows(
                 "preProcess did not throw when offset is too large (on truncated segment).",
-                () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH + 1)),
+                (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(createTruncate(SEGMENT_LENGTH + 1)),
                 ex -> ex instanceof BadOffsetException);
 
         // Now verify that a valid offset does work (not throwing means the test passes).
@@ -610,11 +610,11 @@ public class ContainerMetadataUpdateTransactionTests {
         // Attempt some more invalid truncate operations.
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted a truncate operation with wrong offset (smaller).",
-                () -> txn1.preProcessOperation(createTruncate(truncateOffset - 1)),
+                (AssertExtensions.RunnableWithException) () -> txn1.preProcessOperation(createTruncate(truncateOffset - 1)),
                 ex -> ex instanceof BadOffsetException);
         AssertExtensions.assertThrows(
                 "preProcessOperation accepted a truncate operation with wrong offset (larger).",
-                () -> txn1.preProcessOperation(createTruncate(truncateOffset + append.getLength())),
+                (AssertExtensions.RunnableWithException) () -> txn1.preProcessOperation(createTruncate(truncateOffset + append.getLength())),
                 ex -> ex instanceof BadOffsetException);
 
         // Verify the Update Transaction has been updated, but the metadata has not yet been touched.
@@ -670,7 +670,7 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn1 = createUpdateTransaction(metadata);
         AssertExtensions.assertThrows(
                 "preProcess(Merge) handled an operation with no Transaction StreamSegment Length set.",
-                () -> txn1.preProcessOperation(createMerge()),
+                (AssertExtensions.RunnableWithException) () -> txn1.preProcessOperation(createMerge()),
                 ex -> ex instanceof MetadataUpdateException);
 
         // In recovery mode, the updater does not set the length; it just validates that it has one.
@@ -705,7 +705,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.acceptOperation(sealTargetOp);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Target StreamSegment is sealed.",
-                () -> txn2.preProcessOperation(createMerge()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createMerge()),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         txn2.clear(); // Rollback the seal
@@ -714,7 +714,7 @@ public class ContainerMetadataUpdateTransactionTests {
         MergeSegmentOperation mergeNonSealed = new MergeSegmentOperation(NOTSEALED_SOURCE_ID, SEGMENT_ID);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Transaction StreamSegment is not sealed.",
-                () -> txn2.preProcessOperation(mergeNonSealed),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(mergeNonSealed),
                 ex -> ex instanceof StreamSegmentNotSealedException);
 
         // When Transaction is already merged.
@@ -722,13 +722,13 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.acceptOperation(mergeOp);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Transaction StreamSegment is already merged (in transaction).",
-                () -> txn2.preProcessOperation(createMerge()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createMerge()),
                 ex -> ex instanceof StreamSegmentMergedException);
 
         txn2.commit(metadata);
         AssertExtensions.assertThrows(
                 "Unexpected behavior for preProcess(Merge) when Transaction StreamSegment is already merged (in metadata).",
-                () -> txn2.preProcessOperation(createMerge()),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createMerge()),
                 ex -> ex instanceof StreamSegmentMergedException);
     }
 
@@ -744,7 +744,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // When no pre-process has happened
         AssertExtensions.assertThrows(
                 "Unexpected behavior from acceptOperation() when no pre-processing was made.",
-                () -> txn.acceptOperation(mergeOp),
+                (AssertExtensions.RunnableWithException) () -> txn.acceptOperation(mergeOp),
                 ex -> ex instanceof MetadataUpdateException);
 
         Assert.assertEquals("acceptOperation updated the transaction even if it threw an exception (target segment).",
@@ -812,7 +812,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // StreamSegmentName already exists (transaction) and we try to map with new id.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in transaction).",
-                () -> txn2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         // Make changes permanent.
@@ -825,7 +825,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // StreamSegmentName already exists (metadata) and we try to map with new id.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when a StreamSegment with the same Name already exists (in metadata).",
-                () -> txn2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
+                (AssertExtensions.RunnableWithException) () -> txn2.preProcessOperation(createMap(mapOp.getStreamSegmentName())),
                 ex -> ex instanceof MetadataUpdateException);
 
         val length = segmentMetadata.getLength() + 5;
@@ -877,7 +877,7 @@ public class ContainerMetadataUpdateTransactionTests {
         // Verify non-recovery mode.
         AssertExtensions.assertThrows(
                 "Unexpected behavior from preProcessOperation when attempting to map a StreamSegment that would exceed the active segment quota.",
-                () -> txn1.preProcessOperation(createMap("foo")),
+                (AssertExtensions.RunnableWithException) () -> txn1.preProcessOperation(createMap("foo")),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
         // Verify recovery mode.
@@ -1066,12 +1066,12 @@ public class ContainerMetadataUpdateTransactionTests {
         for (StorageOperation op : testOperations) {
             AssertExtensions.assertThrows(
                     "Unexpected behavior from preProcessOperation when processing an operation for a non-existent Segment: " + op,
-                    () -> txn.preProcessOperation(op),
+                    (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(op),
                     ex -> ex instanceof MetadataUpdateException);
 
             AssertExtensions.assertThrows(
                     "Unexpected behavior from acceptOperation when processing an operation for a non-existent Segment: " + op,
-                    () -> txn.acceptOperation(op),
+                    (AssertExtensions.RunnableWithException) () -> txn.acceptOperation(op),
                     ex -> ex instanceof MetadataUpdateException);
         }
 
@@ -1082,7 +1082,7 @@ public class ContainerMetadataUpdateTransactionTests {
         for (StorageOperation op : testOperations) {
             AssertExtensions.assertThrows(
                     "Unexpected behavior from preProcessOperation when processing an operation for deleted Segment: " + op,
-                    () -> txn.preProcessOperation(op),
+                    (AssertExtensions.RunnableWithException) () -> txn.preProcessOperation(op),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }
     }
@@ -1217,7 +1217,7 @@ public class ContainerMetadataUpdateTransactionTests {
         val txn2 = createUpdateTransaction(metadata);
         AssertExtensions.assertThrows(
                 "setOperationSequence number should not work in non-recovery mode.",
-                () -> txn2.setOperationSequenceNumber(newSeqNo + 10),
+                (AssertExtensions.RunnableWithException) () -> txn2.setOperationSequenceNumber(newSeqNo + 10),
                 ex -> ex instanceof IllegalStateException);
     }
 

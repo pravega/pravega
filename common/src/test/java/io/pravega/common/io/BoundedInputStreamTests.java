@@ -94,7 +94,7 @@ public class BoundedInputStreamTests {
 
         AssertExtensions.assertThrows(
                 "subStream allowed a larger bound than available.",
-                () -> bis.subStream(bound + 1),
+                (AssertExtensions.RunnableWithException) () -> bis.subStream(bound + 1),
                 ex -> ex instanceof IllegalArgumentException);
 
         int size = 0;

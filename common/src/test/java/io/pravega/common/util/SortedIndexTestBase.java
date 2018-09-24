@@ -248,17 +248,17 @@ abstract class SortedIndexTestBase {
         // Verify that modifying the index while looping through it does throw an exception.
         AssertExtensions.assertThrows(
                 "forEach did not throw when a new item was added during enumeration.",
-                () -> index.forEach(e -> index.put(new TestEntry(index.size()))),
+                (AssertExtensions.RunnableWithException) () -> index.forEach(e -> index.put(new TestEntry(index.size()))),
                 ex -> ex instanceof ConcurrentModificationException);
 
         AssertExtensions.assertThrows(
                 "forEach did not throw when an item was removed during enumeration.",
-                () -> index.forEach(e -> index.remove(e.key())),
+                (AssertExtensions.RunnableWithException) () -> index.forEach(e -> index.remove(e.key())),
                 ex -> ex instanceof ConcurrentModificationException);
 
         AssertExtensions.assertThrows(
                 "forEach did not throw when the index was cleared during enumeration.",
-                () -> index.forEach(e -> index.clear()),
+                (AssertExtensions.RunnableWithException) () -> index.forEach(e -> index.clear()),
                 ex -> ex instanceof ConcurrentModificationException);
     }
 

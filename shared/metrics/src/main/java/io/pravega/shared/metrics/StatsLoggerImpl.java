@@ -98,6 +98,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
+        @SuppressWarnings("deprecation") // deprecated since Java 10
         protected void finalize() {
             close();
         }
@@ -147,6 +148,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
+        @SuppressWarnings("deprecation") // deprecated since Java 10
         protected void finalize() {
             close();
         }
@@ -168,6 +170,7 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
+        @SuppressWarnings("deprecation") // deprecated since Java 10
         protected void finalize() {
             close();
         }

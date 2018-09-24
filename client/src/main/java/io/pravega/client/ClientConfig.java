@@ -107,7 +107,9 @@ public class ClientConfig implements Serializable {
          *     setting property `pravega.client.auth.loadDynamic` to true.
          */
         private void extractCredentials() {
-            extractCredentials(System.getProperties(), System.getenv());
+            // an explicit cast of getenv() is needed while compiling on Java 10
+            // otherwise Lombok fails with an unknown error
+            extractCredentials(System.getProperties(), (Map<String, String>) System.getenv());
         }
 
         @VisibleForTesting

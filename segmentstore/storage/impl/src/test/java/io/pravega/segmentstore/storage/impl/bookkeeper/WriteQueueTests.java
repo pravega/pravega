@@ -91,11 +91,11 @@ public class WriteQueueTests {
 
         AssertExtensions.assertThrows(
                 "add() worked after close().",
-                () -> q.add(new Write(new ByteArraySegment(new byte[1]), new TestWriteLedger(0), CompletableFuture.completedFuture(null))),
+                (AssertExtensions.RunnableWithException) () -> q.add(new Write(new ByteArraySegment(new byte[1]), new TestWriteLedger(0), CompletableFuture.completedFuture(null))),
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows(
                 "getWritesToExecute() worked after close().",
-                () -> q.getWritesToExecute(1),
+                (AssertExtensions.RunnableWithException) () -> q.getWritesToExecute(1),
                 ex -> ex instanceof ObjectClosedException);
         AssertExtensions.assertThrows(
                 "removeFinishedWrites() worked after close().",

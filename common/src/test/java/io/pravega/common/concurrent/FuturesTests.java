@@ -330,7 +330,7 @@ public class FuturesTests {
         val toFail3 = new CompletableFuture<Integer>();
         AssertExtensions.assertThrows(
                 "Sync exception did not get rethrown.",
-                () -> Futures.completeAfter(() -> {
+                (AssertExtensions.RunnableWithException) () -> Futures.completeAfter(() -> {
                     throw new IntentionalException();
                 }, toFail3),
                 ex -> ex instanceof IntentionalException);

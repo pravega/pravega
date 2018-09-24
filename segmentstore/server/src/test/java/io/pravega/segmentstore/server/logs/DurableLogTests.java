@@ -448,7 +448,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Wait for the service to fail (and make sure it failed).
         AssertExtensions.assertThrows(
                 "DurableLog did not shut down with failure.",
-                () -> ServiceListeners.awaitShutdown(durableLog, true),
+                (AssertExtensions.RunnableWithException) () -> ServiceListeners.awaitShutdown(durableLog, true),
                 ex -> ex instanceof IllegalStateException);
 
         Assert.assertEquals("Unexpected service state after encountering DataCorruptionException.", Service.State.FAILED, durableLog.state());
@@ -874,7 +874,7 @@ public class DurableLogTests extends OperationLogTestBase {
             val disabledDataLog = dataLogFactory.createDurableDataLog(CONTAINER_ID);
             AssertExtensions.assertThrows(
                     "DurableDataLog has not been disabled following a recovery failure with DataCorruptionException.",
-                    () -> disabledDataLog.initialize(TIMEOUT),
+                    (AssertExtensions.RunnableWithException) () -> disabledDataLog.initialize(TIMEOUT),
                     ex -> ex instanceof DataLogDisabledException);
         }
     }

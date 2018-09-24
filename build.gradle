@@ -433,6 +433,8 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+        // Since Java 10 javax.annotation is no more bundled with the JRE
+        compile group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
 
     javadoc {
@@ -498,6 +500,9 @@ project('controller') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+        // since Java 10 JAXB is not more bundled with the JRE
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
 
     }
 

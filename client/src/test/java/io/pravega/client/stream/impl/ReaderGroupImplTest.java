@@ -154,6 +154,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void initiateCheckpointFailure() {
         when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(false);
         CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
@@ -166,6 +167,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void initiateCheckpointSuccess() {
         when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
         CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);

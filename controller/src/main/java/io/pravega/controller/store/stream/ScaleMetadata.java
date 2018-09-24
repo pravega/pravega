@@ -12,23 +12,27 @@ package io.pravega.controller.store.stream;
 import lombok.Data;
 
 import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ScaleMetadata {
     /**
      * Time of scale operation.
      */
-    private final long timestamp;
+    private long timestamp;
     /**
      * Active Segments after the scale operation.
      */
-    private final List<Segment> segments;
+    private List<Segment> segments;
     /**
      * Number of splits performed as part of scale operation.
      */
-    private final long splits;
+    private long splits;
     /**
      * Number of merges performed as part of scale operation.
      */
-    private final long merges;
+    private long merges;
 }
