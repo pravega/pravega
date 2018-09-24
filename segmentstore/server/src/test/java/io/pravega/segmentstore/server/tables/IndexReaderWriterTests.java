@@ -115,7 +115,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         int bucketCount = 5;
         int hashesPerBucket = 5;
         val hashToBuckets = new HashMap<KeyHash, TableBucket>();
-        val bucketsToKeys = new HashMap<TableBucket, ArrayList<KeyUpdate>>();
+        val bucketsToKeys = new HashMap<TableBucket, ArrayList<BucketUpdate.KeyUpdate>>();
         val rnd = new Random(0);
         for (int i = 0; i < bucketCount; i++) {
             val bucket = TableBucket.builder()
@@ -123,13 +123,13 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                     .build();
 
             // Keep track of all KeyUpdates for this bucket.
-            val keyUpdates = new ArrayList<KeyUpdate>();
+            val keyUpdates = new ArrayList<BucketUpdate.KeyUpdate>();
             bucketsToKeys.put(bucket, keyUpdates);
 
             // Generate keys, and record them where needed.
             for (int j = 0; j < hashesPerBucket; j++) {
                 byte[] key = new byte[KeyHashers.HASH_CONFIG.getMinHashLengthBytes() * 4];
-                keyUpdates.add(new KeyUpdate(new HashedArray(key), i * hashesPerBucket + j, true));
+                keyUpdates.add(new BucketUpdate.KeyUpdate(new HashedArray(key), i * hashesPerBucket + j, true));
                 rnd.nextBytes(key);
                 hashToBuckets.put(KeyHashers.DEFAULT_HASHER.hash(key), bucket);
             }
@@ -137,14 +137,14 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
         // Group updates by bucket. Since we override locateBucket, we do not need a segment access, hence safe to pass null.
         val w = new CustomLocateBucketIndexer(KeyHashers.DEFAULT_HASHER, executorService(), hashToBuckets);
-        val allKeyUpdates = new ArrayList<KeyUpdate>();
+        val allKeyUpdates = new ArrayList<BucketUpdate.KeyUpdate>();
         bucketsToKeys.values().forEach(allKeyUpdates::addAll);
         val bucketUpdates = w.groupByBucket(allKeyUpdates, null, new TimeoutTimer(TIMEOUT)).join();
 
         Assert.assertEquals("Unexpected number of Bucket Updates.", bucketCount, bucketUpdates.size());
         for (BucketUpdate bu : bucketUpdates) {
             Assert.assertTrue("Not expecting Existing Keys to be populated.", bu.getExistingKeys().isEmpty());
-            ArrayList<KeyUpdate> expected = bucketsToKeys.get(bu.getBucket());
+            val expected = bucketsToKeys.get(bu.getBucket());
             Assert.assertNotNull("Found extra bucket.", expected);
             AssertExtensions.assertContainsSameElements("Unexpected updates grouped.",
                     expected, bu.getKeyUpdates(),
@@ -390,8 +390,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val timer = new TimeoutTimer(TIMEOUT);
 
         val keyUpdates = keysWithOffset.entrySet().stream()
-                                       .map(e -> new KeyUpdate(e.getKey(), decodeOffset(e.getValue()), isRemoveOffset(e.getValue())))
-                                       .sorted(Comparator.comparingLong(KeyUpdate::getOffset))
+                                       .map(e -> new BucketUpdate.KeyUpdate(e.getKey(), decodeOffset(e.getValue()), isRemoveOffset(e.getValue())))
+                                       .sorted(Comparator.comparingLong(BucketUpdate.KeyUpdate::getOffset))
                                        .collect(Collectors.toList());
 
         // This is the value that we will set TABLE_INDEX_NODE to. It is not any key's offset (and we don't really care what its value is)
@@ -408,7 +408,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
              .forEach(offset -> {
                  HashedArray existingKey = existingKeys.getOrDefault(offset, null);
                  Assert.assertNotNull("Existing bucket points to non-existing key.", existingKey);
-                 bu.withExistingKey(new KeyInfo(existingKey, offset));
+                 bu.withExistingKey(new BucketUpdate.KeyInfo(existingKey, offset));
 
                 // Key replacement; remove this offset.
                 if (keysWithOffset.containsKey(existingKey)) {
@@ -444,7 +444,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val existingKeys = existingKeysByOffset.entrySet().stream()
                                                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
         val keysByHash = allKeys.stream()
-                                .map(key -> new KeyInfo(key, existingKeys.getOrDefault(key, NO_OFFSET)))
+                                .map(key -> new BucketUpdate.KeyInfo(key, existingKeys.getOrDefault(key, NO_OFFSET)))
                                 .sorted((k1, k2) -> Long.compare(k2.getOffset(), k1.getOffset())) // Reverse order.
                                 .collect(Collectors.groupingBy(keyInfo -> hasher.hash(keyInfo.getKey())));
         val buckets = w.locateBuckets(keysByHash.keySet(), segment, timer).join();
