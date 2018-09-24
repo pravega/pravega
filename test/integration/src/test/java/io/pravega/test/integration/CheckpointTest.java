@@ -292,15 +292,21 @@ public class CheckpointTest {
                     .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit"));
         }
 
-        EventRead<String> read = reader1.readNextEvent(60000);
+        EventRead<String> read = reader1.readNextEvent(100);
         assertTrue(read.isCheckpoint());
         assertEquals("Checkpoint1", read.getCheckpointName());
         assertNull(read.getEvent());
 
-        read = reader2.readNextEvent(60000);
+        read = reader2.readNextEvent(100);
         assertTrue(read.isCheckpoint());
         assertEquals("Checkpoint1", read.getCheckpointName());
         assertNull(read.getEvent());
+
+        read = reader1.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+
+        read = reader2.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
 
         Checkpoint cpResult = checkpoint1.get(5, TimeUnit.SECONDS);
         assertTrue(checkpoint1.isDone());
