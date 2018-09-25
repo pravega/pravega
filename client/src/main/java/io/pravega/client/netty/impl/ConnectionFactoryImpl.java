@@ -170,7 +170,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                     if (future.isSuccess()) {
                         //since ChannelFuture is complete future.channel() is not a blocking call.
                         Channel ch = future.channel();
-                        log.debug("==> Connect operation completed for channel:{}, local address:{}, remote address:{}",
+                        log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                                 ch.id(), ch.localAddress(), ch.remoteAddress());
                         allChannels.add(ch); // Once a channel is closed the channel group implementation removes it.
                         connectionComplete.complete(handler);
