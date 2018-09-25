@@ -37,7 +37,7 @@ public class RequestTracker {
         return Stream.of(requestInfo).collect(Collectors.joining("-"));
     }
 
-    public synchronized long getRequestIdFor(String...requestInfo) {
+    public long getRequestIdFor(String...requestInfo) {
         return getRequestIdFor(RequestTracker.createRPCRequestDescriptor(requestInfo));
     }
 
@@ -56,7 +56,7 @@ public class RequestTracker {
         return ongoingRequests.get(requestDescriptor).get(0);
     }
 
-    public synchronized void trackRequest(RequestTag requestTag) {
+    public void trackRequest(RequestTag requestTag) {
         trackRequest(requestTag.getRequestDescriptor(), requestTag.getRequestId());
     }
 
@@ -78,17 +78,18 @@ public class RequestTracker {
             return deletedValue;
         }
 
-        deletedValue = ongoingRequests.remove(key).get(0);
+        deletedValue = ongoingRequests.get(key).get(0);
         if (ongoingRequests.get(key).size() < 2) {
             ongoingRequests.remove(key);
         } else {
+            // In the case of having parallel requests with the same key, we cannot distinguish among them (delete first).
             ongoingRequests.compute(key, (k, v) -> {
-                // In the case of having parallel requests with the same key, we cannot distinguish among them.
                 v.remove(0);
                 return v;
             });
         }
 
+        log.info("Untracking request {} with id {}", key, deletedValue);
         return deletedValue;
     }
 }
