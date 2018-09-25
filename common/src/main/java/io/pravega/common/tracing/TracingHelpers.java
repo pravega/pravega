@@ -95,13 +95,13 @@ public class TracingHelpers {
                 public void start(Listener<RespT> responseListener, Metadata headers) {
                     // Get the MDC context previously set by the client and attach that information to the RPC request.
                     Map<String, String> requestInfo = MDC.getCopyOfContextMap();
-                    if (requestInfo != null && requestInfo.get(THREAD_ID).equals(String.valueOf(Thread.currentThread().getId()))) {
+                    if (requestInfo != null && requestInfo.containsKey(THREAD_ID) && requestInfo.get(THREAD_ID).equals(String.valueOf(Thread.currentThread().getId()))) {
                         headers.put(CUSTOM_HEADER_KEY, String.valueOf(requestInfo.get(REQUEST_DESCRIPTOR)));
                         headers.put(CUSTOM_HEADER_VALUE, String.valueOf(requestInfo.get(REQUEST_ID)));
                         log.info("[requestId={}] Tagging RPC request {} at thread {}.", requestInfo.get(REQUEST_ID),
                                 requestInfo.get(REQUEST_DESCRIPTOR), Thread.currentThread().getId());
                     } else {
-                        log.warn("Not tagging request: MDC {} not containing proper information or executed by another thread {}.",
+                        log.warn("Not tagging request: MDC {} not containing proper information or executed by another thread.",
                                 requestInfo, Thread.currentThread());
                     }
 

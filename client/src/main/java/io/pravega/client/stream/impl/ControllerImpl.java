@@ -175,9 +175,10 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "createScope", scopeName);
 
         final CompletableFuture<CreateScopeStatus> result = this.retryConfig.runAsync(() -> {
-                RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>(traceId, "createScope");
-                client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
-                return callback.getFuture();
+            TracingHelpers.attachTagToRPCRequest(traceId, "createScope", scopeName);
+            RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>(traceId, "createScope");
+            client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
                 switch (x.getStatus()) {
@@ -212,6 +213,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "deleteScope", scopeName);
 
         final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
+            TracingHelpers.attachTagToRPCRequest(traceId, "deleteScope", scopeName);
             RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(traceId, "deleteScope");
             client.deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
@@ -250,6 +252,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "createStream", streamConfig);
 
         final CompletableFuture<CreateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            TracingHelpers.attachTagToRPCRequest(traceId, "createStream", streamConfig.getScope(), streamConfig.getStreamName());
             RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "createStream");
             client.createStream(ModelHelper.decode(streamConfig), callback);
             return callback.getFuture();
@@ -291,6 +294,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "updateStream", streamConfig);
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            TracingHelpers.attachTagToRPCRequest(traceId, "updateStream", streamConfig.getScope(), streamConfig.getStreamName());
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "updateStream");
             client.updateStream(ModelHelper.decode(streamConfig), callback);
             return callback.getFuture();
@@ -333,6 +337,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            TracingHelpers.attachTagToRPCRequest(traceId, "truncateStream", scope, stream);
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "truncateStream");
             client.truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
             return callback.getFuture();
@@ -496,6 +501,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "sealStream", scope, streamName);
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
+            TracingHelpers.attachTagToRPCRequest(traceId, "sealStream", scope, streamName);
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "sealStream");
             client.sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
@@ -535,6 +541,7 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "deleteStream", scope, streamName);
 
         final CompletableFuture<DeleteStreamStatus> result = this.retryConfig.runAsync(() -> {
+            TracingHelpers.attachTagToRPCRequest(traceId, "deleteStream", scope, streamName);
             RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>(traceId, "deleteStream");
             client.deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();

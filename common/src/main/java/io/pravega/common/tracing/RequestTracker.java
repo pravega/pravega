@@ -62,12 +62,13 @@ public class RequestTracker {
 
     public synchronized void trackRequest(String key, Long requestId) {
         Preconditions.checkArgument(key != null, "Attempting to track a null RPC request descriptor.");
-        log.info("Tracking request {} with id {}", key, requestId);
         ongoingRequests.putIfAbsent(key, new ArrayList<>());
         ongoingRequests.computeIfPresent(key, (k, v) -> {
             v.add(requestId);
             return v;
         });
+        log.info("Tracking request {} with id {}. Current ongoing requests: {}.", key, requestId,
+                ongoingRequests.values().stream().mapToInt(List::size).sum());
     }
 
     public synchronized long untrackRequest(String key) {
@@ -89,7 +90,8 @@ public class RequestTracker {
             });
         }
 
-        log.info("Untracking request {} with id {}", key, deletedValue);
+        log.info("Untracking request {} with id {}. Current ongoing requests: {}.", key, deletedValue,
+                ongoingRequests.values().stream().mapToInt(List::size).sum());
         return deletedValue;
     }
 }
