@@ -39,19 +39,19 @@ public final class MetricsNames {
     public static final String SEGMENT_WRITE_BYTES = "segmentstore.segment.write_bytes";          // Dynamic Counter
     public static final String SEGMENT_WRITE_EVENTS = "segmentstore.segment.write_events";        // Dynamic Counter
 
-    //storage stats
+    // Storage stats
     public static final String STORAGE_READ_LATENCY = "segmentstore.storage.read_latency_ms";   // Timer
     public static final String STORAGE_WRITE_LATENCY = "segmentstore.storage.write_latency_ms"; // Timer
     public static final String STORAGE_READ_BYTES = "segmentstore.storage.read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = "segmentstore.storage.write_bytes";        // Counter
 
-    //Cache (RocksDB) stats
+    // Cache (RocksDB) stats
     public static final String CACHE_INSERT_LATENCY = "segmentstore.cache.insert_latency_ms";
     public static final String CACHE_GET_LATENCY = "segment.store.cache.get_latency_ms";
     public static final String CACHE_TOTAL_SIZE_BYTES = "segmentstore.cache.size_bytes";
     public static final String CACHE_GENERATION_SPREAD = "segmentstore.cache.gen";
 
-    //DurableDataLog (Tier1) stats
+    // DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency_ms"; // Including Queue
     public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency_ms";  // Exclusively the write to BK.
     public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";
@@ -59,7 +59,7 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.bookkeeper.write_queue_fill";
     public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.bookkeeper_ledger_count";
 
-    //Segment container metrics
+    // Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = "segmentstore.container.append_count";
     public static final String CONTAINER_APPEND_OFFSET_COUNT = "segmentstore.container.append_offset_count";
     public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = "segmentstore.container.update_attributes_count";
@@ -72,7 +72,7 @@ public final class MetricsNames {
     public static final String CONTAINER_SEAL_COUNT = "segmentstore.container.seal_count";
     public static final String CONTAINER_TRUNCATE_COUNT = "segmentstore.container.truncate_count";
 
-    //Operation processor metrics
+    // Operation processor metrics
     public static final String PROCESS_OPERATIONS_LATENCY = "segmentstore.container.process_operations.latency_ms";
     public static final String PROCESS_OPERATIONS_BATCH_SIZE = "segmentstore.container.process_operations.batch_size";
     public static final String OPERATION_QUEUE_SIZE = "segmentstore.container.operation_queue.size";
