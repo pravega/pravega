@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ConcurrentDependentProcessor;
@@ -37,9 +36,14 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.val;
 
+/**
+ * A cache-backed, in-memory Table Index representation with pass-through updates. Enables Conditional Updates and caching
+ * of recently used Keys for faster access.
+ */
 @ThreadSafe
 class ContainerKeyIndex implements AutoCloseable {
     //region Members
+
     @Getter
     private final IndexReader indexReader;
     private final ScheduledExecutorService executor;
@@ -52,6 +56,14 @@ class ContainerKeyIndex implements AutoCloseable {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the ContainerKeyIndex class.
+     *
+     * @param containerId  Id of the SegmentContainer this instance is associated with.
+     * @param cacheFactory A {@link CacheFactory} that can be used to create Cache instances.
+     * @param cacheManager A {@link CacheManager} that can be used to manage Cache instances.
+     * @param executor     Executor for async operations.
+     */
     ContainerKeyIndex(int containerId, @NonNull CacheFactory cacheFactory, @NonNull CacheManager cacheManager, @NonNull ScheduledExecutorService executor) {
         this.cache = new ContainerKeyCache(containerId, cacheFactory);
         this.cacheManager = cacheManager;
@@ -161,21 +173,23 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     /**
-     * Performs a Batch Update.
+     * Performs a Batch Update or Removal.
      *
-     * If {@link TableKeyBatch#isConditional()} returns true, this will execute an atomic Conditional Update based on the
-     * condition items in the batch ({@link TableKeyBatch#versionedItems}. The entire TableKeyBatch will be conditioned on
-     * those items, including those items that do not have a condition set. The entire TableKeyBatch will either all be
-     * committed as one unit or not at all.
+     * If {@link TableKeyBatch#isConditional()} returns true, this will execute an atomic Conditional Update/Removal based
+     * on the condition items in the batch ({@link TableKeyBatch#versionedItems}. The entire TableKeyBatch will be
+     * conditioned on those items, including those items that do not have a condition set. The entire TableKeyBatch will
+     * either all be committed as one unit or not at all.
      *
-     * Otherwise this will perform an Unconditional Update, where all the Update Items will be applied regardless of
-     * whether they already exist or what their versions are.
+     * Otherwise this will perform an Unconditional Update/Removal, where all the {@link TableKeyBatch.Item}s in
+     * {@link TableKeyBatch#getItems()} will be applied regardless of whether they already exist or what their versions are.
      *
-     * @param segment The Segment to perform update on.
-     * @param batch   The TableKeyBatch to apply.
+     * @param segment The Segment to perform the update/removal on.
+     * @param batch   The {@link TableKeyBatch} to apply.
      * @param persist A Supplier that, when invoked, will persist the contents of the batch to the Segment and return
      *                a CompletableFuture to indicate when the operation is done, containing the offset at which the
-     *                batch has been written to the Segment.
+     *                batch has been written to the Segment. This Future must complete successfully before the effects
+     *                of the {@link TableKeyBatch} are applied to the in-memory Index or before downstream conditional
+     *                updates on the affected keys are initiated.
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain a list of offsets (within the Segment) where each
      * of the items in the batch has been persisted. If the update failed, it will be failed with the appropriate exception.
@@ -186,43 +200,6 @@ class ContainerKeyIndex implements AutoCloseable {
      * </ul>
      */
     CompletableFuture<List<Long>> update(DirectSegmentAccess segment, TableKeyBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
-        Preconditions.checkArgument(!batch.isRemoval(), "batch.isRemoval() must be false.");
-        return applyBatch(segment, batch, persist, timer);
-    }
-
-
-    /**
-     * Performs a Batch Removal.
-     *
-     * If {@link TableKeyBatch#isConditional()} returns true, this will execute an atomic Conditional Removal based on the
-     * condition items in the batch ({@link TableKeyBatch#versionedItems}. The entire TableKeyBatch will be conditioned on
-     * those items, including those items that do not have a condition set. The entire TableKeyBatch will either all be
-     * removed as one unit or not at all.
-     *
-     * Otherwise this will perform an Unconditional Removal, where all the Update Items will be applied regardless of
-     * whether they already exist or what their versions are.
-     *
-     * @param segment The Segment to perform removal on.
-     * @param batch   The TableKeyBatch to remove.
-     * @param persist A Supplier that, when invoked, will persist the contents of the batch to the Segment and return a
-     *                CompletableFuture to indicate when the operation is done, containing the offset at which the batch
-     *                has been written.
-     * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain a list of offsets (within the Segment) where each
-     * of the items in the batch has been persisted. If the update failed, it will be failed with the appropriate exception.
-     * Notable exceptions:
-     * <ul>
-     * <li>{@link KeyNotExistsException} If a Key in the TableKeyBatch does not exist and was conditioned as having to exist.
-     * <li>{@link BadKeyVersionException} If a Key does exist but had a version mismatch.
-     * </ul>
-     */
-    CompletableFuture<List<Long>> remove(DirectSegmentAccess segment, TableKeyBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
-        Preconditions.checkArgument(!batch.isRemoval(), "batch.isRemoval() must be false.");
-        return applyBatch(segment, batch, persist, timer);
-    }
-
-    private CompletableFuture<List<Long>> applyBatch(DirectSegmentAccess segment, TableKeyBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
-        // TODO: update() and remove() can be replaced with just this one.
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         if (batch.isConditional()) {
@@ -230,8 +207,8 @@ class ContainerKeyIndex implements AutoCloseable {
             // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
             // serialize execution across them.
             val keys = batch.getVersionedItems().stream()
-                            .map(item -> new ContainerKeyCache.CacheKey(segment.getSegmentId(), item.getHash()))
-                            .collect(Collectors.toList());
+                    .map(item -> new ContainerKeyCache.CacheKey(segment.getSegmentId(), item.getHash()))
+                    .collect(Collectors.toList());
 
             // Serialize the execution (queue it up to run only after all other currently queued up conditional updates
             // for touched keys have finished).
@@ -262,8 +239,8 @@ class ContainerKeyIndex implements AutoCloseable {
     private CompletableFuture<Void> validateConditionalUpdate(DirectSegmentAccess segment, TableKeyBatch batch, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         List<KeyHash> hashes = batch.getVersionedItems().stream()
-                                    .map(TableKeyBatch.Item::getHash)
-                                    .collect(Collectors.toList());
+                .map(TableKeyBatch.Item::getHash)
+                .collect(Collectors.toList());
         return getBucketOffsets(segment, hashes, timer)
                 .thenAccept(offsets -> validateConditionalUpdate(batch.getVersionedItems(), offsets, segment.getInfo().getName()));
     }

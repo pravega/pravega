@@ -159,8 +159,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
-                .thenCompose(segment -> this.keyIndex.update(segment, updateBatch,
-                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer));
+                .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
+                        () -> commit(entries, updateBatch.getLength(), this.serializer::serializeUpdate, segment, timer.getRemaining()), timer),
+                        this.executor);
     }
 
     @Override
@@ -173,8 +174,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         val removeBatch = batch(keys, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
-                .thenCompose(segment -> this.keyIndex.remove(segment, removeBatch,
-                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer))
+                .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
+                        () -> commit(keys, removeBatch.getLength(), this.serializer::serializeRemoval, segment, timer.getRemaining()), timer),
+                        this.executor)
                 .thenRun(Runnables.doNothing());
     }
 
