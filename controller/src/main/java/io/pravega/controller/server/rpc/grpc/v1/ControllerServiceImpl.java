@@ -391,9 +391,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
     }
 
-    private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator,
-                                                                 Function<String, CompletableFuture<T>> call,
-                                                                 final StreamObserver<T> streamObserver) {
+    private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
+                                                          final StreamObserver<T> streamObserver) {
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
     }
 }
