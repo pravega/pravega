@@ -113,9 +113,12 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             this.currentCacheGeneration = currentGeneration;
             for (val e : this.cacheEntries.entrySet()) {
                 CacheEntry entry = e.getValue();
-                long indexedOffset = this.segmentIndexOffsets.getOrDefault(e.getKey().segmentId, 0L);
-                if (entry.getGeneration() < oldestGeneration && entry.getHighestOffset() < indexedOffset) {
+                long indexedOffset = this.segmentIndexOffsets.getOrDefault(e.getKey().segmentId, -1L);
+                if (indexedOffset >= 0L
+                        && entry.getHighestOffset() < indexedOffset
+                        && entry.getGeneration() < oldestGeneration) {
                     toRemove.add(e.getKey());
+                    sizeRemoved += entry.getSize();
                 } else {
                     remainingSegmentIds.add(e.getKey().segmentId);
                 }
@@ -213,6 +216,23 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
 
         return entry == null ? null : entry.get(keyHash, generation);
+    }
+
+    /**
+     * Updates the Last Indexed Offset for a given Segment. This is used for cache eviction purposes - no cache entry with
+     * a segment offsets smaller than this value may be evicted.
+     *
+     * @param segmentId   The Id of the Segment to update the Last Indexed Offset for.
+     * @param indexOffset The Last Indexed Offset to set. If negative, this will clear up the value.
+     */
+    void setSegmentIndexOffset(long segmentId, long indexOffset) {
+        synchronized (this.cacheEntries) {
+            if (indexOffset < 0) {
+                this.segmentIndexOffsets.remove(segmentId);
+            } else {
+                this.segmentIndexOffsets.put(segmentId, indexOffset);
+            }
+        }
     }
 
     private long encodeValue(long segmentOffset, boolean isRemoval) {
@@ -442,6 +462,9 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     //region GetResult
 
+    /**
+     * Result from {@link #get(long, HashedArray)}.
+     */
     @Data
     static class GetResult {
         /**
