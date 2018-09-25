@@ -38,9 +38,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.lang3.RandomUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -115,7 +114,7 @@ public class ReaderGroupStateManager {
             throw new IllegalStateException("The requested reader: " + readerId
                     + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
         }
-        long randomDelay = (long) (RandomUtils.nextFloat() * Math.min(initialAllocationDelay, sync.getState().getConfig().getGroupRefreshTimeMillis()));
+        long randomDelay = (long) (Math.random() * Math.min(initialAllocationDelay, sync.getState().getConfig().getGroupRefreshTimeMillis()));
         acquireTimer.reset(Duration.ofMillis(initialAllocationDelay + randomDelay));
     }
     
