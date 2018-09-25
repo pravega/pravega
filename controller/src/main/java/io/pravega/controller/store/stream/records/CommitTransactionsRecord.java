@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.CommitTransactionsRecordSerializer;
@@ -23,7 +24,6 @@ import java.util.UUID;
 
 @Data
 @Builder
-@AllArgsConstructor
 /**
  * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
  * transcations that current round of processing will attempt to commit. If the processing fails and retries, it will
@@ -31,7 +31,7 @@ import java.util.UUID;
  */
 public class CommitTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
-    public static CommitTransactionsRecord EMPTY = CommitTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
+    public static final CommitTransactionsRecord EMPTY = CommitTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
             .transactionsToCommit(ImmutableList.of()).activeEpoch(Integer.MIN_VALUE).build();
     /**
      * Epoch from which transactions are committed.
@@ -45,15 +45,20 @@ public class CommitTransactionsRecord {
     /**
      * Epoch from which transactions are committed.
      */
-    final int activeEpoch;
+    int activeEpoch;
 
-    public CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+    CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+        this(epoch, transactionsToCommit, Integer.MIN_VALUE);
+    }
+
+    CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
         this.epoch = epoch;
         this.transactionsToCommit = transactionsToCommit;
-        this.activeEpoch = Integer.MIN_VALUE;
+        this.activeEpoch = activeEpoch;
     }
 
     public static class CommitTransactionsRecordBuilder implements ObjectBuilder<CommitTransactionsRecord> {
+        private int activeEpoch = Integer.MIN_VALUE;
     }
 
     @SneakyThrows(IOException.class)
@@ -66,11 +71,8 @@ public class CommitTransactionsRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    public static CommitTransactionsRecord startRollingTxn(CommitTransactionsRecord record, int activeEpoch) {
-        if (record.activeEpoch != Integer.MIN_VALUE) {
-            return new CommitTransactionsRecord(record.epoch, record.transactionsToCommit, activeEpoch);
-        } else {
-            return record;
-        }
+    public CommitTransactionsRecord getRollingTxnRecord(int activeEpoch) {
+        Preconditions.checkState(this.activeEpoch == Integer.MIN_VALUE);
+        return new CommitTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
     }
 }

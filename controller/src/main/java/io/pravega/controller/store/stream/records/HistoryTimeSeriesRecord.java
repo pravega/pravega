@@ -14,6 +14,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.records.serializers.HistoryTimeSeriesRecordSerializer;
 import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
+@Data
 public class HistoryTimeSeriesRecord {
     public static final HistoryTimeSeriesRecordSerializer SERIALIZER = new HistoryTimeSeriesRecordSerializer();
 
@@ -54,8 +56,8 @@ public class HistoryTimeSeriesRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public ArrayView toArrayView() {
-        return SERIALIZER.serialize(this);
+    public byte[] toByteArray() {
+        return SERIALIZER.serialize(this).getCopy();
     }
 
     public boolean isDuplicate() {

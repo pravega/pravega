@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.RetentionStreamCutRecordSerializer;
 import lombok.AllArgsConstructor;
@@ -26,7 +27,6 @@ import java.util.Map;
  */
 @Data
 @Builder
-@AllArgsConstructor
 @Slf4j
 public class RetentionStreamCutRecord {
     public static final RetentionStreamCutRecordSerializer SERIALIZER = new RetentionStreamCutRecordSerializer();
@@ -43,6 +43,12 @@ public class RetentionStreamCutRecord {
      * Actual Stream cut.
      */
     final Map<StreamSegmentRecord, Long> streamCut;
+
+    public RetentionStreamCutRecord(long recordingTime, long recordingSize, Map<StreamSegmentRecord, Long> streamCut) {
+        this.recordingTime = recordingTime;
+        this.recordingSize = recordingSize;
+        this.streamCut = ImmutableMap.copyOf(streamCut);
+    }
 
     public RetentionSetRecord getRetentionRecord() {
         return new RetentionSetRecord(recordingTime, recordingSize);

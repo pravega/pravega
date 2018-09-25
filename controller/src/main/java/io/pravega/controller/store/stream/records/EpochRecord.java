@@ -13,6 +13,7 @@ import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.EpochRecordSerializer;
 import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -24,6 +25,7 @@ import java.util.List;
 /**
  * Serializable class that captures an epoch record.
  */
+@Data
 public class EpochRecord {
     public static final EpochRecordSerializer SERIALIZER = new EpochRecordSerializer();
 

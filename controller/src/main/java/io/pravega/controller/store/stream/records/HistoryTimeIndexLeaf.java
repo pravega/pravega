@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.HistoryIndexLeafSerializer;
 import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 import lombok.SneakyThrows;
 
@@ -27,6 +28,7 @@ import java.util.List;
  * N-ary tree's leaf node.
  *
  */
+@Data
 public class HistoryTimeIndexLeaf {
     public static final HistoryIndexLeafSerializer SERIALIZER = new HistoryIndexLeafSerializer();
 
@@ -34,7 +36,7 @@ public class HistoryTimeIndexLeaf {
     private final List<Long> records;
 
     @Builder
-    public HistoryTimeIndexLeaf(List<Long> records) {
+    HistoryTimeIndexLeaf(List<Long> records) {
         this.records = ImmutableList.copyOf(records);
     }
 

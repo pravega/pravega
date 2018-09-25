@@ -30,7 +30,7 @@ public class HistoryTimeIndexRootNode {
     private final List<Long> leaves;
 
     @Builder
-    public HistoryTimeIndexRootNode(List<Long> leaves) {
+    HistoryTimeIndexRootNode(List<Long> leaves) {
         this.leaves = ImmutableList.copyOf(leaves);
     }
 

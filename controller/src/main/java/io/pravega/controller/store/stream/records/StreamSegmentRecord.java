@@ -54,5 +54,4 @@ public class StreamSegmentRecord {
     public static StreamSegmentRecord newSegmentRecord(int num, int epoch, long time, double start, double end) {
         return StreamSegmentRecord.builder().segmentNumber(num).creationEpoch(epoch).creationTime(time).keyStart(start).keyEnd(end).build();
     }
-
 }

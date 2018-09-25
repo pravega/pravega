@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream.records;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.SealedSegmentsMapShardSerializer;
 import lombok.Builder;
+import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import java.util.Map;
  */
 @Builder
 @Slf4j
+@Data
 public class SealedSegmentsMapShard {
     public static final SealedSegmentsMapShardSerializer SERIALIZER = new SealedSegmentsMapShardSerializer();
 
@@ -41,7 +43,7 @@ public class SealedSegmentsMapShard {
      */
     private final Map<Long, Long> sealedSegmentsSizeMap;
 
-    public SealedSegmentsMapShard(int shardNumber, Map<Long, Long> sealedSegmentsSizeMap) {
+    SealedSegmentsMapShard(int shardNumber, Map<Long, Long> sealedSegmentsSizeMap) {
         this.shardNumber = shardNumber;
         this.sealedSegmentsSizeMap = new HashMap<>(sealedSegmentsSizeMap);
     }
