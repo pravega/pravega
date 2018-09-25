@@ -22,6 +22,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -572,11 +573,11 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @VisibleForTesting
-    CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream,
-                                                                          StreamConfiguration config, long timestamp) {
+    CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
+        final long requestId = RequestTracker.getInstance().getRequestIdFor("createStream", scope, stream);
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
-                    log.info("{}/{} created in metadata store", scope, stream);
+                    log.info("[requestId={}] {}/{} created in metadata store", requestId, scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
                     // segments and change the state of the stream to active.
@@ -588,7 +589,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                            .boxed()
                                                            .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
                                                            .collect(Collectors.toList());
-                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken())
+                        return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
@@ -616,7 +617,7 @@ public class StreamMetadataTasks extends TaskBase {
                         if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
-                            log.warn("Create stream failed due to ", ex);
+                            log.warn("[requestId={}] Create stream failed due to ", requestId, ex);
                             return CreateStreamStatus.Status.FAILURE;
                         }
                     } else {
@@ -645,20 +646,20 @@ public class StreamMetadataTasks extends TaskBase {
 
     public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context, String controllerToken) {
         return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
-                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentIds, controllerToken));
+                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentIds, controllerToken, System.nanoTime()));
     }
 
-    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Long> segmentIds, String controllerToken) {
+    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration, List<Long> segmentIds, String controllerToken, long requestId) {
         return Futures.toVoid(Futures.allOfWithResults(segmentIds
                 .stream()
                 .parallel()
-                .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken))
+                .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken, requestId))
                 .collect(Collectors.toList())));
     }
 
-    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy, String controllerToken) {
+    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy, String controllerToken, long requestId) {
         return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope,
-                stream, segmentId, policy, hostControllerStore, this.connectionFactory, controllerToken), executor));
+                stream, segmentId, policy, hostControllerStore, this.connectionFactory, controllerToken, requestId), executor));
     }
 
     public CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete, String delegationToken) {

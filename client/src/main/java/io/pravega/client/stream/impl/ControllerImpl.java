@@ -32,6 +32,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.tracing.TracingHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -138,7 +139,7 @@ public class ControllerImpl implements Controller {
                                 .throwingOn(Exception.class);
 
         if (config.getClientConfig().isEnableTls()) {
-            SslContextBuilder sslContextBuilder = null;
+            SslContextBuilder sslContextBuilder;
             String trustStore = config.getClientConfig().getTrustStore();
             sslContextBuilder = GrpcSslContexts.forClient();
             if (!Strings.isNullOrEmpty(trustStore)) {
@@ -153,6 +154,10 @@ public class ControllerImpl implements Controller {
         } else {
             channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
         }
+
+        // Trace channel.
+        channelBuilder = channelBuilder.intercept(TracingHelpers.getClientInterceptor());
+
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);

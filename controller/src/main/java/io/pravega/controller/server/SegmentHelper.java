@@ -58,7 +58,8 @@ public class SegmentHelper {
                                                     final long segmentId,
                                                     final ScalingPolicy policy,
                                                     final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF, String controllerToken) {
+                                                    final ConnectionFactory clientCF, String controllerToken,
+                                                    final long requestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
@@ -67,32 +68,32 @@ public class SegmentHelper {
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
-                log.warn("CreateSegment {} Connection dropped", qualifiedStreamSegmentName);
+                log.warn("[requestId={}] CreateSegment {} Connection dropped", requestId, qualifiedStreamSegmentName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("CreateSegment {} wrong host", qualifiedStreamSegmentName);
+                log.warn("[requestId={}] CreateSegment {} wrong host", requestId, qualifiedStreamSegmentName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.info("CreateSegment {} segmentAlreadyExists", qualifiedStreamSegmentName);
+                log.info("[requestId={}] CreateSegment {} segmentAlreadyExists", requestId, qualifiedStreamSegmentName);
                 result.complete(true);
             }
 
             @Override
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-                log.info("CreateSegment {} SegmentCreated", qualifiedStreamSegmentName);
+                log.info("[requestId={}] CreateSegment {} SegmentCreated", requestId, qualifiedStreamSegmentName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
+                log.error("[requestId={}] CreateSegment {} threw exception", requestId, qualifiedStreamSegmentName, error);
                 result.completeExceptionally(error);
             }
 
@@ -106,7 +107,7 @@ public class SegmentHelper {
 
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(),
+        WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId,
                 qualifiedStreamSegmentName, extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;

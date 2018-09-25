@@ -56,7 +56,7 @@ public class SegmentHelperTest {
     public void createSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Boolean> retVal = helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), new MockHostControllerStore(), factory, "");
+                0, ScalingPolicy.fixed(2), new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),

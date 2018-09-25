@@ -403,8 +403,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                createStreamsSegment.getDelegationToken(), READ_UPDATE, "Create Segment")) {
             return;
        }
-       log.debug("Creating stream segment {}", createStreamsSegment);
-        segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
+
+       log.info("[requestId={}] Creating stream segment {}", createStreamsSegment.getRequestId(), createStreamsSegment);
+       segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {
                     createStreamSegment.reportSuccessEvent(timer.getElapsed());
                     connection.send(new SegmentCreated(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment()));
@@ -425,7 +426,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private Void handleException(long requestId, String segment, String operation, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, exception);
+            log.error("[requestId={}] Error (Segment = '{}', Operation = '{}')", requestId, segment, operation, exception);
             throw exception;
         }
 
@@ -433,36 +434,36 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String clientReplyStackTrace = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(u) : EMPTY_STACK_TRACE;
 
         if (u instanceof StreamSegmentExistsException) {
-            log.info("Segment '{}' already exists and cannot perform operation '{}'.", segment, operation);
+            log.info("[requestId={}] Segment '{}' already exists and cannot perform operation '{}'.", requestId, segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn("Segment '{}' does not exist and cannot perform operation '{}'.", segment, operation);
+            log.warn("[requestId={}] Segment '{}' does not exist and cannot perform operation '{}'.", requestId, segment, operation);
             connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentSealedException) {
-            log.info("Segment '{}' is sealed and cannot perform operation '{}'.", segment, operation);
+            log.info("[requestId={}] Segment '{}' is sealed and cannot perform operation '{}'.", requestId, segment, operation);
             connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
-            log.warn("Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').", segment, containerId, operation);
+            log.warn("[requestId={}] Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').", requestId, segment, containerId, operation);
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
-        } else if (u instanceof ReadCancellationException) {
-            log.info("Closing connection {} while reading segment {} due to CancellationException.", connection, segment);
+        } else if ( u instanceof ReadCancellationException) {
+            log.info("[requestId={}] Closing connection {} while reading segment {} due to CancellationException.", requestId, connection, segment);
             connection.send(new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER));
         } else if (u instanceof CancellationException) {
-            log.info("Closing connection {} while performing {} due to {}.", connection, operation, u.getMessage());
+            log.info("[requestId={}] Closing connection {} while performing {} due to {}.", requestId, connection, operation, u.getMessage());
             connection.close();
         } else if (u instanceof AuthenticationException) {
-            log.warn("Authentication error during '{}'.", operation);
+            log.warn("[requestId={}] Authentication error during '{}'.", requestId, operation);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
-            log.warn("Unsupported Operation '{}'.", operation, u);
+            log.warn("[requestId={}] Unsupported Operation '{}'.", requestId, operation, u);
             connection.send(new OperationUnsupported(requestId, operation, clientReplyStackTrace));
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
             connection.send(new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(), clientReplyStackTrace));
         } else {
-            log.error("Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+            log.error("[requestId={}] Error (Segment = '{}', Operation = '{}')", requestId, segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
             throw new IllegalStateException("Unknown exception.", u);
         }

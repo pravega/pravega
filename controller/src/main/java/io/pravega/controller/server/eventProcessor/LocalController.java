@@ -26,6 +26,9 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTag;
+import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.tracing.TracingHelpers;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -96,6 +99,11 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
+        // Track requests for debug purposes. This information will be available for other classes in the Controller.
+        RequestTag requestTag = TracingHelpers.getOrInitializeRequestTags(System.nanoTime(), "createStream",
+                streamConfig.getScope(), streamConfig.getStreamName());
+        RequestTracker.getInstance().trackRequest(requestTag);
+
         return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:

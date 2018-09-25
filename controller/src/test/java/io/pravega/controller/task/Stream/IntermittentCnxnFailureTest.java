@@ -49,6 +49,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -138,7 +139,7 @@ public class IntermittentCnxnFailureTest {
 
         // Mock createSegment to return success.
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyInt(), any(), any(), any(), any(), anyLong());
 
         AtomicBoolean result = new AtomicBoolean(false);
         Retry.withExpBackoff(10, 10, 4)

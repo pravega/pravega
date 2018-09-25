@@ -15,6 +15,9 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
+import io.pravega.common.tracing.RequestTag;
+import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.tracing.TracingHelpers;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -79,12 +82,17 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
-        log.info("createStream called for stream {}/{}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
-                        request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
-                responseObserver);
+        final String scope = request.getStreamInfo().getScope();
+        final String stream = request.getStreamInfo().getStream();
+
+        // Track requests for debug purposes. This information will be available for other classes in the Controller.
+        RequestTag requestTag = TracingHelpers.getOrInitializeRequestTags(System.nanoTime(), "createStream", scope, stream);
+        RequestTracker.getInstance().trackRequest(requestTag);
+
+        log.info("[requestId={}] createStream called for stream {}/{}.", requestTag.getRequestId(), scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(scope + "/" + stream, AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.createStream(ModelHelper.encode(request), requestTag.getRequestId()),
+                responseObserver, requestTag);
     }
 
     @Override
@@ -348,7 +356,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
-                                                          final StreamObserver<T> streamObserver) {
+                                                          final StreamObserver<T> streamObserver, RequestTag requestTag) {
         try {
             String delegationToken;
             delegationToken = authenticator.get();
@@ -375,6 +383,17 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             streamObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Authentication failed")
                     .asRuntimeException());
+        } finally {
+            if (requestTag != null) {
+                log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestTag.getRequestDescriptor()),
+                        requestTag.getRequestDescriptor());
+            }
         }
+    }
+
+    private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator,
+                                                                 Function<String, CompletableFuture<T>> call,
+                                                                 final StreamObserver<T> streamObserver) {
+        authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
     }
 }
