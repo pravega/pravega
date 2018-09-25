@@ -59,7 +59,7 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.bookkeeper.write_queue_fill";
     public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.bookkeeper_ledger_count";
 
-    //Container-specific metrics
+    //Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = "segmentstore.container.append_count";
     public static final String CONTAINER_APPEND_OFFSET_COUNT = "segmentstore.container.append_offset_count";
     public static final String CONTAINER_UPDATE_ATTRIBUTES_COUNT = "segmentstore.container.update_attributes_count";
@@ -71,17 +71,21 @@ public final class MetricsNames {
     public static final String CONTAINER_MERGE_SEGMENT_COUNT = "segmentstore.container.merge_segment_count";
     public static final String CONTAINER_SEAL_COUNT = "segmentstore.container.seal_count";
     public static final String CONTAINER_TRUNCATE_COUNT = "segmentstore.container.truncate_count";
-    public static final String PROCESS_OPERATIONS_LATENCY = "segmentstore.process_operations.latency_ms";
-    public static final String PROCESS_OPERATIONS_BATCH_SIZE = "segmentstore.process_operations.batch_size";
-    public static final String OPERATION_QUEUE_SIZE = "segmentstore.operation.queue_size";
-    public static final String OPERATION_PROCESSOR_IN_FLIGHT = "segmentstore.operation.processor_in_flight";
-    public static final String OPERATION_QUEUE_WAIT_TIME = "segmentstore.operation.queue_wait_time";
-    public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "segmentstore.operation.processor_delay_ms";
-    public static final String OPERATION_COMMIT_LATENCY = "segmentstore.operation.commit_latency_ms";
-    public static final String OPERATION_LATENCY = "segmentstore.operation.latency_ms";
-    public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = "segmentstore.operation.commit_metadata_txn_count";
-    public static final String OPERATION_COMMIT_MEMORY_LATENCY = "segmentstore.operation.commit_memory_latency_ms";
-    public static final String OPERATION_LOG_SIZE = "segmentstore.operation.log_size";
+
+    //Operation processor metrics
+    public static final String PROCESS_OPERATIONS_LATENCY = "segmentstore.container.process_operations.latency_ms";
+    public static final String PROCESS_OPERATIONS_BATCH_SIZE = "segmentstore.container.process_operations.batch_size";
+    public static final String OPERATION_QUEUE_SIZE = "segmentstore.container.operation_queue.size";
+    public static final String OPERATION_PROCESSOR_IN_FLIGHT = "segmentstore.container.operation_processor.in_flight";
+    public static final String OPERATION_QUEUE_WAIT_TIME = "segmentstore.container.operation_queue.wait_time";
+    public static final String OPERATION_PROCESSOR_DELAY_MILLIS = "segmentstore.container.operation_processor.delay_ms";
+    public static final String OPERATION_COMMIT_LATENCY = "segmentstore.container.operation_commit.latency_ms";
+    public static final String OPERATION_LATENCY = "segmentstore.container.operation.latency_ms";
+    public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = "segmentstore.container.operation_commit.metadata_txn_count";
+    public static final String OPERATION_COMMIT_MEMORY_LATENCY = "segmentstore.container.operation_commit.memory_latency_ms";
+    public static final String OPERATION_LOG_SIZE = "segmentstore.container.operation.log_size";
+
+    // Segment container metadata
     public static final String ACTIVE_SEGMENT_COUNT = "segmentstore.active_segments";
 
     // Thread pool metrics
