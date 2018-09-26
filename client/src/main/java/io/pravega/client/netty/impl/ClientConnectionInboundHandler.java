@@ -161,6 +161,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     public void close() {
         Channel ch = channel.get();
         if (ch != null) {
+            log.debug("Closing channel:{}", ch);
             ch.close();
         }
     }
