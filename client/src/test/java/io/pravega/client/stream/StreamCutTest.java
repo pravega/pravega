@@ -17,9 +17,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+
 import lombok.Cleanup;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -27,22 +29,33 @@ public class StreamCutTest {
 
     @Test
     public void testStreamCutSerialization() throws Exception {
-        StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"),
-                ImmutableMap.of(new Segment("scope", "stream", 0), 10L,
-                        new Segment("scope", "stream", 1), 20L));
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(3, 1)), 30L)
+                .put(new Segment("scope", "stream", computeSegmentId(4, 1)), 20L)
+                .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
+                .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 60L)
+                .build();
 
+        StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);
         byte[] buf = serialize(sc);
+        String base64 = sc.asText();
         assertEquals(sc, deSerializeStreamCut(buf));
         assertEquals(sc, StreamCut.fromBytes(sc.toBytes()));
+        assertEquals(sc, StreamCut.from(base64));
     }
 
     @Test
     public void testUnboundedStreamCutSerialization() throws Exception {
         StreamCut sc = StreamCut.UNBOUNDED;
         final byte[] buf = serialize(sc);
+        String base64 = sc.asText();
         assertEquals(sc, deSerializeStreamCut(buf));
         assertNull(deSerializeStreamCut(buf).asImpl());
         assertEquals(sc, StreamCut.fromBytes(sc.toBytes()));
+        assertEquals(sc, StreamCut.from(base64));
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {

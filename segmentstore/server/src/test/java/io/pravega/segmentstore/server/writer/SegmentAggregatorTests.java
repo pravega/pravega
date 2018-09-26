@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -428,7 +429,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (size threshold).", sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
 
             // Call flush() and inspect the result.
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+            WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
             if (expectFlush) {
                 AssertExtensions.assertGreaterThanOrEqual("Not enough bytes were flushed (size threshold).", config.getFlushThresholdBytes(), flushResult.getFlushedBytes());
                 outstandingSize.addAndGet(-flushResult.getFlushedBytes());
@@ -456,7 +457,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (time threshold).", sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+            WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
 
             // We are always expecting a flush.
             AssertExtensions.assertGreaterThan("Not enough bytes were flushed (time threshold).", 0, flushResult.getFlushedBytes());
@@ -483,7 +484,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
             // Call flush() and inspect the result.
             Assert.assertTrue("Unexpected value returned by mustFlush() (Transaction appends).", context.segmentAggregator.mustFlush());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+            WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
 
             // We are always expecting a flush.
             AssertExtensions.assertGreaterThan("Not enough bytes were flushed (Transaction appends).", 0, flushResult.getFlushedBytes());
@@ -510,7 +511,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (large appends).", context.segmentAggregator.mustFlush());
             Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() before flush (large appends).", sequenceNumbers.getLowestUncommitted(), context.segmentAggregator.getLowestUncommittedSequenceNumber());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+            WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
 
             // We are always expecting a flush.
             AssertExtensions.assertGreaterThan("Not enough bytes were flushed (large appends).", 0, flushResult.getFlushedBytes());
@@ -572,7 +573,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             // Call flush() and inspect the result.
             setException.set(null);
             context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
-            FlushResult flushResult = null;
+            WriterFlushResult flushResult = null;
 
             try {
                 flushResult = context.segmentAggregator.flush(TIMEOUT).join();
@@ -638,7 +639,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             // Call flush() and inspect the result.
             context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+            WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
 
             // We are always expecting a flush.
             Assert.assertEquals("Not expecting any bytes to be flushed.", 0, flushResult.getFlushedBytes() + flushResult.getMergedBytes());
@@ -685,7 +686,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
             Assert.assertTrue("Unexpected value returned by mustFlush() (time threshold).", context.segmentAggregator.mustFlush());
 
-            FlushResult flushResult = null;
+            WriterFlushResult flushResult = null;
             try {
                 flushResult = context.segmentAggregator.flush(TIMEOUT).join();
                 Assert.assertNull("An exception was expected, but none was thrown.", setException.get());
@@ -752,7 +753,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             sequenceNumbers.record(appendOp);
 
             // Call flush() and verify that we haven't flushed anything (by design).
-            FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+            WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
             Assert.assertEquals(String.format("Not expecting a flush. OutstandingSize=%s, Threshold=%d", outstandingSize, config.getFlushThresholdBytes()),
                     0, flushResult.getFlushedBytes());
             Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
@@ -767,7 +768,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Unexpected value returned by mustFlush() after adding StreamSegmentSealOperation.", context.segmentAggregator.mustFlush());
 
         // Call flush and verify that the entire Aggregator got flushed and the Seal got persisted to Storage.
-        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
         Assert.assertEquals("Expected the entire Aggregator to be flushed.", outstandingSize.get(), flushResult.getFlushedBytes());
         Assert.assertFalse("Unexpected value returned by mustFlush() after flushing.", context.segmentAggregator.mustFlush());
         Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flushing.", Operation.NO_SEQUENCE_NUMBER, context.segmentAggregator.getLowestUncommittedSequenceNumber());
@@ -862,7 +863,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             // Repeat a number of times, at least once should work.
             setException.set(null);
             try {
-                FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+                WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
                 Assert.assertNull("An exception was expected, but none was thrown.", setException.get());
                 Assert.assertNotNull("No FlushResult provided.", flushResult);
             } catch (Exception ex) {
@@ -1168,7 +1169,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 context.segmentAggregator.mustFlush());
 
         // Call flush and verify that the entire Aggregator got flushed and the Truncate got persisted to Storage.
-        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
         Assert.assertEquals("Expected the entire Aggregator to be flushed.", outstandingSize.get(), flushResult.getFlushedBytes());
         Assert.assertFalse("Unexpected value returned by mustFlush() after flushing.", context.segmentAggregator.mustFlush());
         Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flushing.",
@@ -1236,7 +1237,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         StorageOperation lastTruncateOp = generateTruncateAndUpdateMetadata(SEGMENT_ID, context);
         context.segmentAggregator.add(lastTruncateOp);
 
-        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
         Assert.assertEquals("Expected the entire Aggregator to be flushed.", outstandingSize.get(), flushResult.getFlushedBytes());
         Assert.assertFalse("Unexpected value returned by mustFlush() after flushing.", context.segmentAggregator.mustFlush());
         Assert.assertEquals("Unexpected value returned by getLowestUncommittedSequenceNumber() after flushing.",
@@ -1329,7 +1330,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         });
 
         // Call flush() and inspect the result.
-        FlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
         Assert.assertEquals("Not expecting any bytes to be flushed.", 0, flushResult.getFlushedBytes());
         Assert.assertEquals("Not expecting any merged bytes in this test.", 0, flushResult.getMergedBytes());
         Assert.assertFalse("Unexpected value returned by mustFlush() after flush.", context.segmentAggregator.mustFlush());
@@ -1413,7 +1414,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
         while (context.segmentAggregator.mustFlush()) {
             // Call flush() and inspect the result.
-            FlushResult flushResult = null;
+            WriterFlushResult flushResult = null;
 
             try {
                 flushResult = context.segmentAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -2092,13 +2093,13 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             anythingFlushed = false;
             for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
                 if (transactionAggregator.mustFlush()) {
-                    FlushResult transactionFlushResult = transactionAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    WriterFlushResult transactionFlushResult = transactionAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                     anythingFlushed = anythingFlushed | transactionFlushResult.getFlushedBytes() > 0;
                 }
             }
 
             if (context.segmentAggregator.mustFlush()) {
-                FlushResult parentFlushResult = context.segmentAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                WriterFlushResult parentFlushResult = context.segmentAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 anythingFlushed = anythingFlushed | (parentFlushResult.getFlushedBytes() + parentFlushResult.getMergedBytes()) > 0;
             }
         }
@@ -2113,22 +2114,22 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
             for (SegmentAggregator transactionAggregator : context.transactionAggregators) {
                 if (transactionAggregator.mustFlush()) {
                     exceptionReset.run();
-                    FlushResult transactionFlushResult = tryFlushSegment(transactionAggregator, exceptionProvider);
+                    WriterFlushResult transactionFlushResult = tryFlushSegment(transactionAggregator, exceptionProvider);
                     anythingFlushed = anythingFlushed | (transactionFlushResult == null || transactionFlushResult.getFlushedBytes() > 0);
                 }
             }
 
             if (context.segmentAggregator.mustFlush()) {
                 exceptionReset.run();
-                FlushResult parentFlushResult = tryFlushSegment(context.segmentAggregator, exceptionProvider);
+                WriterFlushResult parentFlushResult = tryFlushSegment(context.segmentAggregator, exceptionProvider);
                 anythingFlushed = anythingFlushed | (parentFlushResult == null || (parentFlushResult.getFlushedBytes() + parentFlushResult.getMergedBytes()) > 0);
             }
         }
     }
 
-    private <T extends Throwable> FlushResult tryFlushSegment(SegmentAggregator aggregator, Supplier<T> exceptionProvider) {
+    private <T extends Throwable> WriterFlushResult tryFlushSegment(SegmentAggregator aggregator, Supplier<T> exceptionProvider) {
         try {
-            FlushResult flushResult = aggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            WriterFlushResult flushResult = aggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             T expectedException = exceptionProvider.get();
             Assert.assertNull("Expected an exception but none got thrown.", expectedException);
             Assert.assertNotNull("Expected a FlushResult.", flushResult);

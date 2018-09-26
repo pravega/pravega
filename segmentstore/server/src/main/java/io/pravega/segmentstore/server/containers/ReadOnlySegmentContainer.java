@@ -22,6 +22,7 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.Storage;
@@ -145,6 +146,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public Collection<SegmentProperties> getActiveSegments() {
         throw new UnsupportedOperationException("getActiveSegments is not supported on " + getClass().getSimpleName());
+    }
+
+    @Override
+    public <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass) {
+        throw new UnsupportedOperationException("getExtension is not supported on " + getClass().getSimpleName());
     }
 
     @Override

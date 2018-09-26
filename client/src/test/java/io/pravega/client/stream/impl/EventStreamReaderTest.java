@@ -37,6 +37,7 @@ import java.util.function.Consumer;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
@@ -311,8 +312,13 @@ public class EventStreamReaderTest {
         assertTrue(eventRead.isCheckpoint());
         assertNull(eventRead.getEvent());
         assertEquals("Foo", eventRead.getCheckpointName());
+        InOrder order = Mockito.inOrder(groupState);
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState, Mockito.never()).checkpoint(Mockito.anyString(), Mockito.any());
         assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         assertNull(reader.readNextEvent(0).getEvent());
+        order.verify(groupState).checkpoint(Mockito.eq("Foo"), Mockito.any());
+        order.verify(groupState).getCheckpoint();
         reader.close();
     }
     
@@ -365,9 +371,9 @@ public class EventStreamReaderTest {
         assertEquals(0, length % 3);
         EventRead<byte[]> event1 = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
-        metadataClient.truncateSegment(segment, length / 3);
+        metadataClient.truncateSegment(length / 3);
         assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        metadataClient.truncateSegment(segment, length);
+        metadataClient.truncateSegment(length);
         ByteBuffer buffer4 = writeInt(stream, 4);
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
