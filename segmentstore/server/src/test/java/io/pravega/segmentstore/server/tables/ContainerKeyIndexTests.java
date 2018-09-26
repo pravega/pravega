@@ -83,7 +83,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Wait for the updates to complete.
         updates.stream().map(u -> u.update).forEach(CompletableFuture::join);
 
-        // Check result.
+        // Check result. We can only check bucket offsets and not backpointers due to the unpredictable nature of completing
+        // Futures and invoking their callbacks in executors - we can only do that with conditional updates.
         checkPrevailingUpdate(updates, context);
     }
 
@@ -151,6 +152,9 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Check final result.
         checkPrevailingUpdate(updates, context);
+
+        // We can safely check backpointers here.
+        checkBackpointers(updates, context);
     }
 
     /**
@@ -264,16 +268,54 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
     private void checkPrevailingUpdate(List<UpdateItem> updates, TestContext context) {
-        // The "surviving" update should be the one with the highest offsets for their corresponding persist Future..
-        val highestUpdate = updates.stream().max(Comparator.comparingLong(u -> u.persist.join())).get();
+        // The "surviving" update should be the one with the highest offsets for their corresponding persist Future.
+        val sortedUpdates = updates.stream().sorted(Comparator.comparingLong(u -> u.offset.get())).collect(Collectors.toList());
+        val highestUpdate = sortedUpdates.get(sortedUpdates.size() - 1);
         val highestUpdateHashes = highestUpdate.batch.getItems().stream().map(TableKeyBatch.Item::getHash).collect(Collectors.toList());
+
+        // Check Bucket offsets.
         val bucketOffsets = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
         Assert.assertEquals("Unexpected number of buckets returned.", highestUpdate.batch.getItems().size(), bucketOffsets.size());
         for (int i = 0; i < bucketOffsets.size(); i++) {
-            long expectedOffset = highestUpdate.persist.join() + highestUpdate.batch.getItems().get(i).getOffset();
+            long expectedOffset = highestUpdate.offset.get() + highestUpdate.batch.getItems().get(i).getOffset();
             long actualOffset = bucketOffsets.get(i);
             Assert.assertEquals("Unexpected offset for result index " + i, expectedOffset, actualOffset);
         }
+    }
+
+    private void checkBackpointers(List<UpdateItem> updates, TestContext context) {
+        val sortedUpdates = updates.stream().sorted(Comparator.comparingLong(u -> u.offset.get())).collect(Collectors.toList());
+        val highestUpdateHashes = sortedUpdates.get(sortedUpdates.size() - 1).batch
+                .getItems().stream().map(TableKeyBatch.Item::getHash).collect(Collectors.toList());
+
+        List<Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
+        for (int updateId = sortedUpdates.size() - 1; updateId >= 0; updateId--) {
+            // Generate the expected backpointers.
+            List<Long> expectedBackpointers;
+            if (updateId == 0) {
+                // For the first update, we do not expect any.
+                expectedBackpointers = new ArrayList<>();
+                for (int i = 0; i < backpointerSources.size(); i++) {
+                    expectedBackpointers.add(-1L);
+                }
+            } else {
+                // For any other updates, it's whatever got executed before this one.
+                expectedBackpointers = sortedUpdates.get(updateId - 1).update.join();
+            }
+
+            // Fetch the actual values.
+            val actualBackpointers = backpointerSources
+                    .stream()
+                    .map(sourceOffset -> context.index.getBackpointerOffset(context.segment, sourceOffset, TIMEOUT).join())
+                    .collect(Collectors.toList());
+
+            // Check and move on.
+            AssertExtensions.assertListEquals("Unexpected backpointer for update " + updateId,
+                    expectedBackpointers, actualBackpointers, Long::equals);
+            backpointerSources = expectedBackpointers;
+        }
+
+        // Check Backpointers.
     }
 
     private void completePersistArbitrarily(List<UpdateItem> updates, TestContext context) {

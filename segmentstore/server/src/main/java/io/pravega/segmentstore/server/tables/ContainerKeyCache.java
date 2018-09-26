@@ -9,10 +9,12 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.storage.Cache;
@@ -26,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.val;
@@ -41,7 +44,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     @GuardedBy("cacheEntries")
     private final Map<CacheKey, CacheEntry> cacheEntries;
     @GuardedBy("cacheEntries")
-    private final Map<Long, Long> segmentIndexOffsets; // TODO: this needs updating once we wire up Writer Processors.
+    private final Map<Long, SegmentIndexTail> indexTails;
     @GuardedBy("cacheEntries")
     private int currentCacheGeneration;
     private final AtomicBoolean closed;
@@ -59,7 +62,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     ContainerKeyCache(int containerId, @NonNull CacheFactory cacheFactory) {
         this.cache = cacheFactory.getCache(String.format("Container_%d_TableKeys", containerId));
         this.cacheEntries = new HashMap<>();
-        this.segmentIndexOffsets = new HashMap<>();
+        this.indexTails = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
 
@@ -73,7 +76,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             this.cache.close();
             synchronized (this.cacheEntries) {
                 this.cacheEntries.clear();
-                this.segmentIndexOffsets.clear();
+                this.indexTails.clear();
             }
         }
     }
@@ -113,9 +116,10 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             this.currentCacheGeneration = currentGeneration;
             for (val e : this.cacheEntries.entrySet()) {
                 CacheEntry entry = e.getValue();
-                long indexedOffset = this.segmentIndexOffsets.getOrDefault(e.getKey().segmentId, -1L);
-                if (indexedOffset >= 0L
-                        && entry.getHighestOffset() < indexedOffset
+                SegmentIndexTail tail = this.indexTails.getOrDefault(e.getKey().segmentId, null);
+                long lastIndexedOffset = tail == null ? -1L : tail.getLastIndexedOffset();
+                if (lastIndexedOffset >= 0L
+                        && entry.getHighestOffset() < lastIndexedOffset
                         && entry.getGeneration() < oldestGeneration) {
                     toRemove.add(e.getKey());
                     sizeRemoved += entry.getSize();
@@ -128,7 +132,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             toRemove.forEach(this.cacheEntries::remove);
 
             // Remove those segment offset caches that are no longer used.
-            this.segmentIndexOffsets.keySet().removeIf(segmentId -> !remainingSegmentIds.contains(segmentId));
+            this.indexTails.keySet().removeIf(segmentId -> !remainingSegmentIds.contains(segmentId));
         }
 
         // Remove from the Cache. It's ok to do this outside of the lock as the cache is thread safe.
@@ -144,23 +148,26 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * Updates the contents of one or more Cache Entries related to the given {@link TableKeyBatch}. Each entry is updated
      * only if no previous entry exists with its key or if the new entry's offset is greater than the existing Entry's offset.
      *
+     * This method should be used for processing new updates to the Index (as opposed from bulk-loading already indexed keys).
+     *
      * @param segmentId   Segment Id that the TableKeyBatch Items belong to.
      * @param batch       An TableKeyBatch containing items whose Cache Entries need updating.
      * @param batchOffset Offset in the Segment where the first item in the TableKeyBatch has been written to.
      * @return A List of offsets for each item in the TableKeyBatch (in the same order) of where the latest value for that
-     * item's Key exists now. See {@link #updateKey(long, HashedArray, long)} return doc for interpreting these values.
+     * item's Key exists now. See {@link #includeExistingKey(long, HashedArray, long)} return doc for interpreting these values.
      */
-    List<Long> updateBatch(long segmentId, TableKeyBatch batch, long batchOffset) {
+    List<Long> includeUpdateBatch(long segmentId, TableKeyBatch batch, long batchOffset) {
         val result = new ArrayList<Supplier<Long>>(batch.getItems().size());
         synchronized (this.cacheEntries) {
             int generation = this.currentCacheGeneration;
             for (TableKeyBatch.Item item : batch.getItems()) {
-                // Calculate the CacheEntry offset, by factoring in the batch's offset. Adjust to negative if we are removing
-                // the KeyHash.
+                // Calculate the CacheEntry offset, by factoring in the batch's offset.
                 long cacheSegmentOffset = encodeValue(batchOffset + item.getOffset(), batch.isRemoval());
                 CacheKey cacheKey = new CacheKey(segmentId, item.getHash());
                 CacheEntry entry = this.cacheEntries.computeIfAbsent(cacheKey, key -> new CacheEntry(cacheKey, generation));
-                result.add(() -> entry.updateIfNewer(item.getHash(), cacheSegmentOffset, generation));
+
+                // Queue up the update (so we process it outside of this lock), which should also update backpointers as well.
+                result.add(() -> updateEntryAndBackpointers(segmentId, entry, item.getHash(), cacheSegmentOffset, generation));
             }
         }
 
@@ -173,6 +180,9 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * for segmentOffset supersedes (is higher) than the existing value (or if no existing value). This method cannot be
      * used to remove values.
      *
+     * This method should be used for processing existing keys (that have already been indexed), as opposed from processing
+     * new (un-indexed) keys.
+     *
      * @param segmentId     The Segment Id.
      * @param keyHash       A {@link HashedArray} representing the Key Hash to look up.
      * @param segmentOffset The segment offset where this Key has its latest value. If positive, it indicates that the latest
@@ -182,7 +192,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * If this value does not equal segmentOffset, it means some other concurrent update changed this value, and that
      * value prevailed. This value could be negative (see segmentOffset doc).
      */
-    long updateKey(long segmentId, HashedArray keyHash, long segmentOffset) {
+    long includeExistingKey(long segmentId, HashedArray keyHash, long segmentOffset) {
         Preconditions.checkArgument(segmentOffset >= 0, "segmentOffset must be non-negative.");
         CacheKey key = new CacheKey(segmentId, keyHash);
         CacheEntry entry;
@@ -196,7 +206,9 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        return entry.updateIfNewer(keyHash, segmentOffset, generation);
+        // Update the entry directly, without touching backpointers. This method is used for already-indexed keys, so
+        // the backpointers should already be part of the index.
+        return entry.updateIfNewer(keyHash, segmentOffset, generation).getCurrentOffset();
     }
 
     /**
@@ -220,19 +232,93 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     /**
      * Updates the Last Indexed Offset for a given Segment. This is used for cache eviction purposes - no cache entry with
-     * a segment offsets smaller than this value may be evicted.
+     * a segment offsets smaller than this value may be evicted. A Segment must be registered either via this method or
+     * via {@link #updateSegmentIndexOffsetIfMissing} in order to have backpointers recorded for the tail-end section of
+     * the index.
      *
      * @param segmentId   The Id of the Segment to update the Last Indexed Offset for.
      * @param indexOffset The Last Indexed Offset to set. If negative, this will clear up the value.
      */
-    void setSegmentIndexOffset(long segmentId, long indexOffset) {
+    void updateSegmentIndexOffset(long segmentId, long indexOffset) {
         synchronized (this.cacheEntries) {
             if (indexOffset < 0) {
-                this.segmentIndexOffsets.remove(segmentId);
+                this.indexTails.remove(segmentId);
             } else {
-                this.segmentIndexOffsets.put(segmentId, indexOffset);
+                SegmentIndexTail tail = this.indexTails.getOrDefault(segmentId, null);
+                if (tail == null) {
+                    this.indexTails.put(segmentId, new SegmentIndexTail(indexOffset));
+                } else {
+                    tail.setLastIndexedOffset(indexOffset);
+                }
             }
         }
+    }
+
+    /**
+     * Updates the Last Indexed Offset for a given Segment, but only if there currently isn't any information about that.
+     * See {@link #updateSegmentIndexOffset(long, long)} for more details.
+     *
+     * @param segmentId         The Id of the Segment to update the Last Indexed Offset for.
+     * @param indexOffsetGetter A Supplier that is only invoked if there is no information about the current segment. This
+     *                          Supplier should return the current value of the Segment's Last Indexed Offset.
+     */
+    void updateSegmentIndexOffsetIfMissing(long segmentId, Supplier<Long> indexOffsetGetter) {
+        SegmentIndexTail tail;
+        synchronized (this.cacheEntries) {
+            tail = this.indexTails.getOrDefault(segmentId, null);
+        }
+
+        if (tail == null) {
+            tail = new SegmentIndexTail(indexOffsetGetter.get());
+            synchronized (this.cacheEntries) {
+                this.indexTails.put(segmentId, tail);
+            }
+        }
+    }
+
+    /**
+     * Gets the Backpointer offset from the given one, if recorded.
+     *
+     * @param segmentId    The Id of the Segment to get Backpointer for.
+     * @param sourceOffset The origin of the Backpointer.
+     * @return The target of the Backpointer (from the given source), or -1 if no such Backpointer is registered.
+     */
+    long getBackpointer(long segmentId, long sourceOffset) {
+        SegmentIndexTail tail;
+        synchronized (this.cacheEntries) {
+            tail = this.indexTails.getOrDefault(segmentId, null);
+        }
+
+        return tail == null ? -1 : tail.getBackpointerOffset(sourceOffset);
+    }
+
+    /**
+     * Records a new Backpointer for the given segment, but only if the Segment is registered (via {@link #updateSegmentIndexOffset}
+     * or {@link #updateSegmentIndexOffsetIfMissing} and only if fromOffset is beyond the Segment's Last Indexed Offset.
+     *
+     * @param segmentId  The Id of the Segment to get Backpointer for.
+     * @param fromOffset The source offset of the Backpointer.
+     * @param toOffset   The target offset of the Backpointer.
+     */
+    @VisibleForTesting
+    void recordBackpointer(long segmentId, long fromOffset, long toOffset) {
+        SegmentIndexTail tail;
+        synchronized (this.cacheEntries) {
+            tail = this.indexTails.getOrDefault(segmentId, null);
+        }
+
+        if (tail != null) {
+            tail.recordBackpointer(fromOffset, toOffset);
+        }
+    }
+
+    private long updateEntryAndBackpointers(long segmentId, CacheEntry entry, HashedArray itemHash, long cacheSegmentOffset, int generation) {
+        UpdateCacheResult ucr = entry.updateIfNewer(itemHash, cacheSegmentOffset, generation);
+        if (ucr.getPreviousOffset() >= 0) {
+            recordBackpointer(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset());
+        }
+
+        return ucr.getCurrentOffset();
     }
 
     private long encodeValue(long segmentOffset, boolean isRemoval) {
@@ -245,7 +331,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     //endregion
 
-    //region CacheKey
+    //region CacheKey and CacheEntry
 
     /**
      * A key to access data in the Cache. A CacheKey is uniquely identified by a {SegmentId, KeyHashGroup} pair. Since
@@ -286,10 +372,6 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                     && this.keyHashGroup == other.keyHashGroup;
         }
     }
-
-    //endregion
-
-    //region CacheEntry
 
     /**
      * An entry in the Cache to which one or more CacheValues are mapped.
@@ -366,14 +448,15 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          * than the existing value.
          *
          * @param keyHash           The Key Hash to update.
-         * @param segmentOffset     See {@link ContainerKeyCache#updateKey(long, HashedArray, long)} segmentOffset.
+         * @param segmentOffset     See {@link ContainerKeyCache#includeExistingKey(long, HashedArray, long)} segmentOffset.
          * @param currentGeneration The current Cache Generation (from the Cache Manager).
-         * @return See {@link ContainerKeyCache#updateKey} return doc.
+         * @return See {@link ContainerKeyCache#includeExistingKey} return doc.
          */
-        synchronized long updateIfNewer(HashedArray keyHash, long segmentOffset, int currentGeneration) {
+        synchronized UpdateCacheResult updateIfNewer(HashedArray keyHash, long segmentOffset, int currentGeneration) {
             val decodedSegmentOffset = decodeValue(segmentOffset);
             byte[] entryData = ContainerKeyCache.this.cache.get(this.key);
             int entryOffset = locate(keyHash, entryData);
+            GetResult existingOffset = null;
             if (entryOffset < 0) {
                 // No match. Need to create a new array, copy any existing data and add new Cache Value.
                 if (entryData == null) {
@@ -396,10 +479,10 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 entryOffset += keyHash.getLength();
             } else {
                 // We found a match. Verify if we can update it.
-                val existingOffset = decodeValue(deserializeCacheValue(entryData, entryOffset));
+                existingOffset = decodeValue(deserializeCacheValue(entryData, entryOffset));
                 if (decodedSegmentOffset.getSegmentOffset() < existingOffset.getSegmentOffset()) {
                     // New offset is lower than existing one. Nothing else to do.
-                    return existingOffset.getSegmentOffset();
+                    return new UpdateCacheResult(existingOffset.getSegmentOffset(), -1);
                 }
             }
 
@@ -411,7 +494,9 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             this.size = entryData.length;
             this.generation = currentGeneration;
             this.highestOffset = Math.max(this.highestOffset, decodedSegmentOffset.getSegmentOffset());
-            return decodedSegmentOffset.getSegmentOffset();
+            return new UpdateCacheResult(
+                    decodedSegmentOffset.getSegmentOffset(),
+                    existingOffset == null ? -1 : existingOffset.getSegmentOffset());
         }
 
         /**
@@ -460,7 +545,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     //endregion
 
-    //region GetResult
+    //region Other Helper classes
 
     /**
      * Result from {@link #get(long, HashedArray)}.
@@ -476,6 +561,83 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          * True if the Key is present in the cache, false otherwise.
          */
         private final boolean present;
+    }
+
+    /**
+     * Result from the {@link CacheEntry#updateIfNewer} method.
+     */
+    @Data
+    private static class UpdateCacheResult {
+        /**
+         * The current Segment Offset of the updated Key Hash.
+         */
+        final long currentOffset;
+
+        /**
+         * The previous Segment Offset of the updated Key Hash, or -1 if it wasn't cached.
+         */
+        final long previousOffset;
+    }
+
+    /**
+     * Caches information about the tail-end section of the Index which cannot be effectively stored in the {@link Cache)}
+     * due to the frequency of updates, fragmentation of information and lookup techniques.
+     * <p>
+     * The tail-end section of a Segment Index represents the byte range between the {@link Attributes#TABLE_INDEX_OFFSET}
+     * and the end of the Segment (essentially whatever the back-end Writer Table Processor hasn't indexed yet).
+     */
+    @ThreadSafe
+    private static class SegmentIndexTail {
+        @GuardedBy("this")
+        private long lastIndexedOffset;
+        @GuardedBy("this")
+        private final HashMap<Long, Long> backpointers;
+
+        SegmentIndexTail(long currentLastIndexedOffset) {
+            Preconditions.checkArgument(currentLastIndexedOffset >= 0, "currentLastIndexedOffset must be a non-negative number.");
+            this.lastIndexedOffset = currentLastIndexedOffset;
+            this.backpointers = new HashMap<>();
+        }
+
+        /**
+         * Updates the Last Indexed Offset (cached value of the Segment's {@link Attributes#TABLE_INDEX_OFFSET} attribute).
+         * Clears out any backpointers whose source offsets will be smaller than the new value for Last Indexed Offset.
+         */
+        synchronized void setLastIndexedOffset(long currentLastIndexedOffset) {
+            Preconditions.checkArgument(currentLastIndexedOffset >= this.lastIndexedOffset,
+                    "currentLastIndexedOffset must be at least the current value");
+            this.lastIndexedOffset = currentLastIndexedOffset;
+            this.backpointers.keySet().removeIf(sourceOffset -> sourceOffset <= currentLastIndexedOffset);
+        }
+
+        /**
+         * Gets the Last Indexed Offset.
+         */
+        synchronized long getLastIndexedOffset() {
+            return this.lastIndexedOffset;
+        }
+
+        /**
+         * Records a new backpointer between the two offsets, but only if the sourceOffset is beyond {@link #getLastIndexedOffset()}.
+         */
+        synchronized void recordBackpointer(long sourceOffset, long targetOffset) {
+            Preconditions.checkArgument(sourceOffset > targetOffset, "sourceOffset must be greater than targetOffset");
+            if (sourceOffset > this.lastIndexedOffset) {
+                this.backpointers.put(sourceOffset, targetOffset);
+            }
+        }
+
+        /**
+         * Gets a backpointer from the given sourceOffset, or -1 if no such link exists.
+         */
+        synchronized long getBackpointerOffset(long sourceOffset) {
+            return this.backpointers.getOrDefault(sourceOffset, -1L);
+        }
+
+        @Override
+        public synchronized String toString() {
+            return String.format("LIO = %s, Backpointers = %s.", this.lastIndexedOffset, this.backpointers.size());
+        }
     }
 
     //endregion

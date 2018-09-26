@@ -38,10 +38,10 @@ public class ContainerKeyCacheTests {
     private static final int HASH_HASHCODE_BUCKETS = 10; // This sub-groups the KeyHashes into smaller buckets (to test grouping).
 
     /**
-     * Tests the {@link ContainerKeyCache#updateKey} method.
+     * Tests the {@link ContainerKeyCache#includeExistingKey} method.
      */
     @Test
-    public void testUpdateKey() {
+    public void testIncludeExistingKey() {
         @Cleanup
         val cacheFactory = new InMemoryCacheFactory();
         @Cleanup
@@ -56,8 +56,8 @@ public class ContainerKeyCacheTests {
             val keyHash = newSimpleHash(rnd);
             for (long segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
                 long offset = i;
-                long updateResult = keyCache.updateKey(segmentId, keyHash, offset);
-                Assert.assertEquals("Unexpected result from updateKey() for new insertion.", offset, updateResult);
+                long updateResult = keyCache.includeExistingKey(segmentId, keyHash, offset);
+                Assert.assertEquals("Unexpected result from includeExistingKey() for new insertion.", offset, updateResult);
                 expectedResult.put(new TestKey(segmentId, keyHash), new ContainerKeyCache.GetResult(offset, true));
             }
         }
@@ -72,12 +72,12 @@ public class ContainerKeyCacheTests {
             successfulUpdate = !successfulUpdate;
             val existingOffset = e.getValue().getSegmentOffset();
             long newOffset = successfulUpdate ? existingOffset + 1 : Math.max(0, existingOffset - 1);
-            long updateResult = keyCache.updateKey(e.getKey().segmentId, e.getKey().keyHash, newOffset);
+            long updateResult = keyCache.includeExistingKey(e.getKey().segmentId, e.getKey().keyHash, newOffset);
             if (successfulUpdate) {
-                Assert.assertEquals("Unexpected result from updateKey() for successful update.", newOffset, updateResult);
+                Assert.assertEquals("Unexpected result from includeExistingKey() for successful update.", newOffset, updateResult);
                 e.setValue(new ContainerKeyCache.GetResult(newOffset, true));
             } else {
-                Assert.assertEquals("Unexpected result from updateKey() for obsolete update.", existingOffset, updateResult);
+                Assert.assertEquals("Unexpected result from includeExistingKey() for obsolete update.", existingOffset, updateResult);
             }
         }
 
@@ -85,13 +85,13 @@ public class ContainerKeyCacheTests {
         checkCache(expectedResult, keyCache);
 
         AssertExtensions.assertThrows(
-                "updateKey() accepted negative offset.",
-                () -> keyCache.updateKey(0, newSimpleHash(rnd), -1L),
+                "includeExistingKey() accepted negative offset.",
+                () -> keyCache.includeExistingKey(0, newSimpleHash(rnd), -1L),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
     /**
-     * Tests the {@link ContainerKeyCache#updateBatch} method for inserts.
+     * Tests the {@link ContainerKeyCache#includeUpdateBatch} method for inserts.
      */
     @Test
     public void testBatchInsert() {
@@ -107,7 +107,7 @@ public class ContainerKeyCacheTests {
     }
 
     /**
-     * Tests the {@link ContainerKeyCache#updateBatch} method for updates.
+     * Tests the {@link ContainerKeyCache#includeUpdateBatch} method for updates.
      */
     @Test
     public void testBatchUpdate() {
@@ -142,7 +142,7 @@ public class ContainerKeyCacheTests {
     }
 
     /**
-     * Tests the {@link ContainerKeyCache#updateBatch} method for removals.
+     * Tests the {@link ContainerKeyCache#includeUpdateBatch} method for removals.
      */
     @Test
     public void testBatchRemove() {
@@ -212,7 +212,7 @@ public class ContainerKeyCacheTests {
         val cacheFactory = new InMemoryCacheFactory();
         @Cleanup
         val cache1 = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
-        cache1.updateKey(segmentId, keyHash, 1L);
+        cache1.includeExistingKey(segmentId, keyHash, 1L);
         cache1.close();
 
         @Cleanup
@@ -256,15 +256,15 @@ public class ContainerKeyCacheTests {
             keyCache.updateGenerations(i, 0);
             val keyHash = KEY_HASHER.hash(newTableKey(rnd).getKey());
             for (long segmentId = 0; segmentId < segmentCount; segmentId++) {
-                keyCache.updateKey(segmentId, keyHash, (long) i);
+                keyCache.includeExistingKey(segmentId, keyHash, (long) i);
                 expectedResult.put(new TestKey(segmentId, keyHash), new ContainerKeyCache.GetResult(i, true));
             }
         }
 
         // Set the initial Last Indexed Offsets.
-        keyCache.setSegmentIndexOffset(segmentIdNoEviction, -1L);
-        keyCache.setSegmentIndexOffset(segmentIdByGenerations, Long.MAX_VALUE);
-        keyCache.setSegmentIndexOffset(segmentIdByOffset, 0L);
+        keyCache.updateSegmentIndexOffset(segmentIdNoEviction, -1L);
+        keyCache.updateSegmentIndexOffset(segmentIdByGenerations, Long.MAX_VALUE);
+        keyCache.updateSegmentIndexOffset(segmentIdByOffset, 0L);
 
         val initialStatus = keyCache.getCacheStatus();
         Assert.assertEquals("Unexpected initial oldest generation.", 0, initialStatus.getOldestGeneration());
@@ -285,7 +285,7 @@ public class ContainerKeyCacheTests {
 
         // Now update the Last Indexed Offset for a segment and verify that its entries are removed.
         for (long offset = 1; offset <= keyCount; offset++) {
-            keyCache.setSegmentIndexOffset(segmentIdByOffset, offset);
+            keyCache.updateSegmentIndexOffset(segmentIdByOffset, offset);
             long sizeRemoved = keyCache.updateGenerations(ng, ng);
             AssertExtensions.assertGreaterThan("Expecting something to have been removed (offset).", 0, sizeRemoved);
         }
@@ -298,6 +298,47 @@ public class ContainerKeyCacheTests {
         checkCache(expectedResult, keyCache);
     }
 
+    @Test
+    public void testBackpointers() {
+        final long segmentId = 1L;
+        final int count = 30;
+        @Cleanup
+        val cacheFactory = new InMemoryCacheFactory();
+        @Cleanup
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+
+        // First, try to record a backpointer without the segment being registered.
+        keyCache.recordBackpointer(segmentId, 2, 1);
+        Assert.assertEquals("Not expecting a backpointer to be recorded.", -1L, keyCache.getBackpointer(0L, 2));
+
+        // Register the segment.
+        keyCache.updateSegmentIndexOffset(segmentId, 0L);
+        keyCache.updateSegmentIndexOffsetIfMissing(segmentId, () -> {
+            Assert.fail("not expecting an invocation");
+            return 0L;
+        });
+
+        // Record backpointers.
+        for (int i = 1; i < count; i++) {
+            keyCache.recordBackpointer(segmentId, i, i - 1);
+        }
+
+        // Gradually increment the Last Indexed Offset of the segment to verify backpointers are cleaned up.
+        for (int lio = 0; lio < count; lio++) {
+            keyCache.updateSegmentIndexOffset(segmentId, lio);
+            for (int i = 0; i < count; i++) {
+                long expectedValue = i <= lio ? -1 : i - 1;
+                long actualValue = keyCache.getBackpointer(segmentId, i);
+                Assert.assertEquals("Unexpected backpointer value after LIO = " + lio, expectedValue, actualValue);
+            }
+        }
+
+        // Unregister the segment.
+        keyCache.updateSegmentIndexOffset(segmentId, -1L);
+        keyCache.recordBackpointer(segmentId, 2, 1);
+        Assert.assertEquals("Not expecting a backpointer to be recorded.", -1L, keyCache.getBackpointer(0L, 2));
+    }
+
     private long batchInsert(long insertOffset, ContainerKeyCache keyCache, HashMap<TestKey, ContainerKeyCache.GetResult> expectedResult, Random rnd) {
         val insertBatches = new HashMap<Long, TableKeyBatch>();
         long highestOffset = 0L;
@@ -307,6 +348,7 @@ public class ContainerKeyCacheTests {
             val key = newTableKey(rnd);
             val keyHash = KEY_HASHER.hash(key.getKey());
             for (long segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
+                keyCache.updateSegmentIndexOffsetIfMissing(segmentId, () -> 0L);
                 val insertBatch = insertBatches.computeIfAbsent(segmentId, ignored -> TableKeyBatch.update());
                 val itemOffset = insertOffset + insertBatch.getLength();
                 insertBatch.add(key, keyHash, key.getKey().getLength());
@@ -322,11 +364,31 @@ public class ContainerKeyCacheTests {
 
     private void applyBatches(HashMap<Long, TableKeyBatch> batchesBySegment, long batchOffset, ContainerKeyCache keyCache) {
         for (val e : batchesBySegment.entrySet()) {
-            val batchUpdateResult = keyCache.updateBatch(e.getKey(), e.getValue(), batchOffset);
+            long segmentId = e.getKey();
+
+            // Collect existing offsets for the update items (so we can check backpointers).
+            val previousOffsets = e.getValue().getItems().stream()
+                                   .map(i -> keyCache.get(segmentId, i.getHash()))
+                                   .collect(Collectors.toList());
+
+            // Update the Cache.
+            val batchUpdateResult = keyCache.includeUpdateBatch(segmentId, e.getValue(), batchOffset);
+
+            // Verify update result.
             val expectedOffsets = e.getValue().getItems().stream()
                     .map(i -> batchOffset + i.getOffset())
                     .collect(Collectors.toList());
             AssertExtensions.assertListEquals("Unexpected batch update result.", expectedOffsets, batchUpdateResult, Long::equals);
+
+            // Verify backpointers.
+            for (int i = 0; i < expectedOffsets.size(); i++) {
+                long sourceOffset = expectedOffsets.get(i);
+                ContainerKeyCache.GetResult prevOffset = previousOffsets.get(i);
+                long expectedBackpointer = prevOffset != null ? prevOffset.getSegmentOffset() : -1L;
+                long actualBackpointer = keyCache.getBackpointer(segmentId, sourceOffset);
+                Assert.assertEquals("Unexpected backpointer for segment " + segmentId + " offset " + sourceOffset,
+                        expectedBackpointer, actualBackpointer);
+            }
         }
     }
 

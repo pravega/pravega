@@ -148,7 +148,8 @@ class ContainerKeyIndex implements AutoCloseable {
                                 result.set(resultOffset, TableKey.NOT_EXISTS);
                             } else {
                                 // Update the cache information.
-                                long highestOffset = this.cache.updateKey(segment.getSegmentId(), keyHash, this.indexReader.getOffset(bucket.getLastNode()));
+                                long highestOffset = this.cache.includeExistingKey(segment.getSegmentId(), keyHash,
+                                        this.indexReader.getOffset(bucket.getLastNode()));
                                 result.set(resultOffset, highestOffset);
                             }
                         }
@@ -168,7 +169,14 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        // TODO: figure out a way to temporarily perserve backpointers until the writer processor persists them into the index.
+
+        // First check the index tail cache.
+        long cachedBackpointer = this.cache.getBackpointer(segment.getSegmentId(), offset);
+        if (cachedBackpointer >= 0) {
+            return CompletableFuture.completedFuture(cachedBackpointer);
+        }
+
+        // Nothing in the tail cache; look it up in the index.
         return this.indexReader.getBackpointerOffset(offset, segment, timeout);
     }
 
@@ -216,11 +224,21 @@ class ContainerKeyIndex implements AutoCloseable {
                     keys,
                     () -> validateConditionalUpdate(segment, batch, timer)
                             .thenComposeAsync(v -> persist.get(), this.executor)
-                            .thenApplyAsync(batchOffset -> this.cache.updateBatch(segment.getSegmentId(), batch, batchOffset), this.executor));
+                            .thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor));
         } else {
             // Unconditional removal: persist the entries and update the cache.
-            return persist.get().thenApply(batchOffset -> this.cache.updateBatch(segment.getSegmentId(), batch, batchOffset));
+            return persist.get().thenApply(batchOffset -> updateCache(segment, batch, batchOffset));
         }
+    }
+
+    private List<Long> updateCache(DirectSegmentAccess segment, TableKeyBatch batch, long batchOffset) {
+        // Ensure the cache knows about the Last Indexed Offset segment for this Segment. If it doesn't we need to fetch it.
+        // This is necessary so we can properly record new backpointers into the cache which occur beyond the Last Indexed Offset
+        // for this segment.
+        this.cache.updateSegmentIndexOffsetIfMissing(segment.getSegmentId(), () -> this.indexReader.getLastIndexedOffset(segment.getInfo()));
+
+        // Update the cache with the contents of the batch.
+        return this.cache.includeUpdateBatch(segment.getSegmentId(), batch, batchOffset);
     }
 
     /**
