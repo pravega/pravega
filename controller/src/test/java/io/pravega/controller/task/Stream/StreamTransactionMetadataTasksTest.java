@@ -34,6 +34,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -158,7 +159,7 @@ public class StreamTransactionMetadataTasksTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  this.authEnabled, "secret");
+                executor, "host", connectionFactory,  AuthHelper.getDisabledAuthHelper());
     }
 
     @After
@@ -198,7 +199,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
-                executor, "host", connectionFactory, false, "");
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
                 abortWriter);
 
@@ -240,7 +241,7 @@ public class StreamTransactionMetadataTasksTest {
         EventStreamReader<AbortEvent> abortReader = abortWriter.getReader();
 
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
-                connectionFactory, false, "");
+                connectionFactory, AuthHelper.getDisabledAuthHelper());
 
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
                 abortWriter);
@@ -259,7 +260,7 @@ public class StreamTransactionMetadataTasksTest {
         // Set up txn task for creating transactions from a failedHost.
         @Cleanup
         StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelperMock, executor, "failedHost", connectionFactory, false, "");
+                segmentHelperMock, executor, "failedHost", connectionFactory, AuthHelper.getDisabledAuthHelper());
         failedTxnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
                 new EventStreamWriterMock<>());
 
@@ -296,7 +297,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks for sweeping txns from failedHost.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
-                connectionFactory, false, "");
+                connectionFactory, AuthHelper.getDisabledAuthHelper());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
@@ -363,7 +364,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
-                connectionFactory, false, "");
+                connectionFactory, AuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
@@ -438,7 +439,8 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", connectionFactory, this.authEnabled, "secret");
+                SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", connectionFactory,
+                new AuthHelper(this.authEnabled, "secret"));
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
                 abortWriter);
 
@@ -484,7 +486,8 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, hostStore,
-                SegmentHelperMock.getSegmentHelperMock(), executor, "host", connectionFactory, this.authEnabled, "secret");
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host", connectionFactory,
+                new AuthHelper(this.authEnabled, "secret"));
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
                 abortWriter);
 

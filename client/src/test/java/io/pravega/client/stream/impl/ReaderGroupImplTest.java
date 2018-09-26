@@ -30,6 +30,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.IntStream;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,6 +40,8 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -62,6 +66,8 @@ public class ReaderGroupImplTest {
     private StateSynchronizer<ReaderGroupState> synchronizer;
     @Mock
     private ReaderGroupState state;
+    @Mock
+    private ScheduledThreadPoolExecutor scheduledThreadPoolExecutor;
 
     private Serializer<InitialUpdate<ReaderGroupState>> initSerializer = new ReaderGroupStateInitSerializer();
     private Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
@@ -145,6 +151,25 @@ public class ReaderGroupImplTest {
                 .thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
 
         assertEquals(40L, readerGroup.unreadBytes());
+    }
+
+    @Test
+    public void initiateCheckpointFailure() {
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(false);
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
+        assertTrue("expecting a checkpoint failure", result.isCompletedExceptionally());
+        try {
+            result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            assertTrue("expecting MaxNumberOfCheckpointsExceededException", e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
+        }
+    }
+
+    @Test
+    public void initiateCheckpointSuccess() {
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
+        assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
