@@ -23,6 +23,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
@@ -101,7 +102,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver);
+                delegationToken -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver, requestTag);
     }
 
     @Override
@@ -114,7 +115,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.truncateStream(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver);
+                        request.getStreamInfo().getStream(), ModelHelper.encode(request)), responseObserver, requestTag);
     }
 
     @Override
@@ -125,7 +126,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("[requestId={}] sealStream called for stream {}/{}.", requestTag.getRequestId(), request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.sealStream(request.getScope(), request.getStream()), responseObserver);
+                delegationToken -> controllerService.sealStream(request.getScope(), request.getStream()), responseObserver, requestTag);
     }
 
     @Override
@@ -136,7 +137,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("[requestId={}] deleteStream called for stream {}/{}.", requestTag.getRequestId(), request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver);
+                delegationToken -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver, requestTag);
     }
 
     @Override
@@ -336,7 +337,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("[requestId={}] createScope called for scope {}.", requestTag.getRequestId(), request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createScope(request.getScope()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -345,14 +346,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("[requestId={}] deleteScope called for scope {}.", requestTag.getRequestId(), request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
-    public void getDelegationToken(io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo request,
-                                   io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> responseObserver)  {
-        log.info("createStream called for stream {}/{}.", request.getScope(),
-                request.getStream());
+    public void getDelegationToken(StreamInfo request, StreamObserver<DelegationToken> responseObserver)  {
+        log.info("getDelegationToken called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> CompletableFuture.completedFuture(Controller.DelegationToken
