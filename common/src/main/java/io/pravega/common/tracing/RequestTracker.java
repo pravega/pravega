@@ -37,6 +37,29 @@ public class RequestTracker {
         return Stream.of(requestInfo).collect(Collectors.joining("-"));
     }
 
+    public synchronized boolean existsRequest(String requestDescriptor) {
+        return ongoingRequests.containsKey(requestDescriptor);
+    }
+
+    public RequestTag getRequestTagFor(String...requestInfo) {
+        return getRequestTagFor(RequestTracker.createRPCRequestDescriptor(requestInfo));
+    }
+
+    public synchronized RequestTag getRequestTagFor(String requestDescriptor) {
+        Preconditions.checkArgument(requestDescriptor != null, "Attempting to untrack a null RPC request descriptor.");
+        RequestTag deletedValue = null;
+        if (!ongoingRequests.containsKey(requestDescriptor)) {
+            log.warn("Attempting to untrack a non-existing key: {}.", requestDescriptor);
+            return deletedValue;
+        }
+
+        if (ongoingRequests.get(requestDescriptor).size() > 1) {
+            log.warn("{} concurrent requests with same descriptor: {}. Choosing first one.", ongoingRequests.get(requestDescriptor).size(), requestDescriptor);
+        }
+
+        return new RequestTag(requestDescriptor, ongoingRequests.get(requestDescriptor).get(0));
+    }
+
     public long getRequestIdFor(String...requestInfo) {
         return getRequestIdFor(RequestTracker.createRPCRequestDescriptor(requestInfo));
     }
@@ -93,5 +116,27 @@ public class RequestTracker {
         log.info("Untracking request {} with id {}. Current ongoing requests: {}.", key, deletedValue,
                 ongoingRequests.values().stream().mapToInt(List::size).sum());
         return deletedValue;
+    }
+
+    /**
+     * This method first attempts to load a tag from a request that is assumed to exist. However, if we work with
+     * clients or channels that do not attach tags to requests, then we initialize and track the request at the server
+     * side. In the worst case, we will have the ability of tracking a request from the RPC server onwards.
+     *
+     * @param requestId Alternative request id in the case there is no request id in headers.
+     * @param requestInfo Alternative descriptor to identify the call in the case there is no descriptor in headers.
+     * @return Request tag formed either from request headers or from arguments given.
+     */
+    public static RequestTag initializeAndTrackRequestTag(long requestId, String...requestInfo) {
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(requestInfo);
+        if (requestTag == null) {
+            log.warn("Request tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.", requestId,
+                    RequestTracker.createRPCRequestDescriptor(requestInfo));
+            requestTag = new RequestTag(RequestTracker.createRPCRequestDescriptor(requestInfo), requestId);
+            RequestTracker.getInstance().trackRequest(requestTag);
+        }
+
+        log.info("[requestId={}] Getting tags from request {}.", requestTag.getRequestId(), requestTag.getRequestDescriptor());
+        return requestTag;
     }
 }

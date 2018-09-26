@@ -17,7 +17,6 @@ import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.common.tracing.TracingHelpers;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -82,7 +81,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "createStream",
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         log.info("[requestId={}] createStream called for stream {}/{}.", requestTag.getRequestId(),
@@ -95,7 +94,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "updateStream",
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "updateStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         log.info("[requestId={}] updateStream called for stream {}/{}.", requestTag.getRequestId(),
@@ -107,7 +106,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "truncateStream",
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "truncateStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         log.info("[requestId={}] truncateStream called for stream {}/{}.", requestTag.getRequestId(),
@@ -120,7 +119,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "sealStream", request.getScope(), request.getStream());
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "sealStream",
+                request.getScope(), request.getStream());
 
         log.info("[requestId={}] sealStream called for stream {}/{}.", requestTag.getRequestId(), request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
@@ -130,7 +130,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "deleteStream", request.getScope(), request.getStream());
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "deleteStream",
+                request.getScope(), request.getStream());
 
         log.info("[requestId={}] deleteStream called for stream {}/{}.", requestTag.getRequestId(), request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
@@ -331,7 +332,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "createScope", request.getScope());
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createScope", request.getScope());
         log.info("[requestId={}] createScope called for scope {}.", requestTag.getRequestId(), request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createScope(request.getScope()),
@@ -340,7 +341,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
-        RequestTag requestTag = initializeAndTrackRequest(System.nanoTime(), "deleteScope", request.getScope());
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "deleteScope", request.getScope());
         log.info("[requestId={}] deleteScope called for scope {}.", requestTag.getRequestId(), request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
@@ -371,12 +372,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
-
-                        if (requestTag != null) {
-                            log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestTag.getRequestDescriptor()),
-                                    requestTag.getRequestDescriptor());
-                        }
-
+                        logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             log.error("Controller api failed with error: ", ex);
@@ -392,6 +388,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     });
         } catch (Exception e) {
             log.error("Controller api failed with authenticator error");
+            logAndUntrackRequestTag(requestTag);
             streamObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Authentication failed")
                     .asRuntimeException());
@@ -403,9 +400,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
     }
 
-    private RequestTag initializeAndTrackRequest(long requestId, String...requestInfo) {
-        RequestTag requestTag = TracingHelpers.getOrInitializeRequestTags(requestId, requestInfo);
-        RequestTracker.getInstance().trackRequest(requestTag);
-        return requestTag;
+    private void logAndUntrackRequestTag(RequestTag requestTag) {
+        if (requestTag != null) {
+            log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestTag.getRequestDescriptor()),
+                    requestTag.getRequestDescriptor());
+        }
     }
 }

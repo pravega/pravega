@@ -32,6 +32,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TracingHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
@@ -61,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -78,7 +80,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
-
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -104,7 +105,7 @@ public class ControllerImpl implements Controller {
     private final ManagedChannel channel;
 
     // The gRPC client for the Controller Service.
-    private final ControllerServiceGrpc.ControllerServiceStub client;
+    private final ControllerServiceStub client;
 
     /**
      * Creates a new instance of the Controller client class.
@@ -160,7 +161,7 @@ public class ControllerImpl implements Controller {
 
         // Create Async RPC client.
         this.channel = channelBuilder.build();
-        ControllerServiceGrpc.ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
+        ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
         Credentials credentials = config.getClientConfig().getCredentials();
         if (credentials != null) {
             PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
@@ -175,9 +176,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "createScope", scopeName);
 
         final CompletableFuture<CreateScopeStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "createScope", scopeName);
             RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>(traceId, "createScope");
-            client.createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            addTagsToRequest(client, traceId, "createScope", scopeName)
+                    .createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -213,9 +214,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "deleteScope", scopeName);
 
         final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "deleteScope", scopeName);
             RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(traceId, "deleteScope");
-            client.deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            addTagsToRequest(client, traceId, "deleteScope", scopeName)
+                    .deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -252,9 +253,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "createStream", streamConfig);
 
         final CompletableFuture<CreateStreamStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "createStream", streamConfig.getScope(), streamConfig.getStreamName());
             RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "createStream");
-            client.createStream(ModelHelper.decode(streamConfig), callback);
+            addTagsToRequest(client, traceId, "createStream", streamConfig.getScope(), streamConfig.getStreamName())
+                    .createStream(ModelHelper.decode(streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -294,9 +295,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "updateStream", streamConfig);
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "updateStream", streamConfig.getScope(), streamConfig.getStreamName());
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "updateStream");
-            client.updateStream(ModelHelper.decode(streamConfig), callback);
+            addTagsToRequest(client, traceId, "updateStream", streamConfig.getScope(), streamConfig.getStreamName())
+                    .updateStream(ModelHelper.decode(streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -337,9 +338,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "truncateStream", streamCut);
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "truncateStream", scope, stream);
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "truncateStream");
-            client.truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
+            addTagsToRequest(client, traceId, "truncateStream", scope, stream)
+                    .truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -501,9 +502,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "sealStream", scope, streamName);
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "sealStream", scope, streamName);
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "sealStream");
-            client.sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            addTagsToRequest(client, traceId, "sealStream", scope, streamName)
+                    .sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -541,9 +542,9 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "deleteStream", scope, streamName);
 
         final CompletableFuture<DeleteStreamStatus> result = this.retryConfig.runAsync(() -> {
-            TracingHelpers.attachTagToRPCRequest(traceId, "deleteStream", scope, streamName);
             RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>(traceId, "deleteStream");
-            client.deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            addTagsToRequest(client, traceId, "deleteStream", scope, streamName)
+                    .deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -968,5 +969,10 @@ public class ControllerImpl implements Controller {
         public CompletableFuture<T> getFuture() {
             return future;
         }
+    }
+
+    private static ControllerServiceStub addTagsToRequest(ControllerServiceStub clientStub, long traceId, String...requestInfo) {
+        return clientStub.withOption(TracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.createRPCRequestDescriptor(requestInfo))
+                         .withOption(TracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
     }
 }
