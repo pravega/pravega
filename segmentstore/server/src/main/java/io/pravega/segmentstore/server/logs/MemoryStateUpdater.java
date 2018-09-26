@@ -21,7 +21,7 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import java.util.HashSet;
