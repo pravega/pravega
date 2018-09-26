@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
  * @param <KeyT>
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class KeyUpdateFilter<KeyT> {
+class KeyUpdateFilter<KeyT> {
     private final Set<KeyT> filterKeys;
 
     /**

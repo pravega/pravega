@@ -52,13 +52,18 @@ public interface TableWriter<KeyT, ValueT> extends AutoCloseable {
     CompletableFuture<KeyVersion> put(KeyT key, ValueT value);
 
     /**
-     * Performs a Conditional Update by updating the Value for an existing Key in this Table.
+     * Performs a Conditional Update by updating the Value for an existing Key in this Table. The Update will only be
+     * accepted if the given compareVersion matches the existing version for that Key, otherwise it will be rejected with
+     * no effect on the Table.
      *
      * @param key            The Key to insert or update.
      * @param value          The Value to set for the Key.
      * @param compareVersion A {@link KeyVersion} that will need to match the version of the Key in the Table.
      * @return A CompletableFuture that, when completed, will contain the {@link KeyVersion} associated with the newly
-     * inserted or updated entry.
+     * inserted or updated entry. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} In case the conditional update failed.
+     * </ul>
      */
     CompletableFuture<KeyVersion> put(KeyT key, ValueT value, KeyVersion compareVersion);
 
@@ -71,11 +76,15 @@ public interface TableWriter<KeyT, ValueT> extends AutoCloseable {
     CompletableFuture<Void> remove(KeyT key);
 
     /**
-     * Performs a Conditional Removal of the given key from this Table.
+     * Performs a Conditional Removal of the given key from this Table. The Remove will only be accepted if the given
+     * compareVersion matches the existing version for that Key, otherwise it will be rejected with no effect on the Table.
      *
      * @param key            The Key to remove.
      * @param compareVersion A {@link KeyVersion} that will need to match the version of the Key in the Table.
-     * @return A CompletableFuture that, when completed, will indicate the Key has been removed.
+     * @return A CompletableFuture that, when completed, will indicate the Key has been removed. Notable exceptions:
+     * <ul>
+     * <li>{@link ConditionalTableUpdateException} In case the conditional update failed.
+     * </ul>
      */
     CompletableFuture<Void> remove(KeyT key, KeyVersion compareVersion);
 

@@ -177,11 +177,10 @@ public interface TableStore {
     /**
      * Creates a new Iterator over all the {@link TableKey}s in the given Table Segment.
      *
-     * @param segmentName       The name of the Table Segment to iterate over.
-     * @param continuationToken An {@link IteratorState} representing a continuation token that can be used to resume a
-     *                          previously interrupted iteration. This can be obtained by invoking
-     *                          {@link IteratorItem#getContinuationToken()}.
-     * @param timeout           Timeout for the operation.
+     * @param segmentName The name of the Table Segment to iterate over.
+     * @param state       An {@link IteratorState} that can be used to resume a previously interrupted iteration. This
+     *                    can be obtained by invoking {@link IteratorItem#getState()}.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableKey} instances in the given Table Segment. If the operation failed, the Future will be
      * failed with the causing exception. Notable exceptions:
@@ -190,17 +189,15 @@ public interface TableStore {
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorState continuationToken,
-                                                                         Duration timeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorState state, Duration timeout);
 
     /**
      * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
      *
-     * @param segmentName       The name of the Table Segment to iterate over.
-     * @param continuationToken An {@link IteratorState} representing a continuation token that can be used to resume a
-     *                          previously interrupted iteration. This can be obtained by invoking
-     *                          {@link IteratorItem#getContinuationToken()}.
-     * @param timeout           Timeout for the operation.
+     * @param segmentName The name of the Table Segment to iterate over.
+     * @param state       An {@link IteratorState} that can be used to resume a previously interrupted iteration. This
+     *                    can be obtained by invoking {@link IteratorItem#getState()}.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
      * over all the {@link TableEntry} instances in the given Table Segment. If the operation failed, the Future will be
      * failed with the causing exception. Notable exceptions:
@@ -209,8 +206,7 @@ public interface TableStore {
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState continuationToken,
-                                                                             Duration timeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState state, Duration timeout);
 
     /**
      * Gets the {@link UpdateListener} for a particular TableSegment.
@@ -244,12 +240,11 @@ public interface TableStore {
          * or {@link #keyIterator(String, IteratorState, Duration)} if a previous iteration has been interrupted (by losing
          * the pointer to the {@link AsyncIterator}), system restart, etc.
          */
-        IteratorState getContinuationToken();
+        IteratorState getState();
 
         /**
-         * Gets a List of items that are contained in this instance. For efficiency reasons, items may be batched together.
-         * The items in this list are not necessarily related to each other, nor are they guaranteed to be in any particular
-         * order.
+         * Gets a List of items that are contained in this instance. The items in this list are not necessarily related
+         * to each other, nor are they guaranteed to be in any particular order.
          */
         List<T> getEntries();
     }

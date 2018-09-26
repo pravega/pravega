@@ -9,26 +9,39 @@
  */
 package io.pravega.client.tables;
 
-import java.io.Serializable;
-import lombok.Data;
+import java.nio.ByteBuffer;
 
 /**
  * Version of a Key in a Table.
  */
-@Data
-public class KeyVersion implements Serializable {
+public interface KeyVersion {
     /**
      * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
      */
-    public static final KeyVersion NOT_EXISTS = new KeyVersion(Long.MIN_VALUE, Long.MIN_VALUE);
-    private static final long serialVersionUID = 1L;
+    KeyVersion NOT_EXISTS = null; // TODO: replace with actual implementation instance once it exists.
 
     /**
-     * The internal Table Segment Id where this Key Version refers to.
+     * Gets a value representing the internal Table Segment Id where this Key Version refers to.
      */
-    private final long segmentId;
+    long getSegmentId();
+
     /**
-     * The internal version inside the Table Segment for this Key.
+     * Gets a value representing the internal version inside the Table Segment for this Key.
      */
-    private final long segmentVersion;
+    long getSegmentVersion();
+
+    /**
+     * Serializes the KeyVersion instance to a compact byte array.
+     */
+    ByteBuffer toBytes();
+
+    /**
+     * Deserializes the KeyVersion from its serialized from obtained from calling {@link #toBytes()}.
+     *
+     * @param serializedKeyVersion A serialized KeyVersion.
+     * @return The KeyVersion object.
+     */
+    static KeyVersion fromBytes(ByteBuffer serializedKeyVersion) {
+        throw new UnsupportedOperationException("Not Implemented");
+    }
 }

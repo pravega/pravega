@@ -129,26 +129,22 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
     /**
      * Creates a new Iterator over all the Keys in the Table Segment.
      *
-     * @param continuationToken An {@link IteratorState} that represents a continuation token that can be used to resume
-     *                          a previously interrupted iteration. This can be obtained by invoking
-     *                          {@link IteratorItem#getContinuationToken()}. A null value will create an iterator that
-     *                          lists all keys.
-     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the Keys in this Table Segment.
+     * @param state An {@link IteratorState} that represents a continuation token that can be used to resume a previously
+     *              interrupted iteration. This can be obtained by invoking {@link IteratorItem#getState()}. A null value
+     *              will create an iterator that lists all keys.
+     * @return An {@link AsyncIterator} that can be used to iterate over all the Keys in this Table Segment.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableKey<KeyT>>>> keyIterator(IteratorState continuationToken);
+    AsyncIterator<IteratorItem<TableKey<KeyT>>> keyIterator(IteratorState state);
 
     /**
      * Creates a new Iterator over all the Entries in the Table Segment.
      *
-     * @param continuationToken An {@link IteratorState} that represents a continuation token that can be used to resume
-     *                          a previously interrupted iteration. This can be obtained by invoking
-     *                          {@link IteratorItem#getContinuationToken()}. A null value will create an iterator that
-     *                          lists all Entries.
-     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the Entries in this Table Segment.
+     * @param state An {@link IteratorState} that represents a continuation token that can be used to resume a previously
+     *              interrupted iteration. This can be obtained by invoking {@link IteratorItem#getState()}. A null value
+     *              will create an iterator that lists all Entries.
+     * @return An {@link AsyncIterator} that can be used to iterate over all the Entries in this Table Segment.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>>> entryIterator(IteratorState continuationToken);
+    AsyncIterator<IteratorItem<TableEntry<KeyT, ValueT>>> entryIterator(IteratorState state);
 
     @Override
     void close();
@@ -166,11 +162,10 @@ public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
          * {@link TableSegment#keyIterator(IteratorState)}if a previous iteration has been interrupted (by losing the
          * pointer to the {@link AsyncIterator}), system restart, etc.
          */
-        private final IteratorState continuationToken;
+        private final IteratorState state;
         /**
-         * A List of items that are contained in this instance. For efficiency reasons, multiple iterator items may be
-         * batched together. The items in this list are not necessarily related to each other, nor are they
-         * guaranteed to be in any particular order.
+         * A List of items that are contained in this instance. The items in this list are not necessarily related to each
+         * other, nor are they guaranteed to be in any particular order.
          */
         private final List<T> items;
     }
