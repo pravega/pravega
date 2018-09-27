@@ -58,7 +58,7 @@ public class HistoryTimeIndexLeaf {
     // helper method to perform binary search
     public int findIndexAtTime(long timestamp) {
         Preconditions.checkState(!records.isEmpty());
-        return RecordHelper.binarySearch(records, 0, records.size(), timestamp, x -> x);
+        return RecordHelper.binarySearch(records, timestamp, x -> x);
     }
 
     public static HistoryTimeIndexLeaf addRecord(HistoryTimeIndexLeaf leaf, long time) {

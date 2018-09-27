@@ -20,6 +20,7 @@ import lombok.SneakyThrows;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Data
@@ -32,7 +33,7 @@ import java.util.UUID;
 public class CommitTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
     public static final CommitTransactionsRecord EMPTY = CommitTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
-            .transactionsToCommit(ImmutableList.of()).activeEpoch(Integer.MIN_VALUE).build();
+            .transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
     /**
      * Epoch from which transactions are committed.
      */
@@ -45,20 +46,24 @@ public class CommitTransactionsRecord {
     /**
      * Epoch from which transactions are committed.
      */
-    int activeEpoch;
+    Optional<Integer> activeEpoch;
 
     CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
-        this(epoch, transactionsToCommit, Integer.MIN_VALUE);
+        this(epoch, transactionsToCommit, Optional.empty());
     }
 
     CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
+        this(epoch, transactionsToCommit, Optional.of(activeEpoch));
+    }
+
+    private CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
         this.transactionsToCommit = transactionsToCommit;
         this.activeEpoch = activeEpoch;
     }
 
     public static class CommitTransactionsRecordBuilder implements ObjectBuilder<CommitTransactionsRecord> {
-        private int activeEpoch = Integer.MIN_VALUE;
+        private Optional<Integer> activeEpoch = Optional.empty();
     }
 
     @SneakyThrows(IOException.class)
@@ -72,7 +77,11 @@ public class CommitTransactionsRecord {
     }
 
     public CommitTransactionsRecord getRollingTxnRecord(int activeEpoch) {
-        Preconditions.checkState(this.activeEpoch == Integer.MIN_VALUE);
+        Preconditions.checkState(!this.activeEpoch.isPresent());
         return new CommitTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
+    }
+
+    public boolean isRollingTxRecord() {
+        return activeEpoch.isPresent();
     }
 }

@@ -54,7 +54,7 @@ public class HistoryTimeIndexRootNode {
     // helper method to add a new leaf node record here
     public int findLeafNode(long time) {
         // binary search time to find the index which corresponds to leaf node
-        return RecordHelper.binarySearch(leaves, 0, leaves.size(), time, x -> x);
+        return RecordHelper.binarySearch(leaves, time, x -> x);
     }
 
     public static HistoryTimeIndexRootNode addNewLeaf(HistoryTimeIndexRootNode rootNode, long time) {
