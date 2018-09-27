@@ -20,7 +20,9 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.UpdateListener;
 import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.tables.hashing.HashConfig;
@@ -33,7 +35,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
@@ -96,8 +100,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new WriterTableProcessor(metadata, this.serializer, this.hasher,
-                this.segmentContainer::forSegment, this.executor));
+        return Collections.singletonList(new WriterTableProcessor(new TableWriterConnectorImpl(metadata), this.executor));
     }
 
     //endregion
@@ -172,6 +175,41 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public boolean unregisterListener(@NonNull UpdateListener listener) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         throw new UnsupportedOperationException();
+    }
+
+    //endregion
+
+    //region TableWriterConnector
+
+    @RequiredArgsConstructor
+    private class TableWriterConnectorImpl implements TableWriterConnector {
+        @Getter
+        private final SegmentMetadata metadata;
+
+        @Override
+        public EntrySerializer getSerializer() {
+            return ContainerTableExtensionImpl.this.serializer;
+        }
+
+        @Override
+        public KeyHasher getKeyHasher() {
+            return ContainerTableExtensionImpl.this.hasher;
+        }
+
+        @Override
+        public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
+            return ContainerTableExtensionImpl.this.segmentContainer.forSegment(this.metadata.getName(), timeout);
+        }
+
+        @Override
+        public void notifyIndexOffsetChanged(long lastIndexedOffset) {
+            // Not yet implemented. Will be done in issue 2878.
+        }
+
+        @Override
+        public void close() {
+            // Not yet implemented. Will be done in issue 2878.
+        }
     }
 
     //endregion
