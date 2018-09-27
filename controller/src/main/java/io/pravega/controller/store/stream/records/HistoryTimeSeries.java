@@ -24,6 +24,10 @@ import java.util.LinkedList;
 import java.util.List;
 
 @Data
+/**
+ * This class stores chunks of the history time series.
+ * Each chunk is of fixed size and contains list of epochs in form of HistoryTimeSeriesRecord.
+ */
 public class HistoryTimeSeries {
     public static final HistoryTimeSeriesSerializer SERIALIZER = new HistoryTimeSeriesSerializer();
 

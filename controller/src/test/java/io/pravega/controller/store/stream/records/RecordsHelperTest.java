@@ -10,12 +10,33 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.Lists;
+import io.pravega.controller.store.stream.tables.StreamCutRecord;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RecordsHelperTest {
+    @Test
+    public void binarySearchTest() {
+        List<Long> list = Lists.newArrayList(10L, 30L, 75L, 100L, 152L, 200L, 400L, 700L);
+
+        int index = RecordHelper.binarySearch(list, 0L, x -> x);
+        assertEquals(index, 0);
+        index = RecordHelper.binarySearch(list, 29L, x -> x);
+        assertEquals(index, 0);
+        index = RecordHelper.binarySearch(list, 101L, x -> x);
+        assertEquals(index, 3);
+        index = RecordHelper.binarySearch(list, Integer.MAX_VALUE, x -> x);
+        assertEquals(index, 7);
+    }
+
     @Test
     public void historyTimeIndexTest() {
         List<Long> leaves = Lists.newArrayList(10L, 30L, 75L, 100L, 152L);
@@ -47,16 +68,61 @@ public class RecordsHelperTest {
     }
 
     @Test
-    public void binarySearchTest() {
-        List<Long> list = Lists.newArrayList(10L, 30L, 75L, 100L, 152L, 200L, 400L, 700L);
+    public void sealedSegmentShardingTest() {
+        Map<Integer, SealedSegmentsMapShard> mapshards = new HashMap<>();
 
-        int index = RecordHelper.binarySearch(list, 0L, x -> x);
-        assertEquals(index, 0);
-        index = RecordHelper.binarySearch(list, 29L, x -> x);
-        assertEquals(index, 0);
-        index = RecordHelper.binarySearch(list, 101L, x -> x);
-        assertEquals(index, 3);
-        index = RecordHelper.binarySearch(list, Integer.MAX_VALUE, x -> x);
-        assertEquals(index, 7);
+        int shard = SealedSegmentsMapShard.getShardNumber(StreamSegmentNameUtils.computeSegmentId(10, 10), 100);
+        assertEquals(0, shard);
+
+        Map<Long, Long> map = new HashMap<>();
+        map.put(StreamSegmentNameUtils.computeSegmentId(10, 10), 100L);
+        mapshards.put(shard, SealedSegmentsMapShard.builder().shardNumber(shard).sealedSegmentsSizeMap(map).build());
+
+        shard = SealedSegmentsMapShard.getShardNumber(StreamSegmentNameUtils.computeSegmentId(10, 1000), 100);
+        assertEquals(10, shard);
+
+        map = new HashMap<>();
+        map.put(StreamSegmentNameUtils.computeSegmentId(10, 1000), 100L);
+        mapshards.put(shard, SealedSegmentsMapShard.builder().shardNumber(shard).sealedSegmentsSizeMap(map).build());
+
+        long segmentId = StreamSegmentNameUtils.computeSegmentId(10000, 1000);
+        shard = SealedSegmentsMapShard.getShardNumber(segmentId, 100);
+        assertEquals(10, shard);
+
+        mapshards.get(shard).addSealedSegmentSize(segmentId, 100L);
+        assertEquals(100L, mapshards.get(shard).getSize(segmentId));
+    }
+
+    @Test
+    public void retentionSetRecordTest() {
+        RetentionSet retentionSet = new RetentionSet(Collections.emptyList());
+
+        retentionSet = RetentionSet.addStreamCutIfLatest(retentionSet, new StreamCutRecord(0L, 0L, Collections.emptyMap()));
+        assertTrue(!retentionSet.getRetentionRecords().isEmpty());
+
+        retentionSet = RetentionSet.addStreamCutIfLatest(retentionSet, new StreamCutRecord(100L, 0L, Collections.emptyMap()));
+        assertEquals(2, retentionSet.getRetentionRecords().size());
+        assertEquals(100L, retentionSet.getLatest().recordingTime);
+        retentionSet = RetentionSet.addStreamCutIfLatest(retentionSet, new StreamCutRecord(99L, 0L, Collections.emptyMap()));
+        assertEquals(2, retentionSet.getRetentionRecords().size());
+        assertEquals(100L, retentionSet.getLatest().recordingTime);
+
+        retentionSet = RetentionSet.addStreamCutIfLatest(retentionSet, new StreamCutRecord(1000L, 0L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addStreamCutIfLatest(retentionSet, new StreamCutRecord(10000L, 0L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addStreamCutIfLatest(retentionSet, new StreamCutRecord(100000L, 0L, Collections.emptyMap()));
+        assertEquals(5, retentionSet.getRetentionRecords().size());
+        assertEquals(100000L, retentionSet.getLatest().recordingTime);
+
+        List<RetentionSetRecord> before = retentionSet.retentionRecordsBefore(new RetentionSetRecord(99L, 0L));
+        assertEquals(1, before.size());
+        assertEquals(0L, before.get(0).recordingTime);
+
+        before = retentionSet.retentionRecordsBefore(new RetentionSetRecord(9999L, 0L));
+        assertEquals(3, before.size());
+        assertEquals(1000L, before.get(2).recordingTime);
+
+        retentionSet = RetentionSet.removeStreamCutBefore(retentionSet, new RetentionSetRecord(9999L, 0L));
+        assertEquals(2, retentionSet.getRetentionRecords().size());
+        assertEquals(100000L, retentionSet.getLatest().recordingTime);
     }
 }

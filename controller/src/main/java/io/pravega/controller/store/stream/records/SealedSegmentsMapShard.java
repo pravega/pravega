@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream.records;
 
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.SealedSegmentsMapShardSerializer;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -28,6 +29,15 @@ import java.util.Map;
 @Builder
 @Slf4j
 @Data
+/**
+ * Sealed Segments Map is divided into multiple shards with each shard containing sealed sizes for a group of segments
+ * identified by some hashing function.
+ * For example, a simple modulo of segment number divided by shard_size can computed to determine the shard where the
+ * segmentIds sealed size should be stored. Another alternative is to take epoch from the segmentid and use it to compute the
+ * shard number.
+ * So each shard can theoretically contain unbounded number of segment ids but if a good hash is chosen, we should not have very large number of
+ * entries in it.
+ */
 public class SealedSegmentsMapShard {
     public static final SealedSegmentsMapShardSerializer SERIALIZER = new SealedSegmentsMapShardSerializer();
 
@@ -35,10 +45,11 @@ public class SealedSegmentsMapShard {
     /**
      * Sealed segments with size at the time of sealing.
      * segmentId -> sealed segment record.
-     * Each shard contains segments from a range of `segment number`.
-     * So each shard size would be say 10k segment numbers. Then the number of records in the map would be 10k * average number of duplicate epochs.
+     * Each shard contains segments from a range of `segment epoch`.
+     * So each shard size would be say 10k segment numbers. Then the number of records in the map would be 10k
+     * * average number of segments per epoch.
      *
-     * So to get sealed segment record -> extract segment number from segment id. compute the shard by dividing segment number by 10k.
+     * So to get sealed segment record -> extract segment epoch from segment id. compute the shard by dividing segment number by 10k.
      * Fetch the record from the shard.
      */
     private final Map<Long, Long> sealedSegmentsSizeMap;
@@ -75,5 +86,9 @@ public class SealedSegmentsMapShard {
     @Synchronized
     public Map<Long, Long> getSealedSegmentsSizeMap() {
         return Collections.unmodifiableMap(sealedSegmentsSizeMap);
+    }
+
+    public static int getShardNumber(long segmentId, int shardChunkSize) {
+        return StreamSegmentNameUtils.getEpoch(segmentId) / shardChunkSize;
     }
 }

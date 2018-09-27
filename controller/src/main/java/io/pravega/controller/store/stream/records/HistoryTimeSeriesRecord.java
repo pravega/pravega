@@ -23,6 +23,11 @@ import java.io.InputStream;
 import java.util.List;
 
 @Data
+/**
+ * Each HistoryTimeSeriesRecord captures delta between two consecutive epoch records.
+ * To compute an epoch record from this time series, we need at least one complete epoch record and then we can
+ * apply deltas on it iteratively until we reach the desired epoch record.
+ */
 public class HistoryTimeSeriesRecord {
     public static final HistoryTimeSeriesRecordSerializer SERIALIZER = new HistoryTimeSeriesRecordSerializer();
 

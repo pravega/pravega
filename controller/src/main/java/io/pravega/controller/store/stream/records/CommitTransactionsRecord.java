@@ -28,6 +28,8 @@ import java.util.UUID;
  * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
  * transcations that current round of processing will attempt to commit. If the processing fails and retries, it will
  * find the list of transcations and reattempt to process them in exact same order.
+ * This also includes optional "active epoch" field which is set if the commits have to be rolled over because they are
+ * over an older epoch.
  */
 public class CommitTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
@@ -43,7 +45,7 @@ public class CommitTransactionsRecord {
     final List<UUID> transactionsToCommit;
 
     /**
-     * Epoch from which transactions are committed.
+     * Set only for rolling transactions and identify the active epoch that is being rolled over.
      */
     Optional<Integer> activeEpoch;
 

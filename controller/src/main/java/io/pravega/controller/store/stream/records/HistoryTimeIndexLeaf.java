@@ -25,8 +25,9 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * N-ary tree's leaf node.
- *
+ * N-ary tree's leaf node. It stores epoch creation times for epochs that fall into this chunk.
+ * nTh leaf will have records for epoch [n * chunk_size, n + 1 * chunk_size)
+ * All records in this leaf should be between [ rootNode.leaves(n) - rootNode.leaves(n+1) )
  */
 @Data
 public class HistoryTimeIndexLeaf {

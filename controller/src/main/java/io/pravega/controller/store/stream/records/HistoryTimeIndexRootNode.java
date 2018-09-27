@@ -23,6 +23,10 @@ import java.util.LinkedList;
 import java.util.List;
 
 @Data
+/**
+ * Root node for an n-ary tree for storing time index of epoch records.
+ * This contains a reference to leaf nodes. The reference is based on the timestamp of first record in the leaf node.
+ */
 public class HistoryTimeIndexRootNode {
     public static final HistoryIndexRootNodeSerializer SERIALIZER = new HistoryIndexRootNodeSerializer();
 

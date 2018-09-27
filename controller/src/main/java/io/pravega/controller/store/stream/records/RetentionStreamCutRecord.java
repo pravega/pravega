@@ -23,6 +23,7 @@ import java.util.Map;
 /**
  * This is data class for storing stream cut with time when the cut was computed.
  * And the size of data being cut.
+ * This record is indexed in retentionSet using the recording time and recording size.
  */
 @Data
 @Builder

@@ -20,6 +20,9 @@ import java.util.AbstractMap;
 
 @Data
 @Builder
+/**
+ * Data class for Stream segment record.
+ */
 public class StreamSegmentRecord {
     public static final StreamSegmentRecordSerializer SERIALIZER = new StreamSegmentRecordSerializer();
 

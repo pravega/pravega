@@ -27,6 +27,9 @@ import java.io.IOException;
 @Builder
 @AllArgsConstructor
 @Slf4j
+/**
+ * Data Class representing individual retention set records where recording time and recording sizes are stored.
+ */
 public class RetentionSetRecord {
     public static final RetentionSetRecordSerializer SERIALIZER = new RetentionSetRecordSerializer();
 
