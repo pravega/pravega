@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -302,21 +303,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                     return null;
                 });
         return result;
-    }
-
-    //endregion
-
-    //region EntryInfo
-
-    @RequiredArgsConstructor
-    private static class EntryInfo {
-        final long offset;
-        final long bucketOffset;
-        final EntrySerializer.Header header;
-
-        long getValueSegmentOffset() {
-            return this.offset + this.header.getValueOffset();
-        }
     }
 
     //endregion
