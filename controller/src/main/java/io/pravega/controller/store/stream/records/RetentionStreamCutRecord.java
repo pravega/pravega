@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream.records;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.RetentionStreamCutRecordSerializer;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;

@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.common.util.ArrayView;
 import io.pravega.controller.store.stream.records.serializers.HistoryTimeSeriesRecordSerializer;
 import lombok.Builder;
 import lombok.Data;
