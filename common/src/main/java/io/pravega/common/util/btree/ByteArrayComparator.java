@@ -16,7 +16,7 @@ import java.util.Comparator;
 /**
  * Compares two byte arrays of the same length.
  */
-class ByteArrayComparator implements Comparator<byte[]>, Serializable {
+final class ByteArrayComparator implements Comparator<byte[]>, Serializable {
     private static final long serialVersionUID = 1L;
 
     @Override

@@ -11,15 +11,11 @@ package io.pravega.common.util;
 
 import com.google.common.collect.Sets;
 import io.pravega.test.common.AssertExtensions;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.val;
 import org.junit.Assert;
@@ -46,41 +42,6 @@ public class CollectionHelpersTests {
             }
             // Add an element.
             list.add(maxSearchElement);
-        }
-    }
-
-    /**
-     * Tests the binarySearch() method on a IndexedMap.
-     */
-    @Test
-    public void testBinarySearchSortedMap() {
-        int maxSize = 100;
-        int skip = 3;
-        val m = new TestIndexedMap();
-        val allValues = new HashMap<Integer, String>();
-        val r = new Random(0);
-        for (int size = 0; size < maxSize; size++) {
-            // Generate search keys.
-            int maxSearchElement = (m.getCount() + 1) * skip;
-            val searchKeys = new ArrayList<Integer>();
-            for (int i = 0; i < size; i += skip) {
-                searchKeys.add(r.nextInt(size * 2));
-            }
-
-            val expectedValues = new HashMap<Integer, String>();
-            searchKeys.stream()
-                      .filter(allValues::containsKey)
-                      .forEach(k -> expectedValues.put(k, allValues.get(k)));
-
-            val actualValues = new HashMap<Integer, String>();
-            val anythingFound = CollectionHelpers.binarySearch(m, searchKeys, actualValues);
-
-            Assert.assertEquals("Unexpected return value for size " + size, expectedValues.size() > 0, anythingFound);
-            AssertExtensions.assertMapEquals("Unexpected result contents for size " + size, expectedValues, actualValues);
-
-            // Add new data.
-            m.add(maxSearchElement, Integer.toString(maxSearchElement));
-            allValues.put(maxSearchElement, Integer.toString(maxSearchElement));
         }
     }
 
@@ -151,28 +112,5 @@ public class CollectionHelpersTests {
         }
 
         return collection;
-    }
-
-    private static class TestIndexedMap implements IndexedMap<Integer, String> {
-        private final ArrayList<Map.Entry<Integer, String>> entries = new ArrayList<>();
-
-        void add(int key, String value) {
-            this.entries.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
-        }
-
-        @Override
-        public int getCount() {
-            return this.entries.size();
-        }
-
-        @Override
-        public Integer getKey(int position) {
-            return this.entries.get(position).getKey();
-        }
-
-        @Override
-        public String getValue(int position) {
-            return this.entries.get(position).getValue();
-        }
     }
 }
