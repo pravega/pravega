@@ -27,10 +27,6 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.tables.TableReader;
-import io.pravega.client.tables.TableReaderConfig;
-import io.pravega.client.tables.TableWriter;
-import io.pravega.client.tables.TableWriterConfig;
 import java.util.function.Supplier;
 
 public class MockClientFactory implements ClientFactory, AutoCloseable {
@@ -89,15 +85,5 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public BatchClient createBatchClient() {
         return new BatchClientImpl(controller, connectionFactory);
-    }
-
-    @Override
-    public <KeyT, ValueT> TableWriter<KeyT, ValueT> createTableWriter(String tableName, Serializer<KeyT> keySerializer, Serializer<ValueT> valueSerializer, TableWriterConfig config) {
-        return impl.createTableWriter(tableName, keySerializer, valueSerializer, config);
-    }
-
-    @Override
-    public <KeyT, ValueT> TableReader<KeyT, ValueT> createTableReader(String tableName, Serializer<KeyT> keySerializer, Serializer<ValueT> valueSerializer, TableReaderConfig config) {
-        return impl.createTableReader(tableName, keySerializer, valueSerializer, config);
     }
 }

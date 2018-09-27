@@ -21,14 +21,14 @@ public class ConditionalTableUpdateException extends Exception {
      * A Collection of Keys that failed conditional update validation.
      */
     @Getter
-    private final Collection<Object> keys;
+    private final Collection<TableKey> keys;
 
     /**
      * Creates a new instance of the ConditionalTableUpdateException class.
      *
      * @param keys A Collection of Keys that failed conditional update validation.
      */
-    public ConditionalTableUpdateException(Collection<Object> keys) {
+    public ConditionalTableUpdateException(Collection<TableKey> keys) {
         super(String.format("Conditional update failed for %s key(s).", keys.size()));
         this.keys = keys;
     }

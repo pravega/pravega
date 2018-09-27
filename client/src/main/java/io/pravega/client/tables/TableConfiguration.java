@@ -22,16 +22,4 @@ import lombok.Data;
 public class TableConfiguration implements Serializable {
 
     private static final long serialVersionUID = 1L;
-
-    /**
-     * The Scope of the Table.
-     *
-     */
-    private final String scope;
-
-    /**
-     * The name of the Table.
-     *
-     */
-    private final String tableName;
 }
