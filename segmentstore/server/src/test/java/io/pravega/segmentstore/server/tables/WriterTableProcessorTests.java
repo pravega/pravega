@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
@@ -21,6 +20,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
@@ -39,6 +39,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -225,7 +227,10 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                     batch.operations.get(0).getSequenceNumber(), context.processor.getLowestUncommittedSequenceNumber());
 
             // Flush.
+            val initialNotifyCount = context.connector.notifyCount.get();
             context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            AssertExtensions.assertGreaterThan("No calls to notifyIndexOffsetChanged().",
+                    initialNotifyCount, context.connector.notifyCount.get());
 
             // Post-flush validation.
             Assert.assertFalse("Unexpected value from mustFlush() after call to flush().", context.processor.mustFlush());
@@ -372,6 +377,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         final EntrySerializer serializer;
         final KeyHasher keyHasher;
         final SegmentMock segmentMock;
+        final TableWriterConnectorImpl connector;
         final WriterTableProcessor processor;
         final IndexReader indexReader;
         final Random random;
@@ -389,13 +395,15 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
-            this.processor = new WriterTableProcessor(this.metadata, this.serializer, this.keyHasher, this::getSegment, executorService());
+            this.connector = new TableWriterConnectorImpl();
+            this.processor = new WriterTableProcessor(connector, executorService());
             this.indexReader = new IndexReader(executorService());
         }
 
         @Override
         public void close() {
             this.processor.close();
+            Assert.assertTrue("WriterTableProcessor.close() did not close the connector.", this.connector.closed.get());
         }
 
         long nextSequenceNumber() {
@@ -412,9 +420,41 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.segmentMock.append(new byte[(int) INITIAL_LAST_INDEXED_OFFSET], null, TIMEOUT).join();
         }
 
-        private CompletableFuture<DirectSegmentAccess> getSegment(String segmentName, Duration timeout) {
-            Preconditions.checkArgument(segmentName.equals(SEGMENT_NAME));
-            return CompletableFuture.supplyAsync(() -> this.segmentMock, executorService());
+        private class TableWriterConnectorImpl implements TableWriterConnector {
+            private final AtomicInteger notifyCount = new AtomicInteger(0);
+            private final AtomicBoolean closed = new AtomicBoolean();
+
+            @Override
+            public SegmentMetadata getMetadata() {
+                return metadata;
+            }
+
+            @Override
+            public EntrySerializer getSerializer() {
+                return serializer;
+            }
+
+            @Override
+            public KeyHasher getKeyHasher() {
+                return keyHasher;
+            }
+
+            @Override
+            public CompletableFuture<DirectSegmentAccess> getSegment(Duration timeout) {
+                return CompletableFuture.supplyAsync(() -> segmentMock, executorService());
+            }
+
+            @Override
+            public void notifyIndexOffsetChanged(long lastIndexedOffset) {
+                Assert.assertEquals("Unexpected value for lastIndexedOffset.",
+                        indexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
+                this.notifyCount.incrementAndGet();
+            }
+
+            @Override
+            public void close() {
+                this.closed.set(true);
+            }
         }
     }
 

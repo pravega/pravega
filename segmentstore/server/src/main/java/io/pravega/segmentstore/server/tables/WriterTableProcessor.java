@@ -21,14 +21,12 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -55,10 +53,8 @@ import org.apache.commons.io.IOUtils;
 public class WriterTableProcessor implements WriterSegmentProcessor {
     //region Members
 
-    private final SegmentMetadata metadata;
-    private final EntrySerializer serializer;
+    private final TableWriterConnector connector;
     private final IndexWriter indexWriter;
-    private final GetSegment getSegment;
     private final ScheduledExecutorService executor;
     private final OperationAggregator aggregator;
     private final AtomicLong lastAddedOffset;
@@ -71,21 +67,14 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     /**
      * Creates a new instance of the WriterTableProcessor class.
      *
-     * @param segmentMetadata The {@link SegmentMetadata} of the Segment this processor handles.
-     * @param serializer      The {@link EntrySerializer} used to read Table Entries from the Segment.
-     * @param hasher          The {@link KeyHasher} used to hash Table Keys.
-     * @param getSegment      A Function that, when invoked with the name of a Segment, returns a {@link CompletableFuture}
-     *                        containing a {@link DirectSegmentAccess} for that Segment.
-     * @param executor        An Executor for async operations.
+     * @param connector The {@link TableWriterConnector} that this instance will use to to access Table-related information.
+     * @param executor  An Executor for async operations.
      */
-    WriterTableProcessor(@NonNull SegmentMetadata segmentMetadata, @NonNull EntrySerializer serializer, @NonNull KeyHasher hasher,
-                         @NonNull GetSegment getSegment, @NonNull ScheduledExecutorService executor) {
-        this.metadata = segmentMetadata;
-        this.serializer = serializer;
-        this.getSegment = getSegment;
+    WriterTableProcessor(@NonNull TableWriterConnector connector, @NonNull ScheduledExecutorService executor) {
+        this.connector = connector;
         this.executor = executor;
-        this.indexWriter = new IndexWriter(hasher, executor);
-        this.aggregator = new OperationAggregator(this.indexWriter.getLastIndexedOffset(segmentMetadata));
+        this.indexWriter = new IndexWriter(connector.getKeyHasher(), executor);
+        this.aggregator = new OperationAggregator(this.indexWriter.getLastIndexedOffset(this.connector.getMetadata()));
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
     }
@@ -96,7 +85,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     @Override
     public void close() {
-        this.closed.set(true);
+        if (this.closed.compareAndSet(false, true)) {
+            this.connector.close();
+        }
     }
 
     //endregion
@@ -106,11 +97,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @Override
     public void add(SegmentOperation operation) throws DataCorruptionException {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkArgument(operation.getStreamSegmentId() == this.metadata.getId(),
-                "Operation '%s' refers to a different Segment than this one (%s).", operation, this.metadata.getId());
+        Preconditions.checkArgument(operation.getStreamSegmentId() == this.connector.getMetadata().getId(),
+                "Operation '%s' refers to a different Segment than this one (%s).", operation, this.connector.getMetadata().getId());
         Preconditions.checkArgument(operation.getSequenceNumber() != Operation.NO_SEQUENCE_NUMBER,
                 "Operation '%s' does not have a Sequence Number assigned.", operation);
-        if (this.metadata.isDeleted() || !(operation instanceof CachedStreamSegmentAppendOperation)) {
+        if (this.connector.getMetadata().isDeleted() || !(operation instanceof CachedStreamSegmentAppendOperation)) {
             // Segment is either deleted or this is not an append operation. Nothing for us to do here.
             return;
         }
@@ -152,7 +143,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     @Override
     public boolean mustFlush() {
-        if (this.metadata.isDeleted()) {
+        if (this.connector.getMetadata().isDeleted()) {
             return false;
         }
 
@@ -163,13 +154,15 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.getSegment
-                .apply(this.metadata.getName(), timer.getRemaining())
+        return this.connector.getSegment(timer.getRemaining())
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer), this.executor)
-                .thenApply(v -> {
+                .thenApply(lastIndexedOffset -> {
                     // We're done processing. Reset the aggregator.
                     this.aggregator.reset();
-                    this.aggregator.setLastIndexedOffset(this.indexWriter.getLastIndexedOffset(this.metadata));
+
+                    // Update the Last Indexed Offset and then notify the connector.
+                    this.aggregator.setLastIndexedOffset(lastIndexedOffset);
+                    this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
                     return new WriterFlushResult();
                 });
     }
@@ -195,7 +188,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * <li>{@link DataCorruptionException} If the reconciliation failed (in which case no flush is attempted.
      * </ul>
      */
-    private CompletableFuture<Integer> flushWithSingleRetry(DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<Long> flushWithSingleRetry(DirectSegmentAccess segment, TimeoutTimer timer) {
         return Futures.exceptionallyComposeExpecting(
                 flushOnce(segment, timer),
                 this::canRetryFlushException,
@@ -216,7 +209,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link Attributes#TABLE_INDEX_OFFSET} attribute failed.
      * </ul>
      */
-    private CompletableFuture<Integer> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<Long> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
 
@@ -227,24 +220,25 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .thenComposeAsync(bucketUpdates -> fetchExistingKeys(bucketUpdates, segment, timer)
                                 .thenComposeAsync(v -> this.indexWriter.updateBuckets(bucketUpdates, segment,
                                         this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(), timer.getRemaining()),
-                                        this.executor),
+                                        this.executor)
+                                .thenApply(ignored -> keyUpdates.getLastIndexedOffset()),
                         this.executor);
     }
 
     @SneakyThrows(DataCorruptionException.class)
     private void reconcileTableIndexOffset() {
-        long tableIndexOffset = this.indexWriter.getLastIndexedOffset(this.metadata);
+        long tableIndexOffset = this.indexWriter.getLastIndexedOffset(this.connector.getMetadata());
         if (tableIndexOffset < this.aggregator.getLastIndexedOffset()) {
             // This should not happen, ever!
             throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
                             + "It lower than our known value (%s).",
-                    tableIndexOffset, this.metadata.getId(), this.aggregator.getLastIndexedOffset()));
+                    tableIndexOffset, this.connector.getMetadata().getId(), this.aggregator.getLastIndexedOffset()));
         }
 
         if (!this.aggregator.setLastIndexedOffset(tableIndexOffset)) {
             throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
                             + "Most likely it does not conform to an append boundary.  Existing value: %s.",
-                    tableIndexOffset, this.metadata.getId(), this.aggregator.getLastIndexedOffset()));
+                    tableIndexOffset, this.connector.getMetadata().getId(), this.aggregator.getLastIndexedOffset()));
         }
     }
 
@@ -289,7 +283,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private int indexSingleKey(InputStream input, long entryOffset, KeyUpdateCollection keyUpdateCollection) throws IOException {
         // Retrieve the next entry, get its Key and hash it.
-        EntrySerializer.Header h = this.serializer.readHeader(input);
+        EntrySerializer.Header h = this.connector.getSerializer().readHeader(input);
         HashedArray key = new HashedArray(StreamHelpers.readAll(input, h.getKeyLength()));
 
         // Index the Key. If it was used before, it must have had a lower offset, so this supersedes it.
@@ -371,7 +365,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 () -> {
                     // Read the Key from the Segment.
                     ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    val keyReader = AsyncTableEntryReader.readKey(this.serializer, timer);
+                    val keyReader = AsyncTableEntryReader.readKey(this.connector.getSerializer(), timer);
                     AsyncReadResultProcessor.process(readResult, keyReader, this.executor);
                     return keyReader.getResult()
                                   .thenComposeAsync(keyView -> {
@@ -459,7 +453,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 }
             }
 
-            this.lastIndexedOffset = value;
+            if (value >= 0) {
+                this.lastIndexedOffset = value;
+            }
+
             return true;
         }
 
@@ -481,7 +478,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
          * The Segment offset before which every single byte has been indexed (i.e., the last offset of the last update).
          */
         @Getter
-        private long lastIndexedOffset = 0L;
+        private long lastIndexedOffset = -1L;
 
         void add(BucketUpdate.KeyUpdate update, int entryLength) {
             this.updates.put(update.getKey(), update);
@@ -494,11 +491,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         Collection<BucketUpdate.KeyUpdate> getUpdates() {
             return this.updates.values();
         }
-    }
-
-    @FunctionalInterface
-    public interface GetSegment {
-        CompletableFuture<DirectSegmentAccess> apply(String segmentName, Duration timeout);
     }
 
     //endregion
