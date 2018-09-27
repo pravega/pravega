@@ -247,7 +247,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     return streamMetadataStore.rollingTxnNewSegmentsCreated(scope, stream, sealedSegmentsMap, txnEpoch.getEpoch(), timestamp, context, executor);
                 })
                 .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, activeEpoch.getSegments(),
-                        delegationToken))
+                        delegationToken, System.nanoTime())) //TODO: CHECK THIS
                 .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, activeEpoch.getSegments(),
                         delegationToken))
                 .thenCompose(sealedSegmentsMap -> {
@@ -280,7 +280,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // now commit transactions into these newly created segments
                     return commitTransactions(scope, stream, segmentIds, transactionsToCommit, context);
                 })
-                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken));
+                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken, System.nanoTime())); //TODO: CHECK THIS
     }
 
     /**

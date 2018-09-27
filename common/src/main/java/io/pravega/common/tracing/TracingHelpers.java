@@ -23,6 +23,10 @@ import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * This class contains utilities to intercept RPC calls the server and client sides, as well as to track incoming
+ * requests for intra-component tracing.
+ */
 @Slf4j
 public class TracingHelpers {
 
@@ -56,10 +60,10 @@ public class TracingHelpers {
                     final String requestDescriptor = callOptions.getOption(REQUEST_DESCRIPTOR_CALL_OPTION);
                     final String requestId = callOptions.getOption(REQUEST_ID_CALL_OPTION);
 
-                    if (!requestDescriptor.isEmpty() && !requestId.isEmpty()) {
+                    if (requestDescriptor != null && requestId != null && !requestDescriptor.isEmpty() && !requestId.isEmpty()) {
                         headers.put(REQUEST_DESCRIPTOR_HEADER, requestDescriptor);
                         headers.put(REQUEST_ID_HEADER, requestId);
-                        log.info("[requestId={}] Tagging RPC request {} at thread {}.", requestId, requestDescriptor, Thread.currentThread().getId());
+                        log.info("[requestId={}] Tagging RPC request {}.", requestId, requestDescriptor);
                     } else {
                         log.warn("Not tagging request {}: Call options not containing request tags.", method.getFullMethodName());
                     }

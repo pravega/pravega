@@ -125,18 +125,19 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     }
 
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
-        log.debug("Periodic background processing for retention called for stream {}/{}", stream.getScope(), stream.getStreamName());
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
+        long requestId = System.nanoTime();
+        log.debug("[requestId={}] Periodic background processing for retention called for stream {}/{}", requestId, stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                 .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
-                        config.getRetentionPolicy(), System.currentTimeMillis(), context,
+                        config.getRetentionPolicy(), requestId, context,
                         this.streamMetadataTasks.retrieveDelegationToken()))
                 .exceptionally(e -> {
-                    log.warn("Exception thrown while performing auto retention for stream {} ", stream, e);
+                    log.warn("[requestId={}] Exception thrown while performing auto retention for stream {} ", requestId, stream, e);
                     throw new CompletionException(e);
                 }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                 .exceptionally(e -> {
-                    log.warn("Unable to perform retention for stream {}. Ignoring, retention will be attempted in next cycle.", stream, e);
+                    log.warn("[requestId={}] Unable to perform retention for stream {}. Ignoring, retention will be attempted in next cycle.", requestId, stream, e);
                     return null;
                 });
     }

@@ -40,6 +40,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
@@ -184,16 +185,16 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
                 switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn("Failed to create scope: {}", scopeName);
+                    log.warn("[requestId={}] Failed to create scope: {}", traceId, scopeName);
                     throw new ControllerFailureException("Failed to create scope: " + scopeName);
                 case INVALID_SCOPE_NAME:
-                    log.warn("Illegal scope name: {}", scopeName);
+                    log.warn("[requestId={}] Illegal scope name: {}", traceId, scopeName);
                     throw new IllegalArgumentException("Illegal scope name: " + scopeName);
                 case SCOPE_EXISTS:
-                    log.warn("Scope already exists: {}", scopeName);
+                    log.warn("[requestId={}] Scope already exists: {}", traceId, scopeName);
                     return false;
                 case SUCCESS:
-                    log.info("Scope created successfully: {}", scopeName);
+                    log.info("[requestId={}] Scope created successfully: {}", traceId, scopeName);
                     return true;
                 case UNRECOGNIZED:
                 default:
@@ -202,7 +203,7 @@ public class ControllerImpl implements Controller {
                 }
             }).whenComplete((x, e) -> {
                 if (e != null) {
-                    log.warn("createScope failed: ", e);
+                    log.warn("[requestId={}] createScope failed: ", traceId, e);
                 }
                 LoggerHelpers.traceLeave(log, "createScope", traceId);
             });
@@ -222,16 +223,16 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn("Failed to delete scope: {}", scopeName);
+                    log.warn("[requestId={}] Failed to delete scope: {}", traceId, scopeName);
                     throw new ControllerFailureException("Failed to delete scope: " + scopeName);
                 case SCOPE_NOT_EMPTY:
-                    log.warn("Cannot delete non empty scope: {}", scopeName);
-                    throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
+                    log.warn("[requestId={}] Cannot delete non empty scope: {}", traceId, scopeName);
+                    throw new IllegalStateException("Scope "+ scopeName + " is not empty.");
                 case SCOPE_NOT_FOUND:
-                    log.warn("Scope not found: {}", scopeName);
+                    log.warn("[requestId={}] Scope not found: {}", traceId, scopeName);
                     return false;
                 case SUCCESS:
-                    log.info("Scope deleted successfully: {}", scopeName);
+                    log.info("[requestId={}] Scope deleted successfully: {}", traceId, scopeName);
                     return true;
                 case UNRECOGNIZED:
                 default:
@@ -240,7 +241,7 @@ public class ControllerImpl implements Controller {
                 }
             }).whenComplete((x, e) -> {
                 if (e != null) {
-                    log.warn("deleteScope failed: ", e);
+                    log.warn("[requestId={}] deleteScope failed: ", traceId, e);
                 }
                 LoggerHelpers.traceLeave(log, "deleteScope", traceId);
             });
@@ -261,19 +262,19 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn("Failed to create stream: {}", streamConfig.getStreamName());
+                log.warn("[requestId={}] Failed to create stream: {}", traceId, streamConfig.getStreamName());
                 throw new ControllerFailureException("Failed to create stream: " + streamConfig);
             case INVALID_STREAM_NAME:
-                log.warn("Illegal stream name: {}", streamConfig.getStreamName());
+                log.warn("[requestId={}] Illegal stream name: {}", traceId, streamConfig.getStreamName());
                 throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
             case SCOPE_NOT_FOUND:
-                log.warn("Scope not found: {}", streamConfig.getScope());
+                log.warn("[requestId={}] Scope not found: {}", traceId, streamConfig.getScope());
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_EXISTS:
-                log.warn("Stream already exists: {}", streamConfig.getStreamName());
+                log.warn("[requestId={}] Stream already exists: {}", traceId, streamConfig.getStreamName());
                 return false;
             case SUCCESS:
-                log.info("Stream created successfully: {}", streamConfig.getStreamName());
+                log.info("[requestId={}] Stream created successfully: {}", traceId, streamConfig.getStreamName());
                 return true;
             case UNRECOGNIZED:
             default:
@@ -282,7 +283,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("createStream failed: ", e);
+                log.warn("[requestId={}] createStream failed: ", traceId, e);
             }
             LoggerHelpers.traceLeave(log, "createStream", traceId);
         });
@@ -303,16 +304,16 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn("Failed to update stream: {}", streamConfig.getStreamName());
+                log.warn("[requestId={}] Failed to update stream: {}", traceId, streamConfig.getStreamName());
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
-                log.warn("Scope not found: {}", streamConfig.getScope());
+                log.warn("[requestId={}] Scope not found: {}", traceId, streamConfig.getScope());
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_NOT_FOUND:
-                log.warn("Stream does not exist: {}", streamConfig.getStreamName());
+                log.warn("[requestId={}] Stream does not exist: {}", traceId, streamConfig.getStreamName());
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case SUCCESS:
-                log.info("Successfully updated stream: {}", streamConfig.getStreamName());
+                log.info("[requestId={}] Successfully updated stream: {}", traceId, streamConfig.getStreamName());
                 return true;
             case UNRECOGNIZED:
             default:
@@ -321,7 +322,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("updateStream failed: ", e);
+                log.warn("[requestId={}] updateStream failed: ", traceId, e);
             }
             LoggerHelpers.traceLeave(log, "updateStream", traceId);
         });
@@ -346,27 +347,27 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
                 case FAILURE:
-                    log.warn("Failed to truncate stream: {}/{}", scope, stream);
+                    log.warn("[requestId={}] Failed to truncate stream: {}/{}", traceId, scope, stream);
                     throw new ControllerFailureException("Failed to truncate stream: " + scope + "/" + stream);
                 case SCOPE_NOT_FOUND:
-                    log.warn("Scope not found: {}", scope);
+                    log.warn("[requestId={}] Scope not found: {}", traceId, scope);
                     throw new IllegalArgumentException("Scope does not exist: " + scope);
                 case STREAM_NOT_FOUND:
-                    log.warn("Stream does not exist: {}/{}", scope, stream);
+                    log.warn("[requestId={}] Stream does not exist: {}/{}", traceId, scope, stream);
                     throw new IllegalArgumentException("Stream does not exist: " + stream);
                 case SUCCESS:
-                    log.info("Successfully updated stream: {}/{}", scope, stream);
+                    log.info("[requestId={}] Successfully updated stream: {}/{}", traceId, scope, stream);
                     return true;
                 case UNRECOGNIZED:
                 default:
-                    throw new ControllerFailureException("Unknown return status updating stream " + scope + "/" + stream
+                    throw new ControllerFailureException("Unknown return status truncating stream " + scope + "/" + stream
                             + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("updateStream failed: ", e);
+                log.warn("[requestId={}] truncateStream failed: ", traceId, e);
             }
-            LoggerHelpers.traceLeave(log, "updateStream", traceId);
+            LoggerHelpers.traceLeave(log, "truncateStream", traceId);
         });
     }
 
@@ -381,11 +382,11 @@ public class ControllerImpl implements Controller {
         startScaleInternal(stream, sealedSegments, newKeyRanges, traceId, "scaleStream")
                 .whenComplete((startScaleResponse, e) -> {
                     if (e != null) {
-                        log.error("failed to start scale {}", e);
+                        log.error("[requestId={}] failed to start scale {}", traceId, e);
                         cancellableRequest.start(() -> Futures.failedFuture(e), any -> true, executor);
                     } else {
                         try {
-                            final boolean started = handleScaleResponse(stream, startScaleResponse);
+                            final boolean started = handleScaleResponse(stream, startScaleResponse, traceId);
                             cancellableRequest.start(() -> {
                                 if (started) {
                                     return checkScaleStatus(stream, startScaleResponse.getEpoch());
@@ -408,25 +409,25 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "scaleStream", stream);
         return startScaleInternal(stream, sealedSegments, newKeyRanges, traceId, "scaleStream")
-                .thenApply(response -> handleScaleResponse(stream, response))
+                .thenApply(response -> handleScaleResponse(stream, response, traceId))
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("scaleStream failed: ", e);
+                        log.warn("[requestId={}] scaleStream failed: ", traceId, e);
                     }
                     LoggerHelpers.traceLeave(log, "scaleStream", traceId);
                 });
     }
 
-    private Boolean handleScaleResponse(Stream stream, ScaleResponse response) {
+    private Boolean handleScaleResponse(Stream stream, ScaleResponse response, long traceId) {
         switch (response.getStatus()) {
         case FAILURE:
-            log.warn("Failed to scale stream: {}", stream.getStreamName());
+            log.warn("[requestId={}] Failed to scale stream: {}", traceId, stream.getStreamName());
             throw new ControllerFailureException("Failed to scale stream: " + stream);
         case PRECONDITION_FAILED:
-            log.warn("Precondition failed for scale stream: {}", stream.getStreamName());
+            log.warn("[requestId={}] Precondition failed for scale stream: {}", traceId, stream.getStreamName());
             return false;
         case STARTED:
-            log.info("Successfully started scale stream: {}", stream.getStreamName());
+            log.info("[requestId={}] Successfully started scale stream: {}", traceId, stream.getStreamName());
             return true;
         case UNRECOGNIZED:
         default:
@@ -479,7 +480,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<ScaleResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>(traceId, method);
-            client.scale(ScaleRequest.newBuilder()
+            addTagsToRequest(client, traceId, method, stream.getScope(), stream.getStreamName())
+                            .scale(ScaleRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .addAllSealedSegments(sealedSegments)
                             .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
@@ -510,25 +512,25 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn("Failed to seal stream: {}", streamName);
+                log.warn("[requestId={}] Failed to seal stream: {}", traceId, streamName);
                 throw new ControllerFailureException("Failed to seal stream: " + streamName);
             case SCOPE_NOT_FOUND:
-                log.warn("Scope not found: {}", scope);
+                log.warn("[requestId={}] Scope not found: {}", traceId, scope);
                 throw new InvalidStreamException("Scope does not exist: " + scope);
             case STREAM_NOT_FOUND:
-                log.warn("Stream does not exist: {}", streamName);
+                log.warn("[requestId={}] Stream does not exist: {}", traceId, streamName);
                 throw new InvalidStreamException("Stream does not exist: " + streamName);
             case SUCCESS:
-                log.info("Successfully sealed stream: {}", streamName);
+                log.info("[requestId={}] Successfully sealed stream: {}", traceId, streamName);
                 return true;
             case UNRECOGNIZED:
             default:
-                throw new ControllerFailureException("Unknown return status scealing stream " + streamName
+                throw new ControllerFailureException("Unknown return status sealing stream " + streamName
                                                      + " " + x.getStatus());
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("sealStream failed: ", e);
+                log.warn("[requestId={}] sealStream failed: ", traceId, e);
             }
             LoggerHelpers.traceLeave(log, "sealStream", traceId);
         });
@@ -550,16 +552,16 @@ public class ControllerImpl implements Controller {
         return result.thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn("Failed to delete stream: {}", streamName);
+                log.warn("[requestId={}] Failed to delete stream: {}", traceId, streamName);
                 throw new ControllerFailureException("Failed to delete stream: " + streamName);
             case STREAM_NOT_FOUND:
-                log.warn("Stream does not exist: {}", streamName);
+                log.warn("[requestId={}] Stream does not exist: {}", traceId, streamName);
                 return false;
             case STREAM_NOT_SEALED:
-                log.warn("Stream is not sealed: {}", streamName);
+                log.warn("[requestId={}] Stream is not sealed: {}", traceId, streamName);
                 throw new IllegalArgumentException("Stream is not sealed: " + streamName);
             case SUCCESS:
-                log.info("Successfully deleted stream: {}", streamName);
+                log.info("[requestId={}] Successfully deleted stream: {}", traceId, streamName);
                 return true;
             case UNRECOGNIZED:
             default:
@@ -568,7 +570,7 @@ public class ControllerImpl implements Controller {
             }
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("deleteStream failed: ", e);
+                log.warn("[requestId={}] deleteStream failed: ", traceId, e);
             }
             LoggerHelpers.traceLeave(log, "deleteStream", traceId);
         });
@@ -921,19 +923,19 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(streamName, "stream");
         long traceId = LoggerHelpers.traceEnter(log, "getOrRefreshDelegationTokenFor", scope, streamName);
 
-        final CompletableFuture<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor");
+        final CompletableFuture<DelegationToken> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<DelegationToken> callback = new RPCAsyncCallback<>(traceId, "getOrRefreshDelegationTokenFor");
             client.getDelegationToken(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
 
-        return result.thenApply( token -> token.getDelegationToken())
-        .whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("getCurrentSegments failed: ", e);
-            }
-            LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-        });
+        return result.thenApply(DelegationToken::getDelegationToken)
+                     .whenComplete((x, e) -> {
+                         if (e != null) {
+                             log.warn("getCurrentSegments failed: ", e);
+                         }
+                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+                     });
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.
@@ -971,8 +973,18 @@ public class ControllerImpl implements Controller {
         }
     }
 
+    /**
+     * We attach custom tags to requests by adding them as call options upon a controller request. This guarantees that,
+     * irrespective of whether the different threads issue and intercept the client request, the tags will be available
+     * for being attached to the RPC request.
+     *
+     * @param clientStub Base client stub to add call options.
+     * @param traceId Client-side trace id for this request.
+     * @param requestInfo Information that will be used as a descriptor for this request.
+     * @return Base client stub with parameters as call options.
+     */
     private static ControllerServiceStub addTagsToRequest(ControllerServiceStub clientStub, long traceId, String...requestInfo) {
-        return clientStub.withOption(TracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.createRPCRequestDescriptor(requestInfo))
+        return clientStub.withOption(TracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.createRequestDescriptor(requestInfo))
                          .withOption(TracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
     }
 }

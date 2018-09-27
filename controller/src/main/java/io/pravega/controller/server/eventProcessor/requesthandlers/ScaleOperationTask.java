@@ -86,6 +86,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     public CompletableFuture<EpochTransitionRecord> runScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
+        long requestId = scaleInput.getScaleTime();
         // create epoch transition node (metadatastore.startScale)
         // Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
         // and deleted in startScale method.
@@ -99,12 +100,12 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             List<Long> segmentIds = response.getNewSegmentsWithRange().keySet().asList();
                             return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken)
                                     .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, context, executor))
-                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken))
+                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken, requestId))
                                     .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken))
                                     .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, context, executor))
                                     .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor))
                                     .thenApply(y -> {
-                                        log.info("scale processing for {}/{} epoch {} completed.", scope, stream, response.getActiveEpoch());
+                                        log.info("[requestId={}] scale processing for {}/{} epoch {} completed.", requestId, scope, stream, response.getActiveEpoch());
                                         return response;
                                     });
                         }));

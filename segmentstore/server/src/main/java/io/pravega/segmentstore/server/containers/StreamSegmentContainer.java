@@ -19,6 +19,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
@@ -75,6 +76,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import static io.pravega.common.tracing.RequestTracker.createRequestDescriptor;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -411,7 +413,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureRunning();
 
-        logRequest("createStreamSegment", streamSegmentName);
+        logTrackedRequest(createRequestDescriptor("createSegment", streamSegmentName), "createStreamSegment", streamSegmentName);
         this.metrics.createSegment();
         return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
@@ -420,7 +422,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         ensureRunning();
 
-        logRequest("deleteStreamSegment", streamSegmentName);
+        logTrackedRequest(createRequestDescriptor("deleteSegment", streamSegmentName), "deleteStreamSegment", streamSegmentName);
         this.metrics.deleteSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -739,6 +741,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private void logRequest(String requestName, Object... args) {
         log.debug("{}: {} {}", this.traceObjectId, requestName, args);
+    }
+
+    private void logTrackedRequest(String requestDescriptor, String methodName, Object... args) {
+        log.debug("[requestId={}] {}: {} {}", RequestTracker.getInstance().getRequestIdFor(requestDescriptor),
+                this.traceObjectId, methodName, args);
     }
 
     private void shutdownWhenStopped(Service component, String componentName) {

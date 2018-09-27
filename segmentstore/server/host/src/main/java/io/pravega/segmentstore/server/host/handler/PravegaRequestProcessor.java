@@ -17,6 +17,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.tracing.RequestTag;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -389,36 +391,39 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void createSegment(CreateSegment createStreamsSegment) {
+    public void createSegment(CreateSegment createStreamSegment) {
         Timer timer = new Timer();
         final String operation = "createSegment";
 
         Collection<AttributeUpdate> attributes = Arrays.asList(
-                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
-                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue()),
+                new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamSegment.getScaleType()).longValue()),
+                new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamSegment.getTargetRate()).longValue()),
                 new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
         );
 
-       if (!verifyToken(createStreamsSegment.getSegment(), createStreamsSegment.getRequestId(), createStreamsSegment.getDelegationToken(), operation)) {
+       if (!verifyToken(createStreamSegment.getSegment(), createStreamSegment.getRequestId(), createStreamSegment.getDelegationToken(), operation)) {
             return;
        }
 
-       log.info("Creating stream segment {}", createStreamsSegment);
-       segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
+       RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(createStreamSegment.getRequestId(), operation, createStreamSegment.getSegment());
+       log.info("[requestId={}] Creating stream segment {}.", requestTag.getRequestId(), createStreamSegment);
+       segmentStore.createStreamSegment(createStreamSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {
-                    createStreamSegment.reportSuccessEvent(timer.getElapsed());
-                    connection.send(new SegmentCreated(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment()));
+                    this.createStreamSegment.reportSuccessEvent(timer.getElapsed());
+                    connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment()));
                 })
                 .whenComplete((res, e) -> {
                     if (e == null) {
                         if (statsRecorder != null) {
-                            statsRecorder.createSegment(createStreamsSegment.getSegment(),
-                                    createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate());
+                            statsRecorder.createSegment(createStreamSegment.getSegment(),
+                                    createStreamSegment.getScaleType(), createStreamSegment.getTargetRate());
                         }
                     } else {
-                        createStreamSegment.reportFailEvent(timer.getElapsed());
-                        handleException(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment(), operation, e);
+                        this.createStreamSegment.reportFailEvent(timer.getElapsed());
+                        handleException(createStreamSegment.getRequestId(), createStreamSegment.getSegment(), operation, e);
                     }
+
+                    logAndUntrackRequestTag(requestTag);
                 });
     }
 
@@ -431,7 +436,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.debug("Merging Segments {} ", mergeSegments);
+        log.info("Merging Segments {} ", mergeSegments);
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
                     .thenAccept(txnProp -> {
                         recordStatForTransaction(txnProp, mergeSegments.getTarget());
@@ -457,7 +462,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.debug("Sealing segment {} ", sealSegment);
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(sealSegment.getRequestId(), operation, segment);
+        log.info("[requestId={}] Sealing segment {} ", requestTag.getRequestId(), sealSegment);
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
                 .whenComplete((r, e) -> {
@@ -470,6 +476,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             statsRecorder.sealSegment(sealSegment.getSegment());
                         }
                     }
+
+                    logAndUntrackRequestTag(requestTag);
                 });
     }
 
@@ -483,9 +491,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         long offset = truncateSegment.getTruncationOffset();
-        log.debug("Truncating segment {} at offset {} ", segment, offset);
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(truncateSegment.getRequestId(), operation, segment);
+        log.info("[requestId={}] Truncating segment {} at offset {}.", requestTag.getRequestId(), segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
+                .thenAccept(v -> {
+                    connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment));
+                    logAndUntrackRequestTag(requestTag);
+                })
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, operation, e));
     }
 
@@ -498,13 +510,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        log.debug("Deleting segment {} ", deleteSegment);
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(deleteSegment.getRequestId(), operation, segment);
+        log.info("[requestId={}] Deleting segment {} ", requestTag.getRequestId(), deleteSegment);
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
                     DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
                     DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
                     DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
+                    logAndUntrackRequestTag(requestTag);
                 })
                 .exceptionally(e -> handleException(deleteSegment.getRequestId(), segment, operation, e));
     }
@@ -520,7 +534,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         Collection<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
-        log.debug("Updating segment policy {} ", updateSegmentPolicy);
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(updateSegmentPolicy.getRequestId(), operation, updateSegmentPolicy.getSegment());
+        log.info("[requestId={}] Updating segment policy {} ", requestTag.getRequestId(), updateSegmentPolicy);
         segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT)
                 .thenRun(() ->
                         connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment())))
@@ -533,12 +548,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                     updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
                         }
                     }
+
+                    logAndUntrackRequestTag(requestTag);
                 });
     }
 
     //endregion
 
     private Void handleException(long requestId, String segment, String operation, Throwable u) {
+        RequestTracker.getInstance().untrackRequest(RequestTracker.createRequestDescriptor(operation, segment));
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error("[requestId={}] Error (Segment = '{}', Operation = '{}')", requestId, segment, operation, exception);
@@ -611,6 +629,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private class ReadCancellationException extends RuntimeException {
         ReadCancellationException(Throwable wrapppedException) {
             super("CancellationException during operation Read segment", wrapppedException);
+        }
+    }
+
+    private void logAndUntrackRequestTag(RequestTag requestTag) {
+        if (requestTag != null) {
+            log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestTag.getRequestDescriptor()),
+                    requestTag.getRequestDescriptor());
         }
     }
 }

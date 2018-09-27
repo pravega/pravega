@@ -12,6 +12,8 @@ package io.pravega.segmentstore.storage.rolling;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.tracing.RequestTag;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.contracts.BadOffsetException;
@@ -39,6 +41,8 @@ import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+
+import static io.pravega.common.tracing.RequestTracker.createRequestDescriptor;
 
 /**
  * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
@@ -240,7 +244,8 @@ public class RollingStorage implements SyncStorage {
     public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
-        long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("createSegment", segmentName));
+        long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy, requestTag.getRequestId());
 
         // First, check if the segment exists but with no header (it might have been created prior to applying
         // RollingStorage to this baseStorage).
@@ -257,7 +262,7 @@ public class RollingStorage implements SyncStorage {
                 this.baseStorage.create(headerName);
             } catch (StreamSegmentExistsException ex) {
                 checkIfEmptyAndNotSealed(ex, headerName);
-                log.debug("Empty Segment Header found for '{}'; treating as inexistent.", segmentName);
+                log.debug("[requestId={}] Empty Segment Header found for '{}'; treating as nonexistent.", requestTag.getRequestId(), segmentName);
             }
 
             headerHandle = this.baseStorage.openWrite(headerName);
@@ -269,7 +274,7 @@ public class RollingStorage implements SyncStorage {
                 // If we encountered an error while writing the handle file, delete it before returning the exception,
                 // otherwise we'll leave behind an empty file.
                 try {
-                    log.warn("Could not create Header Segment for '{}', rolling back.", segmentName, ex);
+                    log.warn("[requestId={}] Could not create Header Segment for '{}', rolling back.", requestTag.getRequestId(), segmentName, ex);
                     this.baseStorage.delete(headerHandle);
                 } catch (Exception ex2) {
                     ex.addSuppressed(ex2);
@@ -279,7 +284,7 @@ public class RollingStorage implements SyncStorage {
             throw ex;
         }
 
-        LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
+        LoggerHelpers.traceLeave(log, "create", traceId, segmentName, requestTag.getRequestId());
         return StreamSegmentInformation.builder().name(segmentName).build();
     }
 
@@ -312,7 +317,7 @@ public class RollingStorage implements SyncStorage {
         int bytesWritten = 0;
         while (bytesWritten < length) {
             if (h.getActiveChunkHandle() == null || h.lastChunk().getLength() >= h.getRollingPolicy().getMaxLength()) {
-                rollover(h);
+                rollover(h, traceId); //TODO: maybe this traceid should not be used, as it is not client side as the rest
             }
 
             SegmentChunk last = h.lastChunk();
@@ -331,16 +336,17 @@ public class RollingStorage implements SyncStorage {
     public void seal(SegmentHandle handle) throws StreamSegmentException {
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
-        long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
-        sealActiveChunk(h);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("sealSegment", handle.getSegmentName()));
+        long traceId = LoggerHelpers.traceEnter(log, "seal", handle, requestTag.getRequestId());
+        sealActiveChunk(h, requestTag.getRequestId());
         SegmentHandle headerHandle = h.getHeaderHandle();
         if (headerHandle != null) {
             this.baseStorage.seal(headerHandle);
         }
 
         h.markSealed();
-        log.debug("Sealed Header for '{}'.", h.getSegmentName());
-        LoggerHelpers.traceLeave(log, "seal", traceId, handle);
+        log.debug("[requestId={}] Sealed Header for '{}'.", requestTag.getRequestId(), h.getSegmentName());
+        LoggerHelpers.traceLeave(log, "seal", traceId, handle, requestTag.getRequestId());
     }
 
     @Override
@@ -380,7 +386,7 @@ public class RollingStorage implements SyncStorage {
             SegmentChunk lastTarget = target.lastChunk();
             if (lastTarget == null || lastTarget.isSealed()) {
                 // Make sure the last SegmentChunk of the target is not sealed, otherwise we can't concat into it.
-                rollover(target);
+                rollover(target, traceId); //TODO: REQUEST TAG HERE
             }
 
             SegmentChunk lastSource = source.lastChunk();
@@ -404,7 +410,7 @@ public class RollingStorage implements SyncStorage {
             }
 
             List<SegmentChunk> newSegmentChunks = rebase(source.chunks(), target.length());
-            sealActiveChunk(target);
+            sealActiveChunk(target, traceId); //TODO: REQUEST TAG HERE
             serializeBeginConcat(target, source);
             this.baseStorage.concat(target.getHeaderHandle(), target.getHeaderLength(), source.getHeaderHandle().getSegmentName());
             target.increaseHeaderLength(source.getHeaderLength());
@@ -413,7 +419,7 @@ public class RollingStorage implements SyncStorage {
             // After we do a header merge, it's possible that the (new) last chunk may still have space to write to.
             // Unseal it now so that future writes/concats will not unnecessarily create chunks. Note that this will not
             // unseal the segment (even though it's unsealed) - that is determined by the Header file seal status.
-            unsealLastChunkIfNecessary(target);
+            unsealLastChunkIfNecessary(target, traceId); //TODO: REQUEST TAG HERE
         }
 
         LoggerHelpers.traceLeave(log, "concat", traceId, target, targetOffset, sourceSegment);
@@ -422,7 +428,8 @@ public class RollingStorage implements SyncStorage {
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
         val h = asReadableHandle(handle);
-        long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("deleteSegment", handle.getSegmentName()));
+        long traceId = LoggerHelpers.traceEnter(log, "delete", handle, requestTag.getRequestId());
 
         SegmentHandle headerHandle = h.getHeaderHandle();
         if (headerHandle == null) {
@@ -445,7 +452,7 @@ public class RollingStorage implements SyncStorage {
                 seal(writeHandle);
             }
 
-            deleteChunks(h, s -> true);
+            deleteChunks(h, requestTag.getRequestId(), s -> true);
             try {
                 this.baseStorage.delete(headerHandle);
                 h.markDeleted();
@@ -455,7 +462,7 @@ public class RollingStorage implements SyncStorage {
             }
         }
 
-        LoggerHelpers.traceLeave(log, "delete", traceId, handle);
+        LoggerHelpers.traceLeave(log, "delete", traceId, handle, requestTag.getRequestId());
     }
 
     @Override
@@ -472,25 +479,26 @@ public class RollingStorage implements SyncStorage {
             return;
         }
 
-        long traceId = LoggerHelpers.traceEnter(log, "truncate", h, truncationOffset);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("truncateSegment", handle.getSegmentName()));
+        long traceId = LoggerHelpers.traceEnter(log, "truncate", h, truncationOffset, requestTag.getRequestId());
         Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
                 "truncationOffset must be non-negative and at most the length of the Segment.");
         val last = h.lastChunk();
         if (last != null && canTruncate(last, truncationOffset) && !h.isSealed()) {
             // If we were asked to truncate the entire (non-sealed) Segment, then rollover at this point so we can delete
             // all existing data.
-            rollover(h);
+            rollover(h, requestTag.getRequestId());
 
             // We are free to delete all chunks.
-            deleteChunks(h, s -> canTruncate(s, truncationOffset));
+            deleteChunks(h, requestTag.getRequestId(), s -> canTruncate(s, truncationOffset));
         } else {
             // Either we were asked not to truncate the whole segment, or we were, and the Segment is sealed. If the latter,
             // then the Header is also sealed, we could not have done a quick rollover; as such we have no option but to
             // preserve the last chunk so that we can recalculate the length of the Segment if we need it again.
-            deleteChunks(h, s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
+            deleteChunks(h, requestTag.getRequestId(), s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
         }
 
-        LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset);
+        LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset, requestTag.getRequestId());
     }
 
     @Override
@@ -502,27 +510,27 @@ public class RollingStorage implements SyncStorage {
 
     //region SegmentChunk Operations
 
-    private void rollover(RollingSegmentHandle handle) throws StreamSegmentException {
+    private void rollover(RollingSegmentHandle handle, long requestId) throws StreamSegmentException {
         Preconditions.checkArgument(handle.getHeaderHandle() != null, "Cannot rollover a Segment with no header.");
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot rollover using a read-only handle.");
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
-        log.debug("Rolling over '{}'.", handle);
-        sealActiveChunk(handle);
-        createChunk(handle);
+        log.debug("[requestId={}] Rolling over '{}'.", requestId, handle);
+        sealActiveChunk(handle, requestId);
+        createChunk(handle, requestId);
     }
 
-    private void sealActiveChunk(RollingSegmentHandle handle) throws StreamSegmentException {
+    private void sealActiveChunk(RollingSegmentHandle handle, long requestId) throws StreamSegmentException {
         SegmentHandle activeChunk = handle.getActiveChunkHandle();
         SegmentChunk last = handle.lastChunk();
         if (activeChunk != null && !last.isSealed()) {
             this.baseStorage.seal(activeChunk);
             handle.setActiveChunkHandle(null);
             last.markSealed();
-            log.debug("Sealed active SegmentChunk '{}' for '{}'.", activeChunk.getSegmentName(), handle.getSegmentName());
+            log.debug("[requestId={}] Sealed active SegmentChunk '{}' for '{}'.", requestId, activeChunk.getSegmentName(), handle.getSegmentName());
         }
     }
 
-    private void unsealLastChunkIfNecessary(RollingSegmentHandle handle) throws StreamSegmentException {
+    private void unsealLastChunkIfNecessary(RollingSegmentHandle handle, long requestId) throws StreamSegmentException {
         SegmentChunk last = handle.lastChunk();
         if (last == null || !last.isSealed()) {
             // Nothing to do.
@@ -539,7 +547,7 @@ public class RollingStorage implements SyncStorage {
         try {
             this.baseStorage.unseal(activeChunk);
         } catch (UnsupportedOperationException e) {
-            log.warn("Unable to unseal SegmentChunk '{}' since base storage does not support unsealing.", last);
+            log.warn("[requestId={}] Unable to unseal SegmentChunk '{}' since base storage does not support unsealing.", requestId, last);
             return;
         }
 
@@ -549,10 +557,10 @@ public class RollingStorage implements SyncStorage {
             handle.setActiveChunkHandle(activeChunk);
         }
 
-        log.debug("Unsealed active SegmentChunk '{}' for '{}'.", activeChunk.getSegmentName(), handle.getSegmentName());
+        log.debug("[requestId={}] Unsealed active SegmentChunk '{}' for '{}'.", requestId, activeChunk.getSegmentName(), handle.getSegmentName());
     }
 
-    private void createChunk(RollingSegmentHandle handle) throws StreamSegmentException {
+    private void createChunk(RollingSegmentHandle handle, long requestId) throws StreamSegmentException {
         // Create new active SegmentChunk, only after which serialize the handle update and update the handle.
         // We ignore if the SegmentChunk exists and is empty - that's most likely due to a previous failed attempt.
         long segmentLength = handle.length();
@@ -566,17 +574,17 @@ public class RollingStorage implements SyncStorage {
         serializeNewChunk(handle, newSegmentChunk);
         val activeHandle = this.baseStorage.openWrite(newSegmentChunk.getName());
         handle.addChunk(newSegmentChunk, activeHandle);
-        log.debug("Created new SegmentChunk '{}' for '{}'.", newSegmentChunk, handle);
+        log.debug("[requestId={}] Created new SegmentChunk '{}' for '{}'.", requestId, newSegmentChunk, handle);
     }
 
-    private void deleteChunks(RollingSegmentHandle handle, Predicate<SegmentChunk> canDelete) throws StreamSegmentException {
+    private void deleteChunks(RollingSegmentHandle handle, long requestId, Predicate<SegmentChunk> canDelete) throws StreamSegmentException {
         for (SegmentChunk s : handle.chunks()) {
             if (s.exists() && canDelete.test(s)) {
                 try {
                     val subHandle = this.baseStorage.openWrite(s.getName());
                     this.baseStorage.delete(subHandle);
                     s.markInexistent();
-                    log.debug("Deleted SegmentChunk '{}' for '{}'.", s, handle);
+                    log.debug("[requestId={}] Deleted SegmentChunk '{}' for '{}'.", requestId, s, handle);
                 } catch (StreamSegmentNotExistsException ex) {
                     // Ignore; It's OK if it doesn't exist; just make sure the handle is updated.
                     s.markInexistent();

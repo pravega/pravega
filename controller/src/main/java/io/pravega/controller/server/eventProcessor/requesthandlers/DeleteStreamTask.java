@@ -54,32 +54,33 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
         String scope = request.getScope();
         String stream = request.getStream();
+        long requestId = request.getRequestId();
         return streamMetadataStore.isSealed(scope, stream, context, executor)
                 .thenComposeAsync(sealed -> {
                     if (!sealed) {
-                        log.warn("{}/{} stream not sealed", scope, stream);
+                        log.warn("[requestId={}] {}/{} stream not sealed", requestId, scope, stream);
 
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
-                    return notifyAndDelete(context, scope, stream);
+                    return notifyAndDelete(context, scope, stream, requestId);
                 }, executor)
                 .exceptionally(e -> {
                     if (e instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
-                    log.error("{}/{} stream delete workflow threw exception.", scope, stream, e);
+                    log.error("[requestId={}] {}/{} stream delete workflow threw exception.", requestId, scope, stream, e);
 
                     throw new CompletionException(e);
                 });
     }
 
-    private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream) {
-        log.info("{}/{} deleting segments", scope, stream);
+    private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {
+        log.info("[requestId={}] {}/{} deleting segments", requestId, scope, stream);
         return streamMetadataStore.getScaleMetadata(scope, stream, context, executor)
                 .thenComposeAsync(scaleMetadata -> {
                     Set<Long> toDelete = new HashSet<>();
                     scaleMetadata.forEach(x -> toDelete.addAll(x.getSegments().stream().map(Segment::segmentId).collect(Collectors.toList())));
-                    return streamMetadataTasks.notifyDeleteSegments(scope, stream, toDelete, streamMetadataTasks.retrieveDelegationToken())
+                    return streamMetadataTasks.notifyDeleteSegments(scope, stream, toDelete, streamMetadataTasks.retrieveDelegationToken(), requestId)
                             .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
                                     executor), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
