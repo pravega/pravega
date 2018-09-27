@@ -10,6 +10,7 @@
 
 package io.pravega.client.netty.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -166,7 +167,8 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
     }
 
-    private Channel getChannel() throws ConnectionFailedException {
+    @VisibleForTesting
+    Channel getChannel() throws ConnectionFailedException {
         Channel ch = channel.get();
         if (ch == null) {
             throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");

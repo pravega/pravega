@@ -46,17 +46,17 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.io.File;
-import java.security.NoSuchAlgorithmException;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
-import lombok.extern.slf4j.Slf4j;
+import java.io.File;
+import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
@@ -65,7 +65,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     private final ClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor;
-    private final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+    @Getter
+    private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     /**
      * Actual implementation of ConnectionFactory interface.
@@ -172,7 +173,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                         Channel ch = future.channel();
                         log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                                 ch.id(), ch.localAddress(), ch.remoteAddress());
-                        allChannels.add(ch); // Once a channel is closed the channel group implementation removes it.
+                        channelGroup.add(ch); // Once a channel is closed the channel group implementation removes it.
                         connectionComplete.complete(handler);
                     } else {
                         connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
@@ -205,9 +206,11 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     public int getActiveChannelCount() {
-        List<Channel> activeChannels = allChannels.stream().filter(Channel::isActive).collect(Collectors.toList());
-        log.debug("Channels that are active are {}", activeChannels);
-        return activeChannels.size();
+        return (int) channelGroup.stream()
+                                 .filter(Channel::isActive)
+                                 .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.",
+                                                      ch.id(), ch.localAddress(), ch.remoteAddress()))
+                                 .count();
     }
 
     @Override
