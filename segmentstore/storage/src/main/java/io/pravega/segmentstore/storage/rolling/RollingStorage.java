@@ -42,7 +42,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-import static io.pravega.common.tracing.RequestTracker.createRequestDescriptor;
+import static io.pravega.common.tracing.RequestTracker.buildRequestDescriptor;
 
 /**
  * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
@@ -244,7 +244,7 @@ public class RollingStorage implements SyncStorage {
     public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("createSegment", segmentName));
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("createSegment", segmentName));
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy, requestTag.getRequestId());
 
         // First, check if the segment exists but with no header (it might have been created prior to applying
@@ -284,6 +284,7 @@ public class RollingStorage implements SyncStorage {
             throw ex;
         }
 
+        RequestTracker.getInstance().untrackRequest(requestTag);
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName, requestTag.getRequestId());
         return StreamSegmentInformation.builder().name(segmentName).build();
     }
@@ -336,7 +337,7 @@ public class RollingStorage implements SyncStorage {
     public void seal(SegmentHandle handle) throws StreamSegmentException {
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("sealSegment", handle.getSegmentName()));
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("sealSegment", handle.getSegmentName()));
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle, requestTag.getRequestId());
         sealActiveChunk(h, requestTag.getRequestId());
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -346,6 +347,7 @@ public class RollingStorage implements SyncStorage {
 
         h.markSealed();
         log.debug("[requestId={}] Sealed Header for '{}'.", requestTag.getRequestId(), h.getSegmentName());
+        RequestTracker.getInstance().untrackRequest(requestTag);
         LoggerHelpers.traceLeave(log, "seal", traceId, handle, requestTag.getRequestId());
     }
 
@@ -428,7 +430,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
         val h = asReadableHandle(handle);
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("deleteSegment", handle.getSegmentName()));
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("deleteSegment", handle.getSegmentName()));
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle, requestTag.getRequestId());
 
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -462,6 +464,7 @@ public class RollingStorage implements SyncStorage {
             }
         }
 
+        RequestTracker.getInstance().untrackRequest(requestTag);
         LoggerHelpers.traceLeave(log, "delete", traceId, handle, requestTag.getRequestId());
     }
 
@@ -479,7 +482,7 @@ public class RollingStorage implements SyncStorage {
             return;
         }
 
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(createRequestDescriptor("truncateSegment", handle.getSegmentName()));
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("truncateSegment", handle.getSegmentName()));
         long traceId = LoggerHelpers.traceEnter(log, "truncate", h, truncationOffset, requestTag.getRequestId());
         Preconditions.checkArgument(truncationOffset >= 0 && truncationOffset <= h.length(),
                 "truncationOffset must be non-negative and at most the length of the Segment.");
@@ -498,6 +501,7 @@ public class RollingStorage implements SyncStorage {
             deleteChunks(h, requestTag.getRequestId(), s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
         }
 
+        RequestTracker.getInstance().untrackRequest(requestTag);
         LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset, requestTag.getRequestId());
     }
 

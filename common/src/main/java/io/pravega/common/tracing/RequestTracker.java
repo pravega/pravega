@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
  * the client-generated ids, making it easier to trace the lifecycle of a request across multiple logs.
  */
 @Slf4j
-public class RequestTracker {
+public final class RequestTracker {
 
     private static final RequestTracker INSTANCE = new RequestTracker();
     private static final String INTER_FIELD_DELIMITER = "-";
@@ -45,12 +45,18 @@ public class RequestTracker {
         return INSTANCE;
     }
 
-    public static String createRequestDescriptor(String...requestInfo) {
+    public static String buildRequestDescriptor(String...requestInfo) {
         return Stream.of(requestInfo).collect(Collectors.joining(INTER_FIELD_DELIMITER));
     }
 
+    /**
+     * Get a  based on the information about
+     *
+     * @param requestInfo
+     * @return
+     */
     public RequestTag getRequestTagFor(String...requestInfo) {
-        return getRequestTagFor(RequestTracker.createRequestDescriptor(requestInfo));
+        return getRequestTagFor(RequestTracker.buildRequestDescriptor(requestInfo));
     }
 
     public RequestTag getRequestTagFor(String requestDescriptor) {
@@ -60,7 +66,7 @@ public class RequestTracker {
             log.warn("Attempting to get a non-existing tag: {}.", requestDescriptor);
             return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
         } else if (requestIds.size() > 1) {
-            log.warn("{} concurrent requests with same descriptor: {}. Retrieving a default requestId instead.", requestIds, requestDescriptor);
+            log.warn("{} concurrent requests with same descriptor: {}. Retrieving a default requestId, unable to disambiguate.", requestIds, requestDescriptor);
             return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
         }
 
@@ -68,7 +74,7 @@ public class RequestTracker {
     }
 
     public long getRequestIdFor(String...requestInfo) {
-        return getRequestIdFor(RequestTracker.createRequestDescriptor(requestInfo));
+        return getRequestIdFor(RequestTracker.buildRequestDescriptor(requestInfo));
     }
 
     public long getRequestIdFor(String requestDescriptor) {
@@ -79,7 +85,7 @@ public class RequestTracker {
         trackRequest(requestTag.getRequestDescriptor(), requestTag.getRequestId());
     }
 
-    public synchronized void trackRequest(String requestDescriptor, Long requestId) {
+    public synchronized void trackRequest(String requestDescriptor, long requestId) {
         Preconditions.checkArgument(requestDescriptor != null, "Attempting to track a null request descriptor.");
         List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
         if (requestIds == null) {
@@ -90,6 +96,10 @@ public class RequestTracker {
         ongoingRequests.put(requestDescriptor, requestIds);
         log.info("Tracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestId,
                 ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
+    }
+
+    public long untrackRequest(RequestTag requestTag) {
+        return untrackRequest(requestTag.getRequestDescriptor());
     }
 
     public synchronized long untrackRequest(String requestDescriptor) {
@@ -124,8 +134,8 @@ public class RequestTracker {
         RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(requestInfo);
         if (!requestTag.isTracked()) {
             log.info("Request tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.", requestId,
-                    RequestTracker.createRequestDescriptor(requestInfo));
-            requestTag = new RequestTag(RequestTracker.createRequestDescriptor(requestInfo), requestId);
+                    RequestTracker.buildRequestDescriptor(requestInfo));
+            requestTag = new RequestTag(RequestTracker.buildRequestDescriptor(requestInfo), requestId);
             RequestTracker.getInstance().trackRequest(requestTag);
         }
 

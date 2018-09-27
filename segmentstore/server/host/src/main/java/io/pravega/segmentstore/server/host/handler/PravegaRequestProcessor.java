@@ -422,8 +422,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         this.createStreamSegment.reportFailEvent(timer.getElapsed());
                         handleException(createStreamSegment.getRequestId(), createStreamSegment.getSegment(), operation, e);
                     }
-
-                    logAndUntrackRequestTag(requestTag);
                 });
     }
 
@@ -476,8 +474,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             statsRecorder.sealSegment(sealSegment.getSegment());
                         }
                     }
-
-                    logAndUntrackRequestTag(requestTag);
                 });
     }
 
@@ -494,10 +490,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(truncateSegment.getRequestId(), operation, segment);
         log.info("[requestId={}] Truncating segment {} at offset {}.", requestTag.getRequestId(), segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
-                .thenAccept(v -> {
-                    connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment));
-                    logAndUntrackRequestTag(requestTag);
-                })
+                .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
                 .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, operation, e));
     }
 
@@ -518,7 +511,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
                     DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
                     DYNAMIC_LOGGER.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
-                    logAndUntrackRequestTag(requestTag);
                 })
                 .exceptionally(e -> handleException(deleteSegment.getRequestId(), segment, operation, e));
     }
@@ -548,15 +540,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                     updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
                         }
                     }
-
-                    logAndUntrackRequestTag(requestTag);
                 });
     }
 
     //endregion
 
     private Void handleException(long requestId, String segment, String operation, Throwable u) {
-        RequestTracker.getInstance().untrackRequest(RequestTracker.createRequestDescriptor(operation, segment));
+        // Only untrack a request here in case of exception, otherwise they are untracked during tier-2 activity.
+        logAndUntrackRequest(RequestTracker.buildRequestDescriptor(operation, segment));
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error("[requestId={}] Error (Segment = '{}', Operation = '{}')", requestId, segment, operation, exception);
@@ -632,10 +623,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private void logAndUntrackRequestTag(RequestTag requestTag) {
-        if (requestTag != null) {
-            log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestTag.getRequestDescriptor()),
-                    requestTag.getRequestDescriptor());
-        }
+    private void logAndUntrackRequest(String requestDescriptor) {
+        log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestDescriptor),
+                requestDescriptor);
     }
 }

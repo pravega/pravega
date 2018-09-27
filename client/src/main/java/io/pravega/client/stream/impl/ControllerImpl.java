@@ -984,7 +984,7 @@ public class ControllerImpl implements Controller {
      * @return Base client stub with parameters as call options.
      */
     private static ControllerServiceStub addTagsToRequest(ControllerServiceStub clientStub, long traceId, String...requestInfo) {
-        return clientStub.withOption(TracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.createRequestDescriptor(requestInfo))
+        return clientStub.withOption(TracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.buildRequestDescriptor(requestInfo))
                          .withOption(TracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
     }
 }
