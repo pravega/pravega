@@ -13,11 +13,9 @@ import com.google.common.annotations.Beta;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.batch.StreamInfo;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.

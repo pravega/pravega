@@ -35,7 +35,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;

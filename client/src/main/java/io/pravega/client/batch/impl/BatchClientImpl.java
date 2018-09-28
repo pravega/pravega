@@ -65,7 +65,12 @@ public class BatchClientImpl implements BatchClient {
         latestDelegationToken = new AtomicReference<>();
     }
 
+    /**
+     * Used to fetch the StreamInfo of a given stream. This should be removed in time.
+     * @deprecated Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
+     */
     @Override
+    @Deprecated
     public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
         Preconditions.checkNotNull(stream, "stream");
 
