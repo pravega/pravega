@@ -117,15 +117,16 @@ public interface StreamManager extends AutoCloseable {
      */
     boolean deleteScope(String scopeName);
 
-    @Beta
     /**
      * Get information about a given Stream, {@link StreamInfo}.
      *
-     * @param stream the stream.
+     * @param scopeName The scope of the stream.
+     * @param streamName The stream name.
      * @return stream information.
      */
-    CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
-    
+    @Beta
+    StreamInfo getStreamInfo(String scopeName, String streamName);
+
     /**
      * Closes the stream manager.
      * @see java.lang.AutoCloseable#close()

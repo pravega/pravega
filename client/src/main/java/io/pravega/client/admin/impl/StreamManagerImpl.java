@@ -32,17 +32,15 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.concurrent.GuardedBy;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -134,8 +132,17 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public CompletableFuture<StreamInfo> getStreamInfo(Stream stream) {
-        return null;
+    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        NameUtils.validateScopeName(scopeName);
+        NameUtils.validateStreamName(streamName);
+        final Stream stream = Stream.of(scopeName, streamName);
+
+        //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
+        CompletableFuture<StreamCut> currentTailStreamCut = fetchTailStreamCut(stream);
+        CompletableFuture<StreamCut> currentHeadStreamCut = fetchHeadStreamCut(stream);
+        CompletableFuture<StreamInfo> streamInfo = currentTailStreamCut.thenCombine(currentHeadStreamCut,
+                                                                                    (tailSC, headSC) -> new StreamInfo(scopeName, streamName, tailSC, headSC));
+        return Futures.getAndHandleExceptions(streamInfo, RuntimeException::new);
     }
 
     private CompletableFuture<StreamCut> fetchHeadStreamCut(final Stream stream) {
