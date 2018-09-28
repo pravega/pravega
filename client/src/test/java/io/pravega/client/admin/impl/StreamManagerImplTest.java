@@ -24,7 +24,6 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
-import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +38,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 
 
-public class StreamManagerImplTest extends ThreadPooledTestSuite {
+public class StreamManagerImplTest {
 
     private static final int SERVICE_PORT = 12345;
     private final String defaultScope = "foo";

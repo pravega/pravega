@@ -252,9 +252,8 @@ public class ControllerRestApiTest {
         URI controllerUri = SETUP_UTILS.getControllerUri();
         @Cleanup("shutdown")
         InlineExecutor inlineExecutor = new InlineExecutor();
-        @Cleanup
-        ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        try (StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor), cf)) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor), cf)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
