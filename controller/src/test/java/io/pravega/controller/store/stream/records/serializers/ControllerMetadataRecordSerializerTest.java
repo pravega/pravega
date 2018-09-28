@@ -18,6 +18,7 @@ import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.HistoryTimeSeriesRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.RetentionSetRecord;
+import io.pravega.controller.store.stream.records.RetentionStreamCutRecord;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.TruncationRecord;
@@ -32,6 +33,7 @@ import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class ControllerMetadataRecordSerializerTest {
 
@@ -62,6 +64,15 @@ public class ControllerMetadataRecordSerializerTest {
 
         HistoryTimeIndexLeaf leaf = HistoryTimeIndexLeaf.builder().records(record).build();
         assertEquals(HistoryTimeIndexLeaf.parse(leaf.toByteArray()), leaf);
+
+        HistoryTimeIndexRootNode newRoot = HistoryTimeIndexRootNode.addNewLeaf(rootNode, 150L);
+        assertEquals(rootNode, newRoot);
+        newRoot = HistoryTimeIndexRootNode.addNewLeaf(rootNode, 250L);
+        assertEquals(4, newRoot.getLeaves().size());
+        HistoryTimeIndexLeaf newLeaf = HistoryTimeIndexLeaf.addRecord(leaf, 1L);
+        assertEquals(newLeaf, leaf);
+        newLeaf = HistoryTimeIndexLeaf.addRecord(leaf, 4L);
+        assertEquals(4, newLeaf.getRecords().size());
     }
 
     @Test
@@ -74,6 +85,14 @@ public class ControllerMetadataRecordSerializerTest {
 
         HistoryTimeSeries timeSeries = HistoryTimeSeries.builder().historyRecords(Lists.newArrayList(node)).build();
         assertEquals(HistoryTimeSeries.parse(timeSeries.toByteArray()), timeSeries);
+
+        HistoryTimeSeries newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node);
+        assertEquals(newTimeSeries, timeSeries);
+
+        HistoryTimeSeriesRecord node2 = HistoryTimeSeriesRecord.builder().epoch(0).creationTime(1L).referenceEpoch(0).segmentsCreated(newSegments).segmentsSealed(sealedSegments).build();
+
+        newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node2);
+        assertEquals(newTimeSeries.getLatestRecord(), node2);
     }
 
     @Test
@@ -86,6 +105,16 @@ public class ControllerMetadataRecordSerializerTest {
     }
 
     @Test
+    public void retentionStreamCutRecordTest() {
+        Map<StreamSegmentRecord, Long> cut = new HashMap<>();
+        cut.put(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0), 0L);
+        RetentionStreamCutRecord record = RetentionStreamCutRecord.builder().recordingSize(100L).recordingTime(10L).streamCut(cut).build();
+        assertEquals(RetentionStreamCutRecord.parse(record.toByteArray()), record);
+
+        assertTrue(record.getRetentionRecord().getRecordingTime() == 10L && record.getRetentionRecord().getRecordingSize() == 100L);
+    }
+
+    @Test
     public void sealedSegmentSizesMapShardTest() {
         Map<Long, Long> map = new HashMap<>();
         map.put(0L, 0L);
@@ -93,6 +122,10 @@ public class ControllerMetadataRecordSerializerTest {
         map.put(2L, 0L);
         SealedSegmentsMapShard record = SealedSegmentsMapShard.builder().shardNumber(0).sealedSegmentsSizeMap(map).build();
         assertEquals(SealedSegmentsMapShard.parse(record.toByteArray()), record);
+
+        record.addSealedSegmentSize(4L, 10L);
+        assertTrue(record.getSealedSegmentsSizeMap().containsKey(4L));
+        record.addSealedSegmentSize(1L, 10L);
     }
 
     @Test
@@ -104,8 +137,12 @@ public class ControllerMetadataRecordSerializerTest {
         Set<Long> set = new HashSet<>();
         set.add(0L);
         TruncationRecord record = TruncationRecord.builder().span(span).streamCut(streamCut).toDelete(set)
-                .deletedSegments(set).updating(false).build();
+                .deletedSegments(set).updating(true).build();
         assertEquals(TruncationRecord.parse(record.toByteArray()), record);
+        assertTrue(record.isUpdating());
+        TruncationRecord completed = TruncationRecord.complete(record);
+        assertEquals(TruncationRecord.parse(completed.toByteArray()), completed);
+        assertTrue(!completed.isUpdating());
     }
 }
 

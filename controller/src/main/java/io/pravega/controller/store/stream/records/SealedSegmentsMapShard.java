@@ -80,7 +80,7 @@ public class SealedSegmentsMapShard {
 
     @Synchronized
     public void addSealedSegmentSize(long segmentId, long sealedSize) {
-        sealedSegmentsSizeMap.put(segmentId, sealedSize);
+        sealedSegmentsSizeMap.putIfAbsent(segmentId, sealedSize);
     }
 
     @Synchronized
