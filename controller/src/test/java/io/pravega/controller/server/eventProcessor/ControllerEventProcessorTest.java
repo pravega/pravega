@@ -50,7 +50,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -167,9 +166,10 @@ public class ControllerEventProcessorTest {
         // lower epoch --> rolling transaction
         // higher epoch --> no transactions can exist on higher epoch. nothing to do. ignore.
         List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
-        List<VersionedTransactionData> txnDataList2 = createAndCommitTransactions(3);
         int epoch = txnDataList1.get(0).getEpoch();
-        streamStore.createCommittingTransactionsRecord(SCOPE, STREAM, epoch, txnDataList1.stream().map(VersionedTransactionData::getId).collect(Collectors.toList()), null, executor).join();
+        streamStore.startCommitTransactions(SCOPE, STREAM, epoch, null, executor).join();
+
+        List<VersionedTransactionData> txnDataList2 = createAndCommitTransactions(3);
 
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
@@ -198,7 +198,7 @@ public class ControllerEventProcessorTest {
     public void testCommitAndStreamProcessorFairness() {
         List<VersionedTransactionData> txnDataList1 = createAndCommitTransactions(3);
         int epoch = txnDataList1.get(0).getEpoch();
-        streamStore.createCommittingTransactionsRecord(SCOPE, STREAM, epoch, txnDataList1.stream().map(VersionedTransactionData::getId).collect(Collectors.toList()), null, executor).join();
+        streamStore.startCommitTransactions(SCOPE, STREAM, epoch, null, executor).join();
 
         EventStreamWriterMock<ControllerEvent> requestEventWriter = new EventStreamWriterMock<>();
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);

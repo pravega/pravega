@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -58,31 +59,33 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
 
-        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
-                .thenCompose(property -> {
-                    if (!property.isUpdating()) {
+        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, true, context, executor)
+                .thenCompose(existing -> {
+                    if (!existing.getObject().isUpdating()) {
                         // if the state is TRUNCATING but the truncation record is not updating, we should reset the state to ACTIVE.
                         return streamMetadataStore.resetStateConditionally(scope, stream, State.TRUNCATING, context, executor)
                                 .thenRun(() -> {
                                     throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                                 });
                     } else {
-                        return processTruncate(scope, stream, property, context,
+                        return processTruncate(scope, stream, existing, context,
                                 this.streamMetadataTasks.retrieveDelegationToken());
                     }
                 });
     }
 
-    private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
+    private CompletableFuture<Void> processTruncate(String scope, String stream, VersionedMetadata<StreamTruncationRecord> versionedTruncationRecord,
                                                     OperationContext context, String delegationToken) {
+        StreamTruncationRecord truncationRecord = versionedTruncationRecord.getObject();
         log.info("Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
                 .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken))
                 .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken))
-                 .thenCompose(x -> streamMetadataStore.getSizeTillStreamCut(scope, stream, truncationRecord.getStreamCut(), context, executor))
-                 .thenAccept(truncatedSize -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), truncatedSize))
-                 .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, context, executor))
-                 .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
+                .thenCompose(x -> streamMetadataStore.getSizeTillStreamCut(scope, stream, truncationRecord.getStreamCut(),
+                        context, executor))
+                .thenAccept(truncatedSize -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), truncatedSize))
+                .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, versionedTruncationRecord, context, executor))
+                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete, String delegationToken) {

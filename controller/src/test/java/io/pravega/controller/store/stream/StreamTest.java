@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.test.common.TestingServerStarter;
@@ -79,7 +80,7 @@ public class StreamTest {
         testStream(stream);
     }
 
-    private void testStream(PersistentStreamBase<Integer> stream) throws InterruptedException, ExecutionException {
+    private void testStream(PersistentStreamBase stream) throws InterruptedException, ExecutionException {
         long creationTime1 = System.currentTimeMillis();
         long creationTime2 = creationTime1 + 1;
         final ScalingPolicy policy1 = ScalingPolicy.fixed(5);
@@ -99,7 +100,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1)).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1).toByteArray()).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -108,7 +109,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.createStateIfAbsent(State.UNKNOWN).get();
+        stream.createStateIfAbsent(StateRecord.create(State.UNKNOWN).toByteArray()).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -175,13 +176,13 @@ public class StreamTest {
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        EpochTransitionRecord response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
-        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getNewSegmentsWithRange();
+        VersionedMetadata<EpochTransitionRecord> response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
+        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
         zkStream.updateState(State.SCALING).join();
 
         newSegments.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList());
-        zkStream.scaleCreateNewSegments(false).get();
-        zkStream.scaleNewSegmentsCreated().get();
+        zkStream.scaleCreateNewSegments(false, response).get();
+        zkStream.scaleNewSegmentsCreated(response).get();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.
 
@@ -214,7 +215,7 @@ public class StreamTest {
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
         doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
 
-        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L))).get();
+        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
         // scale is completed, history table also has completed record now.
         final CompletableFuture<Data<Integer>> segmentTable2 = zkStream.getSegmentTable();
         final CompletableFuture<Data<Integer>> historyTable2 = zkStream.getHistoryTable();

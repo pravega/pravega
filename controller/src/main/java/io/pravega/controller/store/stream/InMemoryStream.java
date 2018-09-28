@@ -22,7 +22,6 @@ import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
 import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -40,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-public class InMemoryStream extends PersistentStreamBase<Integer> {
+public class InMemoryStream extends PersistentStreamBase {
 
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
@@ -166,24 +165,24 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createConfigurationIfAbsent(StreamConfigurationRecord config) {
+    CompletableFuture<Void> createConfigurationIfAbsent(byte[] config) {
         Preconditions.checkNotNull(config);
 
         synchronized (lock) {
             if (configuration == null) {
-                configuration = new Data<>(config.toByteArray(), 0);
+                configuration = new Data<>(config, 0);
             }
         }
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> createTruncationDataIfAbsent(StreamTruncationRecord truncation) {
+    CompletableFuture<Void> createTruncationDataIfAbsent(byte[] truncation) {
         Preconditions.checkNotNull(truncation);
 
         synchronized (lock) {
             if (truncationRecord == null) {
-                truncationRecord = new Data<>(truncation.toByteArray(), 0);
+                truncationRecord = new Data<>(truncation, 0);
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -253,12 +252,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createStateIfAbsent(State state) {
+    CompletableFuture<Void> createStateIfAbsent(byte[] state) {
         Preconditions.checkNotNull(state);
 
         synchronized (lock) {
             if (this.state == null) {
-                this.state = new Data<>(StateRecord.builder().state(state).build().toByteArray(), 0);
+                this.state = new Data<>(state, 0);
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -756,34 +755,31 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createEpochTransitionNode(byte[] epochTransitionData) {
+    CompletableFuture<Void> createEpochTransitionDataIfAbsent(byte[] epochTransitionData) {
         Preconditions.checkNotNull(epochTransitionData);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
-
         synchronized (lock) {
-            if (this.epochTransition != null) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "epoch transition exists"));
-            } else {
+            if (this.epochTransition == null) {
                 this.epochTransition = new Data<>(epochTransitionData, 0);
-                result.complete(null);
             }
         }
-        return result;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    CompletableFuture<Void> updateEpochTransitionNode(byte[] epochTransitionData) {
-        Preconditions.checkNotNull(epochTransitionData);
+    CompletableFuture<Integer> updateEpochTransitionNode(Data<Integer> record) {
+        Preconditions.checkNotNull(record);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        byte[] copy = Arrays.copyOf(epochTransitionData, epochTransitionData.length);
+        CompletableFuture<Integer> result = new CompletableFuture<>();
+        byte[] copy = Arrays.copyOf(record.getData(), record.getData().length);
         synchronized (lock) {
             if (this.epochTransition == null) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "epoch transition not found"));
+            } else if (!Objects.equals(this.epochTransition.getVersion(), record.getVersion())) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, "epoch transition version mismatch"));
             } else {
                 this.epochTransition = new Data<>(copy, this.epochTransition.getVersion() + 1);
-                result.complete(null);
+                result.complete(epochTransition.getVersion());
             }
         }
         return result;
@@ -801,14 +797,6 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
             }
         }
         return result;
-    }
-
-    @Override
-    CompletableFuture<Void> deleteEpochTransitionNode() {
-        synchronized (lock) {
-            this.epochTransition = null;
-        }
-        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -855,17 +843,12 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> createCommittingTxnRecord(byte[] committingTxns) {
         Preconditions.checkNotNull(committingTxns);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
-
         synchronized (lock) {
-            if (this.committingTxnRecord != null) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "committing transactions record exists"));
-            } else {
+            if (this.committingTxnRecord == null) {
                 this.committingTxnRecord = new Data<>(committingTxns, 0);
-                result.complete(null);
             }
         }
-        return result;
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -883,11 +866,22 @@ public class InMemoryStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> deleteCommittingTxnRecord() {
+    CompletableFuture<Integer> updateCommittingTxnRecord(Data<Integer> record) {
+        Preconditions.checkNotNull(record);
+
+        CompletableFuture<Integer> result = new CompletableFuture<>();
+        byte[] copy = Arrays.copyOf(record.getData(), record.getData().length);
         synchronized (lock) {
-            this.committingTxnRecord = null;
+            if (this.committingTxnRecord == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "committing txn not found"));
+            } else if (!Objects.equals(this.committingTxnRecord.getVersion(), record.getVersion())) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, "committing txn version mismatch"));
+            } else {
+                this.committingTxnRecord = new Data<>(copy, this.committingTxnRecord.getVersion() + 1);
+                result.complete(committingTxnRecord.getVersion());
+            }
         }
-        return CompletableFuture.completedFuture(null);
+        return result;
     }
 
     @Override

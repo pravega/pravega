@@ -54,7 +54,7 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -407,7 +407,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     if (data == null) {
                         return storeHelper.createZNodeIfNotExist(retentionPath, serialize);
                     } else {
-                        return storeHelper.setData(retentionPath, new Data<>(serialize, data.getVersion()));
+                        return Futures.toVoid(storeHelper.setData(retentionPath, new Data<>(serialize, data.getVersion())));
                     }
                 });
     }
@@ -451,7 +451,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                                   Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
                                           "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                           oldLastActiveSegment, scope, stream, lastActiveSegment);
-                                  return storeHelper.setData(deletePath, new Data<>(maxSegmentNumberBytes, data.getVersion()));
+                                  return Futures.toVoid(storeHelper.setData(deletePath, new Data<>(maxSegmentNumberBytes, data.getVersion())));
                               }
                           });
     }
@@ -497,6 +497,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @VisibleForTesting
     public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
         this.storeHelper = storeHelper;
+    }
+
+    @Override
+    public void close() throws Exception {
+        completedTxnGC.stopAsync();
+        completedTxnGC.awaitTerminated();
     }
     // endregion
 }
