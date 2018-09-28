@@ -236,6 +236,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void isStreamCutValid(Controller.StreamCut request, StreamObserver<Controller.StreamCutValidityResponse> responseObserver) {
+        log.info("isStreamCutValid called for stream {}/{} streamcut {}.", request.getStreamInfo().getScope(),
+                request.getStreamInfo().getStream(), request.getCutMap());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
+                        request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
+                delegationToken -> controllerService.isStreamCutValid(request.getStreamInfo().getScope(),
+                        request.getStreamInfo().getStream(),
+                        request.getCutMap())
+                        .thenApply(bRes -> Controller.StreamCutValidityResponse.newBuilder().setResponse(bRes).build()),
+                responseObserver);
+    }
+
+    @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
         log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());

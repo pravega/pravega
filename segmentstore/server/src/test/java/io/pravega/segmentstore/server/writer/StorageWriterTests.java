@@ -20,10 +20,14 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.WriterFlushResult;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -53,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,6 +66,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -510,6 +516,74 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the StorageWriter with multiple Segment Processors.
+     */
+    @Test
+    public void testMultipleProcessors() throws Exception {
+        final int processorCount = 2;
+        val processors = new HashMap<Long, ArrayList<WriterSegmentProcessor>>();
+
+        WriterFactory.CreateProcessors createProcessors = sm -> {
+            Assert.assertFalse("Processors already created for segment " + sm, processors.containsKey(sm.getId()));
+            val result = new ArrayList<WriterSegmentProcessor>();
+            for (int i = 0; i < processorCount; i++) {
+                val p = new TestWriterProcessor();
+                result.add(p);
+            }
+
+            processors.put(sm.getId(), result);
+            return result;
+        };
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, createProcessors);
+
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
+        ArrayList<Long> transactionIds = new ArrayList<>();
+        transactionsBySegment.values().forEach(transactionIds::addAll);
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(transactionIds, segmentContents, context);
+        sealSegments(transactionIds, context);
+        mergeTransactions(transactionIds, segmentContents, context);
+        sealSegments(segmentIds, context);
+
+        // Wait for the writer to complete its job.
+        metadataCheckpoint(context);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify the processors.
+        for (val e : processors.entrySet()) {
+            // Verify they received the same operations.
+            val firstProcessor = (TestWriterProcessor) e.getValue().get(0);
+            AssertExtensions.assertGreaterThan("Expected at least one operation.", 0, firstProcessor.operations.size());
+            for (int i = 1; i < e.getValue().size(); i++) {
+                AssertExtensions.assertListEquals("Not all processors for the same segment received the same operations.",
+                        firstProcessor.operations, ((TestWriterProcessor) e.getValue().get(i)).operations, Object::equals);
+            }
+
+            // Verify they have all been flushed.
+            for (val p : e.getValue()) {
+                Assert.assertEquals("Not all processors were flushed.", -1, p.getLowestUncommittedSequenceNumber());
+            }
+        }
+
+        // Verify that the main Segment Aggregators were still able to do their jobs.
+        verifyFinalOutput(segmentContents, transactionIds, context);
+        context.writer.close();
+        for (val e : processors.entrySet()) {
+            for (val p : e.getValue()) {
+                Assert.assertTrue("Not all processors were closed.", p.isClosed());
+            }
+        }
+    }
+
+    /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
      * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments
@@ -842,6 +916,58 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     //endregion
 
+    //region TestWriterProcessor
+
+    @RequiredArgsConstructor
+    private class TestWriterProcessor implements WriterSegmentProcessor {
+        final AtomicBoolean closed = new AtomicBoolean();
+        final ArrayList<SegmentOperation> operations = new ArrayList<>();
+        final AtomicInteger firstUnAcked = new AtomicInteger();
+
+        //region WriterSegmentProcessor Implementation
+
+        @Override
+        public void close() {
+            this.closed.set(true);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return this.closed.get();
+        }
+
+        @Override
+        public long getLowestUncommittedSequenceNumber() {
+            if (this.firstUnAcked.get() >= this.operations.size()) {
+                return -1;
+            }
+
+            return this.operations.get(this.firstUnAcked.get()).getSequenceNumber();
+        }
+
+        @Override
+        public boolean mustFlush() {
+            return false;
+        }
+
+        @Override
+        public void add(SegmentOperation operation) {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            this.operations.add(operation);
+        }
+
+        @Override
+        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            this.firstUnAcked.set(this.operations.size());
+            return CompletableFuture.completedFuture(new WriterFlushResult());
+        }
+
+        //endregion
+    }
+
+    //endregion
+
     // region TestContext
 
     private class TestContext implements AutoCloseable {
@@ -851,26 +977,32 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final TestStorage storage;
         final WriterConfig config;
         final Map<Long, Long> transactionIds;
+        final WriterFactory.CreateProcessors createProcessors;
         StorageWriter writer;
 
         TestContext(WriterConfig config) {
+            this(config, m -> Collections.emptyList());
+        }
+
+        TestContext(WriterConfig config, WriterFactory.CreateProcessors createProcessors) {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.baseStorage = new InMemoryStorage();
             this.storage = new TestStorage(this.baseStorage, executorService());
             this.storage.initialize(1);
             this.config = config;
+            this.createProcessors = createProcessors;
 
             this.transactionIds = new HashMap<>();
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
             this.dataSource = new TestWriterDataSource(this.metadata, executorService(), dataSourceConfig);
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.createProcessors, executorService());
         }
 
         void resetWriter() {
             this.writer.close();
             this.baseStorage.changeOwner();
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.createProcessors, executorService());
         }
 
         @Override

@@ -389,13 +389,18 @@ public class ReaderGroupStateManagerTest {
                 segments, Collections.emptyMap()));
 
         ReaderGroupStateManager reader1 = new ReaderGroupStateManager("reader1", state, controller, clock::get);
-        reader1.initializeReader(0);
+        reader1.initializeReader(100);
 
         ReaderGroupStateManager reader2 = new ReaderGroupStateManager("reader2", state, controller, clock::get);
-        reader2.initializeReader(0);
+        reader2.initializeReader(100);
+        
+        Map<Segment, Long> newSegments = reader1.acquireNewSegmentsIfNeeded(123);
+        assertEquals(0, newSegments.size());
+        newSegments = reader2.acquireNewSegmentsIfNeeded(123);
+        assertEquals(0, newSegments.size());
         
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
-        Map<Segment, Long> newSegments = reader1.acquireNewSegmentsIfNeeded(123);
+        newSegments = reader1.acquireNewSegmentsIfNeeded(123);
         assertEquals(2, newSegments.size());
         
         Duration r1aqt = ReaderGroupStateManager.calculateAcquireTime("reader1", state.getState());
