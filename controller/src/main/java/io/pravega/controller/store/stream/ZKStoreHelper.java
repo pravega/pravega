@@ -167,16 +167,16 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> setData(final String path, final Data<Integer> data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> setData(final String path, final Data<Integer> data) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             if (data.getVersion() == null) {
                 client.setData().inBackground(
-                        callback(event -> result.complete(null), result::completeExceptionally, path), executor)
+                        callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             } else {
                 client.setData().withVersion(data.getVersion()).inBackground(
-                        callback(event -> result.complete(null), result::completeExceptionally, path), executor)
+                        callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             }
         } catch (Exception e) {

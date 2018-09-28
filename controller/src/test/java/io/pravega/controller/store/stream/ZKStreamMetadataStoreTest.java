@@ -69,6 +69,11 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
     public void cleanupTaskStore() throws IOException {
+        try {
+            ((ZKStreamMetadataStore) store).close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         cli.close();
         zkServer.close();
     }
@@ -466,13 +471,14 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         long scaleTimestamp = System.currentTimeMillis();
         List<Long> existingSegments = segments.stream().map(Segment::segmentId).collect(Collectors.toList());
-        EpochTransitionRecord response = store.startScale(scope, stream, existingSegments, newRanges,
+        VersionedMetadata<EpochTransitionRecord> versioned = store.startScale(scope, stream, existingSegments, newRanges,
                 scaleTimestamp, false, null, executor).join();
+        EpochTransitionRecord response = versioned.getObject();
         ImmutableMap<Long, SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         store.setState(scope, stream, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(scope, stream, false, null, executor).join();
-        store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        versioned = store.scaleCreateNewSegments(scope, stream, false, versioned, null, executor).join();
+        versioned = store.scaleNewSegmentsCreated(scope, stream, versioned, null, executor).join();
+        store.completeScale(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }

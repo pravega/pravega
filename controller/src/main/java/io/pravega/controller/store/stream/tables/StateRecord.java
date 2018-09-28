@@ -28,6 +28,10 @@ public class StateRecord {
 
     private final State state;
 
+    public static StateRecord create(State state) {
+        return StateRecord.builder().state(state).build();
+    }
+
     public static class StateRecordBuilder implements ObjectBuilder<StateRecord> {
 
     }
