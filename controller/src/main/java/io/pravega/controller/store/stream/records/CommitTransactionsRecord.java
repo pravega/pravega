@@ -85,4 +85,8 @@ public class CommitTransactionsRecord {
     public boolean isRollingTxRecord() {
         return activeEpoch.isPresent();
     }
+
+    public int getActiveEpoch() {
+        return activeEpoch.orElse(Integer.MIN_VALUE);
+    }
 }

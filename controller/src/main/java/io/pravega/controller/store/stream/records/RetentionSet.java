@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.records.serializers.RetentionSetSerializer;
-import io.pravega.controller.store.stream.tables.StreamCutRecord;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -40,7 +39,7 @@ public class RetentionSet {
         this.retentionRecords = ImmutableList.copyOf(retentionSetRecords);
     }
 
-    public static RetentionSet addStreamCutIfLatest(RetentionSet record, StreamCutRecord cut) {
+    public static RetentionSet addStreamCutIfLatest(RetentionSet record, RetentionStreamCutRecord cut) {
         List<RetentionSetRecord> list = Lists.newArrayList(record.retentionRecords);
 
         // add only if cut.recordingTime is newer than any previous cut

@@ -28,6 +28,7 @@ import java.util.List;
  * This contains a reference to leaf nodes. The reference is based on the timestamp of first record in the leaf node.
  */
 public class HistoryTimeIndexRootNode {
+    public static final int HISTORY_INDEX_CHUNK_SIZE = 100000;
     public static final HistoryIndexRootNodeSerializer SERIALIZER = new HistoryIndexRootNodeSerializer();
 
     // Sorted leaves

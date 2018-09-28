@@ -40,6 +40,7 @@ import java.util.Map;
  */
 public class SealedSegmentsMapShard {
     public static final SealedSegmentsMapShardSerializer SERIALIZER = new SealedSegmentsMapShardSerializer();
+    public static final int SHARD_SIZE = 10000;
 
     private final int shardNumber;
     /**
