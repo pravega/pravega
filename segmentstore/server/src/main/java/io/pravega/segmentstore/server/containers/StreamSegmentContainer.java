@@ -813,7 +813,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         @Override
         public SegmentProperties getInfo() {
             ensureRunning();
-            return StreamSegmentContainer.this.metadata.getStreamSegmentMetadata(this.segmentId).getSnapshot();
+            return StreamSegmentContainer.this.metadata.getStreamSegmentMetadata(this.segmentId);
         }
 
         @Override

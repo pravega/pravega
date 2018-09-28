@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
@@ -31,6 +32,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,6 +51,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 0;
     private static final int BATCH_SIZE = 100;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
 
     @Override
@@ -141,7 +144,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Complete the first persist and verify that the updates were released in order (no exceptions).
         updates.get(0).persist.complete(updates.get(0).offset.get());
         for (val u : updates) {
-            val updateResult = u.update.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            val updateResult = u.update.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             Assert.assertEquals("Unexpected number of buckets returned.", u.batch.getItems().size(), updateResult.size());
             for (int i = 0; i < updateResult.size(); i++) {
                 long expectedOffset = u.persist.join() + u.batch.getItems().get(i).getOffset();
@@ -248,14 +251,116 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         checkKeyOffsets(hashes, keysWithOffsets, result2);
     }
 
+    /**
+     * Checks the ability for the {@link ContainerKeyIndex} class to properly handle recovery situations where the Table
+     * Segment may not have been fully indexed when the first request for it is received.
+     */
     @Test
-    public void testGetBackpointerOffsets() {
+    public void testRecovery() throws Exception {
+        final int segmentLength = 123456;
+        @Cleanup
+        val context = new TestContext();
 
-    }
+        // Setup the segment with initial attributes.
+        val iw = new IndexWriter(HASHER, executorService());
+        context.segment.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
 
-    @Test
-    public void testRecovery() {
+        // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
+        val keys = generateUnversionedKeys(BATCH_SIZE, context);
+        val offset = new AtomicLong();
+        val hashes = new ArrayList<KeyHash>();
+        val keysWithOffsets = new HashMap<KeyHash, KeyWithOffset>();
+        for (val k : keys) {
+            val hash = HASHER.hash(k.getKey());
+            hashes.add(hash);
+            keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), offset.getAndAdd(k.getKey().getLength())));
+        }
 
+        // Update the keys in the segment (via their buckets).
+        val buckets = iw.locateBuckets(keysWithOffsets.keySet(), context.segment, context.timer).join();
+        val bucketUpdates = buckets.entrySet().stream()
+                                   .map(e -> {
+                                       BucketUpdate bu = new BucketUpdate(e.getValue());
+                                       val ko = keysWithOffsets.get(e.getKey());
+                                       bu.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, false));
+                                       return bu;
+                                   })
+                                   .collect(Collectors.toList());
+
+        // We leave the IndexOffset unchanged for now.
+        iw.updateBuckets(bucketUpdates, context.segment, 0L, 0L, TIMEOUT).join();
+
+        // Simulate writing the data to the segment by increasing its length.
+        context.segment.append(new byte[segmentLength], null, TIMEOUT).join();
+
+        // So far we haven't touched the container index, so it has no knowledge of all the keys that were just indexed.
+
+        // 1. Verify getBucketOffsets(), getBackpointers() and conditional updates block on IndexOffset being up-to-date.
+        val getBucketOffsets = context.index.getBucketOffsets(context.segment, hashes, context.timer);
+        val backpointerKey = keysWithOffsets.values().stream().findFirst().get();
+        val getBackpointers = context.index.getBackpointerOffset(context.segment, backpointerKey.offset, context.timer.getRemaining());
+        val conditionalUpdateKey = TableKey.notExists(generateUnversionedKeys(1, context).get(0).getKey());
+        val conditionalUpdate = context.index.update(
+                context.segment,
+                toUpdateBatch(conditionalUpdateKey),
+                () -> CompletableFuture.completedFuture(segmentLength + 1L),
+                context.timer);
+        Assert.assertFalse("Expected getBucketOffsets() to block.", getBucketOffsets.isDone());
+        Assert.assertFalse("Expected getBackpointerOffset() to block.", getBackpointers.isDone());
+        Assert.assertFalse("Expecting conditional update to block.", conditionalUpdate.isDone());
+
+        // 2. Verify unconditional updates go through.
+        val unconditionalUpdateKey = generateUnversionedKeys(1, context).get(0);
+        val unconditionalUpdateResult = context.index.update(
+                context.segment,
+                toUpdateBatch(unconditionalUpdateKey),
+                () -> CompletableFuture.completedFuture(segmentLength + 2L),
+                context.timer).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected result from the non-blocked unconditional update.",
+                segmentLength + 2L, (long) unconditionalUpdateResult.get(0));
+
+        // 3. Verify that all operations are unblocked when we reached the expected IndexOffset.
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), segmentLength - 1);
+        Assert.assertFalse("Not expecting anything to be unblocked at this point",
+                getBucketOffsets.isDone() || getBackpointers.isDone() || conditionalUpdate.isDone());
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), segmentLength);
+        val getBucketOffsetsResult = getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        val getBackpointersResult = getBackpointers.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        val conditionalUpdateResult = conditionalUpdate.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        checkKeyOffsets(hashes, keysWithOffsets, getBucketOffsetsResult);
+        Assert.assertEquals("Unexpected result from unblocked getBackpointerOffset().", -1L, (long) getBackpointersResult);
+        Assert.assertEquals("Unexpected result from unblocked conditional update.", segmentLength + 1L, (long) conditionalUpdateResult.get(0));
+
+        // 4. Verify no new requests are blocked now.
+        getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // A timeout check will suffice
+
+        // 5. Verify requests are cancelled if we notify the segment has been removed.
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1L);
+        val cancelledKey = TableKey.notExists(generateUnversionedKeys(1, context).get(0).getKey());
+        val cancelledRequest = context.index.update(
+                context.segment,
+                toUpdateBatch(cancelledKey),
+                () -> CompletableFuture.completedFuture(segmentLength + 3L),
+                context.timer);
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1L);
+        AssertExtensions.assertThrows(
+                "Blocked request was not cancelled when a segment remove notification was received.",
+                cancelledRequest,
+                ex -> ex instanceof CancellationException);
+
+        // 6. Verify requests are cancelled (properly) when we close the index.
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1L);
+        val cancelledKey2 = TableKey.notExists(generateUnversionedKeys(1, context).get(0).getKey());
+        val cancelledRequest2 = context.index.update(
+                context.segment,
+                toUpdateBatch(cancelledKey2),
+                () -> CompletableFuture.completedFuture(segmentLength + 4L),
+                context.timer);
+        context.index.close();
+        AssertExtensions.assertThrows(
+                "Blocked request was not cancelled when a the index was closed.",
+                cancelledRequest2,
+                ex -> ex instanceof ObjectClosedException);
     }
 
     private void checkKeyOffsets(List<KeyHash> allHashes, HashMap<KeyHash, KeyWithOffset> offsets, List<Long> bucketOffsets) {

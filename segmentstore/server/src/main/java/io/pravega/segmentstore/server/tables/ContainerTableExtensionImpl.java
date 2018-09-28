@@ -331,12 +331,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         @Override
         public void notifyIndexOffsetChanged(long lastIndexedOffset) {
-            // Not yet implemented. Will be done in issue 2878.
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset);
         }
 
         @Override
         public void close() {
-            // Not yet implemented. Will be done in issue 2878.
+            // Tell the KeyIndex that it's ok to clear any tail-end cache.
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L);
         }
     }
 
