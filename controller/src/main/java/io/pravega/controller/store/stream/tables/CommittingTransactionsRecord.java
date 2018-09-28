@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream.tables;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.controller.store.stream.tables.serializers.CommittingTransactionsRecordSerializer;
 import lombok.AllArgsConstructor;
@@ -31,6 +33,9 @@ import java.util.UUID;
 public class CommittingTransactionsRecord {
     public static final CommittingTransactionsRecordSerializer SERIALIZER = new CommittingTransactionsRecordSerializer();
 
+    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
+            .transactionsToCommit(ImmutableList.of()).activeEpoch(Integer.MIN_VALUE).build();
+
     /**
      * Epoch from which transactions are committed.
      */
@@ -40,8 +45,21 @@ public class CommittingTransactionsRecord {
      */
     final List<UUID> transactionsToCommit;
 
-    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
+    /**
+     * Active Epoch during start of rolling transaction.
+     */
+    int activeEpoch;
 
+    public CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+        this(epoch, transactionsToCommit, Integer.MIN_VALUE);
+    }
+
+    public boolean isRollingTransactions() {
+        return activeEpoch != Integer.MIN_VALUE;
+    }
+
+    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
+        private int activeEpoch = Integer.MIN_VALUE;
     }
 
     @SneakyThrows(IOException.class)
@@ -52,5 +70,10 @@ public class CommittingTransactionsRecord {
     @SneakyThrows(IOException.class)
     public byte[] toByteArray() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+
+    public CommittingTransactionsRecord getRollingTxnRecord(int activeEpoch) {
+        Preconditions.checkState(this.activeEpoch == Integer.MIN_VALUE);
+        return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
     }
 }

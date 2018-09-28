@@ -26,7 +26,7 @@ public class CommittingTransactionsRecordSerializer
 
     @Override
     protected void declareVersions() {
-        version(0).revision(0, this::write00, this::read00);
+        version(0).revision(0, this::write00, this::read00).revision(1, this::write01, this::read01);
     }
 
     private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecord.CommittingTransactionsRecordBuilder builder)
@@ -38,6 +38,19 @@ public class CommittingTransactionsRecordSerializer
     private void write00(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
         revisionDataOutput.writeInt(record.getEpoch());
         revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
+    }
+
+    private void read01(RevisionDataInput revisionDataInput, CommittingTransactionsRecord.CommittingTransactionsRecordBuilder builder)
+            throws IOException {
+        builder.epoch(revisionDataInput.readInt())
+                .transactionsToCommit(revisionDataInput.readCollection(RevisionDataInput::readUUID, ArrayList::new))
+                .activeEpoch(revisionDataInput.readInt());
+    }
+
+    private void write01(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
+        revisionDataOutput.writeInt(record.getEpoch());
+        revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
+        revisionDataOutput.writeInt(record.getActiveEpoch());
     }
 
     @Override

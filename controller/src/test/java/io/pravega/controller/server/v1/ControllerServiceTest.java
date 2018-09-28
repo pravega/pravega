@@ -25,6 +25,8 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -125,12 +127,12 @@ public class ControllerServiceTest {
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.75, 1.0);
         List<Long> sealedSegments = Collections.singletonList(1L);
         scaleTs = System.currentTimeMillis();
-        streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs,
+        VersionedMetadata<EpochTransitionRecord> record = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs,
                 false, null, executor).get();
         streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStore.scaleCreateNewSegments(SCOPE, stream1, false, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        record = streamStore.scaleCreateNewSegments(SCOPE, stream1, false, record, null, executor).get();
+        record = streamStore.scaleNewSegmentsCreated(SCOPE, stream1, record, null, executor).get();
+        streamStore.completeScale(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), record,
                 null, executor).get();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
@@ -138,12 +140,12 @@ public class ControllerServiceTest {
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
         SimpleEntry<Double, Double> segment5 = new SimpleEntry<>(0.75, 1.0);
         sealedSegments = Arrays.asList(0L, 1L, 2L);
-        streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5),
+        record = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5),
                 scaleTs, false, null, executor).get();
         streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
-        streamStore.scaleCreateNewSegments(SCOPE, stream2, false, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        record = streamStore.scaleCreateNewSegments(SCOPE, stream2, false, record, null, executor).get();
+        record = streamStore.scaleNewSegmentsCreated(SCOPE, stream2, record, null, executor).get();
+        streamStore.completeScale(SCOPE, stream2, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), record,
                 null, executor).get();
         streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).get();
 
