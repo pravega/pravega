@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.logs.MetadataUpdateException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -29,8 +30,13 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
 
     /**
      * Returns a DirectSegmentAccess object that can be used for operating on a particular StreamSegment directly. The
-     * result of this call should only be used for short periods of time (i.e., while processing a single request) and
-     * not be cached for long-term access.
+     * result of this call should only be used for processing a single request (and discarded afterwards) and not be cached
+     * for long-term access (i.e., between multiple requests).
+     *
+     * If the resulting {@link DirectSegmentAccess} object is cached for more than one request, there is a chance that
+     * the underlying Segment may have been evicted from memory. Attempting to use this object at that time will result
+     * in a {@link MetadataUpdateException} being thrown for every method call on it. Consider re-invoking this method to
+     * obtain a new {@link DirectSegmentAccess} instance that can be used for future access.
      *
      * @param streamSegmentName The name of the StreamSegment to get for.
      * @param timeout           Timeout for the operation.
