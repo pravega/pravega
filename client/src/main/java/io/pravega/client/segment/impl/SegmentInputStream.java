@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import io.pravega.client.stream.EventStreamWriter;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines a InputStream for a single segment.
@@ -73,8 +74,10 @@ public interface SegmentInputStream extends AutoCloseable {
     /**
      * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read()} calls from blocking.
      * Calling this multiple times is harmless.
+     * 
+     * @return A future that will be completed when there is data available to read.
      */
-    public abstract void fillBuffer();
+    public abstract CompletableFuture<Void> fillBuffer();
     
     /**
      * Closes this InputStream. No further methods may be called after close.

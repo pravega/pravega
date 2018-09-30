@@ -11,6 +11,7 @@ package io.pravega.client;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.BatchClient;
+import io.pravega.client.byteStream.ByteStreamClient;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -122,7 +123,7 @@ public interface ClientFactory extends AutoCloseable {
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
-
+    
     /**
      * Creates a new StateSynchronizer that will work on the specified stream.
      *
@@ -141,6 +142,9 @@ public interface ClientFactory extends AutoCloseable {
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
 
+    @Beta
+    ByteStreamClient createByteStreamClient();
+    
     /**
      * Create a new batch client. A batch client can be used to perform bulk unordered reads without
      * the need to create a reader group.
