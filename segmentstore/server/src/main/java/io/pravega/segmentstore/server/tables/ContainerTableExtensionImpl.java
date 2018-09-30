@@ -103,6 +103,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
     }
 
+    //endregion
+
+    //region ContainerTableExtension Implementation
+
     @Override
     public CompletableFuture<Void> initialize() {
         Exceptions.checkNotClosed(this.closed.get(), this);

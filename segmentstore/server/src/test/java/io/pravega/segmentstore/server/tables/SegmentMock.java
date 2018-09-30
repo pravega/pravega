@@ -30,6 +30,7 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -42,7 +43,7 @@ import lombok.val;
 @ThreadSafe
 @RequiredArgsConstructor
 class SegmentMock implements DirectSegmentAccess {
-    @GuardedBy("this")
+    @Getter
     private final UpdateableSegmentMetadata metadata;
     @GuardedBy("this")
     private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
