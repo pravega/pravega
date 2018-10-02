@@ -117,6 +117,19 @@ public final class StreamSegmentNameUtils {
         return true;
     }
 
+    public static boolean isAttributeSegment(String streamSegmentName) {
+        return checkSegmentType(streamSegmentName, ATTRIBUTE_SUFFIX);
+    }
+
+    public static boolean isStateSegment(String streamSegmentName) {
+        return checkSegmentType(streamSegmentName, STATE_SUFFIX);
+    }
+
+    private static boolean checkSegmentType(String streamSegmentName, String expectedSegmentType) {
+        // Check to see if the given name is a properly formatted Transaction.
+        return streamSegmentName.lastIndexOf(expectedSegmentType) >= 0;
+    }
+
     /**
      * Attempts to extract the primary part of stream segment name before the epoch delimiter. This method returns a
      * valid value only if the StreamSegmentName was generated using the getQualifiedStreamSegmentName method.
@@ -129,6 +142,15 @@ public final class StreamSegmentNameUtils {
             return extractPrimaryStreamSegmentName(getParentStreamSegmentName(streamSegmentName));
         }
         int endOfStreamNamePos = streamSegmentName.lastIndexOf(EPOCH_DELIMITER);
+        if (endOfStreamNamePos < 0) {
+            // epoch delimiter not present in the name, return the full name
+            return streamSegmentName;
+        }
+        return streamSegmentName.substring(0, endOfStreamNamePos);
+    }
+
+    public static String extractStreamSegmentNameWithEpoch(String streamSegmentName) {
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf("$");
         if (endOfStreamNamePos < 0) {
             // epoch delimiter not present in the name, return the full name
             return streamSegmentName;

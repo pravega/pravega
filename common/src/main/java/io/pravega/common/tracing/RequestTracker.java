@@ -49,12 +49,6 @@ public final class RequestTracker {
         return Stream.of(requestInfo).collect(Collectors.joining(INTER_FIELD_DELIMITER));
     }
 
-    /**
-     * Get a  based on the information about
-     *
-     * @param requestInfo
-     * @return
-     */
     public RequestTag getRequestTagFor(String...requestInfo) {
         return getRequestTagFor(RequestTracker.buildRequestDescriptor(requestInfo));
     }
@@ -133,13 +127,12 @@ public final class RequestTracker {
     public static RequestTag initializeAndTrackRequestTag(long requestId, String...requestInfo) {
         RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(requestInfo);
         if (!requestTag.isTracked()) {
-            log.info("Request tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.", requestId,
-                    RequestTracker.buildRequestDescriptor(requestInfo));
+            log.info("Tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.",
+                    requestId, RequestTracker.buildRequestDescriptor(requestInfo));
             requestTag = new RequestTag(RequestTracker.buildRequestDescriptor(requestInfo), requestId);
             RequestTracker.getInstance().trackRequest(requestTag);
         }
 
-        log.info("[requestId={}] Getting tags from request {}.", requestTag.getRequestId(), requestTag.getRequestDescriptor());
         return requestTag;
     }
 }

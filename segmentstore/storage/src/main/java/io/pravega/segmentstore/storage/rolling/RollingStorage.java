@@ -43,6 +43,11 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.common.tracing.RequestTracker.buildRequestDescriptor;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.extractStreamSegmentNameWithEpoch;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getAttributeSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getStateSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.isAttributeSegment;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.isStateSegment;
 
 /**
  * A layer on top of a general SyncStorage implementation that allows rolling Segments on a size-based policy and truncating
@@ -244,7 +249,12 @@ public class RollingStorage implements SyncStorage {
     public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("createSegment", segmentName));
+
+        // Creating a segment also involves creating other related files (e.g., state, attributes, header). For this
+        // reason, we propagate the same requestId to new request tags related to all these create operations.
+        String segmentNameWithEpoch = extractTraceableSegmentName(segmentName);
+        RequestTag requestTag = getRequestTagAndPropagate("createSegment", segmentNameWithEpoch);
+
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy, requestTag.getRequestId());
 
         // First, check if the segment exists but with no header (it might have been created prior to applying
@@ -266,7 +276,7 @@ public class RollingStorage implements SyncStorage {
             }
 
             headerHandle = this.baseStorage.openWrite(headerName);
-            serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()));
+            serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()), requestTag.getRequestId());
         } catch (StreamSegmentExistsException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -337,7 +347,8 @@ public class RollingStorage implements SyncStorage {
     public void seal(SegmentHandle handle) throws StreamSegmentException {
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("sealSegment", handle.getSegmentName()));
+        String segmentNameWithEpoch = extractTraceableSegmentName(handle.getSegmentName());
+        RequestTag requestTag = getRequestTagAndPropagate("sealSegment", segmentNameWithEpoch);
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle, requestTag.getRequestId());
         sealActiveChunk(h, requestTag.getRequestId());
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -408,7 +419,7 @@ public class RollingStorage implements SyncStorage {
 
             if (target.getHeaderHandle() == null) {
                 // We need to concat into a Segment that does not have a Header (yet). Create one before continuing.
-                createHeader(target);
+                createHeader(target, traceId); //TODO: REQUEST TAG HERE
             }
 
             List<SegmentChunk> newSegmentChunks = rebase(source.chunks(), target.length());
@@ -430,7 +441,8 @@ public class RollingStorage implements SyncStorage {
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
         val h = asReadableHandle(handle);
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("deleteSegment", handle.getSegmentName()));
+        String segmentNameWithEpoch = extractTraceableSegmentName(handle.getSegmentName());
+        RequestTag requestTag = getRequestTagAndPropagate("deleteSegment", segmentNameWithEpoch);
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle, requestTag.getRequestId());
 
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -454,7 +466,7 @@ public class RollingStorage implements SyncStorage {
                 seal(writeHandle);
             }
 
-            deleteChunks(h, requestTag.getRequestId(), s -> true);
+            deleteChunks(h, s -> true, requestTag.getRequestId());
             try {
                 this.baseStorage.delete(headerHandle);
                 h.markDeleted();
@@ -464,6 +476,7 @@ public class RollingStorage implements SyncStorage {
             }
         }
 
+        log.debug("[requestId={}] Deleted segment '{}'.", requestTag.getRequestId(), h.getSegmentName());
         RequestTracker.getInstance().untrackRequest(requestTag);
         LoggerHelpers.traceLeave(log, "delete", traceId, handle, requestTag.getRequestId());
     }
@@ -493,12 +506,12 @@ public class RollingStorage implements SyncStorage {
             rollover(h, requestTag.getRequestId());
 
             // We are free to delete all chunks.
-            deleteChunks(h, requestTag.getRequestId(), s -> canTruncate(s, truncationOffset));
+            deleteChunks(h, s -> canTruncate(s, truncationOffset), requestTag.getRequestId());
         } else {
             // Either we were asked not to truncate the whole segment, or we were, and the Segment is sealed. If the latter,
             // then the Header is also sealed, we could not have done a quick rollover; as such we have no option but to
             // preserve the last chunk so that we can recalculate the length of the Segment if we need it again.
-            deleteChunks(h, requestTag.getRequestId(), s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length());
+            deleteChunks(h, s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length(), requestTag.getRequestId());
         }
 
         RequestTracker.getInstance().untrackRequest(requestTag);
@@ -581,7 +594,7 @@ public class RollingStorage implements SyncStorage {
         log.debug("[requestId={}] Created new SegmentChunk '{}' for '{}'.", requestId, newSegmentChunk, handle);
     }
 
-    private void deleteChunks(RollingSegmentHandle handle, long requestId, Predicate<SegmentChunk> canDelete) throws StreamSegmentException {
+    private void deleteChunks(RollingSegmentHandle handle, Predicate<SegmentChunk> canDelete, long requestId) throws StreamSegmentException {
         for (SegmentChunk s : handle.chunks()) {
             if (s.exists() && canDelete.test(s)) {
                 try {
@@ -618,7 +631,7 @@ public class RollingStorage implements SyncStorage {
 
     //region Header Operations
 
-    private void createHeader(RollingSegmentHandle handle) throws StreamSegmentException {
+    private void createHeader(RollingSegmentHandle handle, long requestId) throws StreamSegmentException {
         Preconditions.checkArgument(handle.getHeaderHandle() == null, "handle already has a header.");
 
         // Create a new Header SegmentChunk.
@@ -628,7 +641,7 @@ public class RollingStorage implements SyncStorage {
 
         // Create a new Handle and serialize it, after which update the original handle.
         val newHandle = new RollingSegmentHandle(headerHandle, handle.getRollingPolicy(), handle.chunks());
-        serializeHandle(newHandle);
+        serializeHandle(newHandle, requestId);
         handle.refresh(newHandle);
     }
 
@@ -709,12 +722,12 @@ public class RollingStorage implements SyncStorage {
         return handle;
     }
 
-    private void serializeHandle(RollingSegmentHandle handle) throws StreamSegmentException {
+    private void serializeHandle(RollingSegmentHandle handle, long requestId) throws StreamSegmentException {
         ByteArraySegment handleData = HandleSerializer.serialize(handle);
         try {
             this.baseStorage.write(handle.getHeaderHandle(), 0, handleData.getReader(), handleData.getLength());
             handle.setHeaderLength(handleData.getLength());
-            log.debug("Header for '{}' fully serialized to '{}'.", handle.getSegmentName(), handle.getHeaderHandle().getSegmentName());
+            log.debug("[requestId={}] Header for '{}' fully serialized to '{}'.", requestId, handle.getSegmentName(), handle.getHeaderHandle().getSegmentName());
         } catch (BadOffsetException ex) {
             // If we get BadOffsetException when writing the Handle, it means it was modified externally.
             throw new StorageNotPrimaryException(handle.getSegmentName(), ex);
@@ -812,6 +825,47 @@ public class RollingStorage implements SyncStorage {
                 throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
             }
         }
+    }
+
+    /**
+     * Extract the segment name that we use to trace operations related to a segment. Operations may be directed to the
+     * main segment (header), or to its associate state and attribute segments. We aim at tracing all such operations.
+     *
+     * @param segmentName
+     * @return Base segment name used to trace a operation considering primary (header), state and attribute segments.
+     */
+    private String extractTraceableSegmentName(String segmentName) {
+        if (isStateSegment(segmentName)) {
+            return getStateSegmentName(extractStreamSegmentNameWithEpoch(segmentName));
+        } else if (isAttributeSegment(segmentName)) {
+            return getAttributeSegmentName(extractStreamSegmentNameWithEpoch(segmentName));
+        }
+
+        // If this is neither an attribute nor a state segment, assume that is a regular one.
+        return extractStreamSegmentNameWithEpoch(segmentName);
+    }
+
+    /**
+     * This method gets the request tag associated to an operation over a segment. In the case that the segment is the
+     * main one, this method creates two new request tags associated with the same request id. The reason is that the
+     * operations that we are tracking, such as create or delete, involve multiple operations on state and attribute
+     * segments. This method just adds tags for these subsequent operations, which are in fact related to the same
+     * request.
+     *
+     * @param operation
+     * @param segmentName
+     * @return
+     */
+    private RequestTag getRequestTagAndPropagate(String operation, String segmentName) {
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor(operation, segmentName));
+
+        // If this is an operation on the main segment, we create tags for upcoming requests to attributes/state segments.
+        if (!isAttributeSegment(segmentName) && !isStateSegment(segmentName)) {
+            RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, getStateSegmentName(segmentName)), requestTag.getRequestId());
+            RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, getAttributeSegmentName(segmentName)), requestTag.getRequestId());
+        }
+
+        return requestTag;
     }
 
     //endregion
