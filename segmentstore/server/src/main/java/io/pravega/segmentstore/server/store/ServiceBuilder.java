@@ -275,7 +275,7 @@ public class ServiceBuilder implements AutoCloseable {
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::builder);
         return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, attributeIndexFactory,
-                writerFactory, storageFactory, this.coreExecutor);
+                writerFactory, storageFactory, SegmentContainerFactory.NO_EXTENSIONS, this.coreExecutor);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

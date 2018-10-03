@@ -16,6 +16,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
@@ -67,6 +68,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     static final int COUNTER_RANGE = 10000;
     static final String COUNTER_PATH = "/counter";
+    static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String BUCKET_ROOT_PATH = "/buckets";
     private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
     private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
@@ -254,6 +256,22 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
+        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
+                          .handleAsync((data, ex) -> {
+                              if (ex == null) {
+                                  return BitConverter.readInt(data.getData(), 0) + 1;
+                              } else if (ex instanceof StoreException.DataNotFoundException) {
+                                  return 0;
+                              } else {
+                                  log.error("Problem found while getting a safe starting segment number for {}.",
+                                          getScopedStreamName(scopeName, streamName), ex);
+                                  throw new CompletionException(ex);
+                              }
+                          });
+    }
+
+    @Override
     @SneakyThrows
     public void registerBucketOwnershipListener(BucketOwnershipListener listener) {
         Preconditions.checkNotNull(listener);
@@ -408,6 +426,34 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                         throw new CompletionException(e);
                     }
                 });
+    }
+
+    @Override
+    CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
+                                                    OperationContext context, final Executor executor) {
+        final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
+        byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
+        BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
+        return storeHelper.getData(deletePath)
+                          .exceptionally(e -> {
+                              if (e instanceof StoreException.DataNotFoundException) {
+                                  return null;
+                              } else {
+                                  throw new CompletionException(e);
+                              }
+                          })
+                          .thenCompose(data -> {
+                              log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+                              if (data == null) {
+                                  return storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes);
+                              } else {
+                                  final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
+                                  Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
+                                          "Old last active segment ({}) for {}/{} is higher than current one {}.",
+                                          oldLastActiveSegment, scope, stream, lastActiveSegment);
+                                  return storeHelper.setData(deletePath, new Data<>(maxSegmentNumberBytes, data.getVersion()));
+                              }
+                          });
     }
 
     private String encodedScopedStreamName(String scope, String stream) {

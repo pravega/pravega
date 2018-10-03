@@ -139,6 +139,10 @@ public class UnreadBytesTest {
         CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
+        
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        assertEquals(false, emptyEvent.isCheckpoint());
+        assertEquals(null, emptyEvent.getEvent());
         chkPointResult.join();
 
         unreadBytes = readerGroup.getMetrics().unreadBytes();
@@ -194,6 +198,11 @@ public class UnreadBytesTest {
         CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
+        
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        assertEquals(false, emptyEvent.isCheckpoint());
+        assertEquals(null, emptyEvent.getEvent());
+        
         chkPointResult.join();
 
         //Writer events, to ensure 120Bytes are written.

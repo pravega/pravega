@@ -196,10 +196,10 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     @Override
-    public void truncateSegment(Segment segment, long offset) {
+    public void truncateSegment(long offset) {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> truncateSegmentAsync(segment, offset, delegationToken),
+                                   .runAsync(() -> truncateSegmentAsync(segmentId, offset, delegationToken),
                                              connectionFactory.getInternalExecutor());
         future.join();
     }

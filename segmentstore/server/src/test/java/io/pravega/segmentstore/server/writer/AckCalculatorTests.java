@@ -10,8 +10,13 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.WriterFlushResult;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -89,7 +94,7 @@ public class AckCalculatorTests {
         Assert.assertEquals("Unexpected result for Set with partial values when LRSN is infinite.", expectedResult, result);
     }
 
-    private static class TestProcessor implements OperationProcessor {
+    private static class TestProcessor implements WriterSegmentProcessor {
         private long lowestUncommittedSequenceNumber;
 
         void setLowestUncommittedSequenceNumber(long value) {
@@ -99,6 +104,26 @@ public class AckCalculatorTests {
         @Override
         public long getLowestUncommittedSequenceNumber() {
             return this.lowestUncommittedSequenceNumber;
+        }
+
+        @Override
+        public boolean mustFlush() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void add(SegmentOperation operation) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            throw new UnsupportedOperationException();
         }
 
         @Override

@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.auth;
+package io.pravega.auth;
 
 /**
  * Exception thrown when there is any error during authorization.

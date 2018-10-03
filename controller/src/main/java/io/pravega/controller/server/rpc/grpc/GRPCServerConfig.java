@@ -87,4 +87,13 @@ public interface GRPCServerConfig extends ServerConfig {
      */
     String getTokenSigningKey();
 
+    /**
+     * Returns whether the controller should send back to the client a full stack trace describing an error upon a
+     * failed request or not. This may ease debugging tasks just inspecting client logs at the cost of exposing server-
+     * side information to the client side, which may be sensitive.
+     *
+     * @return Whether or not to reply the client with server-side stack traces upon errors.
+     */
+    boolean isReplyWithStackTraceOnError();
+
 }
