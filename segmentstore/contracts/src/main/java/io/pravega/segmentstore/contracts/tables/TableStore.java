@@ -74,15 +74,17 @@ public interface TableStore {
      * Deletes an existing Table Segment.
      *
      * @param segmentName The name of the Table Segment to delete.
+     * @param mustBeEmpty If true, the Table Segment will only be deleted if it is empty (contains no keys).
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
      * failed, the future will be failed with the causing exception. Notable Exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * <li>{@link TableSegmentNotEmptyException} If mustBeEmpty is true and the Table Segment contains at least one key.
      * </ul>
      */
-    CompletableFuture<Void> deleteSegment(String segmentName, Duration timeout);
+    CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout);
 
     /**
      * Merges a Table Segment into another Table Segment.
