@@ -615,7 +615,7 @@ class HDFSStorage implements SyncStorage {
     /**
      * Makes the file represented by the given FileStatus read-only.
      *
-     * @param file The FileStatus of the file to set. If this method returns true, this FileStatus will
+     * @param file The FileDescriptor of the file to set. If this method returns true, this FileDescriptor will
      *             also be updated to indicate the file is read-only.
      * @return True if the file was not read-only before (and it is now), or false if the file was already read-only.
      * @throws IOException If an exception occurred.
