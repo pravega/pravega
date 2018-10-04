@@ -9,6 +9,7 @@
  */
 package io.pravega.common.concurrent;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -49,6 +50,7 @@ public class ConcurrentDependentProcessor<KeyType> implements AutoCloseable {
                 this.closed = true;
             }
         }
+
         if (toCancel.size() > 0) {
             toCancel.forEach(f -> f.completeExceptionally(new ObjectClosedException(this)));
         }
@@ -57,9 +59,16 @@ public class ConcurrentDependentProcessor<KeyType> implements AutoCloseable {
     /**
      * Gets the number of concurrent tasks currently executing.
      */
-    public int getKeyCount() {
+    @VisibleForTesting
+    public int getCurrentTaskCount() {
         synchronized (this.queue) {
-            return this.queue.size();
+            int size = this.queue.size();
+            if (size > 0) {
+                // Some tasks may have completed, but we haven't yet been able to clean them up.
+                size -= this.queue.values().stream().filter(CompletableFuture::isDone).count();
+            }
+
+            return size;
         }
     }
 
@@ -102,11 +111,13 @@ public class ConcurrentDependentProcessor<KeyType> implements AutoCloseable {
             // Update the queues for each key to point to the latest task.
             keys.forEach(key -> this.queue.put(key, result));
         }
+
         if (existingTasks.isEmpty()) {
             // There were no previously running tasks for any of the given keys. Need to trigger its execution now,
             // outside of the synchronized block.
             Futures.completeAfter(toRun, result);
         }
+
         // Cleanup: if this was the last task in the queue, then clean up the queue.
         result.whenComplete((r, ex) -> cleanup(keys));
         return result;

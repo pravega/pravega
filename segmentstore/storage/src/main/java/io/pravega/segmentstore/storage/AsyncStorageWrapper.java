@@ -147,7 +147,7 @@ public class AsyncStorageWrapper implements Storage {
      */
     @VisibleForTesting
     int getSegmentWithOngoingOperationsCount() {
-        return this.taskProcessor.getKeyCount();
+        return this.taskProcessor.getCurrentTaskCount();
     }
 
     /**
