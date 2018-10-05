@@ -75,7 +75,7 @@ class SegmentMock implements DirectSegmentAccess {
     public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
-            // this method should only be used for constucting the test data.
+            // this method should only be used for constructing the test data.
             long offset;
             synchronized (this) {
                 offset = this.contents.size();

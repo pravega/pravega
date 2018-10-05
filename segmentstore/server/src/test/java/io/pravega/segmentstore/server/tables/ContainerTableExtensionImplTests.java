@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -19,14 +20,19 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.UpdateListener;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -36,7 +42,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -45,9 +53,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -59,11 +70,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int CONTAINER_ID = 1;
     private static final long SEGMENT_ID = 2L;
     private static final String SEGMENT_NAME = "TableSegment";
-    private static final int MAX_KEY_LENGTH = 512;
-    private static final int MAX_VALUE_LENGTH = 256;
+    private static final int MAX_KEY_LENGTH = 128;
+    private static final int MAX_VALUE_LENGTH = 64;
     private static final int UPDATE_COUNT = 10000;
     private static final int UPDATE_BATCH_SIZE = 689;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
+    private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
     @Override
@@ -88,53 +100,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         context.ext.deleteSegment(SEGMENT_NAME, TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
-    }
-
-    /**
-     * Tests the ability to perform unconditional updates and removals using a {@link KeyHasher} that is not prone to
-     * collisions.
-     */
-    @Test
-    public void testUnconditionalUpdates() {
-        testUnconditionalUpdatesWithHasher(KeyHashers.DEFAULT_HASHER);
-    }
-
-    /**
-     * Tests the ability to perform unconditional updates and removals using a {@link KeyHasher} that is very prone to
-     * collisions.
-     */
-    @Test
-    public void testUnconditionalUpdatesCollisions() {
-        testUnconditionalUpdatesWithHasher(KeyHashers.COLLISION_HASHER);
-    }
-
-    /**
-     * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is not prone to collisions.
-     */
-    @Test
-    public void testConditionalUpdates() {
-        testConditionalUpdatesWithHasher(KeyHashers.DEFAULT_HASHER);
-    }
-
-    /**
-     * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is very prone to collisions.
-     */
-    @Test
-    public void testConditionalUpdatesWithCollisions() {
-        testConditionalUpdatesWithHasher(KeyHashers.COLLISION_HASHER);
-    }
-
-    /**
-     * Tests the ability to resume operations after a recovery event. Scenarios include:
-     * - Index is up-to-date ({@link Attributes#TABLE_INDEX_OFFSET} equals Segment.Length.
-     * - Index is not up-to-date ({@link Attributes#TABLE_INDEX_OFFSET} is less than Segment.Length.
-     */
-    @Test
-    public void testRecovery() {
-        // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
-        // Process each TestEntryData in turn.  After each time, re-create the Extension.
-        // Verify gets are blocked on indexing. Then index, verify unblocked and then re-create the Extension, and verify again.
-        // TODO: implement; maybe merge with testUnconditionalUpdatesWithHasher.
     }
 
     /**
@@ -171,27 +136,217 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof UnsupportedOperationException);
     }
 
-
-    private void testUnconditionalUpdatesWithHasher(KeyHasher keyHasher) {
-        @Cleanup
-        val context = new TestContext(keyHasher);
-
-        // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
-        // Process each TestEntryData in turn. Each time, verify result.
-        // At the end, wait for the data to be indexed, flush the cache and verify result.
-
-        val data = generateTestData(context);
-        //TODO: left here
+    /**
+     * Tests the ability to perform unconditional updates and removals using a {@link KeyHasher} that is not prone to
+     * collisions.
+     */
+    @Test
+    public void testUnconditionalUpdates() {
+        testUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
     }
 
+    /**
+     * Tests the ability to perform unconditional updates and removals using a {@link KeyHasher} that is very prone to
+     * collisions.
+     */
+    @Test
+    public void testUnconditionalUpdatesCollisions() {
+        testUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+    }
 
-    private void testConditionalUpdatesWithHasher(KeyHasher keyHasher) {
+    /**
+     * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is not prone to collisions.
+     */
+    @Test
+    public void testConditionalUpdates() {
+        testUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    }
+
+    /**
+     * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is very prone to collisions.
+     */
+    @Test
+    public void testConditionalUpdatesWithCollisions() {
+        testUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    }
+
+    /**
+     * Tests the ability to resume operations after a recovery event. Scenarios include:
+     * - Index is up-to-date ({@link Attributes#TABLE_INDEX_OFFSET} equals Segment.Length.
+     * - Index is not up-to-date ({@link Attributes#TABLE_INDEX_OFFSET} is less than Segment.Length.
+     */
+    @Test
+    public void testRecovery() throws Exception {
+        // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
+        // Process each TestEntryData in turn.  After each time, re-create the Extension.
+        // Verify gets are blocked on indexing. Then index, verify unblocked and then re-create the Extension, and verify again.
+        @Cleanup
+        val context = new TestContext(KeyHashers.DEFAULT_HASHER);
+
+        // Create the Segment.
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+
+        // Close the initial extension, as we don't need it anymore.
+        context.ext.close();
+
+        // Generate test data (in update & remove batches).
+        val data = generateTestData(context);
+
+        // Process each such batch in turn.
+        for (val current : data) {
+            // First, add the updates from this iteration to the index, but do not flush them. The only long-term effect
+            // of this is writing the data to the Segment.
+            try (val ext = context.createExtension()) {
+                val toUpdate = current.toUpdate
+                        .entrySet().stream().map(e -> toUnconditionalTableEntry(e.getKey(), e.getValue(), 0))
+                        .collect(Collectors.toList());
+                ext.put(SEGMENT_NAME, toUpdate, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                val toRemove = current.toRemove.stream().map(k -> toUnconditionalKey(k, 0)).collect(Collectors.toList());
+                ext.remove(SEGMENT_NAME, toRemove, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
+
+            // Create a new instance of the extension (which simulates a recovery) and verify it exhibits the correct behavior.
+            try (val ext = context.createExtension()) {
+                // We should have unindexed data.
+                long lastIndexedOffset = context.segment().getInfo().getAttributes().get(Attributes.TABLE_INDEX_OFFSET);
+                long segmentLength = context.segment().getInfo().getLength();
+                AssertExtensions.assertGreaterThan("Expected some unindexed data.", lastIndexedOffset, segmentLength);
+
+                // Verify get requests are blocked.
+                val blockedKey = current.expectedEntries.keySet().stream().findFirst().orElse(null);
+                val blockedGet = ext.get(SEGMENT_NAME, Collections.singletonList(blockedKey), TIMEOUT);
+                AssertExtensions.assertThrows(
+                        "get() is not blocked on lack of indexing.",
+                        () -> blockedGet.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+                        ex -> ex instanceof TimeoutException);
+
+                // Create, populate, and flush the processor.
+                @Cleanup
+                val processor = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+                addToProcessor(lastIndexedOffset, (int) (segmentLength - lastIndexedOffset), processor);
+                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+
+                val blockedGetResult = blockedGet.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.assertEquals("Unexpected completion result for previously blocked get.",
+                        current.expectedEntries.get(blockedKey), new HashedArray(blockedGetResult.get(0).getValue()));
+            }
+        }
+
+        // Verify final result. We create yet another extension here, and purposefully do not instantiate any writer processors;
+        // we want to make sure the data are accessible even without that being created (since the indexing is all caught up).
+        @Cleanup
+        val ext2 = context.createExtension();
+        check(data.get(data.size() - 1).expectedEntries, Collections.emptyList(), ext2);
+    }
+
+    @SneakyThrows
+    private void testUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
         val context = new TestContext(keyHasher);
-        // Generate a set of TestEntryData (List<TableEntry>, ExpectedResults.
-        // Process each TestEntryData in turn. Each time, try with bad input, then good input, then verify result.
-        // At the end, wait for the data to be indexed, flush the cache and verify result.
-        // TODO: implement; maybe merge with testUnconditionalUpdatesWithHasher
+
+        // Create the segment and the Table Writer Processor.
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        @Cleanup
+        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+        Assert.assertNotNull(processor);
+
+        // Generate test data (in update & remove batches).
+        val data = generateTestData(context);
+
+        // Process each such batch in turn. Keep track of the removed keys, as well as of existing key versions.
+        val removedKeys = new HashSet<ArrayView>();
+        val keyVersions = new HashMap<HashedArray, Long>();
+        Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
+        TestBatchData last = null;
+        for (val current : data) {
+            // Update entries.
+            val toUpdate = current.toUpdate
+                    .entrySet().stream().map(e -> generateToUpdate.apply(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
+                    .collect(Collectors.toList());
+            addToProcessor(
+                    () -> context.ext.put(SEGMENT_NAME, toUpdate, TIMEOUT)
+                                     .thenAccept(versions -> {
+                                         // Update key versions.
+                                         Assert.assertEquals(toUpdate.size(), versions.size());
+                                         for (int i = 0; i < versions.size(); i++) {
+                                             keyVersions.put((HashedArray) toUpdate.get(i).getKey().getKey(), versions.get(i));
+                                         }
+                                     }),
+                    processor,
+                    context.segment().getInfo()::getLength);
+            removedKeys.removeAll(current.toUpdate.keySet());
+
+            // Remove entries.
+            val toRemove = current.toRemove
+                    .stream().map(k -> generateToRemove.apply(k, getKeyVersion.apply(k))).collect(Collectors.toList());
+
+            addToProcessor(() -> context.ext.remove(SEGMENT_NAME, toRemove, TIMEOUT), processor, context.segment().getInfo()::getLength);
+            removedKeys.addAll(current.toRemove);
+            keyVersions.keySet().removeAll(current.toRemove);
+
+            // Verify result (from the cache).
+            Assert.assertEquals("Test setup failure: unexpected number of existing keys.", current.expectedEntries.size(), keyVersions.size());
+            check(current.expectedEntries, removedKeys, context.ext);
+
+            // Flush the processor.
+            Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
+            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+            last = current;
+        }
+
+        // At the end, wait for the data to be indexed, clear the cache and verify result.
+        context.ext.close(); // Close the current instance so that we can discard the cache.
+
+        @Cleanup
+        val ext2 = context.createExtension();
+        check(last.expectedEntries, removedKeys, ext2);
+    }
+
+    private void check(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
+        // Verify that non-existent keys are not returned by accident.
+        val nonExistingResult = ext.get(SEGMENT_NAME, new ArrayList<>(nonExistentKeys), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected result size for non-existing key search.", nonExistentKeys.size(), nonExistingResult.size());
+        Assert.assertTrue("Unexpected result for non-existing key search.", nonExistingResult.stream().allMatch(Objects::isNull));
+
+        //Verify existent Keys.
+        val expectedResult = new ArrayList<HashedArray>();
+        val existingKeys = new ArrayList<ArrayView>();
+        expectedEntries.forEach((k, v) -> {
+            existingKeys.add(k);
+            expectedResult.add(v);
+        });
+
+        val existingResult = ext.get(SEGMENT_NAME, existingKeys, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected result size for existing key search.", expectedResult.size(), existingResult.size());
+        for (int i = 0; i < expectedResult.size(); i++) {
+            val expectedValue = expectedResult.get(i);
+            val expectedKey = existingKeys.get(i);
+            val actualEntry = existingResult.get(i);
+            Assert.assertEquals("Unexpected key at position " + i, expectedKey, new HashedArray(actualEntry.getKey().getKey()));
+            Assert.assertEquals("Unexpected value at position " + i, expectedValue, new HashedArray(actualEntry.getValue()));
+        }
+    }
+
+    @SneakyThrows
+    private void addToProcessor(Supplier<CompletableFuture<?>> action, WriterTableProcessor processor, Supplier<Long> getSegmentLength) {
+        // Determine the length of the modified data.
+        int initialLength = (int) (long) getSegmentLength.get();
+        action.get().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        int newLength = (int) (long) getSegmentLength.get();
+        AssertExtensions.assertGreaterThan("Expected segment length to increase.", initialLength, newLength);
+
+        // Queue up an append operation. We don't care about the payload, as the data have already been added to the segment.
+        addToProcessor(initialLength, newLength - initialLength, processor);
+    }
+
+    @SneakyThrows(DataCorruptionException.class)
+    private void addToProcessor(long offset, int length, WriterTableProcessor processor) {
+        val op = new StreamSegmentAppendOperation(SEGMENT_ID, new byte[length], null);
+        op.setStreamSegmentOffset(offset);
+        op.setSequenceNumber(offset);
+        processor.add(new CachedStreamSegmentAppendOperation(op));
     }
 
     private ArrayList<TestBatchData> generateTestData(TestContext context) {
@@ -206,7 +361,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         return result;
     }
-
 
     private TestBatchData generateAndPopulateEntriesBatch(int batchSize, TestBatchData previous, TestContext context) {
         val expectedEntries = previous == null
@@ -234,12 +388,31 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 byte[] valueData = new byte[context.random.nextInt(MAX_VALUE_LENGTH)];
                 context.random.nextBytes(valueData);
                 HashedArray key = new HashedArray(keyData);
-                toUpdate.put(key, new HashedArray(valueData));
+                HashedArray value = new HashedArray(valueData);
+                toUpdate.put(key, value);
                 removalCandidates.add(key);
             }
         }
 
+        expectedEntries.putAll(toUpdate);
+        expectedEntries.keySet().removeAll(toRemove);
         return new TestBatchData(toUpdate, toRemove, expectedEntries);
+    }
+
+    private TableEntry toConditionalTableEntry(ArrayView key, ArrayView value, long currentVersion) {
+        return TableEntry.versioned(key, value, currentVersion);
+    }
+
+    private TableEntry toUnconditionalTableEntry(ArrayView key, ArrayView value, long currentVersion) {
+        return TableEntry.unversioned(key, value);
+    }
+
+    private TableKey toConditionalKey(ArrayView keyData, long currentVersion) {
+        return TableKey.versioned(keyData, currentVersion);
+    }
+
+    private TableKey toUnconditionalKey(ArrayView keyData, long currentVersion) {
+        return TableKey.unversioned(keyData);
     }
 
     //region Helper Classes
@@ -261,7 +434,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             this.container = new MockSegmentContainer(() -> new SegmentMock(createSegmentMetadata(), executorService()));
             this.cacheFactory = new InMemoryCacheFactory();
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
-            this.ext = new ContainerTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, executorService());
+            this.ext = createExtension();
             this.random = new Random(0);
         }
 
@@ -273,8 +446,17 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             this.container.close();
         }
 
+        ContainerTableExtensionImpl createExtension() {
+            val result = new ContainerTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, executorService());
+            result.initialize().join();
+            return result;
+        }
+
         UpdateableSegmentMetadata createSegmentMetadata() {
-            return new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+            val result = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+            result.setLength(0);
+            result.setStorageLength(0);
+            return result;
         }
 
         SegmentMock segment() {
@@ -471,7 +653,17 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
          * The expected result after toUpdate and toRemove have been applied. Key->Value.
          */
         final Map<HashedArray, HashedArray> expectedEntries;
-
     }
+
+    @FunctionalInterface
+    private interface EntryGenerator {
+        TableEntry apply(ArrayView key, ArrayView value, long currentVersion);
+    }
+
+    @FunctionalInterface
+    private interface KeyGenerator {
+        TableKey apply(ArrayView key, long currentVersion);
+    }
+
     //endregion
 }
