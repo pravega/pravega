@@ -7,22 +7,21 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
 /**
- * A Table Entry with a Version.
+ * A Table Key with a Version.
  *
- * @param <KeyT>   Key Type.
- * @param <ValueT> Value Type
+ * @param <KeyT> Type of the Key.
  */
-public interface TableEntry<KeyT, ValueT> {
+interface TableKey<KeyT> {
     /**
      * The Key.
      */
-    TableKey<KeyT> getKey();
+    KeyT getKey();
 
     /**
-     * The Value.
+     * The Version. If null, any updates for this Key will be unconditional.
      */
-    ValueT getValue();
+    KeyVersion getVersion();
 }

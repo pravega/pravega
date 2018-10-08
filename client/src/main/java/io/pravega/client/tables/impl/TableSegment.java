@@ -9,11 +9,6 @@
  */
 package io.pravega.client.tables.impl;
 
-import com.google.common.annotations.Beta;
-import io.pravega.client.tables.ConditionalTableUpdateException;
-import io.pravega.client.tables.KeyVersion;
-import io.pravega.client.tables.TableEntry;
-import io.pravega.client.tables.TableKey;
 import io.pravega.common.util.AsyncIterator;
 import java.util.Collection;
 import java.util.List;
@@ -39,8 +34,7 @@ import lombok.Data;
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
  */
-@Beta
-public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
+interface TableSegment<KeyT, ValueT> extends AutoCloseable {
 
     /**
      * Inserts or updates an existing Table Entry into this Table Segment.

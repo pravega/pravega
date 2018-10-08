@@ -9,14 +9,12 @@
  */
 package io.pravega.client.tables.impl;
 
-import com.google.common.annotations.Beta;
 import java.nio.ByteBuffer;
 
 /**
  * Defines the state of a resumable iterator.
  */
-@Beta
-public interface IteratorState {
+interface IteratorState {
 
     /**
      * Serializes the IteratorState instance to a compact byte array.

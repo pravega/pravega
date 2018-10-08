@@ -7,14 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
 import java.nio.ByteBuffer;
 
 /**
  * Version of a Key in a Table.
  */
-public interface KeyVersion {
+interface KeyVersion {
     /**
      * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
      */
