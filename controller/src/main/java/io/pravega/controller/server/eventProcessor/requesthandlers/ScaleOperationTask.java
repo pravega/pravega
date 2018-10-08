@@ -52,8 +52,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        log.info("starting scale request for {}/{} segments {} to new ranges {}", request.getScope(), request.getStream(),
-                request.getSegmentsToSeal(), request.getNewRanges());
+        log.info("[requestId={}] starting scale request for {}/{} segments {} to new ranges {}", request.getScaleTime(),
+                request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
         runScale(request, request.isRunOnlyIfStarted(), context,
                 this.streamMetadataTasks.retrieveDelegationToken())
@@ -63,12 +63,12 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
-                        log.warn("processing scale request for {}/{} segments {} failed {}", request.getScope(), request.getStream(),
-                                request.getSegmentsToSeal(), cause);
+                        log.warn("[requestId={}] processing scale request for {}/{} segments {} failed {}", request.getScaleTime(),
+                                request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
                         result.completeExceptionally(cause);
                     } else {
-                        log.info("scale request for {}/{} segments {} to new ranges {} completed successfully.", request.getScope(), request.getStream(),
-                                request.getSegmentsToSeal(), request.getNewRanges());
+                        log.info("[requestId={}] scale request for {}/{} segments {} to new ranges {} completed successfully.", request.getScaleTime(),
+                                request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
                         result.complete(null);
                     }
@@ -98,7 +98,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         .thenCompose(v -> streamMetadataStore.scaleCreateNewSegments(scope, stream, runOnlyIfStarted, context, executor))
                         .thenCompose(v -> {
                             List<Long> segmentIds = response.getNewSegmentsWithRange().keySet().asList();
-                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken)
+                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
                                     .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, context, executor))
                                     .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken, requestId))
                                     .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken))

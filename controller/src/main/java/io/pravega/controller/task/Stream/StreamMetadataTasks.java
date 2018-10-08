@@ -470,6 +470,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
+        final long requestId = RequestTracker.getInstance().getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
+
         return writeEvent(event)
                 .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
                         context, executor)
@@ -481,11 +483,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
-                                    log.warn("Scale for stream {}/{} failed with exception {}", scope, stream, cause);
+                                    log.warn("[requestId={}] Scale for stream {}/{} failed with exception {}", requestId, scope, stream, cause);
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
-                                log.info("scale for stream {}/{} started successfully", scope, stream);
+                                log.info("[requestId={}] scale for stream {}/{} started successfully", requestId, scope, stream);
                                 response.setStatus(ScaleResponse.ScaleStreamStatus.STARTED);
                                 response.addAllSegments(
                                         startScaleResponse.getNewSegmentsWithRange().entrySet()
@@ -649,10 +651,10 @@ public class StreamMetadataTasks extends TaskBase {
         return retVal;
     }
 
-    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds,
-                                                     OperationContext context, String controllerToken) {
+    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
+                                                     String controllerToken, long requestId) {
         return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
-                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentIds, controllerToken, System.nanoTime())); //TODO: CHECK THIS
+                .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentIds, controllerToken, requestId));
     }
 
     public CompletableFuture<Void> notifyNewSegments(String scope, String stream, StreamConfiguration configuration,
@@ -775,41 +777,41 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream,
-                                                   final List<Long> segments, final UUID txnId) {
+    public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream, final List<Long> segments,
+                                                   final UUID txnId, long requestId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
+                .map(segment -> notifyTxnCommit(scope, stream, segment, txnId, requestId))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
-                                                                    final long segmentNumber, final UUID txnId) {
+                                                                    final long segmentNumber, final UUID txnId, long requestId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
                 stream,
                 segmentNumber,
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
+                this.connectionFactory, this.retrieveDelegationToken(), requestId), executor);
     }
 
-    public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
-                                                  final List<Long> segments, final UUID txnId) {
+    public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream, final List<Long> segments,
+                                                  final UUID txnId, final long requestId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
+                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId, requestId))
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
-                                                                   final long segmentNumber, final UUID txnId) {
+    private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream, final long segmentNumber,
+                                                                   final UUID txnId, final long requestId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.abortTransaction(scope,
                 stream,
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
+                this.connectionFactory, this.retrieveDelegationToken(), requestId), executor);
     }
 
     @Override

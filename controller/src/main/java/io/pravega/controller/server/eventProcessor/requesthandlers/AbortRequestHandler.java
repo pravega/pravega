@@ -64,18 +64,19 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         String stream = event.getStream();
         int epoch = event.getEpoch();
         UUID txId = event.getTxid();
+        long requestId = event.getRequestId();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
-        log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
+        log.debug("[requestId={}] Aborting transaction {} on stream {}/{}", requestId, event.getTxid(), event.getScope(), event.getStream());
 
         return Futures.toVoid(streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
-                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId))
+                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId, requestId))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
-                        log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
+                        log.error("[requestId={}] Failed aborting transaction {} on stream {}/{}", requestId, event.getTxid(),
                                 event.getScope(), event.getStream());
                     } else {
-                        log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
+                        log.debug("[requestId={}] Successfully aborted transaction {} on stream {}/{}", requestId, event.getTxid(),
                                 event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);

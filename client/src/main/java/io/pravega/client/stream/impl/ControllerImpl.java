@@ -477,18 +477,19 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
+        long scaleTimestamp = System.currentTimeMillis();
 
         final CompletableFuture<ScaleResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>(traceId, method);
-            addTagsToRequest(client, traceId, method, stream.getScope(), stream.getStreamName())
-                            .scale(ScaleRequest.newBuilder()
+            addTagsToRequest(client, traceId, method, stream.getScope(), stream.getStreamName(), String.valueOf(scaleTimestamp))
+                    .scale(ScaleRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .addAllSealedSegments(sealedSegments)
                             .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
                                     .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
                                             .setStart(x.getKey()).setEnd(x.getValue()).build())
                                     .collect(Collectors.toList()))
-                            .setScaleTimestamp(System.currentTimeMillis())
+                            .setScaleTimestamp(scaleTimestamp)
                             .build(),
                     callback);
             return callback.getFuture();
@@ -776,12 +777,13 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateTxnResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>(traceId, "createTransaction");
-            client.createTransaction(
-                    CreateTxnRequest.newBuilder()
+            addTagsToRequest(client, traceId, "createTransaction", stream.getScope(), stream.getStreamName())
+                    .createTransaction(
+                        CreateTxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .setLease(lease)
                             .build(),
-                    callback);
+                        callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::convert)
@@ -838,7 +840,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "commitTransaction");
-            client.commitTransaction(TxnRequest.newBuilder()
+            addTagsToRequest(client, traceId, "commitTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
+                    .commitTransaction(TxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                     stream.getStreamName()))
                             .setTxnId(ModelHelper.decode(txId))
@@ -865,7 +868,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "abortTransaction");
-            client.abortTransaction(TxnRequest.newBuilder()
+            addTagsToRequest(client, traceId, "abortTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
+                    .abortTransaction(TxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                     stream.getStreamName()))
                             .setTxnId(ModelHelper.decode(txId))

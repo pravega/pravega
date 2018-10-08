@@ -205,7 +205,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void scale(ScaleRequest request, StreamObserver<ScaleResponse> responseObserver) {
-        log.info("scale called for stream {}/{}.", request.getStreamInfo().getScope(),
+        log.info("[requestId={}] scale called for stream {}/{}.", request.getScaleTimestamp(), request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -267,7 +267,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
-        log.info("createTransaction called for stream {}/{}.", request.getStreamInfo().getScope(),
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+
+        log.info("[requestId={}] createTransaction called for stream {}/{}.", requestTag.getRequestId(), request.getStreamInfo().getScope(),
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -284,8 +287,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        log.info("commitTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "commitTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId().toString());
+
+        log.info("[requestId={}] commitTransaction called for stream {}/{}, txnId={}.", requestTag.getRequestId(),
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
@@ -296,8 +302,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        log.info("abortTransaction called for stream {}/{}, txnId={}.", request.getStreamInfo().getScope(),
-                request.getStreamInfo().getStream(), request.getTxnId());
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "abortTransaction",
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+
+        log.info("[requestId={}] abortTransaction called for stream {}/{}, txnId={}.", requestTag.getRequestId(),
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults( () -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.abortTransaction(request.getStreamInfo().getScope(),

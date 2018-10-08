@@ -23,6 +23,7 @@ public class AbortEvent implements ControllerEvent {
     private final String stream;
     private final int epoch;
     private final UUID txid;
+    private final long requestId;
 
     @Override
     public String getKey() {

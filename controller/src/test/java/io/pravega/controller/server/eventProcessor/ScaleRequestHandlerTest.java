@@ -250,7 +250,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
 
-        assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
+        assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID(), Long.MIN_VALUE))));
     }
 
     @Test(timeout = 30000)
@@ -290,7 +290,7 @@ public class ScaleRequestHandlerTest {
         streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
 
         // 5. commit on old epoch. this should roll over
-        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch(), Long.MIN_VALUE))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
@@ -303,7 +303,7 @@ public class ScaleRequestHandlerTest {
         assertEquals(epochThree, activeEpoch);
 
         // 6. commit on new epoch. This should happen on duplicate of new epoch successfully
-        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnDataNew.getEpoch()))));
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnDataNew.getEpoch(), Long.MIN_VALUE))));
         txnStatus = streamStore.transactionStatus(scope, stream, txnIdNewEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
@@ -355,7 +355,7 @@ public class ScaleRequestHandlerTest {
         System.currentTimeMillis(), false, null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
-        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch(), Long.MIN_VALUE))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
@@ -412,7 +412,7 @@ public class ScaleRequestHandlerTest {
         System.currentTimeMillis(), false, null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
-        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
+        assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch(), Long.MIN_VALUE))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
