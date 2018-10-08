@@ -1,9 +1,12 @@
-package io.pravega.client.byteStream;
+package io.pravega.client.byteStream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.byteStream.ByteStreamReader;
+import io.pravega.client.byteStream.InvalidOffsetException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.ByteBufferUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -24,10 +27,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
         Exceptions.checkNotClosed(closed.get(), this);
         try {
             ByteBuffer buffer = input.read(dst.remaining());
-            int bytesRead = buffer.remaining();
-            buffer.get
-            buffer.get(b, 0, bytesRead);
-            return bytesRead;
+            return ByteBufferUtils.copy(buffer, dst);
         } catch (EndOfSegmentException e) {
             return -1;
         }
@@ -106,18 +106,18 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     }
 
     @Override
-    public long skip(long n) {
+    public long skip(long toSkip) {
         Exceptions.checkNotClosed(closed.get(), this);
         //TODO: Threadsafety...
         long offset = input.getOffset();
         long endOffset = fetchTailOffset();
-        long newOffset = Math.min(offset+skip, endOffset);
+        long newOffset = Math.min(offset+toSkip, endOffset);
         input.setOffset(newOffset);
         return newOffset - offset;
     }
 
     @Override
-    public CompletableFuture<Void> onDataAvailable() {
+    public CompletableFuture<Integer> onDataAvailable() {
         Exceptions.checkNotClosed(closed.get(), this);
         return input.fillBuffer().thenApply(v -> available());
     }

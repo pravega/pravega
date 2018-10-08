@@ -1,4 +1,4 @@
-package io.pravega.client.byteStream;
+package io.pravega.client.byteStream.impl;
 
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
