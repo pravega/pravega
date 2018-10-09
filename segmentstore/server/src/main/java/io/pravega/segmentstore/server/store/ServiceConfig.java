@@ -183,7 +183,7 @@ public class ServiceConfig {
      * The Type of Storage Implementation to use.
      */
     @Getter
-    private final String storageImplementation;
+    private final StorageType storageImplementation;
 
     /**
      * Whether this SegmentStore instance is Read-Only (i.e., it can only process reads from Storage and nothing else).
@@ -265,7 +265,7 @@ public class ServiceConfig {
         this.zkSessionTimeoutMs = properties.getInt(ZK_SESSION_TIMEOUT_MS);
         this.clusterName = properties.get(CLUSTER_NAME);
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
-        this.storageImplementation = properties.get(STORAGE_IMPLEMENTATION);
+        this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         this.keyFile = properties.get(KEY_FILE);
