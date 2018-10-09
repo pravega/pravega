@@ -154,7 +154,7 @@ public final class ServiceStarter {
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
             StorageLoader loader = new StorageLoader();
-            return loader.load(setup, this.serviceConfig.getStorageImplementation(), setup.getStorageExecutor());
+            return loader.load(setup, this.serviceConfig.getStorageImplementation().toString(), setup.getStorageExecutor());
 
         });
     }
