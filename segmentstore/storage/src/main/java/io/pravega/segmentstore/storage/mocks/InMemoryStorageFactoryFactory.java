@@ -19,7 +19,6 @@ public class InMemoryStorageFactoryFactory implements StorageFactoryFactory {
     @Override
     public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
         InMemoryStorageFactory factory = new InMemoryStorageFactory(executor);
-        factory.initialize();
         return factory;
     }
 

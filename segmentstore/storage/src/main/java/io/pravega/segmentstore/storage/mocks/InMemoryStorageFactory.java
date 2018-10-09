@@ -29,6 +29,7 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
+        initialize();
     }
 
     public InMemoryStorageFactory() {
