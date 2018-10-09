@@ -40,7 +40,7 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
-    public static final Property<String> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", "InMemory");
+    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
     public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
