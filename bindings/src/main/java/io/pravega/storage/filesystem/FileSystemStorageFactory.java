@@ -10,21 +10,18 @@
 package io.pravega.storage.filesystem;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.ConfigSetup;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Factory for file system Storage adapters.
  */
 public class FileSystemStorageFactory implements StorageFactory {
-    private AtomicReference<FileSystemStorageConfig> config;
-    private AtomicReference<ExecutorService> executor;
+    private final FileSystemStorageConfig config;
+    private final ExecutorService executor;
 
     /**
      * Creates a new instance of the FileSystemStorageFactory class.
@@ -35,29 +32,20 @@ public class FileSystemStorageFactory implements StorageFactory {
     public FileSystemStorageFactory(FileSystemStorageConfig config, ExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
-        this.config = new AtomicReference<>(config);
-        this.executor = new AtomicReference<>(executor);
+        this.config = config;
+        this.executor = executor;
     }
 
     public FileSystemStorageFactory() {
-        this.config = new AtomicReference<>();
-        this.executor = new AtomicReference<>();
+        this.config = null;
+        this.executor = null;
     }
 
     @Override
     public synchronized Storage createStorageAdapter() {
-        FileSystemStorage s = new FileSystemStorage(this.config.get());
-        return new AsyncStorageWrapper(new RollingStorage(s), this.executor.get());
+        FileSystemStorage s = new FileSystemStorage(this.config);
+        return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
 
-    @Override
-    public String getName() {
-        return "FILESYSTEM";
-    }
 
-    @Override
-    public synchronized void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-        this.config.set(setup.getConfig(FileSystemStorageConfig::builder));
-        this.executor.set(executor);
-    }
 }

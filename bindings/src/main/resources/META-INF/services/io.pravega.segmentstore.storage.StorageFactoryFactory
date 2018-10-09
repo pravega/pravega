@@ -7,6 +7,6 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-io.pravega.storage.filesystem.FileSystemStorageFactory
-io.pravega.storage.hdfs.HDFSStorageFactory
-io.pravega.storage.extendeds3.ExtendedS3StorageFactory
+io.pravega.storage.filesystem.FileSystemStorageFactoryFactory
+io.pravega.storage.hdfs.HDFSStorageFactoryFactory
+io.pravega.storage.extendeds3.ExtendedS3StorageFactoryFactory

@@ -11,16 +11,16 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageFactoryFactory;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
-        ServiceLoader<StorageFactory> loader = ServiceLoader.load(StorageFactory.class);
-        for (StorageFactory factory : loader) {
+        ServiceLoader<StorageFactoryFactory> loader = ServiceLoader.load(StorageFactoryFactory.class);
+        for (StorageFactoryFactory factory : loader) {
             if (factory.getName().equals(storageImplementation)) {
-                factory.initialize(setup, executor);
-                return factory;
+                return factory.createFactory(setup, executor);
             }
         }
         return null;

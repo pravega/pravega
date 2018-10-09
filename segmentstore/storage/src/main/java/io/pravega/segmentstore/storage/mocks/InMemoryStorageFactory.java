@@ -11,7 +11,6 @@ package io.pravega.segmentstore.storage.mocks;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ConfigSetup;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -30,7 +29,6 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        initialize(null, executor);
     }
 
     public InMemoryStorageFactory() {
@@ -42,17 +40,6 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         return new AsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
     }
 
-    @Override
-    public String getName() {
-        return "INMEMORY";
-    }
-
-    @Override
-    public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-        this.executor = executor;
-        this.baseStorage = new SharedStorage();
-        this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
-    }
 
     @Override
     public void close() {
@@ -68,6 +55,11 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     @VisibleForTesting
     public static Storage newStorage(Executor executor) {
         return new AsyncStorageWrapper(new InMemoryStorage(), executor);
+    }
+
+    public void initialize() {
+            this.baseStorage = new InMemoryStorageFactory.SharedStorage();
+            this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
     }
 
     //region SharedStorage

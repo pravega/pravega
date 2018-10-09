@@ -25,6 +25,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageFactoryFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -283,6 +284,21 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     //endregion
 
+    //region SingletonStorageFactoryFactory
+    private static class SingletonStorageFactoryFactory implements StorageFactoryFactory {
+        @Override
+        public String getName() {
+            return "SingletonStorageFactory";
+        }
+
+        @Override
+        public SingletonStorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
+            return new SingletonStorageFactory(executor);
+        }
+    }
+
+    //endregion
+
     //region SingletonStorageFactory
 
     private static class SingletonStorageFactory implements StorageFactory, AutoCloseable {
@@ -301,15 +317,7 @@ class SegmentStoreAdapter extends StoreAdapter {
             return this.storage;
         }
 
-        @Override
-        public String getName() {
-            return "SingletonStorageFactory";
-        }
 
-        @Override
-        public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-
-        }
 
         @Override
         public void close() {
