@@ -303,7 +303,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "abortTransaction",
-                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+                request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId().toString());
 
         log.info("[requestId={}] abortTransaction called for stream {}/{}, txnId={}.", requestTag.getRequestId(),
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId());

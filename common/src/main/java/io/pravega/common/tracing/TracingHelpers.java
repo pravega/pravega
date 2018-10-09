@@ -88,7 +88,7 @@ public final class TracingHelpers {
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, final Metadata requestHeaders, ServerCallHandler<ReqT, RespT> next) {
             // Check if this RPC has tags to track request (e.g., older clients).
             if (requestHeaders != null && requestHeaders.containsKey(REQUEST_DESCRIPTOR_HEADER) && requestHeaders.containsKey(REQUEST_ID_HEADER)) {
-                RequestTag requestTag = new RequestTag(requestHeaders.get(REQUEST_DESCRIPTOR_HEADER), Long.valueOf(requestHeaders.get(REQUEST_ID_HEADER)));
+                RequestTag requestTag = new RequestTag(requestHeaders.get(REQUEST_DESCRIPTOR_HEADER), Long.parseLong(requestHeaders.get(REQUEST_ID_HEADER)));
                 RequestTracker.getInstance().trackRequest(requestTag);
                 log.info("[requestId={}] Received tag from RPC request {}.", requestHeaders.get(REQUEST_ID_HEADER), requestHeaders.get(REQUEST_DESCRIPTOR_HEADER));
             } else {

@@ -170,9 +170,9 @@ public class TxnSweeper implements FailoverSweeper {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
-        // TODO: To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource
+        // To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource.
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "commitTransaction",
-                txn.getScope(), txn.getStream(), txn.toString());
+                txn.getScope(), txn.getStream(), txn.getTxnId().toString());
         log.debug("[requestId={}] Host = {}, failing over committing transaction {}/{}/{}", requestTag.getRequestId(), failedHost, scope, stream, txnId);
         return transactionMetadataTasks.writeCommitEvent(scope, stream, epoch, txnId, TxnStatus.COMMITTING, requestTag.getRequestId())
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
@@ -182,9 +182,9 @@ public class TxnSweeper implements FailoverSweeper {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
-        // TODO: To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource
+        // To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource.
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "abortTransaction",
-                txn.getScope(), txn.getStream(), txn.toString());
+                txn.getScope(), txn.getStream(), txn.getTxnId().toString());
         log.debug("[requestId={}] Host = {}, failing over aborting transaction {}/{}/{}", requestTag.getRequestId(), failedHost, scope, stream, txnId);
         return transactionMetadataTasks.writeAbortEvent(scope, stream, epoch, txnId, TxnStatus.ABORTING, requestTag.getRequestId())
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
@@ -194,9 +194,9 @@ public class TxnSweeper implements FailoverSweeper {
         String scope = txn.getScope();
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
-        // TODO: To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource
+        // To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource.
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "openTransaction",
-                txn.getScope(), txn.getStream(), txn.toString());
+                txn.getScope(), txn.getStream(), txn.getTxnId().toString());
         log.debug("[requestId={}] Host = {}, failing over open transaction {}/{}/{}", requestTag.getRequestId(), failedHost, scope, stream, txnId);
         return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
                 transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null, requestTag.getRequestId())
