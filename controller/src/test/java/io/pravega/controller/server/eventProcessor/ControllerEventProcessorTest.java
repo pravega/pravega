@@ -31,7 +31,6 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -107,7 +106,7 @@ public class ControllerEventProcessorTest {
         streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
         streamStore.createStream(SCOPE, STREAM, configuration1, start, null, executor).join();
-        streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+        streamStore.updateState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
         // endregion
     }
 
@@ -218,13 +217,13 @@ public class ControllerEventProcessorTest {
         // now remove the barrier but change the state so that processing can not happen.
         streamStore.deleteWaitingRequestConditionally(SCOPE, STREAM, "test", null, executor).join();
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
-        streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
+        streamStore.updateState(SCOPE, STREAM, State.SCALING, null, executor).join();
 
         AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
-        streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+        streamStore.updateState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
         // verify that we are able to process if the waiting processor name is same as ours.
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
 
@@ -232,7 +231,7 @@ public class ControllerEventProcessorTest {
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
         // now set the state to COMMITTING_TXN and try the same with scaling
-        streamStore.setState(SCOPE, STREAM, State.COMMITTING_TXN, null, executor).join();
+        streamStore.updateState(SCOPE, STREAM, State.COMMITTING_TXN, null, executor).join();
 
         // verify that event that does not try to use `processor.withCompletion` runs without contention
         assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));

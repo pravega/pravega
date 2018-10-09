@@ -164,7 +164,7 @@ public class StreamTest {
                 .build();
 
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-        store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
+        store.updateState(scopeName, streamName, State.ACTIVE, null, executor).get();
 
         ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
 

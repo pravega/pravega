@@ -136,7 +136,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public OperationContext createContext(String scope, String name) {
-        return new OperationContextImpl(getStream(scope, name, null));
+        return new OperationContextImpl<>(getStream(scope, name, null));
     }
 
     @Override
@@ -186,9 +186,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> setState(final String scope, final String name,
-                                               final State state, final OperationContext context,
-                                               final Executor executor) {
+    public CompletableFuture<Void> updateState(final String scope, final String name,
+                                                  final State state, final OperationContext context,
+                                                  final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateState(state), executor);
     }
 
@@ -201,8 +201,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> resetStateConditionally(String scope, String name, State state, OperationContext context, Executor executor) {
-        return withCompletion(getStream(scope, name, context).resetStateConditionally(state), executor);
+    public CompletableFuture<VersionedMetadata<State>> updateVersionedState(final String scope, final String name,
+                                               final State state, final VersionedMetadata<State> previousVersion, final OperationContext context,
+                                               final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateVersionedState(previousVersion, state), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name,
+                                             final OperationContext context,
+                                             final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getVersionedState(), executor);
     }
 
     /**
@@ -286,10 +295,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getVersionedTruncationRecord(final String scope,
                                                                                   final String name,
-                                                                                  final boolean ignoreCached,
                                                                                   final OperationContext context,
                                                                                   final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getVersionedTruncationRecord(ignoreCached), executor);
+        return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
     }
 
     @Override
@@ -333,7 +341,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenApply(result -> {
             SEAL_STREAM.reportSuccessValue(1);
             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-            return result;
+            return true;
         });
     }
 
@@ -432,7 +440,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getVersionedEpochTransition(String scope, String stream,
                                                                              OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).getVersionedEpochTransition(), executor);
+        return withCompletion(getStream(scope, stream, context).getEpochTransition(), executor);
     }
 
     @Override
@@ -535,13 +543,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
-                                                                         final String streamName,
-                                                                         final UUID txnId,
-                                                                         final long lease,
-                                                                         final long maxExecutionTime,
-                                                                         final OperationContext context,
-                                                                         final Executor executor) {
+    public CompletableFuture<VersionedMetadata<TransactionData>> createTransaction(final String scopeName,
+                                                                final String streamName,
+                                                                final UUID txnId,
+                                                                final long lease,
+                                                                final long maxExecutionTime,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
         return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor)
                 .thenApply(result -> {
@@ -554,20 +562,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                       final VersionedTransactionData txData,
-                                                                       final long lease,
-                                                                       final OperationContext context,
-                                                                       final Executor executor) {
+    public CompletableFuture<VersionedMetadata<TransactionData>> pingTransaction(final String scopeName, final String streamName,
+                                                              final VersionedMetadata<TransactionData> txData,
+                                                              final long lease,
+                                                              final OperationContext context,
+                                                              final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context).pingTransaction(txData, lease), executor);
     }
 
     @Override
-    public CompletableFuture<VersionedTransactionData> getTransactionData(final String scopeName,
-                                                                          final String streamName,
-                                                                          final UUID txId,
-                                                                          final OperationContext context,
-                                                                          final Executor executor) {
+    public CompletableFuture<VersionedMetadata<TransactionData>> getTransactionData(final String scopeName,
+                                                                 final String streamName,
+                                                                 final UUID txId,
+                                                                 final OperationContext context,
+                                                                 final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context).getTransactionData(txId), executor);
     }
 
@@ -600,7 +608,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                               final String streamName,
                                                                               final UUID txId,
                                                                               final boolean commit,
-                                                                              final Optional<Integer> version,
+                                                                              final Optional<Version> version,
                                                                               final OperationContext context,
                                                                               final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
@@ -624,9 +632,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, int version) {
-        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(Integer.BYTES).putInt(version).array());
+    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, Version version) {
+        return hostIndex.addEntity(hostId, getTxnResourceString(txn), Optional.ofNullable(version).orElse(getVersionIdentity()).toByteArray());
     }
+
+    protected abstract Version getVersionIdentity();
 
     @Override
     public CompletableFuture<Void> removeTxnFromIndex(String hostId, TxnResource txn, boolean deleteEmptyParent) {
@@ -640,9 +650,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
+    public CompletableFuture<Version> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
         return hostIndex.getEntityData(hostId, getTxnResourceString(resource)).thenApply(data ->
-            data != null ? ByteBuffer.wrap(data).getInt() : null);
+            data != null ? ByteBuffer.wrap(data) : null);
     }
 
     @Override
@@ -720,12 +730,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).completeCommittingTransactions(record), executor);
-    }
-
-    @Override
-    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(String scope, String stream, int epoch,
-                                                                                OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).getTransactionsInEpoch(epoch), executor);
     }
 
     @Override

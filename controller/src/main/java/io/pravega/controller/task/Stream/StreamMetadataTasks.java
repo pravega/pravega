@@ -340,7 +340,7 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, true, context, executor)
+        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, context, executor)
                 .thenCompose(property -> {
                     if (!property.getObject().isUpdating()) {
                         // 2. post event with new stream cut if no truncation is ongoing
@@ -360,7 +360,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Long, Long> streamCut, OperationContext context) {
-        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, true, context, executor)
+        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, context, executor)
                 .thenApply(truncationProp -> !truncationProp.getObject().isUpdating() || !truncationProp.getObject().getStreamCut().equals(streamCut));
     }
 
@@ -382,20 +382,14 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(x -> streamMetadataStore.getState(scope, stream, false, context, executor))
                 .thenCompose(state -> {
                     if (state.equals(State.SEALED)) {
-                        return CompletableFuture.completedFuture(true);
+                        return CompletableFuture.completedFuture(null);
                     } else {
-                        return streamMetadataStore.setState(scope, stream, State.SEALING, context, executor);
+                        return Futures.toVoid(streamMetadataStore.updateState(scope, stream, State.SEALING, context, executor));
                     }
                 })
                 // 3. return with seal initiated.
-                .thenCompose(result -> {
-                    if (result) {
-                        return checkDone(() -> isSealed(scope, stream, context))
-                                .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
-                    } else {
-                        return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
-                    }
-                })
+                .thenCompose(result -> checkDone(() -> isSealed(scope, stream, context))
+                        .thenApply(x -> UpdateStreamStatus.Status.SUCCESS))
                 .exceptionally(ex -> {
                     log.warn("Exception thrown in trying to notify sealed segments {}", ex.getMessage());
                     return handleUpdateStreamError(ex);
@@ -601,7 +595,7 @@ public class StreamMetadataTasks extends TaskBase {
                                             future = CompletableFuture.completedFuture(null);
                                         }
                                         return future
-                                                .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
+                                                .thenCompose(v ->  streamMetadataStore.updateState(scope, stream, State.ACTIVE,
                                                         context, executor));
                                     }, executor)
                                             .thenApply(z -> status);

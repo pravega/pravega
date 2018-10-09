@@ -125,9 +125,9 @@ public class TaskTest {
         streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
         streamStore.createStream(SCOPE, stream1, configuration1, start, null, executor).join();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).join();
+        streamStore.updateState(SCOPE, stream1, State.ACTIVE, null, executor).join();
         streamStore.createStream(SCOPE, stream2, configuration2, start, null, executor).join();
-        streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).join();
+        streamStore.updateState(SCOPE, stream2, State.ACTIVE, null, executor).join();
         // endregion
 
         // region scaleSegments
@@ -138,11 +138,11 @@ public class TaskTest {
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         EpochTransitionRecord response = versioned.getObject();
         segmentsCreated = response.getNewSegmentsWithRange();
-        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
+        streamStore.updateState(SCOPE, stream1, State.SCALING, null, executor).get();
         versioned = streamStore.scaleCreateNewSegments(SCOPE, stream1, false, versioned, null, executor).get();
         versioned = streamStore.scaleNewSegmentsCreated(SCOPE, stream1, versioned, null, executor).get();
         streamStore.completeScale(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned, null, executor).get();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStore.updateState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
@@ -151,12 +151,12 @@ public class TaskTest {
         versioned = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
         response = versioned.getObject();
         segmentsCreated = response.getNewSegmentsWithRange();
-        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
+        streamStore.updateState(SCOPE, stream2, State.SCALING, null, executor).get();
         versioned = streamStore.scaleCreateNewSegments(SCOPE, stream2, false, versioned, null, executor).get();
         versioned = streamStore.scaleNewSegmentsCreated(SCOPE, stream2, versioned, null, executor).get();
         streamStore.completeScale(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).get();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStore.updateState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         // endregion
     }
 

@@ -113,11 +113,11 @@ public class ControllerServiceTest {
         startTs = System.currentTimeMillis();
         OperationContext context = streamStore.createContext(SCOPE, stream1);
         streamStore.createStream(SCOPE, stream1, configuration1, startTs, context, executor).get();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, context, executor);
+        streamStore.updateState(SCOPE, stream1, State.ACTIVE, context, executor);
 
         OperationContext context2 = streamStore.createContext(SCOPE, stream2);
         streamStore.createStream(SCOPE, stream2, configuration2, startTs, context2, executor).get();
-        streamStore.setState(SCOPE, stream2, State.ACTIVE, context2, executor);
+        streamStore.updateState(SCOPE, stream2, State.ACTIVE, context2, executor);
 
         // endregion
 
@@ -129,12 +129,12 @@ public class ControllerServiceTest {
         scaleTs = System.currentTimeMillis();
         VersionedMetadata<EpochTransitionRecord> record = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), startTs,
                 false, null, executor).get();
-        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
+        streamStore.updateState(SCOPE, stream1, State.SCALING, null, executor).get();
         record = streamStore.scaleCreateNewSegments(SCOPE, stream1, false, record, null, executor).get();
         record = streamStore.scaleNewSegmentsCreated(SCOPE, stream1, record, null, executor).get();
         streamStore.completeScale(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), record,
                 null, executor).get();
-        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStore.updateState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         SimpleEntry<Double, Double> segment3 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment4 = new SimpleEntry<>(0.5, 0.75);
@@ -142,12 +142,12 @@ public class ControllerServiceTest {
         sealedSegments = Arrays.asList(0L, 1L, 2L);
         record = streamStore.startScale(SCOPE, stream2, sealedSegments, Arrays.asList(segment3, segment4, segment5),
                 scaleTs, false, null, executor).get();
-        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
+        streamStore.updateState(SCOPE, stream2, State.SCALING, null, executor).get();
         record = streamStore.scaleCreateNewSegments(SCOPE, stream2, false, record, null, executor).get();
         record = streamStore.scaleNewSegmentsCreated(SCOPE, stream2, record, null, executor).get();
         streamStore.completeScale(SCOPE, stream2, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), record,
                 null, executor).get();
-        streamStore.setState(SCOPE, stream2, State.ACTIVE, null, executor).get();
+        streamStore.updateState(SCOPE, stream2, State.ACTIVE, null, executor).get();
 
         // endregion
     }

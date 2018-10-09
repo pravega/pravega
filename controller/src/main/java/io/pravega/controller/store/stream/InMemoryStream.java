@@ -16,8 +16,6 @@ import com.google.common.cache.CacheBuilder;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
-import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.stream.tables.StateRecord;
@@ -39,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-public class InMemoryStream extends PersistentStreamBase {
+public class InMemoryStream extends PersistentStreamBase<Integer> {
 
     private final AtomicLong creationTime = new AtomicLong(Long.MIN_VALUE);
     private final Object lock = new Object();
@@ -264,14 +262,14 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> setStateData(Data<Integer> newState) {
+    CompletableFuture<Integer> setStateData(Data<Integer> newState) {
         Preconditions.checkNotNull(newState);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Integer> result = new CompletableFuture<>();
         synchronized (lock) {
             if (Objects.equals(this.state.getVersion(), newState.getVersion())) {
-                this.state = new Data<>(newState.getData(), newState.getVersion() + 1);
-                result.complete(null);
+                this.state = updatedCopy(newState);
+                result.complete(this.state.getVersion());
             } else {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, getName()));
             }
@@ -493,14 +491,11 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(UUID txId, long timestamp, long leaseExpiryTime, long maxExecutionExpiryTime) {
+    CompletableFuture<Integer> createNewTransaction(int epoch, UUID txId, byte[] data) {
         Preconditions.checkNotNull(txId);
 
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Data<Integer> txnData = new Data<>(
-                new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, TxnStatus.OPEN)
-                        .toByteArray(), 0);
-        int epoch = getTransactionEpoch(txId);
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
+        final Data<Integer> txnData = new Data<>(data, 0);
 
         synchronized (txnsLock) {
             activeTxns.putIfAbsent(txId.toString(), txnData);
@@ -511,7 +506,7 @@ public class InMemoryStream extends PersistentStreamBase {
                 y.add(txId.toString());
                 return y;
             });
-            result.complete(null);
+            result.complete(0);
         }
 
         return result;
@@ -530,51 +525,20 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> updateActiveTx(int epoch, UUID txId, Data<Integer> data) {
+    CompletableFuture<Integer> updateActiveTx(int epoch, UUID txId, Data<Integer> data) {
         Preconditions.checkNotNull(data);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Integer> result = new CompletableFuture<>();
         synchronized (txnsLock) {
             if (!activeTxns.containsKey(txId.toString())) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
             } else {
                 activeTxns.compute(txId.toString(), (x, y) -> new Data<>(data.getData(), y.getVersion() + 1));
-                result.complete(null);
+                result.complete(activeTxns.get(txId.toString()).getVersion());
             }
         }
 
-        return result;
-    }
-
-    @Override
-    CompletableFuture<Void> sealActiveTx(int epoch, UUID txId, boolean commit, ActiveTxnRecord txnRecord,
-                                         int version) {
-        Preconditions.checkNotNull(txId);
-
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        synchronized (txnsLock) {
-            if (!activeTxns.containsKey(txId.toString())) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString()));
-            } else {
-                activeTxns.compute(txId.toString(), (x, y) -> {
-                    if (version != y.getVersion()) {
-                        result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT,
-                                "Stream: " + getName() + " Transaction: " + txId.toString()));
-                        return y;
-                    } else {
-                        ActiveTxnRecord previous = ActiveTxnRecord.parse(y.getData());
-                        ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                                previous.getLeaseExpiryTime(),
-                                previous.getMaxExecutionExpiryTime(),
-                                commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-                        result.complete(null);
-                        return new Data<>(updated.toByteArray(), y.getVersion() + 1);
-                    }
-                });
-            }
-        }
         return result;
     }
 
@@ -610,13 +574,13 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createCompletedTxEntry(UUID txId, TxnStatus complete, long timestamp) {
+    CompletableFuture<Void> createCompletedTxEntry(UUID txId, byte[] data) {
         Preconditions.checkNotNull(txId);
 
         synchronized (txnsLock) {
             Data<Integer> value = completedTxns.getIfPresent(txId.toString());
             if (value == null) {
-                completedTxns.put(txId.toString(), new Data<>(new CompletedTxnRecord(timestamp, complete).toByteArray(), 0));
+                completedTxns.put(txId.toString(), new Data<>(data, 0));
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -914,6 +878,16 @@ public class InMemoryStream extends PersistentStreamBase {
             this.waitingRequestNode = null;
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    Version toVersion(Integer version) {
+        return new Version.IntVersion(version);
+    }
+
+    @Override
+    Integer fromVersion(Version version) {
+        return ((Version.IntVersion) version).getIntValue();
     }
 
     private Data<Integer> copy(Data<Integer> input) {

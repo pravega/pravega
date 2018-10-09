@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import com.google.common.util.concurrent.Service;
 
@@ -61,7 +62,7 @@ public interface TimeoutService extends Service {
      * @param lease                  Amount of time for which to keep the transaction in open state.
      * @param maxExecutionTimeExpiry Timestamp beyond which transaction lease cannot be increased.
      */
-    void addTxn(final String scope, final String stream, final UUID txnId, final int version,
+    void addTxn(final String scope, final String stream, final UUID txnId, final Version version,
                 final long lease, final long maxExecutionTimeExpiry);
 
     /**
@@ -88,7 +89,7 @@ public interface TimeoutService extends Service {
      * @param version Transaction version.
      *@param lease  Additional amount of time for the transaction to be in open state.  @return Ping status
      */
-    PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, int version, long lease);
+    PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, Version version, long lease);
 
     /**
      * This method returns a boolean indicating whether it manages timeout for the specified transaction.

@@ -185,11 +185,11 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNode(final String path, final byte[] data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> createZNode(final String path, final byte[] data) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
-            BackgroundCallback callback = callback(x -> result.complete(null),
+            BackgroundCallback callback = callback(x -> result.complete(x.getStat().getVersion()),
                     e -> result.completeExceptionally(e), path);
             createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
         } catch (Exception e) {
@@ -199,15 +199,15 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data) {
         return createZNodeIfNotExist(path, data, true);
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
-            BackgroundCallback callback = callback(x -> result.complete(null),
+            BackgroundCallback callback = callback(x -> result.complete(x.getStat().getVersion()),
                     e -> {
                         if (e instanceof StoreException.DataExistsException) {
                             result.complete(null);
@@ -227,16 +227,16 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path) {
         return createZNodeIfNotExist(path, true);
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path, final boolean createParent) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final boolean createParent) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
 
         try {
             CreateBuilder createBuilder = client.create();
-            BackgroundCallback callback = callback(x -> result.complete(null),
+            BackgroundCallback callback = callback(x -> result.complete(x.getStat().getVersion()),
                     e -> {
                         if (e instanceof StoreException.DataExistsException) {
                             result.complete(null);

@@ -112,18 +112,20 @@ interface Stream {
     /**
      * Fetches the current stream cut.
      *
-     * @param ignoreCached ignore cached
-     *
      * @return current stream cut.
      */
-    CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getVersionedTruncationRecord(boolean ignoreCached);
+    CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationRecord();
+
+    CompletableFuture<VersionedMetadata<State>> getVersionedState();
+
+    CompletableFuture<VersionedMetadata<State>> updateVersionedState(final VersionedMetadata<State> state, final State newState);
 
     /**
      * Update the state of the stream.
      *
      * @return boolean indicating whether the state of stream is updated.
      */
-    CompletableFuture<Boolean> updateState(final State state);
+    CompletableFuture<Void> updateState(final State state);
 
     /**
      * Get the state of the stream.
@@ -132,14 +134,6 @@ interface Stream {
      * @param ignoreCached ignore cached value and fetch from store
      */
     CompletableFuture<State> getState(boolean ignoreCached);
-
-    /**
-     * If state is matches the given state then reset it back to State.ACTIVE
-     *
-     * @param state state to compare
-     * @return Future which when completed has reset the state
-     */
-    CompletableFuture<Void> resetStateConditionally(State state);
 
     /**
      * Fetches details of specified segment.
@@ -198,7 +192,7 @@ interface Stream {
      *
      * @return
      */
-    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getVersionedEpochTransition();
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition();
 
     /**
      * Called to start metadata updates to stream store wrt new scale event.
@@ -206,7 +200,6 @@ interface Stream {
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
      * @param runOnlyIfStarted run only if scale is started
-     * @param record
      * @return sequence of newly created segments
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final List<Long> sealedSegments,
@@ -308,7 +301,7 @@ interface Stream {
      *
      * @return Details of created transaction.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
+    CompletableFuture<VersionedMetadata<TransactionData>> createTransaction(final UUID txnId,
                                                                   final long lease,
                                                                   final long maxExecutionTime);
 
@@ -320,7 +313,7 @@ interface Stream {
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease);
+    CompletableFuture<VersionedMetadata<TransactionData>> pingTransaction(final VersionedMetadata<TransactionData> txnData, final long lease);
 
     /**
      * Fetch transaction metadata along with its version.
@@ -328,7 +321,7 @@ interface Stream {
      * @param txId transaction id.
      * @return transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId);
+    CompletableFuture<VersionedMetadata<TransactionData>> getTransactionData(UUID txId);
 
     /**
      * Seal a given transaction.
@@ -340,7 +333,7 @@ interface Stream {
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
                                                                        final boolean commit,
-                                                                       final Optional<Integer> version);
+                                                                       final Optional<Version> version);
 
     /**
      * Returns transaction's status
@@ -378,6 +371,11 @@ interface Stream {
      */
     CompletableFuture<Integer> getNumberOfOngoingTransactions();
 
+    /**
+     * Api to get all active transactions as a map of transaction id to Active transaction record
+     * @return A future which upon completion has a map of transaction ids to transaction metadata for all active transactions
+     * on the stream.
+     */
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns();
 
     /**
@@ -454,14 +452,6 @@ interface Stream {
      * @param record existing versioned record.
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record);
-
-    /**
-     * Method to get all transactions in a given epoch.
-     *
-     * @param epoch epoch for which transactions are to be retrieved.
-     * @return A completableFuture which when completed will contain a map of transaction id and its record.
-     */
-    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final int epoch);
 
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

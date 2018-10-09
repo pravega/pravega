@@ -15,8 +15,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.TransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.task.TxnResource;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -137,15 +138,15 @@ public class TxnSweeper implements FailoverSweeper {
             if (e != null) {
                 if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
                     // transaction not found, which means it should already have completed. We will ignore such txns
-                    return VersionedTransactionData.EMPTY;
+                    return new VersionedMetadata<>(TransactionData.EMPTY, null);
                 } else {
                     throw new CompletionException(e);
                 }
             }
             return r;
         }).thenComposeAsync(txData -> {
-            int epoch = txData.getEpoch();
-            switch (txData.getStatus()) {
+            int epoch = txData.getObject().getEpoch();
+            switch (txData.getObject().getStatus()) {
                 case OPEN:
                     return failOverOpenTxn(failedHost, txn)
                             .handleAsync((v, e) -> new Result(txn, v, e), executor);
@@ -187,7 +188,7 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
+        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync(version ->
                 transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
                         .thenApplyAsync(status -> null, executor), executor);
     }

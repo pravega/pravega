@@ -45,7 +45,6 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -498,7 +497,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create stream and scope
         streamStoreMock.createScope(SCOPE).join();
         streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
-        streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+        streamStoreMock.updateState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
         // mock streamMetadataStore.generateTxnId should throw excecption first time.
         // Note: it should be retried.

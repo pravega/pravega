@@ -14,5 +14,5 @@ import lombok.Data;
 @Data
 public class VersionedMetadata<OBJECT> {
     private final OBJECT object;
-    private final Integer version;
+    private final Version version;
 }

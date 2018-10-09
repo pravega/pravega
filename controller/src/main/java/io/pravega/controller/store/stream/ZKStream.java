@@ -14,9 +14,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.Cache;
-import io.pravega.controller.store.stream.tables.CompletedTxnRecord;
 import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.util.Config;
@@ -46,7 +44,7 @@ import java.util.stream.Collectors;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 @Slf4j
-class ZKStream extends PersistentStreamBase {
+class ZKStream extends PersistentStreamBase<Integer> {
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
@@ -216,7 +214,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createSealedSegmentsRecord(byte[] sealedSegmentsRecord) {
-        return store.createZNodeIfNotExist(sealedSegmentsPath, sealedSegmentsRecord);
+        return Futures.toVoid(store.createZNodeIfNotExist(sealedSegmentsPath, sealedSegmentsRecord));
     }
 
     @Override
@@ -232,7 +230,7 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createRetentionSet(byte[] retention) {
-        return store.createZNodeIfNotExist(retentionPath, retention);
+        return Futures.toVoid(store.createZNodeIfNotExist(retentionPath, retention));
     }
 
     @Override
@@ -386,18 +384,18 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createNewTransaction(final UUID txId,
-                                                 final long timestamp,
-                                                 final long leaseExpiryTime,
-                                                 final long maxExecutionExpiryTime) {
-        int epoch = getTransactionEpoch(txId);
+    CompletableFuture<Integer> createNewTransaction(final int epoch,
+                                                 final UUID txId,
+                                                 final byte[] txnRecord) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
-        final byte[] txnRecord = new ActiveTxnRecord(timestamp, leaseExpiryTime, maxExecutionExpiryTime, TxnStatus.OPEN).toByteArray();
         // we will always create parent if needed so that transactions are created successfully even if the epoch znode
         // previously found to be empty and deleted.
         // For this, send createParent flag = true
         return store.createZNodeIfNotExist(activePath, txnRecord, true)
-                .thenApply(x -> cache.invalidateCache(activePath));
+                .thenApply(x -> {
+                    cache.invalidateCache(activePath);
+                    return x;
+                });
     }
 
     @Override
@@ -407,22 +405,12 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> updateActiveTx(final int epoch, final UUID txId, final Data<Integer> data) {
+    CompletableFuture<Integer> updateActiveTx(final int epoch, final UUID txId, final Data<Integer> data) {
         final String activeTxPath = getActiveTxPath(epoch, txId.toString());
-        return store.setData(activeTxPath, data).thenApply(r -> cache.invalidateCache(activeTxPath));
-    }
-
-    @Override
-    CompletableFuture<Void> sealActiveTx(final int epoch, final UUID txId, final boolean commit,
-                                         final ActiveTxnRecord previous, final int version) {
-        final String activePath = getActiveTxPath(epoch, txId.toString());
-        final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                            previous.getLeaseExpiryTime(),
-                            previous.getMaxExecutionExpiryTime(),
-                            commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-        final Data<Integer> data = new Data<>(updated.toByteArray(), version);
-        return store.setData(activePath, data).thenApply(x -> cache.invalidateCache(activePath))
-                            .whenComplete((r, e) -> cache.invalidateCache(activePath));
+        return store.setData(activeTxPath, data).thenApply(r -> {
+            cache.invalidateCache(activeTxPath);
+            return r;
+        });
     }
 
     @Override
@@ -434,12 +422,11 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final TxnStatus complete, final long timestamp) {
+    CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final byte[] data) {
         String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.get(), getScope(), getName());
         String path = ZKPaths.makePath(root, txId.toString());
 
-        CompletableFuture<Void> createZnodeFuture = store.createZNodeIfNotExist(path,
-                        new CompletedTxnRecord(timestamp, complete).toByteArray())
+        CompletableFuture<Integer> createZnodeFuture = store.createZNodeIfNotExist(path, data)
                         .whenComplete((r, e) -> cache.invalidateCache(path));
 
         // region Backward Compatibility
@@ -449,13 +436,12 @@ class ZKStream extends PersistentStreamBase {
         if (!Config.DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY) {
             final String completedTxPath = getOldSchemeCompletedTxPath(txId.toString());
 
-            CompletableFuture<Void> createOldSchemeFuture = store.createZNodeIfNotExist(completedTxPath,
-                    new CompletedTxnRecord(timestamp, complete).toByteArray())
+            CompletableFuture<Integer> createOldSchemeFuture = store.createZNodeIfNotExist(completedTxPath, data)
                                                    .whenComplete((r, e) -> cache.invalidateCache(completedTxPath));
 
             return CompletableFuture.allOf(createZnodeFuture, createOldSchemeFuture);
         } else {
-            return createZnodeFuture;
+            return Futures.toVoid(createZnodeFuture);
         }
         // endregion
     }
@@ -537,9 +523,9 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> setStateData(final Data<Integer> state) {
+    CompletableFuture<Integer> setStateData(final Data<Integer> state) {
         return store.setData(statePath, state)
-                .thenApply(r -> cache.invalidateCache(statePath));
+                .whenComplete((r, e) -> cache.invalidateCache(statePath));
     }
 
     @Override
@@ -661,6 +647,16 @@ class ZKStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> deleteWaitingRequestNode() {
         return store.deletePath(waitingRequestProcessorPath, false);
+    }
+
+    @Override
+    Version toVersion(Integer version) {
+        return new Version.IntVersion(version);
+    }
+
+    @Override
+    Integer fromVersion(Version version) {
+        return version.asIntVersion().getIntValue();
     }
 
     // endregion

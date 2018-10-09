@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -103,9 +104,9 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<Boolean> setState(String scope, String name,
-                                        State state, OperationContext context,
-                                        Executor executor);
+    CompletableFuture<Void> updateState(String scope, String name,
+                                           State state, OperationContext context,
+                                           Executor executor);
 
     /**
      * Api to get the state for stream from metadata.
@@ -118,6 +119,12 @@ public interface StreamMetadataStore {
      * @return Future of boolean if state update succeeded.
      */
     CompletableFuture<State> getState(final String scope, final String name, final boolean ignoreCached, final OperationContext context, final Executor executor);
+
+     CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name, final OperationContext context, final Executor executor);
+
+    CompletableFuture<VersionedMetadata<State>> updateVersionedState(final String scope, final String name,
+                                                    final State state, final VersionedMetadata<State> previousVersion, final OperationContext context,
+                                                    final Executor executor);
 
     /**
      * Creates a new scope with the given name.
@@ -253,13 +260,11 @@ public interface StreamMetadataStore {
      *
      * @param scope        stream scope
      * @param name         stream name.
-     * @param ignoreCached ignore cached value.
      * @param context      operation context
      * @param executor     callers executor
      * @return current truncation property.
      */
     CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getVersionedTruncationRecord(final String scope, final String name,
-                                                                           final boolean ignoreCached,
                                                                            final OperationContext context,
                                                                            final Executor executor);
 
@@ -533,21 +538,6 @@ public interface StreamMetadataStore {
                                                                     final OperationContext context, final Executor executor);
 
     /**
-     * If the state of the stream in the store matches supplied state, reset.
-     *
-     * @param scope          stream scope
-     * @param name           stream name.
-     * @param state          state to match
-     * @param context        operation context
-     * @param executor       callers executor
-     * @return future of completion of state update
-     */
-    CompletableFuture<Void> resetStateConditionally(final String scope, final String name,
-                                                    final State state,
-                                                    final OperationContext context,
-                                                    final Executor executor);
-
-    /**
      * Method to create a new unique transaction id on the stream.
      *
      * @param scopeName        Scope
@@ -573,11 +563,11 @@ public interface StreamMetadataStore {
      * @param executor         callers executor
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName, final String streamName,
-                                                                  final UUID txnId,
-                                                                  final long lease, final long maxExecutionTime,
-                                                                  final OperationContext context,
-                                                                  final Executor executor);
+    CompletableFuture<VersionedMetadata<TransactionData>> createTransaction(final String scopeName, final String streamName,
+                                                         final UUID txnId,
+                                                         final long lease, final long maxExecutionTime,
+                                                         final OperationContext context,
+                                                         final Executor executor);
 
     /**
      * Heartbeat to keep the transaction open for at least lease amount of time.
@@ -590,9 +580,9 @@ public interface StreamMetadataStore {
      * @param executor   callers executor
      * @return Transaction data along with version information.
      */
-    CompletableFuture<VersionedTransactionData> pingTransaction(final String scopeName, final String streamName,
-                                                                final VersionedTransactionData txData, final long lease,
-                                                                final OperationContext context, final Executor executor);
+    CompletableFuture<VersionedMetadata<TransactionData>> pingTransaction(final String scopeName, final String streamName,
+                                                       final VersionedMetadata<TransactionData> txData, final long lease,
+                                                       final OperationContext context, final Executor executor);
 
     /**
      * Fetch transaction metadata along with its version.
@@ -604,9 +594,9 @@ public interface StreamMetadataStore {
      * @param executor   callers executor
      * @return transaction metadata along with its version.
      */
-    CompletableFuture<VersionedTransactionData> getTransactionData(String scopeName, String streamName, UUID txId,
-                                                                   final OperationContext context,
-                                                                   final Executor executor);
+    CompletableFuture<VersionedMetadata<TransactionData>> getTransactionData(String scopeName, String streamName, UUID txId,
+                                                          final OperationContext context,
+                                                          final Executor executor);
 
     /**
      * Get transaction status from the stream store.
@@ -648,7 +638,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final String scope, final String stream,
                                                                        final UUID txId, final boolean commit,
-                                                                       final Optional<Integer> version,
+                                                                       final Optional<Version> version,
                                                                        final OperationContext context,
                                                                        final Executor executor);
 
@@ -686,7 +676,7 @@ public interface StreamMetadataStore {
      * @param version     Version of tracked transaction's node.
      * @return            A future that completes on completion of the operation.
      */
-    CompletableFuture<Void> addTxnToIndex(final String hostId, final TxnResource txn, final int version);
+    CompletableFuture<Void> addTxnToIndex(final String hostId, final TxnResource txn, final Version version);
 
     /**
      * Removes the specified child node from the specified parent node.
@@ -716,7 +706,7 @@ public interface StreamMetadataStore {
      * @param resource  Txn resource.
      * @return txn version stored in the index under specified host.
      */
-    CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource);
+    CompletableFuture<Version> getTxnVersionFromIndex(final String hostId, final TxnResource resource);
 
     /**
      * Remove the specified host from the index.
@@ -976,19 +966,6 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream, final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor);
-
-    /**
-     * Method to get all transactions in a given epoch. This method returns a map of transaction id to transaction record.
-     *
-     * @param scope scope
-     * @param stream stream
-     * @param epoch epoch
-     * @param context operation context
-     * @param executor executor
-     * @return A completableFuture which when completed will contain a map of transaction id and its record.
-     */
-    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final String scope, final String stream, final int epoch,
-                                                                         final OperationContext context, final ScheduledExecutorService executor);
 
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

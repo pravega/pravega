@@ -46,7 +46,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedMetadata;
-import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
@@ -168,18 +167,18 @@ public class StreamMetadataTasksTest {
 
         long start = System.currentTimeMillis();
         streamStorePartialMock.createStream(SCOPE, stream1, configuration1, start, null, executor).get();
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Long> sealedSegments = Collections.singletonList(1L);
         VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
         ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated = response.getObject().getNewSegmentsWithRange();
-        streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, stream1, State.SCALING, null, executor).get();
         response = streamStorePartialMock.scaleCreateNewSegments(SCOPE, stream1, false, response, null, executor).get();
         response = streamStorePartialMock.scaleNewSegmentsCreated(SCOPE, stream1, response, null, executor).get();
         streamStorePartialMock.completeScale(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response,
                 null, executor).get();
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, stream1, State.ACTIVE, null, executor).get();
     }
 
     @After
@@ -220,7 +219,7 @@ public class StreamMetadataTasksTest {
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
 
         // 2. change state to scaling
-        streamStorePartialMock.setState(SCOPE, stream1, State.SCALING, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, stream1, State.SCALING, null, executor).get();
         // call update should fail without posting the event
         streamMetadataTasks.updateStream(SCOPE, stream1, streamConfiguration, null);
 
@@ -236,7 +235,7 @@ public class StreamMetadataTasksTest {
         AssertExtensions.assertThrows("", updateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         // now with state = active, process the same event. it should succeed now.
         assertTrue(Futures.await(updateStreamTask.execute(taken)));
@@ -279,7 +278,7 @@ public class StreamMetadataTasksTest {
         configProp = streamStorePartialMock.getVersionedConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && !configProp.isUpdating());
 
-        streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
+        streamStorePartialMock.updateState(SCOPE, stream1, State.UPDATING, null, executor).join();
         UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1);
         AssertExtensions.assertThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
@@ -292,7 +291,7 @@ public class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -327,7 +326,7 @@ public class StreamMetadataTasksTest {
         assertTrue(truncProp.getStreamCut().equals(streamCut));
 
         // 2. change state to scaling
-        streamStorePartialMock.setState(SCOPE, "test", State.SCALING, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, "test", State.SCALING, null, executor).get();
         // call update should fail without posting the event
         long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
         long three = StreamSegmentNameUtils.computeSegmentId(3, 1);
@@ -350,7 +349,7 @@ public class StreamMetadataTasksTest {
         AssertExtensions.assertThrows("", truncateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         // now with state = active, process the same event. it should succeed now.
         assertTrue(Futures.await(truncateStreamTask.execute(taken)));
@@ -392,7 +391,7 @@ public class StreamMetadataTasksTest {
         truncProp = streamStorePartialMock.getVersionedTruncationRecord(SCOPE, "test", true, null, executor).join().getObject();
         assertTrue(truncProp.getStreamCut().equals(streamCut3) && !truncProp.isUpdating());
 
-        streamStorePartialMock.setState(SCOPE, "test", State.TRUNCATING, null, executor).join();
+        streamStorePartialMock.updateState(SCOPE, "test", State.TRUNCATING, null, executor).join();
 
         TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test");
         AssertExtensions.assertThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
@@ -412,7 +411,7 @@ public class StreamMetadataTasksTest {
                 .retentionPolicy(retentionPolicy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, "test").get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -503,7 +502,7 @@ public class StreamMetadataTasksTest {
                 .retentionPolicy(retentionPolicy).build();
 
         streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, streamName, State.ACTIVE, null, executor).get();
 
         assertNotEquals(0, consumer.getCurrentSegments(SCOPE, streamName).get().size());
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
@@ -773,11 +772,11 @@ public class StreamMetadataTasksTest {
         VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.startScale(scope, stream, sealedSegments,
                 newSegments, scaleTs, false, null, executor).join();
         ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> scale1SegmentsCreated = response.getObject().getNewSegmentsWithRange();
-        streamStorePartialMock.setState(scope, stream, State.SCALING, null, executor).join();
+        streamStorePartialMock.updateState(scope, stream, State.SCALING, null, executor).join();
         response = streamStorePartialMock.scaleCreateNewSegments(scope, stream, false, response, null, executor).join();
         response = streamStorePartialMock.scaleNewSegmentsCreated(scope, stream, response, null, executor).join();
         streamStorePartialMock.completeScale(scope, stream, sealedSegmentsWithSize, response, null, executor).join();
-        streamStorePartialMock.setState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStorePartialMock.updateState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
     @Test(timeout = 30000)
@@ -868,7 +867,7 @@ public class StreamMetadataTasksTest {
         final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(streamWithTxn).scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, streamWithTxn, config, start, null, executor).get();
-        streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
 
         // create txn
         VersionedTransactionData openTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, null)
@@ -970,7 +969,7 @@ public class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
                 Arrays.asList(), 30, null).get(), e -> e instanceof TaskExceptions.ProcessingDisabledException);
@@ -1001,7 +1000,7 @@ public class StreamMetadataTasksTest {
         final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
-        streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
+        streamStorePartialMock.updateState(SCOPE, "test", State.ACTIVE, null, executor).get();
 
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);

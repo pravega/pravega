@@ -38,6 +38,18 @@ import java.util.stream.Collectors;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 
+
+/**
+ * 1. create CTR
+ * 2. set state to COMMITTING
+ * 3. check to roll?
+ * 4. start rolling txn
+ * 5. create new epochs
+ * 6. complete rolling txn
+ * 7. complete CTR
+ * 8. reset state
+ */
+
 /**
  * Request handler for processing commit events in commit-stream.
  */
@@ -126,16 +138,12 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final String stream,
                                                           final int txnEpoch,
                                                           final OperationContext context) {
-        streamMetadataStore.getVersionedCommittingTransactionsRecord(scope, stream, context, executor)
-                .thenCompose(versionedMetadata -> {
-                    if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
-                        // reset state conditionally in case we were left with stale committing state from a previous execution
-                        // that died just before updating the state back to ACTIVE but after having completed all the work.
-                        return streamMetadataStore.resetStateConditionally(scope, stream, State.COMMITTING_TXN, context, executor);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
+
+        CompletableFuture<TaskHelper.VersionedMetadataAndState<CommittingTransactionsRecord>> resetFuture =
+                TaskHelper.resetStateConditionally(streamMetadataStore, scope, stream,
+                () -> streamMetadataStore.getVersionedCommittingTransactionsRecord(scope, stream, context, executor),
+                v -> v.equals(CommittingTransactionsRecord.EMPTY), State.COMMITTING_TXN, "", context, executor);
+
         return streamMetadataStore.getState(scope, stream, true, context, executor)
                 .thenCompose(state -> {
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
@@ -157,7 +165,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                         // If state is not SEALING, try to set the state to COMMITTING_TXN before proceeding.
                                         // If we are unable to set the state to COMMITTING_TXN, it will get OPERATION_NOT_ALLOWED
                                         // and the processing will be retried later.
-                                        future = Futures.toVoid(streamMetadataStore.setState(scope, stream, State.COMMITTING_TXN, context, executor));
+                                        future = Futures.toVoid(streamMetadataStore.updateState(scope, stream, State.COMMITTING_TXN, context, executor));
                                     }
 
                                     // Note: since we have set the state to COMMITTING_TXN (or it was already sealing), the active epoch that we fetch now

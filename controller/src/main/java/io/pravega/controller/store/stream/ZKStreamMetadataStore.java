@@ -22,6 +22,7 @@ import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.store.stream.tables.Data;
+import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -35,6 +36,7 @@ import org.apache.curator.utils.ZKPaths;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
@@ -405,7 +407,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                     }
                 }).thenCompose(data -> {
                     if (data == null) {
-                        return storeHelper.createZNodeIfNotExist(retentionPath, serialize);
+                        return Futures.toVoid(storeHelper.createZNodeIfNotExist(retentionPath, serialize));
                     } else {
                         return Futures.toVoid(storeHelper.setData(retentionPath, new Data<>(serialize, data.getVersion())));
                     }
@@ -445,7 +447,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                           .thenCompose(data -> {
                               log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
                               if (data == null) {
-                                  return storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes);
+                                  return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
                               } else {
                                   final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
                                   Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
