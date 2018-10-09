@@ -42,9 +42,8 @@ public class HDFSStorageFactory implements StorageFactory {
     }
 
     @Override
-    public synchronized Storage createStorageAdapter() {
+    public Storage createStorageAdapter() {
         HDFSStorage s = new HDFSStorage(this.config);
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
-
 }

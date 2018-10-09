@@ -317,8 +317,6 @@ class SegmentStoreAdapter extends StoreAdapter {
             return this.storage;
         }
 
-
-
         @Override
         public void close() {
             if (!this.closed.get()) {

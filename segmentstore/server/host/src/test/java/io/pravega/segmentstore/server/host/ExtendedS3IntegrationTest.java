@@ -120,8 +120,6 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
             S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
             return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
         }
-
-
     }
     //endregion
 }

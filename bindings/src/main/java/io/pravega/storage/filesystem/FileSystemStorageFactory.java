@@ -42,10 +42,8 @@ public class FileSystemStorageFactory implements StorageFactory {
     }
 
     @Override
-    public synchronized Storage createStorageAdapter() {
+    public Storage createStorageAdapter() {
         FileSystemStorage s = new FileSystemStorage(this.config);
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
     }
-
-
 }
