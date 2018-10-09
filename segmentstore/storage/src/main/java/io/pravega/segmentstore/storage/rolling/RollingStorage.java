@@ -535,8 +535,8 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(handle.getHeaderHandle() != null, "Cannot rollover a Segment with no header.");
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot rollover using a read-only handle.");
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
-        String requestIdTag = (requestId <= 0) ? "" : "[requestId={" + requestId + "}]";
-        log.debug("{} Rolling over '{}'.", requestIdTag, handle);
+        String requestIdTag = (requestId <= 0) ? "" : "[requestId={" + requestId + "}] ";
+        log.debug("{}Rolling over '{}'.", requestIdTag, handle);
         sealActiveChunk(handle, requestId);
         createChunk(handle, requestId);
     }
