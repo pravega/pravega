@@ -239,7 +239,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public void fillBuffer() {
+    public CompletableFuture<Void> fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         try {      
@@ -247,8 +247,10 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             while (dataWaitingToGoInBuffer()) {
                 handleRequest();
             }
+            return outstandingRequest.thenApply(r -> null);
         } catch (SegmentTruncatedException e) {
             log.warn("Encountered exception filling buffer", e);
+            return Futures.failedFuture(e);
         }
     }
     

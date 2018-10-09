@@ -195,7 +195,7 @@ public class ReadTest {
 
         @Cleanup("close")
         SegmentOutputStream out = segmentproducerClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
+        out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), new CompletableFuture<>()));
         out.flush();
 
         @Cleanup("close")
@@ -204,9 +204,9 @@ public class ReadTest {
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
 
         // Test large write followed by read
-        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
-        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
-        out.write(new PendingEvent(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
+        out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(new byte[15]), new CompletableFuture<>()));
+        out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(new byte[150000]), new CompletableFuture<>()));
         assertEquals(in.read().capacity(), 15);
         assertEquals(in.read().capacity(), 15);
         assertEquals(in.read().capacity(), 150000);

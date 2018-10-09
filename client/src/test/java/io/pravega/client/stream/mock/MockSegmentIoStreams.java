@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -100,7 +101,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public void write(PendingEvent event) {
-        ByteBuffer data = event.getData();
+        ByteBuffer data = event.getData().skipBytes(WireCommands.TYPE_PLUS_LENGTH_SIZE).nioBuffer();
         write(data);
         event.getAckFuture().complete(null);
     }
@@ -144,8 +145,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public void fillBuffer() {
-        //Noting to do.
+    public CompletableFuture<Void> fillBuffer() {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

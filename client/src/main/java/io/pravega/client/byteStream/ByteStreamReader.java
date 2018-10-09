@@ -20,7 +20,7 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * Returns the current byte offset in the segment.
      * This call does not block.
      */
-    abstract long getOffset();
+    public abstract long getOffset();
     
     /**
      * Jumps to the provided offset. Future read calls will read from this position.
@@ -29,7 +29,7 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * @param offset The offset to jump to.
      * @throws InvalidOffsetException If the offset provided does not exist in the segment.
      */
-    abstract void jumpToOffset(long offset) throws InvalidOffsetException;
+    public abstract void jumpToOffset(long offset) throws InvalidOffsetException;
     
     /**
      * Returns the number of bytes that can be read without blocking.
