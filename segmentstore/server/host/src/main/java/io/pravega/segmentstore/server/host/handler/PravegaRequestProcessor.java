@@ -49,6 +49,7 @@ import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -426,27 +427,28 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
-        long requestId = mergeSegments.getRequestId();
+    public void mergeSegments(MergeSegments mergeSegments) {
         final String operation = "mergeSegments";
 
         if (!verifyToken(mergeSegments.getSource(), mergeSegments.getRequestId(), mergeSegments.getDelegationToken(), operation)) {
             return;
         }
 
-        log.info("Merging Segments {} ", mergeSegments);
+        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(mergeSegments.getRequestId(), operation,
+                mergeSegments.getSource(), mergeSegments.getTarget());
+        log.info("[requestId={}] Merging Segments {} ", requestTag.getRequestId(), mergeSegments);
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
                     .thenAccept(txnProp -> {
                         recordStatForTransaction(txnProp, mergeSegments.getTarget());
-                        connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource()));
+                        connection.send(new WireCommands.SegmentsMerged(requestTag.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            log.info("Stream segment is already merged '{}'.", mergeSegments.getSource());
-                            connection.send(new WireCommands.SegmentsMerged(requestId, mergeSegments.getTarget(), mergeSegments.getSource()));
+                            log.info("[requestId={}] Stream segment is already merged '{}'.", requestTag.getRequestId(), mergeSegments.getSource());
+                            connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
                             return null;
                         } else {
-                            return handleException(requestId, mergeSegments.getSource(), operation, e);
+                            return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);
                         }
                     });
     }

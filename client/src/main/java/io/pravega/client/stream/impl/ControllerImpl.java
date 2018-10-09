@@ -789,7 +789,7 @@ public class ControllerImpl implements Controller {
         return result.thenApply(this::convert)
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("createTransaction failed: ", e);
+                        log.warn("[requestId={}] createTransaction failed: ", traceId, e);
                     }
                     LoggerHelpers.traceLeave(log, "createTransaction", traceId);
                 });
@@ -853,7 +853,7 @@ public class ControllerImpl implements Controller {
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
                       .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("commitTransaction failed: ", e);
+                        log.warn("[requestId={}] commitTransaction failed: ", traceId, e);
                     }
                     LoggerHelpers.traceLeave(log, "commitTransaction", traceId);
                 });
@@ -881,7 +881,7 @@ public class ControllerImpl implements Controller {
                 TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
                       .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("abortTransaction failed: ", e);
+                        log.warn("[requestId={}] abortTransaction failed: ", traceId, e);
                     }
                     LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
                 });

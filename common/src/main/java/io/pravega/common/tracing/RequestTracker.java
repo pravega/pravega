@@ -45,10 +45,23 @@ public final class RequestTracker {
         return INSTANCE;
     }
 
+    /**
+     * Creates a request descriptor or key to locate the client request id.
+     *
+     * @param requestInfo Fields to form the request descriptor.
+     * @return Request descriptor.
+     */
     public static String buildRequestDescriptor(String...requestInfo) {
         return Stream.of(requestInfo).collect(Collectors.joining(INTER_FIELD_DELIMITER));
     }
 
+    /**
+     * Retrieves a RequestTag object formed by a request descriptor and request id pair. In the case of concurrent
+     * requests with the same descriptor,
+     *
+     * @param requestInfo Fields to form the request descriptor.
+     * @return Request descriptor and request id pair embedded in a RequestTag object.
+     */
     public RequestTag getRequestTagFor(String...requestInfo) {
         return getRequestTagFor(RequestTracker.buildRequestDescriptor(requestInfo));
     }
@@ -60,13 +73,20 @@ public final class RequestTracker {
             log.warn("Attempting to get a non-existing tag: {}.", requestDescriptor);
             return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
         } else if (requestIds.size() > 1) {
-            log.warn("{} concurrent requests with same descriptor: {}. Retrieving a default requestId, unable to disambiguate.", requestIds, requestDescriptor);
-            return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
+            log.warn("{} request ids are associated with same descriptor: {}. The first request id {} is the one that will be propagated, " +
+                "given that other operations will not take effect due to idempotence of traced operations.", requestIds,
+                    requestDescriptor, requestIds.get(0));
         }
 
         return new RequestTag(requestDescriptor, requestIds.get(0));
     }
 
+    /**
+     * Retrieves a request id associated to a request descriptor.
+     *
+     * @param requestInfo Fields to form the request descriptor.
+     * @return Request descriptor and request id pair embedded in a RequestTag object.
+     */
     public long getRequestIdFor(String...requestInfo) {
         return getRequestIdFor(RequestTracker.buildRequestDescriptor(requestInfo));
     }
@@ -75,6 +95,12 @@ public final class RequestTracker {
         return getRequestTagFor(requestDescriptor).getRequestId();
     }
 
+    /**
+     * Adds a request descriptor and request id pair in the cache. In the case of tracking a request with an existing
+     * descriptor, this method adds the request id to the list associated to the descriptor.
+     *
+     * @param requestTag Request to be cached for further tracing.
+     */
     public void trackRequest(RequestTag requestTag) {
         trackRequest(requestTag.getRequestDescriptor(), requestTag.getRequestId());
     }
@@ -92,6 +118,14 @@ public final class RequestTracker {
                 ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
     }
 
+    /**
+     * Remove a request id from an associated request descriptor. In the case that there is only one request id, the
+     * whole entry is evicted from cache. If there are multiple request ids for a given descriptor, the last request id
+     * in the list is deleted from the cache.
+     *
+     * @param requestTag Request tag to remove from cache.
+     * @return Request id removed from cache.
+     */
     public long untrackRequest(RequestTag requestTag) {
         return untrackRequest(requestTag.getRequestDescriptor());
     }
@@ -104,15 +138,20 @@ public final class RequestTracker {
             return RequestTag.NON_EXISTENT_ID;
         }
 
+        long removedRequestId;
         if (requestIds.size() > 1) {
-            log.warn("{} concurrent requests with same descriptor: {}. Untracking all of them.", requestIds, requestDescriptor);
-            return RequestTag.NON_EXISTENT_ID;
+            removedRequestId = requestIds.remove(requestIds.size() - 1);
+            log.warn("{} concurrent requests with same descriptor: {}. Untracking the last of them {}.", requestIds,
+                    requestDescriptor, removedRequestId);
+            ongoingRequests.put(requestDescriptor, requestIds);
+        } else {
+            ongoingRequests.invalidate(requestDescriptor);
+            removedRequestId = requestIds.get(0);
         }
 
-        ongoingRequests.invalidate(requestDescriptor);
         log.info("Untracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestIds,
                 ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
-        return requestIds.get(0);
+        return removedRequestId;
     }
 
     /**

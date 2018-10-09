@@ -373,7 +373,9 @@ public class RollingStorage implements SyncStorage {
         ensureOffset(target, targetOffset);
         ensureNotDeleted(target);
         ensureNotSealed(target);
-        long traceId = LoggerHelpers.traceEnter(log, "concat", target, targetOffset, sourceSegment);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("mergeSegments",
+                sourceSegment, targetHandle.getSegmentName()));
+        long traceId = LoggerHelpers.traceEnter(log, "concat", target, targetOffset, sourceSegment, requestTag.getRequestId());
 
         // We can only use a Segment as a concat source if it is Sealed.
         RollingSegmentHandle source = (RollingSegmentHandle) openWrite(sourceSegment);
@@ -381,7 +383,7 @@ public class RollingStorage implements SyncStorage {
                 sourceSegment, target.getSegmentName());
         if (source.length() == 0) {
             // Source is empty; do not bother with concatenation.
-            log.debug("Concat source '{}' is empty. Deleting instead of concatenating.", source);
+            log.debug("[requestId={}] Concat source '{}' is empty. Deleting instead of concatenating.", requestTag.getRequestId(), source);
             delete(source);
             return;
         }
@@ -395,11 +397,11 @@ public class RollingStorage implements SyncStorage {
             // The Source either does not have a Header or is made up of a single SegmentChunk that can fit entirely into
             // the Target's Active SegmentChunk. Concat it directly without touching the header file; this helps prevent
             // having a lot of very small SegmentChunks around if we end up doing a lot of concatenations.
-            log.debug("Concat '{}' into '{}' using native method.", source, target);
+            log.debug("[requestId={}] Concat '{}' into '{}' using native method.", requestTag.getRequestId(), source, target);
             SegmentChunk lastTarget = target.lastChunk();
             if (lastTarget == null || lastTarget.isSealed()) {
                 // Make sure the last SegmentChunk of the target is not sealed, otherwise we can't concat into it.
-                rollover(target, traceId); //TODO: REQUEST TAG HERE
+                rollover(target, requestTag.getRequestId());
             }
 
             SegmentChunk lastSource = source.lastChunk();
@@ -410,20 +412,21 @@ public class RollingStorage implements SyncStorage {
                     this.baseStorage.delete(source.getHeaderHandle());
                 } catch (StreamSegmentNotExistsException ex) {
                     // It's ok if it's not there anymore.
-                    log.warn("Attempted to delete concat source Header '{}' but it doesn't exist.", source.getHeaderHandle().getSegmentName(), ex);
+                    log.warn("[requestId={}] Attempted to delete concat source Header '{}' but it doesn't exist.", requestTag.getRequestId(),
+                            source.getHeaderHandle().getSegmentName(), ex);
                 }
             }
         } else {
             // Generate new SegmentChunk entries from the SegmentChunks of the Source Segment(but update their start offsets).
-            log.debug("Concat '{}' into '{}' using header merge method.", source, target);
+            log.debug("[requestId={}] Concat '{}' into '{}' using header merge method.", requestTag.getRequestId(), source, target);
 
             if (target.getHeaderHandle() == null) {
                 // We need to concat into a Segment that does not have a Header (yet). Create one before continuing.
-                createHeader(target, traceId); //TODO: REQUEST TAG HERE
+                createHeader(target, requestTag.getRequestId());
             }
 
             List<SegmentChunk> newSegmentChunks = rebase(source.chunks(), target.length());
-            sealActiveChunk(target, traceId); //TODO: REQUEST TAG HERE
+            sealActiveChunk(target, requestTag.getRequestId());
             serializeBeginConcat(target, source);
             this.baseStorage.concat(target.getHeaderHandle(), target.getHeaderLength(), source.getHeaderHandle().getSegmentName());
             target.increaseHeaderLength(source.getHeaderLength());
@@ -432,10 +435,10 @@ public class RollingStorage implements SyncStorage {
             // After we do a header merge, it's possible that the (new) last chunk may still have space to write to.
             // Unseal it now so that future writes/concats will not unnecessarily create chunks. Note that this will not
             // unseal the segment (even though it's unsealed) - that is determined by the Header file seal status.
-            unsealLastChunkIfNecessary(target, traceId); //TODO: REQUEST TAG HERE
+            unsealLastChunkIfNecessary(target, requestTag.getRequestId());
         }
 
-        LoggerHelpers.traceLeave(log, "concat", traceId, target, targetOffset, sourceSegment);
+        LoggerHelpers.traceLeave(log, "concat", traceId, target, targetOffset, sourceSegment, requestTag.getRequestId());
     }
 
     @Override
@@ -514,6 +517,7 @@ public class RollingStorage implements SyncStorage {
             deleteChunks(h, s -> canTruncate(s, truncationOffset) && s.getLastOffset() < h.length(), requestTag.getRequestId());
         }
 
+        log.debug("[requestId={}] Truncated segment '{}'.", requestTag.getRequestId(), h.getSegmentName());
         RequestTracker.getInstance().untrackRequest(requestTag);
         LoggerHelpers.traceLeave(log, "truncate", traceId, h, truncationOffset, requestTag.getRequestId());
     }

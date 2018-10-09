@@ -456,7 +456,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         ensureRunning();
 
-        logRequest("mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
+        logTrackedRequest(buildRequestDescriptor("mergeSegments", targetStreamSegment, sourceStreamSegment),"mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
         this.metrics.mergeSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 

@@ -282,7 +282,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                                                                                       .setTxnId(ModelHelper.decode(pair.getKey()))
                                                                                       .addAllActiveSegments(pair.getValue())
                                                                                       .build()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -297,7 +297,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
@@ -312,7 +312,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 delegationToken -> controllerService.abortTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId()),
-                responseObserver);
+                responseObserver, requestTag);
     }
 
     @Override
