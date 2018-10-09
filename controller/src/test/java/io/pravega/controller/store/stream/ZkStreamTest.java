@@ -263,12 +263,13 @@ public class ZkStreamTest {
         long scale1 = start + 10000;
         ArrayList<Long> sealedSegments = Lists.newArrayList(3L, 4L);
         long five = computeSegmentId(5, 1);
-        EpochTransitionRecord response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
+        VersionedMetadata<EpochTransitionRecord> versioned = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
+        EpochTransitionRecord response = versioned.getObject();
         ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getNewSegmentsWithRange();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        versioned = store.scaleCreateNewSegments(SCOPE, streamName, false, versioned, context, executor).get();
+        versioned = store.scaleNewSegmentsCreated(SCOPE, streamName, versioned, context, executor).get();
+        store.completeScale(SCOPE, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 context, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
@@ -287,12 +288,13 @@ public class ZkStreamTest {
         long six = computeSegmentId(6, 2);
         long seven = computeSegmentId(7, 2);
         long eight = computeSegmentId(8, 2);
-        response = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
+        versioned = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
+        response = versioned.getObject();
         ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        versioned = store.scaleCreateNewSegments(SCOPE, streamName, false, versioned, context, executor).get();
+        versioned = store.scaleNewSegmentsCreated(SCOPE, streamName, versioned, context, executor).get();
+        store.completeScale(SCOPE, streamName, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 context, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
 
@@ -312,12 +314,13 @@ public class ZkStreamTest {
         long ten = computeSegmentId(10, 3);
         long eleven = computeSegmentId(11, 3);
         ArrayList<Long> sealedSegments2 = Lists.newArrayList(seven, eight);
-        response = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
+        versioned = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
+        response = versioned.getObject();
         segmentsCreated = response.getNewSegmentsWithRange();
         store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        versioned = store.scaleCreateNewSegments(SCOPE, streamName, false, versioned, context, executor).get();
+        versioned = store.scaleNewSegmentsCreated(SCOPE, streamName, versioned, context, executor).get();
+        store.completeScale(SCOPE, streamName, sealedSegments2.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 context, executor).get();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
 

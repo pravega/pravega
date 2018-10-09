@@ -162,10 +162,10 @@ public class StreamMetadataTasks extends TaskBase {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         // 1. get configuration
-        return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
+        return streamMetadataStore.getVersionedConfigurationRecord(scope, stream, context, executor)
                 .thenCompose(configProperty -> {
                     // 2. post event to start update workflow
-                    if (!configProperty.isUpdating()) {
+                    if (!configProperty.getObject().isUpdating()) {
                         return writeEvent(new UpdateStreamEvent(scope, stream))
                                 // 3. update new configuration in the store with updating flag = true
                                 // if attempt to update fails, we bail out with no harm done
@@ -193,8 +193,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isUpdated(String scope, String stream, StreamConfiguration newConfig, OperationContext context) {
-        return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
-                .thenApply(configProperty -> !configProperty.isUpdating() || !configProperty.getStreamConfiguration().equals(newConfig));
+        return streamMetadataStore.getVersionedConfigurationRecord(scope, stream, context, executor)
+                .thenApply(configProperty -> !configProperty.getObject().isUpdating() || !configProperty.getObject().getStreamConfiguration().equals(newConfig));
     }
 
     /**
@@ -340,9 +340,9 @@ public class StreamMetadataTasks extends TaskBase {
     private CompletableFuture<Boolean> startTruncation(String scope, String stream, Map<Long, Long> streamCut, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
+        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, true, context, executor)
                 .thenCompose(property -> {
-                    if (!property.isUpdating()) {
+                    if (!property.getObject().isUpdating()) {
                         // 2. post event with new stream cut if no truncation is ongoing
                         return writeEvent(new TruncateStreamEvent(scope, stream))
                                 // 3. start truncation by updating the metadata
@@ -360,8 +360,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Long, Long> streamCut, OperationContext context) {
-        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
-                .thenApply(truncationProp -> !truncationProp.isUpdating() || !truncationProp.getStreamCut().equals(streamCut));
+        return streamMetadataStore.getVersionedTruncationRecord(scope, stream, true, context, executor)
+                .thenApply(truncationProp -> !truncationProp.getObject().isUpdating() || !truncationProp.getObject().getStreamCut().equals(streamCut));
     }
 
     /**
@@ -465,8 +465,8 @@ public class StreamMetadataTasks extends TaskBase {
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp);
         return writeEvent(event)
-                .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
-                        context, executor)
+                .thenCompose(x -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges,
+                        scaleTimestamp, false, context, executor)
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
 
@@ -482,11 +482,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 log.info("scale for stream {}/{} started successfully", scope, stream);
                                 response.setStatus(ScaleResponse.ScaleStreamStatus.STARTED);
                                 response.addAllSegments(
-                                        startScaleResponse.getNewSegmentsWithRange().entrySet()
+                                        startScaleResponse.getObject().getNewSegmentsWithRange().entrySet()
                                                 .stream()
                                                 .map(segment -> convert(scope, stream, segment))
                                                 .collect(Collectors.toList()));
-                                response.setEpoch(startScaleResponse.getActiveEpoch());
+                                response.setEpoch(startScaleResponse.getObject().getActiveEpoch());
                             }
                             return response.build();
                         }));
