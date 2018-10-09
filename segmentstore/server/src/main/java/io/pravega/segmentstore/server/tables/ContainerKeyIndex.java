@@ -91,6 +91,7 @@ class ContainerKeyIndex implements AutoCloseable {
         if (!this.closed.getAndSet(true)) {
             this.conditionalUpdateProcessor.close();
             this.cacheManager.unregister(this.cache);
+            this.cache.close();
             this.recoveryTracker.close();
         }
     }
@@ -123,16 +124,24 @@ class ContainerKeyIndex implements AutoCloseable {
             KeyHash hash = hashes.get(i);
             val existingValue = this.cache.get(segment.getSegmentId(), hash);
             if (existingValue == null) {
-                // Key does not exist in the cache (it may or may not exist at all). Add a placeholder and keep track of
-                // it so we can look it up.
+                // Key Hash does not exist in the cache (it may or may not exist at all). Add a placeholder and keep
+                // track of it so we can look it up.
                 result.add(TableKey.NOT_EXISTS);
                 toLookup.put(hash, i);
             } else if (existingValue.isPresent()) {
-                // Key exists.
+                // Key Hash exists.
                 result.add(existingValue.getSegmentOffset());
             } else {
-                // Key does not exist at all (deleted or really not exists). No need to do any other lookups.
-                result.add(TableKey.NOT_EXISTS);
+                long backpointerOffset = this.cache.getBackpointer(segment.getSegmentId(), existingValue.getSegmentOffset());
+                if (backpointerOffset < 0) {
+                    // Key Hash does not exist at all (deleted or really not exists). No need to do any other lookups.
+                    result.add(TableKey.NOT_EXISTS);
+                } else {
+                    // Key Hash (Table Bucket) has been created/updated recently, however it also had a removal, as such
+                    // we are pointing to the last update, but there are other entries for this Bucket that may be of interest
+                    // to the caller.
+                    result.add(existingValue.getSegmentOffset());
+                }
             }
         }
 
@@ -226,7 +235,7 @@ class ContainerKeyIndex implements AutoCloseable {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         if (batch.isConditional()) {
-            // Conditional removal.
+            // Conditional update.
             // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
             // serialize execution across them.
             val keys = batch.getVersionedItems().stream()
@@ -241,7 +250,7 @@ class ContainerKeyIndex implements AutoCloseable {
                             .thenComposeAsync(v -> persist.get(), this.executor)
                             .thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor));
         } else {
-            // Unconditional removal: persist the entries and update the cache.
+            // Unconditional update: persist the entries and update the cache.
             return persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
         }
     }

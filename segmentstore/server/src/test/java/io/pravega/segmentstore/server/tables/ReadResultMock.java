@@ -90,9 +90,8 @@ class ReadResultMock implements ReadResult {
 
         @Override
         public void requestContent(Duration timeout) {
-            this.content.complete(new ReadResultEntryContents(
-                    data.getReader((int) this.streamSegmentOffset, this.requestedReadLength),
-                    this.requestedReadLength));
+            int length = Math.min(this.requestedReadLength, data.getLength() - (int) this.streamSegmentOffset);
+            this.content.complete(new ReadResultEntryContents(data.getReader((int) this.streamSegmentOffset, length), length));
         }
     }
 

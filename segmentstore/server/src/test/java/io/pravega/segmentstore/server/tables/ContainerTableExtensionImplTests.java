@@ -256,8 +256,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         // Process each such batch in turn. Keep track of the removed keys, as well as of existing key versions.
         val removedKeys = new HashSet<ArrayView>();
-        val keyVersions = new HashMap<HashedArray, Long>();
-        Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
+        val keyVersions = new HashMap<HashedArray, Long>(); // Versions are tracked by bucket.
+        Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(context.hasher.hash(k), TableKey.NOT_EXISTS);
         TestBatchData last = null;
         for (val current : data) {
             // Update entries.
@@ -270,7 +270,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                                          // Update key versions.
                                          Assert.assertEquals(toUpdate.size(), versions.size());
                                          for (int i = 0; i < versions.size(); i++) {
-                                             keyVersions.put((HashedArray) toUpdate.get(i).getKey().getKey(), versions.get(i));
+                                             keyVersions.put(context.hasher.hash(toUpdate.get(i).getKey().getKey()), versions.get(i));
                                          }
                                      }),
                     processor,
@@ -283,10 +283,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
             addToProcessor(() -> context.ext.remove(SEGMENT_NAME, toRemove, TIMEOUT), processor, context.segment().getInfo()::getLength);
             removedKeys.addAll(current.toRemove);
-            keyVersions.keySet().removeAll(current.toRemove);
+            current.toRemove.stream().map(context.hasher::hash).forEach(keyVersions::remove);
 
             // Verify result (from the cache).
-            Assert.assertEquals("Test setup failure: unexpected number of existing keys.", current.expectedEntries.size(), keyVersions.size());
             check(current.expectedEntries, removedKeys, context.ext);
 
             // Flush the processor.
@@ -305,12 +304,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     private void check(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
-        // Verify that non-existent keys are not returned by accident.
+        // Verify that non-existing keys are not returned by accident.
         val nonExistingResult = ext.get(SEGMENT_NAME, new ArrayList<>(nonExistentKeys), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         Assert.assertEquals("Unexpected result size for non-existing key search.", nonExistentKeys.size(), nonExistingResult.size());
         Assert.assertTrue("Unexpected result for non-existing key search.", nonExistingResult.stream().allMatch(Objects::isNull));
 
-        //Verify existent Keys.
+        // Verify existing Keys.
         val expectedResult = new ArrayList<HashedArray>();
         val existingKeys = new ArrayList<ArrayView>();
         expectedEntries.forEach((k, v) -> {
@@ -447,7 +446,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         ContainerTableExtensionImpl createExtension() {
-            val result = new ContainerTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, executorService());
+            val result = new ContainerTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, this.hasher, executorService());
             result.initialize().join();
             return result;
         }
