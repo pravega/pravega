@@ -328,7 +328,7 @@ public class RollingStorage implements SyncStorage {
         int bytesWritten = 0;
         while (bytesWritten < length) {
             if (h.getActiveChunkHandle() == null || h.lastChunk().getLength() >= h.getRollingPolicy().getMaxLength()) {
-                rollover(h, traceId); //TODO: maybe this traceid should not be used, as it is not client side as the rest
+                rollover(h, traceId);
             }
 
             SegmentChunk last = h.lastChunk();
@@ -535,7 +535,8 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(handle.getHeaderHandle() != null, "Cannot rollover a Segment with no header.");
         Preconditions.checkArgument(!handle.isReadOnly(), "Cannot rollover using a read-only handle.");
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
-        log.debug("[requestId={}] Rolling over '{}'.", requestId, handle);
+        String requestIdTag = (requestId <= 0) ? "" : "[requestId={" + requestId + "}]";
+        log.debug("{} Rolling over '{}'.", requestIdTag, handle);
         sealActiveChunk(handle, requestId);
         createChunk(handle, requestId);
     }
