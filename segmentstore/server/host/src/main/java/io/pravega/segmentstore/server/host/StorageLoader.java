@@ -14,11 +14,14 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryFactory;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryFactory> loader = ServiceLoader.load(StorageFactoryFactory.class);
         for (StorageFactoryFactory factory : loader) {
+            log.info("Loading {}, trying {}", storageImplementation, factory.getName());
             if (factory.getName().equals(storageImplementation)) {
                 return factory.createFactory(setup, executor);
             }

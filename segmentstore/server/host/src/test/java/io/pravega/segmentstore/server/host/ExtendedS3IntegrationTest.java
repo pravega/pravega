@@ -18,6 +18,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageFactoryFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -83,6 +84,19 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
      * with the local file system for the purposes of testing. Ideally, however, we should mock the extended
      * S3 service rather than implement the storage functionality directly in the adapter.
      */
+    private class LocalExtendedS3StorageFactoryFactory implements StorageFactoryFactory {
+
+        @Override
+        public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
+            return new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);
+        }
+
+        @Override
+        public String getName() {
+            return "LocalExtendedStorageFactory";
+        }
+    }
+
     private class LocalExtendedS3StorageFactory implements StorageFactory {
 
         private final ExtendedS3StorageConfig config;
@@ -107,15 +121,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
             return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
         }
 
-        @Override
-        public String getName() {
-            return "LocalExtendedStorageFactory";
-        }
 
-        @Override
-        public void initialize(ConfigSetup setup, ScheduledExecutorService executor) {
-
-        }
     }
     //endregion
 }
