@@ -488,7 +488,7 @@ public class PravegaRequestProcessorTest {
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.OperationUnsupported(1, "Create segment", ""));
+        order.verify(connection).send(new WireCommands.OperationUnsupported(1, "createSegment", ""));
     }
 
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
