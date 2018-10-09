@@ -413,7 +413,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureRunning();
 
-        logTrackedRequest(buildRequestDescriptor("createSegment", streamSegmentName), "createStreamSegment", streamSegmentName);
+        logTrackedRequest("createSegment", "createStreamSegment", streamSegmentName);
         this.metrics.createSegment();
         return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
@@ -422,7 +422,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         ensureRunning();
 
-        logTrackedRequest(buildRequestDescriptor("deleteSegment", streamSegmentName), "deleteStreamSegment", streamSegmentName);
+        logTrackedRequest("deleteSegment", "deleteStreamSegment", streamSegmentName);
         this.metrics.deleteSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -456,7 +456,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         ensureRunning();
 
-        logTrackedRequest(buildRequestDescriptor("mergeSegments", targetStreamSegment, sourceStreamSegment),"mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
+        logTrackedRequest("mergeSegments", "mergeStreamSegment", sourceStreamSegment, targetStreamSegment);
         this.metrics.mergeSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -743,7 +743,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.debug("{}: {} {}", this.traceObjectId, requestName, args);
     }
 
-    private void logTrackedRequest(String requestDescriptor, String methodName, Object... args) {
+    private void logTrackedRequest(String requestName, String methodName, String... args) {
+        String requestDescriptor = buildRequestDescriptor(requestName, args);
         log.debug("[requestId={}] {}: {} {}", RequestTracker.getInstance().getRequestIdFor(requestDescriptor),
                 this.traceObjectId, methodName, args);
     }

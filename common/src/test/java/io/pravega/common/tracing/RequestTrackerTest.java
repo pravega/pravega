@@ -25,6 +25,7 @@ public class RequestTrackerTest {
         final String stream = "stream";
         final String expectedRequestDescriptor = "createStream-scope-stream";
         Assert.assertEquals(expectedRequestDescriptor, RequestTracker.buildRequestDescriptor(operation, scope, stream));
+        Assert.assertEquals(expectedRequestDescriptor, RequestTracker.buildRequestDescriptor(operation, new String[]{scope, stream}));
     }
 
     /**

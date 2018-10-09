@@ -12,6 +12,7 @@ package io.pravega.common.tracing;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.Lists;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +54,10 @@ public final class RequestTracker {
      */
     public static String buildRequestDescriptor(String...requestInfo) {
         return Stream.of(requestInfo).collect(Collectors.joining(INTER_FIELD_DELIMITER));
+    }
+
+    public static String buildRequestDescriptor(String first, String[] rest) {
+        return buildRequestDescriptor(Lists.asList(first, rest).toArray(new String[rest.length]));
     }
 
     /**
