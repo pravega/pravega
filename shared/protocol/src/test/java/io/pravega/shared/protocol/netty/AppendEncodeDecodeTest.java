@@ -16,6 +16,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.util.ArrayList;
@@ -104,8 +105,8 @@ public class AppendEncodeDecodeTest {
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
-        ByteBuf buffer = Unpooled.wrappedBuffer(content);
-        Append msg = new Append("segment", writerId, 1, buffer, null);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        Append msg = new Append("segment", writerId, 1, event);
         CommandEncoder commandEncoder = new CommandEncoder(new FixedBatchSizeTracker(3));
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(null, setupAppend, fakeNetwork);
@@ -116,7 +117,8 @@ public class AppendEncodeDecodeTest {
         read(fakeNetwork, received);
         assertEquals(2, received.size());
         Append readAppend = (Append) received.get(1);
-        assertEquals(msg.data.readableBytes() + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+        assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }
 
     @Test
@@ -273,8 +275,8 @@ public class AppendEncodeDecodeTest {
             throws Exception {
         byte[] content = new byte[length];
         Arrays.fill(content, (byte) messageNumber);
-        ByteBuf buffer = Unpooled.wrappedBuffer(content);
-        Append msg = new Append(segment, writerId, messageNumber, buffer, null);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        Append msg = new Append(segment, writerId, messageNumber, event);
         encoder.encode(null, msg, out);
         return offset + length;
     }

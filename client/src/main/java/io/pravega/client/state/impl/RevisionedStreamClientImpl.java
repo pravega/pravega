@@ -88,7 +88,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
-            PendingEvent event = new PendingEvent(null, serialized, ack);
+            PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
                 out.write(event);

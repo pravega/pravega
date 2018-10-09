@@ -87,6 +87,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             result = new Append(segment.getName(),
                     ca.getWriterId(),
                     ca.getEventNumber(),
+                    1,
                     Unpooled.wrappedBuffer(data),
                     ca.getExpectedOffset());
             break;

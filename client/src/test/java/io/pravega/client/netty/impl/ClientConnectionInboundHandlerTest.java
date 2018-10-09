@@ -72,7 +72,7 @@ public class ClientConnectionInboundHandlerTest {
     @Before
     public void setUp() throws Exception {
         when(buffer.readableBytes()).thenReturn(10);
-        appendCmd = new Append("segment0", UUID.randomUUID(), 2, buffer, 10L);
+        appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L);
         doNothing().when(tracker).recordAppend(anyLong(), anyInt());
 
         when(ctx.channel()).thenReturn(ch);
