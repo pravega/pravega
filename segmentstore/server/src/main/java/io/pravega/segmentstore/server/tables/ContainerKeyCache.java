@@ -255,21 +255,6 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Gets the value of the Last Indexed Offset for a Segment.
-     *
-     * @param segmentId The Id of the Segment to get the Last Indexed Offset for.
-     * @return The Last Indexed Offset for the Segment, or -1 if this segment is not registered.
-     */
-    long getSegmentIndexOffset(long segmentId) {
-        SegmentIndexTail tail;
-        synchronized (this.cacheEntries) {
-            tail = this.indexTails.getOrDefault(segmentId, null);
-        }
-
-        return tail == null ? -1 : tail.getLastIndexedOffset();
-    }
-
-    /**
      * Updates the Last Indexed Offset for a given Segment, but only if there currently isn't any information about that.
      * See {@link #updateSegmentIndexOffset(long, long)} for more details.
      *
@@ -289,6 +274,21 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 this.indexTails.put(segmentId, tail);
             }
         }
+    }
+
+    /**
+     * Gets the value of the Last Indexed Offset for a Segment.
+     *
+     * @param segmentId The Id of the Segment to get the Last Indexed Offset for.
+     * @return The Last Indexed Offset for the Segment, or -1 if this segment is not registered.
+     */
+    long getSegmentIndexOffset(long segmentId) {
+        SegmentIndexTail tail;
+        synchronized (this.cacheEntries) {
+            tail = this.indexTails.getOrDefault(segmentId, null);
+        }
+
+        return tail == null ? -1 : tail.getLastIndexedOffset();
     }
 
     /**
@@ -493,9 +493,9 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 keyHash.copyTo(entryData, entryOffset, keyHash.getLength());
                 entryOffset += keyHash.getLength();
             } else {
-                // We found a match. Verify if we can update it.
+                // We found a match. Verify if we can update it (needs to be newer than an offset for an existing entry).
                 existingOffset = decodeValue(deserializeCacheValue(entryData, entryOffset));
-                if (decodedSegmentOffset.getSegmentOffset() < existingOffset.getSegmentOffset()) {
+                if (decodedSegmentOffset.getSegmentOffset() < existingOffset.getSegmentOffset() && existingOffset.isPresent()) {
                     // New offset is lower than existing one. Nothing else to do.
                     return new UpdateCacheResult(existingOffset.getSegmentOffset(), -1);
                 }

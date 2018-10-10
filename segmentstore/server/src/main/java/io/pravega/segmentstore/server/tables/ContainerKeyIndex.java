@@ -142,8 +142,9 @@ class ContainerKeyIndex implements AutoCloseable {
             } else {
                 long backpointerOffset = this.cache.getBackpointer(segment.getSegmentId(), existingValue.getSegmentOffset());
                 if (backpointerOffset < 0) {
-                    // Key Hash does not exist at all (deleted or really not exists). No need to do any other lookups.
+                    // Key Hash does not exist in the cache. Queue it up for lookup.
                     result.put(hash, TableKey.NOT_EXISTS);
+                    toLookup.add(hash);
                 } else {
                     // Key Hash (Table Bucket) has been created/updated recently, however it also had a removal, as such
                     // we are pointing to the last update, but there are other entries for this Bucket that may be of interest

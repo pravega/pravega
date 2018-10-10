@@ -261,7 +261,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(context.hasher.hash(k), TableKey.NOT_EXISTS);
         TestBatchData last = null;
         for (val current : data) {
-            System.out.println("Update");
             // Update entries.
             val toUpdate = current.toUpdate
                     .entrySet().stream().map(e -> generateToUpdate.apply(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
@@ -280,7 +279,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             removedKeys.removeAll(current.toUpdate.keySet());
 
             // Remove entries.
-            System.out.println("Remove");
             val toRemove = current.toRemove
                     .stream().map(k -> generateToRemove.apply(k, getKeyVersion.apply(k))).collect(Collectors.toList());
 
@@ -288,14 +286,13 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             removedKeys.addAll(current.toRemove);
             current.toRemove.stream().map(context.hasher::hash).forEach(keyVersions::remove);
 
-            // Verify result (from cache).
-            System.out.println("Check");
-            check(current.expectedEntries, removedKeys, context.ext);
-
             // Flush the processor.
             Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+
+            // Verify result (from cache).
+            check(current.expectedEntries, removedKeys, context.ext);
 
             last = current;
         }
@@ -328,9 +325,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             val expectedValue = expectedResult.get(i);
             val expectedKey = existingKeys.get(i);
             val actualEntry = existingResult.get(i);
-            if (actualEntry == null) {
-                System.out.println("no.entry " + i);
-            }
             Assert.assertEquals("Unexpected key at position " + i, expectedKey, new HashedArray(actualEntry.getKey().getKey()));
             Assert.assertEquals("Unexpected value at position " + i, expectedValue, new HashedArray(actualEntry.getValue()));
         }
