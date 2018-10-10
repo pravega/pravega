@@ -38,7 +38,6 @@ import lombok.val;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.LocalBookKeeper;
 import org.apache.commons.io.FileUtils;
-import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.NettyServerCnxnFactory;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZKDatabase;
@@ -109,12 +108,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             s.shutdown();
             throw new IllegalStateException("Already started.");
         }
-
-        if (!this.secureZK) {
-            this.serverFactory.set(NIOServerCnxnFactory.createFactory());
-        } else {
-            this.serverFactory.set(NettyServerCnxnFactory.createFactory());
-        }
+        this.serverFactory.set(NettyServerCnxnFactory.createFactory());
         val address = "localhost:" + this.zkPort;
         log.info("Starting Zookeeper server at " + address + " ...");
         this.serverFactory.get().configure(new InetSocketAddress("localhost", this.zkPort), 1000, secureZK);
