@@ -152,7 +152,7 @@ public class AutoScaleProcessor {
             long timestamp = System.currentTimeMillis();
 
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info("sending request for scale up for {}", streamSegmentName);
+                log.info("[requestId={}] sending request for scale up for {}", timestamp, streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
@@ -173,7 +173,7 @@ public class AutoScaleProcessor {
 
             long timestamp = System.currentTimeMillis();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info("sending request for scale down for {}", streamSegmentName);
+                log.info("[requestId={}] sending request for scale down for {}", timestamp, streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
@@ -191,9 +191,9 @@ public class AutoScaleProcessor {
     private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
         return writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
             if (e != null) {
-                log.error("error sending request to requeststream {}", e);
+                log.error("[requestId={}] error sending request to requeststream {}", event.getTimestamp(), e);
             } else {
-                log.debug("scale event posted successfully");
+                log.debug("[requestId={}] scale event posted successfully", event.getTimestamp());
             }
         });
     }

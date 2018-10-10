@@ -119,7 +119,7 @@ public final class RequestTracker {
 
         requestIds.add(requestId);
         ongoingRequests.put(requestDescriptor, requestIds);
-        log.info("Tracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestId,
+        log.debug("Tracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestId,
                 ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
     }
 
@@ -154,7 +154,7 @@ public final class RequestTracker {
             removedRequestId = requestIds.get(0);
         }
 
-        log.info("Untracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestIds,
+        log.debug("Untracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestIds,
                 ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
         return removedRequestId;
     }

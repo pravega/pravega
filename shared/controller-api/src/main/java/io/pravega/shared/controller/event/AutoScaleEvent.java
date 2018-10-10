@@ -23,7 +23,7 @@ public class AutoScaleEvent implements ControllerEvent {
     private final String stream;
     private final long segmentId;
     private final byte direction;
-    private final long timestamp;
+    private final long timestamp; // This field will act as requestId
     private final int numOfSplits;
     private final boolean silent;
 

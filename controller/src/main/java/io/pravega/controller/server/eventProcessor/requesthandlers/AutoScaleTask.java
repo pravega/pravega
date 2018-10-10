@@ -67,7 +67,8 @@ public class AutoScaleTask {
             // we are processing at much slower rate than the message ingestion rate into the stream. We should scale up.
             // Either way, logging this helps us know how often this is happening.
 
-            log.info(String.format("Scale Request for stream %s/%s expired", request.getScope(), request.getStream()));
+            log.info(String.format("[requestId={}] Scale Request for stream %s/%s expired", request.getTimestamp(),
+                    request.getScope(), request.getStream()));
             return CompletableFuture.completedFuture(null);
         }
 
@@ -88,7 +89,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
-        log.info("Scale up request received for stream segment {}", qualifiedName);
+        log.info("[requestId={}] Scale up request received for stream segment {}", request.getTimestamp(), qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -108,13 +109,13 @@ public class AutoScaleTask {
                     simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * (numOfSplits -1),
                             segment.getKeyEnd()));
 
-                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentId()), simpleEntries);
+                    return postScaleRequest(request, Lists.newArrayList(request.getSegmentId()), simpleEntries, request.getTimestamp());
                 }, executor);
     }
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
-        log.info("Scale down request received for stream segment {}", qualifiedName);
+        log.info("[requestId={}] Scale down request received for stream segment {}", request.getTimestamp(), qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -169,7 +170,7 @@ public class AutoScaleTask {
                         toMerge.forEach(x -> {
                             String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
 
-                            log.debug("Merging stream segment {} ", segmentName);
+                            log.debug("[requestId={}] Merging stream segment {} ", request.getTimestamp(), segmentName);
                         });
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
@@ -178,7 +179,7 @@ public class AutoScaleTask {
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
                         final ArrayList<Long> segments = new ArrayList<>();
                         toMerge.forEach(segment -> segments.add(segment.segmentId()));
-                        return postScaleRequest(request, segments, simpleEntries);
+                        return postScaleRequest(request, segments, simpleEntries, request.getTimestamp());
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -194,13 +195,14 @@ public class AutoScaleTask {
      * @return CompletableFuture
      */
     private CompletableFuture<Void> postScaleRequest(final AutoScaleEvent request, final ArrayList<Long> segments,
-                                                     final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges) {
+                                                     final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                     final long timestamp) {
         ScaleOpEvent event = new ScaleOpEvent(request.getScope(),
                 request.getStream(),
                 segments,
                 newRanges,
                 false,
-                System.currentTimeMillis());
+                timestamp);
 
         return streamMetadataTasks.writeEvent(event);
     }

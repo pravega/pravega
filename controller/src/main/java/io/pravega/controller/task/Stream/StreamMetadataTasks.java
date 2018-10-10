@@ -254,7 +254,7 @@ public class StreamMetadataTasks extends TaskBase {
                         .exceptionally(e -> {
                             if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
                                 // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                log.debug("Cannot truncate at given streamCut because it intersects with existing truncation point");
+                                log.debug("[requestId={}] Cannot truncate at given streamCut because it intersects with existing truncation point", recordingTime);
                                 return null;
                             } else {
                                 throw new CompletionException(e);
