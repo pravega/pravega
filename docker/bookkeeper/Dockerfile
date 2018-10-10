@@ -8,7 +8,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
-FROM openjdk:8-alpine
+FROM openjdk:8-jre
 MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
 RUN apt-get update \

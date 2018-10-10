@@ -7,7 +7,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-FROM openjdk:8-alpine
+FROM openjdk:8-jre
 
 RUN apt-get update && apt-get install -y -q rpcbind nfs-common \
     && rm -rf /var/lib/apt/lists/*
