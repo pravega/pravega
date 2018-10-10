@@ -36,11 +36,6 @@ public class FileSystemStorageFactory implements StorageFactory {
         this.executor = executor;
     }
 
-    public FileSystemStorageFactory() {
-        this.config = null;
-        this.executor = null;
-    }
-
     @Override
     public Storage createStorageAdapter() {
         FileSystemStorage s = new FileSystemStorage(this.config);

@@ -36,11 +36,6 @@ public class HDFSStorageFactory implements StorageFactory {
         this.executor = executor;
     }
 
-    public HDFSStorageFactory() {
-        this.config = null;
-        this.executor = null;
-    }
-
     @Override
     public Storage createStorageAdapter() {
         HDFSStorage s = new HDFSStorage(this.config);

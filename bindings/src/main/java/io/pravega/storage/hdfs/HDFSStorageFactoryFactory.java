@@ -22,7 +22,7 @@ public class HDFSStorageFactoryFactory implements StorageFactoryFactory {
     }
 
     @Override
-    public synchronized StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
+    public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
         return new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
     }
 }

@@ -38,11 +38,6 @@ public class ExtendedS3StorageFactory implements StorageFactory {
         this.executor = executor;
     }
 
-    public ExtendedS3StorageFactory() {
-        this.config = null;
-        this.executor = null;
-    }
-
     @Override
     public Storage createStorageAdapter() {
         S3Config s3Config = new S3Config(config.getUrl())
