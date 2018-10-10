@@ -131,13 +131,12 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Data<Integer>> getData(final String path) {
-        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+    CompletableFuture<Data> getData(final String path) {
+        final CompletableFuture<Data> result = new CompletableFuture<>();
 
         try {
             client.getData().inBackground(
-                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat()
-                                    .getVersion())),
+                    callback(event -> result.complete(new Data(event.getData(), new Version.IntVersion(event.getStat().getVersion()))),
                             result::completeExceptionally, path), executor)
                     .forPath(path);
         } catch (Exception e) {
@@ -167,7 +166,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> setData(final String path, final Data<Integer> data) {
+    CompletableFuture<Integer> setData(final String path, final Data data) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             if (data.getVersion() == null) {
@@ -175,7 +174,7 @@ public class ZKStoreHelper {
                         callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             } else {
-                client.setData().withVersion(data.getVersion()).inBackground(
+                client.setData().withVersion(data.getVersion().asIntVersion().getIntValue()).inBackground(
                         callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
                         .forPath(path, data.getData());
             }

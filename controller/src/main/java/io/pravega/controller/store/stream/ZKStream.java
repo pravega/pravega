@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * This shall reduce store round trips for answering queries, thus making them efficient.
  */
 @Slf4j
-class ZKStream extends PersistentStreamBase<Integer> {
+class ZKStream extends PersistentStreamBase {
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAM_PATH = SCOPE_PATH + "/%s";
     private static final String CREATION_TIME_PATH = STREAM_PATH + "/creationTime";
@@ -68,7 +68,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     // endregion
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
 
-    private static final Data<Integer> EMPTY_DATA = new Data<>(null, -1);
+    private static final Data EMPTY_DATA = new Data(null, new Version.IntVersion(-1));
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -91,7 +91,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
 
-    private final Cache<Integer> cache;
+    private final Cache cache;
     private final Supplier<Integer> currentBatchSupplier;
 
     @VisibleForTesting
@@ -121,7 +121,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
 
-        cache = new Cache<>(store::getData);
+        cache = new Cache(store::getData);
         this.currentBatchSupplier = currentBatchSupplier;
     }
 
@@ -218,12 +218,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getSealedSegmentsRecord() {
+    CompletableFuture<Data> getSealedSegmentsRecord() {
         return store.getData(sealedSegmentsPath);
     }
 
     @Override
-    CompletableFuture<Void> updateSealedSegmentsRecord(Data<Integer> update) {
+    CompletableFuture<Void> updateSealedSegmentsRecord(Data update) {
         return store.setData(sealedSegmentsPath, update)
                 .thenApply(x -> cache.invalidateCache(sealedSegmentsPath));
     }
@@ -234,12 +234,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getRetentionSet() {
+    CompletableFuture<Data> getRetentionSet() {
         return store.getData(retentionPath);
     }
 
     @Override
-    CompletableFuture<Void> updateRetentionSet(Data<Integer> retention) {
+    CompletableFuture<Void> updateRetentionSet(Data retention) {
         return store.setData(retentionPath, retention)
                 .thenApply(x -> cache.invalidateCache(retentionPath));
     }
@@ -251,16 +251,16 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> updateEpochTransitionNode(Data<Integer> epochTransition) {
+    CompletableFuture<Version> updateEpochTransitionNode(Data epochTransition) {
         return store.setData(epochTransitionPath, epochTransition)
                 .thenApply(x -> {
                     cache.invalidateCache(epochTransitionPath);
-                    return x;
+                    return new Version.IntVersion(x);
                 });
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getEpochTransitionNode() {
+    CompletableFuture<Data> getEpochTransitionNode() {
         cache.invalidateCache(epochTransitionPath);
         return cache.getCachedData(epochTransitionPath);
     }
@@ -287,26 +287,25 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Void> createSegmentTableIfAbsent(final Data<Integer> segmentTable) {
-
-        return store.createZNodeIfNotExist(segmentPath, segmentTable.getData())
+    public CompletableFuture<Void> createSegmentTableIfAbsent(final byte[] segmentTable) {
+        return store.createZNodeIfNotExist(segmentPath, segmentTable)
                 .thenApply(x -> cache.invalidateCache(segmentPath));
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryIndexIfAbsent(final Data<Integer> indexTable) {
-        return store.createZNodeIfNotExist(historyIndexPath, indexTable.getData())
+    public CompletableFuture<Void> createHistoryIndexIfAbsent(final byte[] indexTable) {
+        return store.createZNodeIfNotExist(historyIndexPath, indexTable)
                 .thenApply(x -> cache.invalidateCache(historyIndexPath));
     }
 
     @Override
-    public CompletableFuture<Void> createHistoryTableIfAbsent(final Data<Integer> historyTable) {
-        return store.createZNodeIfNotExist(historyPath, historyTable.getData())
+    public CompletableFuture<Void> createHistoryTableIfAbsent(final byte[] historyTable) {
+        return store.createZNodeIfNotExist(historyPath, historyTable)
                 .thenApply(x -> cache.invalidateCache(historyPath));
     }
 
     @Override
-    public CompletableFuture<Void> updateHistoryTable(final Data<Integer> updated) {
+    public CompletableFuture<Void> updateHistoryTable(final Data updated) {
         return store.setData(historyPath, updated)
                 .thenApply(r -> cache.invalidateCache(historyPath));
     }
@@ -322,7 +321,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> updateMarkerData(long segmentId, Data<Integer> data) {
+    CompletableFuture<Void> updateMarkerData(long segmentId, Data data) {
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
 
         return store.setData(path, data)
@@ -330,8 +329,8 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getMarkerData(long segmentId) {
-        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+    CompletableFuture<Data> getMarkerData(long segmentId) {
+        final CompletableFuture<Data> result = new CompletableFuture<>();
         final String path = ZKPaths.makePath(markerPath, String.format("%d", segmentId));
         cache.getCachedData(path)
                 .whenComplete((res, ex) -> {
@@ -359,12 +358,12 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Map<String, Data<Integer>>> getCurrentTxns() {
+    public CompletableFuture<Map<String, Data>> getCurrentTxns() {
         return store.getChildren(activeTxRoot)
                 .thenCompose(children -> {
                     return Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x))).collect(Collectors.toList()))
                             .thenApply(list -> {
-                                Map<String, Data<Integer>> map = new HashMap<>();
+                                Map<String, Data> map = new HashMap<>();
                                 list.forEach(map::putAll);
                                 return map;
                             });
@@ -372,7 +371,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    public CompletableFuture<Map<String, Data<Integer>>> getTxnInEpoch(int epoch) {
+    public CompletableFuture<Map<String, Data>> getTxnInEpoch(int epoch) {
         return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
                 .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
@@ -384,7 +383,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> createNewTransaction(final int epoch,
+    CompletableFuture<Version> createNewTransaction(final int epoch,
                                                  final UUID txId,
                                                  final byte[] txnRecord) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
@@ -394,22 +393,22 @@ class ZKStream extends PersistentStreamBase<Integer> {
         return store.createZNodeIfNotExist(activePath, txnRecord, true)
                 .thenApply(x -> {
                     cache.invalidateCache(activePath);
-                    return x;
+                    return new Version.IntVersion(x);
                 });
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getActiveTx(final int epoch, final UUID txId) {
+    CompletableFuture<Data> getActiveTx(final int epoch, final UUID txId) {
         final String activeTxPath = getActiveTxPath(epoch, txId.toString());
         return store.getData(activeTxPath);
     }
 
     @Override
-    CompletableFuture<Integer> updateActiveTx(final int epoch, final UUID txId, final Data<Integer> data) {
+    CompletableFuture<Version> updateActiveTx(final int epoch, final UUID txId, final Data data) {
         final String activeTxPath = getActiveTxPath(epoch, txId.toString());
         return store.setData(activeTxPath, data).thenApply(r -> {
             cache.invalidateCache(activeTxPath);
-            return r;
+            return new Version.IntVersion(r);
         });
     }
 
@@ -422,7 +421,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createCompletedTxEntry(final UUID txId, final byte[] data) {
+    CompletableFuture<Void> createCompletedTxEntryData(final UUID txId, final byte[] data) {
         String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, currentBatchSupplier.get(), getScope(), getName());
         String path = ZKPaths.makePath(root, txId.toString());
 
@@ -448,7 +447,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
 
 
     @Override
-    CompletableFuture<Data<Integer>> getCompletedTx(final UUID txId) {
+    CompletableFuture<Data> getCompletedTx(final UUID txId) {
         return store.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH)
                 .thenCompose(children -> {
                     return Futures.allOfWithResults(children.stream().map(child -> {
@@ -467,7 +466,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                             }).collect(Collectors.toList()));
                         })
                 .thenCompose(result -> {
-                    Optional<Data<Integer>> any = result.stream().filter(Objects::nonNull).findFirst();
+                    Optional<Data> any = result.stream().filter(Objects::nonNull).findFirst();
                     if (any.isPresent()) {
                         return CompletableFuture.completedFuture(any.get());
                     } else {
@@ -493,13 +492,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setTruncationData(final Data<Integer> truncationRecord) {
+    CompletableFuture<Void> setTruncationData(final Data truncationRecord) {
         return store.setData(truncationPath, truncationRecord)
                 .thenApply(r -> cache.invalidateCache(truncationPath));
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getTruncationData(boolean ignoreCached) {
+    CompletableFuture<Data> getTruncationData(boolean ignoreCached) {
         if (ignoreCached) {
             cache.invalidateCache(truncationPath);
         }
@@ -508,13 +507,13 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> setConfigurationData(final Data<Integer> configuration) {
+    CompletableFuture<Void> setConfigurationData(final Data configuration) {
         return store.setData(configurationPath, configuration)
                 .thenApply(r -> cache.invalidateCache(configurationPath));
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getConfigurationData(boolean ignoreCached) {
+    CompletableFuture<Data> getConfigurationData(boolean ignoreCached) {
         if (ignoreCached) {
             cache.invalidateCache(configurationPath);
         }
@@ -523,13 +522,16 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Integer> setStateData(final Data<Integer> state) {
+    CompletableFuture<Version> setStateData(final Data state) {
         return store.setData(statePath, state)
-                .whenComplete((r, e) -> cache.invalidateCache(statePath));
+                .thenApply(r -> {
+                    cache.invalidateCache(statePath);
+                    return new Version.IntVersion(r);
+                });
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getStateData(boolean ignoreCached) {
+    CompletableFuture<Data> getStateData(boolean ignoreCached) {
         if (ignoreCached) {
             cache.invalidateCache(statePath);
         }
@@ -538,7 +540,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentIndexIfAbsent(Data<Integer> data) {
+    CompletableFuture<Void> createSegmentIndexIfAbsent(byte[] data) {
         // what if index was created in an earlier attempt but segment table was not.
         // if segment table exists, index should definitely exist. if segment table does not exist,
         // delete any existing index and create again so that it is guaranteed to match new segment table we are about to create.
@@ -546,7 +548,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
                 .thenCompose(exists -> {
                     if (!exists) {
                         return store.deletePath(segmentIndexPath, false)
-                            .thenCompose(v -> store.createZNodeIfNotExist(segmentIndexPath, data.getData()));
+                            .thenCompose(v -> store.createZNodeIfNotExist(segmentIndexPath, data));
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -555,63 +557,63 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getSegmentIndex() {
+    CompletableFuture<Data> getSegmentIndex() {
         return cache.getCachedData(segmentIndexPath);
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getSegmentIndexFromStore() {
+    CompletableFuture<Data> getSegmentIndexFromStore() {
         cache.invalidateCache(segmentIndexPath);
         return getSegmentIndex();
     }
 
     @Override
-    CompletableFuture<Void> updateSegmentIndex(Data<Integer> data) {
+    CompletableFuture<Void> updateSegmentIndex(Data data) {
         return store.setData(segmentIndexPath, data)
                 .thenApply(r -> cache.invalidateCache(segmentIndexPath));
     }
 
     @Override
-    public CompletableFuture<Data<Integer>> getSegmentTable() {
+    public CompletableFuture<Data> getSegmentTable() {
         return cache.getCachedData(segmentPath);
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getSegmentTableFromStore() {
+    CompletableFuture<Data> getSegmentTableFromStore() {
         cache.invalidateCache(segmentPath);
         return getSegmentTable();
     }
 
     @Override
-    CompletableFuture<Void> updateSegmentTable(final Data<Integer> data) {
+    CompletableFuture<Void> updateSegmentTable(final Data data) {
         return store.setData(segmentPath, data)
                 .thenApply(r -> cache.invalidateCache(segmentPath));
     }
 
     @Override
-    public CompletableFuture<Data<Integer>> getHistoryTable() {
+    public CompletableFuture<Data> getHistoryTable() {
         return cache.getCachedData(historyPath);
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getHistoryTableFromStore() {
+    CompletableFuture<Data> getHistoryTableFromStore() {
         cache.invalidateCache(historyPath);
         return getHistoryTable();
     }
 
     @Override
-    public CompletableFuture<Data<Integer>> getHistoryIndex() {
+    public CompletableFuture<Data> getHistoryIndex() {
         return cache.getCachedData(historyIndexPath);
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getHistoryIndexFromStore() {
+    CompletableFuture<Data> getHistoryIndexFromStore() {
         cache.invalidateCache(historyIndexPath);
         return getHistoryIndex();
     }
 
     @Override
-    CompletableFuture<Void> updateHistoryIndex(final Data<Integer> updated) {
+    CompletableFuture<Void> updateHistoryIndex(final Data updated) {
         return store.setData(historyIndexPath, updated)
                 .thenApply(r -> cache.invalidateCache(historyIndexPath));
     }
@@ -623,14 +625,15 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getCommittingTxnRecord() {
+    CompletableFuture<Data> getCommittingTxnRecord() {
         cache.invalidateCache(committingTxnsPath);
         return cache.getCachedData(committingTxnsPath);
     }
 
     @Override
-    CompletableFuture<Integer> updateCommittingTxnRecord(Data<Integer> committingTxnRecord) {
-        return store.setData(committingTxnsPath, committingTxnRecord);
+    CompletableFuture<Version> updateCommittingTxnRecord(Data committingTxnRecord) {
+        return store.setData(committingTxnsPath, committingTxnRecord)
+                .thenApply(Version.IntVersion::new);
     }
 
     @Override
@@ -640,7 +643,7 @@ class ZKStream extends PersistentStreamBase<Integer> {
     }
 
     @Override
-    CompletableFuture<Data<Integer>> getWaitingRequestNode() {
+    CompletableFuture<Data> getWaitingRequestNode() {
         return cache.getCachedData(waitingRequestProcessorPath);
     }
 
@@ -648,17 +651,6 @@ class ZKStream extends PersistentStreamBase<Integer> {
     CompletableFuture<Void> deleteWaitingRequestNode() {
         return store.deletePath(waitingRequestProcessorPath, false);
     }
-
-    @Override
-    Version toVersion(Integer version) {
-        return new Version.IntVersion(version);
-    }
-
-    @Override
-    Integer fromVersion(Version version) {
-        return version.asIntVersion().getIntValue();
-    }
-
     // endregion
 
     // region private helpers

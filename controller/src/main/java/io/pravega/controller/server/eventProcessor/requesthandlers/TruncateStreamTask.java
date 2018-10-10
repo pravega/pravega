@@ -59,25 +59,35 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
 
-        return TaskHelper.resetStateConditionally(streamMetadataStore, scope, stream,
-                () -> streamMetadataStore.getVersionedTruncationRecord(scope, stream, context, executor),
-                record -> !record.isUpdating(), State.TRUNCATING, "Truncate Stream not started yet.", context, executor)
-                .thenCompose(record -> processTruncate(scope, stream, record.getMetadata(), record.getState(), context,
-                        this.streamMetadataTasks.retrieveDelegationToken()));
+        return streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                .thenCompose(versionedState -> streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
+                        .thenCompose(versionedMetadata -> {
+                            if (!versionedMetadata.getObject().isUpdating()) {
+                                CompletableFuture<VersionedMetadata<State>> resetStateFuture = versionedState.getObject().equals(State.TRUNCATING) ?
+                                        streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                                versionedState, context, executor) : CompletableFuture.completedFuture(null);
+                                return resetStateFuture.thenApply(x -> {
+                                    throw new TaskExceptions.StartException("Truncate Stream not started yet.");
+                                });
+                            } else {
+                                return processTruncate(scope, stream, versionedMetadata, versionedState, context);
+                            }
+                        }));
     }
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, VersionedMetadata<StreamTruncationRecord> versionedTruncationRecord,
-                                                    VersionedMetadata<State> versionedState, OperationContext context, String delegationToken) {
+                                                    VersionedMetadata<State> versionedState, OperationContext context) {
+        String delegationToken = this.streamMetadataTasks.retrieveDelegationToken();
         StreamTruncationRecord truncationRecord = versionedTruncationRecord.getObject();
         log.info("Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
-        return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.TRUNCATING, versionedState.getVersion(), context, executor)
-                .thenCompose(updateVersion -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken)
+        return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.TRUNCATING, versionedState, context, executor)
+                .thenCompose(update -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken)
                         .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken))
                         .thenCompose(x -> streamMetadataStore.getSizeTillStreamCut(scope, stream, truncationRecord.getStreamCut(),
                                 context, executor))
                         .thenAccept(truncatedSize -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), truncatedSize))
                         .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, versionedTruncationRecord, context, executor))
-                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updateVersion, context, executor))));
+                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, update, context, executor))));
     }
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete, String delegationToken) {

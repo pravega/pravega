@@ -14,7 +14,6 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
@@ -26,10 +25,9 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.TransactionData;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
-import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -212,10 +210,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param contextOpt         operational context
      * @return transaction id.
      */
-    public CompletableFuture<Pair<VersionedMetadata<TransactionData>, List<Segment>>> createTxn(final String scope,
-                                                                                            final String stream,
-                                                                                            final long lease,
-                                                                                            final OperationContext contextOpt) {
+    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
+                                                                                      final String stream,
+                                                                                      final long lease,
+                                                                                      final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
             return createTxnBody(scope, stream, lease, context);
@@ -310,7 +308,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param ctx                 context.
      * @return                    identifier of the created txn.
      */
-    CompletableFuture<Pair<VersionedMetadata<TransactionData>, List<Segment>>> createTxnBody(final String scope,
+    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
                                                                                    final String stream,
                                                                                    final long lease,
                                                                                    final OperationContext ctx) {
@@ -334,12 +332,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId);
 
                     // Step 3. Create txn node in the store.
-                    CompletableFuture<VersionedMetadata<TransactionData>> txnFuture = createTxnInStore(scope, stream, lease,
+                    CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
                             ctx, maxExecutionPeriod, txnId, addIndex);
 
                     // Step 4. Notify segment stores about new txn.
                     CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                            streamMetadataStore.getActiveSegments(scope, stream, txnData.getObject().getEpoch(), ctx, executor), executor);
+                            streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
                     CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
                             notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
@@ -365,21 +363,20 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,
-                                        CompletableFuture<VersionedMetadata<TransactionData>> txnFuture) {
-        // TODO: shivesh : identity of version??
+                                        CompletableFuture<VersionedTransactionData> txnFuture) {
         Version version = null;
         long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
         if (!txnFuture.isCompletedExceptionally()) {
             version = txnFuture.join().getVersion();
-            executionExpiryTime = txnFuture.join().getObject().getMaxExecutionExpiryTime();
+            executionExpiryTime = txnFuture.join().getMaxExecutionExpiryTime();
         }
         timeoutService.addTxn(scope, stream, txnId, version, lease, executionExpiryTime);
         log.trace("Txn={}, added to timeout service on host={}", txnId, hostId);
     }
 
-    private CompletableFuture<VersionedMetadata<TransactionData>> createTxnInStore(String scope, String stream, long lease,
-                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
-                                                                         CompletableFuture<Void> addIndex) {
+    private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease,
+                                                                                            OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                                            CompletableFuture<Void> addIndex) {
         return addIndex.thenComposeAsync(ignore ->
                                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                                         ctx, executor), executor).whenComplete((v, e) -> {
@@ -394,7 +391,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> addTxnToIndex(String scope, String stream, UUID txnId) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
         // Step 2. Add txn to host-transaction index.
-        // TODO: shivesh : version identity
         return streamMetadataStore.addTxnToIndex(hostId, resource, null)
                 .whenComplete((v, e) -> {
                     if (e != null) {
@@ -474,13 +470,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             // Step 1. Sanity check for lease value.
             if (lease > timeoutService.getMaxLeaseValue()) {
                 return CompletableFuture.completedFuture(createStatus(Status.LEASE_TOO_LARGE));
-            } else if (lease + System.currentTimeMillis() > txnData.getObject().getMaxExecutionExpiryTime()) {
+            } else if (lease + System.currentTimeMillis() > txnData.getMaxExecutionExpiryTime()) {
                 return CompletableFuture.completedFuture(createStatus(Status.MAX_EXECUTION_TIME_EXCEEDED));
             } else {
                 TxnResource resource = new TxnResource(scope, stream, txnId);
 
                 // Step 2. Add txn to host-transaction index
-                // TODO: shivesh: expected version??
                 CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion()).whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
@@ -491,7 +486,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
                 return addIndex.thenComposeAsync(x -> {
                     // Step 3. Update txn node data in the store.
-                    CompletableFuture<VersionedMetadata<TransactionData>> pingTxn = streamMetadataStore.pingTransaction(
+                    CompletableFuture<VersionedTransactionData> pingTxn = streamMetadataStore.pingTransaction(
                             scope, stream, txnData, lease, ctx, executor).whenComplete((v, e) -> {
                         if (e != null) {
                             log.debug("Txn={}, failed updating txn node in store", txnId);
@@ -503,7 +498,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     // Step 4. Add it to timeout service and start managing timeout for this txn.
                     return pingTxn.thenApplyAsync(data -> {
                         Version version = data.getVersion();
-                        long expiryTime = data.getObject().getMaxExecutionExpiryTime();
+                        long expiryTime = data.getMaxExecutionExpiryTime();
                         // Even if timeout service has an active/executing timeout task for this txn, it is bound
                         // to fail, since version of txn node has changed because of the above store.pingTxn call.
                         // Hence explicitly add a new timeout task.
@@ -558,7 +553,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         CompletableFuture<Void> addIndex = host.equals(hostId) && !timeoutService.containsTxn(scope, stream, txnId) ?
                 // PS: txn version in index does not matter, because if update is successful,
                 // then txn would no longer be open.
-                // TODO: shivesh version vs Integer.MAX ??
                 streamMetadataStore.addTxnToIndex(hostId, resource, version) :
                 CompletableFuture.completedFuture(null);
 

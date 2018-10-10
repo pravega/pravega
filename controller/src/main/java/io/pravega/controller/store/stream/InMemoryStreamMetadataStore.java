@@ -88,6 +88,16 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    Version getEmptyVersion() {
+        return Version.IntVersion.EMPTY;
+    }
+
+    @Override
+    Version parseVersionData(byte[] data) {
+        return Version.IntVersion.parse(data);
+    }
+
+    @Override
     @Synchronized
     Scope newScope(final String scopeName) {
         if (scopes.containsKey(scopeName)) {

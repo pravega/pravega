@@ -199,31 +199,42 @@ interface Stream {
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
-     * @param runOnlyIfStarted run only if scale is started
      * @return sequence of newly created segments
      */
-    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final List<Long> sealedSegments,
-                                                                           final List<SimpleEntry<Double, Double>> newRanges,
-                                                                           final long scaleTimestamp,
-                                                                           final boolean runOnlyIfStarted);
-    
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final List<Long> sealedSegments,
+                                                                            final List<SimpleEntry<Double, Double>> newRanges,
+                                                                            final long scaleTimestamp);
+
+    /**
+     * Called to start metadata updates to stream store wrt new scale event.
+     *
+     * @return sequence of newly created segments
+     */
+    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final boolean isManualScale,
+                                                                           final VersionedMetadata<EpochTransitionRecord> record,
+                                                                           final VersionedMetadata<State> state);
+
     /**
      * Called after epochTransition entry is created. Implementation of this method should create new segments that are
      * specified in epochTransition in stream metadata tables.
      *
-     * @param isManualScale flag to indicate if epoch transition should be migrated to latest epoch
      * @param record
      * @return Future, which when completed will indicate that new segments are created in the metadata store or wouldl
      * have failed with appropriate exception.
      */
-    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> scaleCreateNewSegments(boolean isManualScale,
-                                                                                       VersionedMetadata<EpochTransitionRecord> record);
+    CompletableFuture<Void> scaleCreateNewSegments(VersionedMetadata<EpochTransitionRecord> record);
 
     /**
      * Called after new segment creation is complete.
      * @param record  existing versioned record
      */
-    CompletableFuture<VersionedMetadata<EpochTransitionRecord>> scaleNewSegmentsCreated(VersionedMetadata<EpochTransitionRecord> record);
+    CompletableFuture<Void> scaleNewSegmentsCreated(VersionedMetadata<EpochTransitionRecord> record);
+
+    /**
+     * Called after new segment creation is complete.
+     * @param record  existing versioned record
+     */
+    CompletableFuture<Void> completeScale(VersionedMetadata<EpochTransitionRecord> record);
 
     /**
      * Called after sealing old segments is complete.
@@ -301,7 +312,7 @@ interface Stream {
      *
      * @return Details of created transaction.
      */
-    CompletableFuture<VersionedMetadata<TransactionData>> createTransaction(final UUID txnId,
+    CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
                                                                   final long lease,
                                                                   final long maxExecutionTime);
 
@@ -313,7 +324,7 @@ interface Stream {
      * @param lease Lease period in ms.
      * @return Transaction metadata along with its version.
      */
-    CompletableFuture<VersionedMetadata<TransactionData>> pingTransaction(final VersionedMetadata<TransactionData> txnData, final long lease);
+    CompletableFuture<VersionedTransactionData> pingTransaction(final VersionedTransactionData txnData, final long lease);
 
     /**
      * Fetch transaction metadata along with its version.
@@ -321,7 +332,7 @@ interface Stream {
      * @param txId transaction id.
      * @return transaction metadata along with its version.
      */
-    CompletableFuture<VersionedMetadata<TransactionData>> getTransactionData(UUID txId);
+    CompletableFuture<VersionedTransactionData> getTransactionData(UUID txId);
 
     /**
      * Seal a given transaction.

@@ -9,8 +9,10 @@
  */
 package io.pravega.controller.store.stream.tables;
 
+import io.pravega.controller.store.stream.Version;
+
 @lombok.Data
-public class Data<T> {
+public class Data {
     private final byte[] data;
-    private final T version;
+    private final Version version;
 }

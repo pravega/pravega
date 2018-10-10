@@ -176,30 +176,31 @@ public class StreamTest {
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        VersionedMetadata<EpochTransitionRecord> response = zkStream.startScale(sealedSegments, newRanges, scale, false).join();
+        VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale).join();
         ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
-        zkStream.updateState(State.SCALING).join();
-
+        VersionedMetadata<State> state = zkStream.getVersionedState().join();
+        state = zkStream.updateVersionedState(state, State.SCALING).join();
+        zkStream.startScale(false, response, state).join();
         newSegments.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList());
-        zkStream.scaleCreateNewSegments(false, response).get();
+        zkStream.scaleCreateNewSegments(response).get();
         zkStream.scaleNewSegmentsCreated(response).get();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.
 
-        final CompletableFuture<Data<Integer>> segmentTable = zkStream.getSegmentTable();
-        final CompletableFuture<Data<Integer>> historyTable = zkStream.getHistoryTable();
+        final CompletableFuture<Data> segmentTable = zkStream.getSegmentTable();
+        final CompletableFuture<Data> historyTable = zkStream.getHistoryTable();
 
         AtomicBoolean historyCalled = new AtomicBoolean(false);
         AtomicBoolean segmentCalled = new AtomicBoolean(false);
         // mock.. If segment table is fetched before history table, throw runtime exception so that the test fails
-        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
             if (!historyCalled.get() && segmentCalled.get()) {
                 throw new RuntimeException();
             }
             historyCalled.set(true);
             return historyTable;
         }).when(zkStream).getHistoryTable();
-        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
             if (!historyCalled.get()) {
                 throw new RuntimeException();
             }
@@ -212,25 +213,26 @@ public class StreamTest {
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
         // reset mock so that we can resume scale operation
-        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> historyTable).when(zkStream).getHistoryTable();
-        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
+        doAnswer((Answer<CompletableFuture<Data>>) invocation -> historyTable).when(zkStream).getHistoryTable();
+        doAnswer((Answer<CompletableFuture<Data>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
 
         zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
+        zkStream.completeScale(response).join();
         // scale is completed, history table also has completed record now.
-        final CompletableFuture<Data<Integer>> segmentTable2 = zkStream.getSegmentTable();
-        final CompletableFuture<Data<Integer>> historyTable2 = zkStream.getHistoryTable();
+        final CompletableFuture<Data> segmentTable2 = zkStream.getSegmentTable();
+        final CompletableFuture<Data> historyTable2 = zkStream.getHistoryTable();
 
         // mock such that if segment table is fetched before history table, throw runtime exception so that the test fails
         segmentCalled.set(false);
         historyCalled.set(false);
-        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
             if (!historyCalled.get() && segmentCalled.get()) {
                 throw new RuntimeException();
             }
             historyCalled.set(true);
             return historyTable2;
         }).when(zkStream).getHistoryTable();
-        doAnswer((Answer<CompletableFuture<Data<Integer>>>) invocation -> {
+        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
             if (!historyCalled.get()) {
                 throw new RuntimeException();
             }

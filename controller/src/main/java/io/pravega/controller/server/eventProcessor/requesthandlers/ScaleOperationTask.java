@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -25,6 +26,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -83,43 +85,57 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     }
 
     @VisibleForTesting
-    public CompletableFuture<EpochTransitionRecord> runScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
+    public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context, String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
-        // create epoch transition node (metadatastore.startScale)
+        // create epoch transition node (metadatastore.submitScale)
         // Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
-        // and deleted in startScale method.
-        // if we crash before setting state to active, in rerun (retry) we will find epoch transition to be null and
-        // hence reset the state in startScale method before attempting to start scale in idempotent fashion.
-        CompletableFuture<TaskHelper.VersionedMetadataAndState<EpochTransitionRecord>> resetStateFuture = TaskHelper.resetStateConditionally(
-                streamMetadataStore, scope, stream, () -> streamMetadataStore.getVersionedEpochTransition(scope, stream, context, executor),
-                record -> runOnlyIfStarted && record.equals(EpochTransitionRecord.EMPTY), State.SCALING, "Scale Stream not started yet.",
-                context, executor);
+        // and deleted in submitScale method.
+        // if we crash before setting state to active, in rerun (retry) we will find epoch transition to be empty and
+        // hence reset the state here before attempting to start scale in idempotent fashion.
+        return streamMetadataStore.getVersionedState(scope, stream, context, executor)
+            .thenCompose(state -> streamMetadataStore.getEpochTransition(scope, stream, context, executor)
+                    .thenCompose(record -> {
+                        if (record.getObject().equals(EpochTransitionRecord.EMPTY)) {
+                            CompletableFuture<VersionedMetadata<State>> future = state.getObject().equals(State.SCALING) ?
+                                    streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                            state, context, executor) : CompletableFuture.completedFuture(state);
 
-        return resetStateFuture.thenCompose(pair -> streamMetadataStore.startScale(scope, stream, scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(),
-                scaleInput.getScaleTime(), runOnlyIfStarted, context, executor)
-                .thenCompose(epochTransitionRecord -> streamMetadataStore.updateVersionedState(scope, stream, State.SCALING,
-                        pair.getState().getVersion(), context, executor)
-                        .thenCompose(stateVersion -> streamMetadataStore.scaleCreateNewSegments(scope, stream, runOnlyIfStarted,
-                                epochTransitionRecord, stateVersion, context, executor)
-                        .thenCompose(newSegmentsResponse -> {
-                            List<Long> segmentIds = newSegmentsResponse.getObject().getNewSegmentsWithRange().keySet().asList();
+                            return future.thenCompose(updatedState -> {
+                                if (isManualScale) {
+                                    throw new TaskExceptions.StartException("Scale Stream not started yet.");
+                                } else {
+                                    return streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(),
+                                            scaleInput.getScaleTime(), context, executor)
+                                            .thenApply(updatedRecord -> new ImmutablePair<>(updatedRecord, updatedState));
+                                }
+                            });
+                        } else {
+                            return CompletableFuture.completedFuture(new ImmutablePair<>(record, state));
+                        }
+                    }).thenCompose(pair -> processScale(scope, stream, isManualScale, delegationToken, pair.getLeft(), pair.getRight(), context)));
+    }
+
+    private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale, String delegationToken,
+                                                                  VersionedMetadata<EpochTransitionRecord> metadata,
+                                                                  VersionedMetadata<State> state, OperationContext context) {
+        return streamMetadataStore.updateVersionedState(scope, stream, State.SCALING, state, context, executor)
+                .thenCompose(updatedState -> streamMetadataStore.startScale(scope, stream, isManualScale, metadata, updatedState, context, executor)
+                        .thenCompose(record -> streamMetadataStore.scaleCreateNewSegments(scope, stream, record, context, executor)
+                        .thenCompose(v -> {
+                            List<Long> segmentIds = record.getObject().getNewSegmentsWithRange().keySet().asList();
+                            List<Long> segmentsToSeal = record.getObject().getSegmentsToSeal().asList();
                             return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken)
-                                    .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream,
-                                            newSegmentsResponse, context, executor))
-                                    .thenCompose(newSegmentsCreatedResponse ->
-                                            streamMetadataTasks.notifySealedSegments(scope, stream, scaleInput.getSegmentsToSeal(), delegationToken)
-                                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream,
-                                                            scaleInput.getSegmentsToSeal(), delegationToken))
-                                                    .thenCompose(map -> streamMetadataStore.completeScale(scope, stream, map,
-                                                            newSegmentsCreatedResponse, context, executor)))
-                                    .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                            stateVersion, context, executor)
-                                            .thenApply(y -> {
-                                                log.info("scale processing for {}/{} epoch {} completed.", scope, stream,
-                                                        newSegmentsResponse.getObject().getActiveEpoch());
-                                                return newSegmentsResponse.getObject();
-                                            }));
-                        }))));
+                                    .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, record, context, executor))
+                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken))
+                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
+                                    .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, record, context, executor))
+                                    .thenCompose(x -> streamMetadataStore.completeScale(scope, stream, record, context, executor))
+                                    .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updatedState, context, executor))
+                                    .thenAccept(y -> {
+                                        log.info("scale processing for {}/{} epoch {} completed.", scope, stream, record.getObject().getActiveEpoch());
+                                    });
+                        })));
+
     }
 }

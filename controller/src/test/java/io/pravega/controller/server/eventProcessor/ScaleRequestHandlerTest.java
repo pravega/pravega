@@ -36,6 +36,7 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.HistoryRecord;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -243,7 +244,7 @@ public class ScaleRequestHandlerTest {
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
         assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis()))));
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
@@ -350,8 +351,8 @@ public class ScaleRequestHandlerTest {
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
-        streamStore.startScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-        System.currentTimeMillis(), false, null, executor).join();
+        streamStore.submitScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
+        System.currentTimeMillis(), null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
@@ -407,8 +408,8 @@ public class ScaleRequestHandlerTest {
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
-        streamStore.startScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-        System.currentTimeMillis(), false, null, executor).join();
+        streamStore.submitScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
+        System.currentTimeMillis(), null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));

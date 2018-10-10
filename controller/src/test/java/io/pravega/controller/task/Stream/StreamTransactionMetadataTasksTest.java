@@ -45,6 +45,8 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.Version;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
@@ -264,21 +266,21 @@ public class StreamTransactionMetadataTasksTest {
                 new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 5000, null).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 5000, null).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 5000, null).join().getKey();
 
         // Ping another txn from failedHost.
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 30000, null, executor).join();
-        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 10000, null).join();
+        streamStore.createTransaction(SCOPE, STREAM, txnId, 5000, 300000, null, executor).join();
+        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 30000, null).join();
         VersionedTransactionData tx4 = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
 
         // Validate versions of all txn
-        Assert.assertEquals(0, tx1.getVersion());
-        Assert.assertEquals(0, tx2.getVersion());
-        Assert.assertEquals(0, tx3.getVersion());
-        Assert.assertEquals(1, tx4.getVersion());
+        Assert.assertEquals(0, tx1.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(0, tx2.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(0, tx3.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(1, tx4.getVersion().asIntVersion().getIntValue().intValue());
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         // Validate the txn index.
@@ -345,6 +347,7 @@ public class StreamTransactionMetadataTasksTest {
         assertTrue(predicate.test(abortEvent1));
         AbortEvent abortEvent2 = processedAbortEvents.take();
         assertTrue(predicate.test(abortEvent2));
+
         AbortEvent abortEvent3 = processedAbortEvents.take();
         assertTrue(predicate.test(abortEvent3));
 
@@ -386,7 +389,7 @@ public class StreamTransactionMetadataTasksTest {
 
         UUID tx1 = txData1.getId();
         UUID tx2 = txData2.getId();
-        int tx2Version = txData2.getVersion();
+        Version tx2Version = txData2.getVersion();
 
         // Commit the first one
         Assert.assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());

@@ -30,6 +30,7 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.tables.State;
 import io.pravega.controller.store.task.TaskStoreFactory;
