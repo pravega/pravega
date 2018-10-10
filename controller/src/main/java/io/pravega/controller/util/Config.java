@@ -65,7 +65,7 @@ public final class Config {
     public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
     public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
     public static final int ZK_SESSION_TIMEOUT_MS = CONFIG.getInt("config.controller.server.zk.sessionTimeoutMS");
-    public static final boolean SECURE_ZK = CONFIG.getBoolean("config.controller.server.zk.connectionToZooKeeperSecure");
+    public static final boolean SECURE_ZK = CONFIG.getBoolean("config.controller.server.zk.secureConnectionToZooKeeper");
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
         log.info("Controller configuration:");

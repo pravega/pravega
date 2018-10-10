@@ -316,7 +316,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .initialSleepInterval(2000)
                 .maxRetries(1)
                 .sessionTimeoutMs(10 * 1000)
-                .connectionToZooKeeperSecure(this.secureZK)
+                .secureConnectionToZooKeeper(this.secureZK)
                 .trustStorePath(jksTrustFile)
                 .trustStorePasswordPath(keyPasswordFile)
                 .build();

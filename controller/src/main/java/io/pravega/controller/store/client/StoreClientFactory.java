@@ -51,7 +51,7 @@ public class StoreClientFactory {
     }
 
     private static CuratorFramework createZKClient(ZKClientConfig zkClientConfig) {
-        if (zkClientConfig.isConnectionToZooKeeperSecure()) {
+        if (zkClientConfig.isSecureConnectionToZooKeeper()) {
             System.setProperty("zookeeper.client.secure", "true");
             System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
             System.setProperty("zookeeper.ssl.trustStore.location", zkClientConfig.getTrustStorePath());
