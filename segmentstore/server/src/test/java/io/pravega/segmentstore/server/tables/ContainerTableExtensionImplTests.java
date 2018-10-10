@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -256,10 +257,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         // Process each such batch in turn. Keep track of the removed keys, as well as of existing key versions.
         val removedKeys = new HashSet<ArrayView>();
-        val keyVersions = new HashMap<HashedArray, Long>(); // Versions are tracked by bucket.
+        val keyVersions = new HashMap<KeyHash, Long>(); // Versions are tracked by bucket.
         Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(context.hasher.hash(k), TableKey.NOT_EXISTS);
         TestBatchData last = null;
         for (val current : data) {
+            System.out.println("Update");
             // Update entries.
             val toUpdate = current.toUpdate
                     .entrySet().stream().map(e -> generateToUpdate.apply(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
@@ -278,6 +280,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             removedKeys.removeAll(current.toUpdate.keySet());
 
             // Remove entries.
+            System.out.println("Remove");
             val toRemove = current.toRemove
                     .stream().map(k -> generateToRemove.apply(k, getKeyVersion.apply(k))).collect(Collectors.toList());
 
@@ -285,13 +288,15 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             removedKeys.addAll(current.toRemove);
             current.toRemove.stream().map(context.hasher::hash).forEach(keyVersions::remove);
 
-            // Verify result (from the cache).
+            // Verify result (from cache).
+            System.out.println("Check");
             check(current.expectedEntries, removedKeys, context.ext);
 
             // Flush the processor.
             Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+
             last = current;
         }
 
@@ -323,6 +328,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             val expectedValue = expectedResult.get(i);
             val expectedKey = existingKeys.get(i);
             val actualEntry = existingResult.get(i);
+            if (actualEntry == null) {
+                System.out.println("no.entry " + i);
+            }
             Assert.assertEquals("Unexpected key at position " + i, expectedKey, new HashedArray(actualEntry.getKey().getKey()));
             Assert.assertEquals("Unexpected value at position " + i, expectedValue, new HashedArray(actualEntry.getValue()));
         }

@@ -102,7 +102,7 @@ class SegmentMock implements DirectSegmentAccess {
         }
 
         // We get a slice of the data view, and return a ReadResultMock with entry lengths of 3.
-        return new ReadResultMock(dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
+        return new ReadResultMock(offset, dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
     }
 
     @Override

@@ -255,6 +255,21 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
+     * Gets the value of the Last Indexed Offset for a Segment.
+     *
+     * @param segmentId The Id of the Segment to get the Last Indexed Offset for.
+     * @return The Last Indexed Offset for the Segment, or -1 if this segment is not registered.
+     */
+    long getSegmentIndexOffset(long segmentId) {
+        SegmentIndexTail tail;
+        synchronized (this.cacheEntries) {
+            tail = this.indexTails.getOrDefault(segmentId, null);
+        }
+
+        return tail == null ? -1 : tail.getLastIndexedOffset();
+    }
+
+    /**
      * Updates the Last Indexed Offset for a given Segment, but only if there currently isn't any information about that.
      * See {@link #updateSegmentIndexOffset(long, long)} for more details.
      *

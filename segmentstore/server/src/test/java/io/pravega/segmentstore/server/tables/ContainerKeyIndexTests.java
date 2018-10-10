@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -363,12 +364,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof ObjectClosedException);
     }
 
-    private void checkKeyOffsets(List<KeyHash> allHashes, HashMap<KeyHash, KeyWithOffset> offsets, List<Long> bucketOffsets) {
+    private void checkKeyOffsets(List<KeyHash> allHashes, Map<KeyHash, KeyWithOffset> offsets, Map<KeyHash, Long> bucketOffsets) {
         Assert.assertEquals("Unexpected number of results found.", allHashes.size(), bucketOffsets.size());
         for (int i = 0; i < allHashes.size(); i++) {
-            KeyWithOffset ko = offsets.get(allHashes.get(i));
+            KeyHash hash = allHashes.get(i);
+            KeyWithOffset ko = offsets.get(hash);
             long expectedValue = ko == null ? TableKey.NOT_EXISTS : ko.offset;
-            Assert.assertEquals("Unexpected offset at index " + i, expectedValue, (long) bucketOffsets.get(i));
+            Assert.assertEquals("Unexpected offset at index " + i, expectedValue, (long) bucketOffsets.get(hash));
         }
     }
 
@@ -381,10 +383,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Check Bucket offsets.
         val bucketOffsets = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
         Assert.assertEquals("Unexpected number of buckets returned.", highestUpdate.batch.getItems().size(), bucketOffsets.size());
-        for (int i = 0; i < bucketOffsets.size(); i++) {
-            long expectedOffset = highestUpdate.offset.get() + highestUpdate.batch.getItems().get(i).getOffset();
-            long actualOffset = bucketOffsets.get(i);
-            Assert.assertEquals("Unexpected offset for result index " + i, expectedOffset, actualOffset);
+
+        val expectedOffsetsByHash = highestUpdate.batch.getItems().stream()
+                .collect(Collectors.toMap(TableKeyBatch.Item::getHash, TableKeyBatch.Item::getOffset));
+        for (val e : bucketOffsets.entrySet()) {
+            long expectedOffset = highestUpdate.offset.get() + expectedOffsetsByHash.get(e.getKey());
+            long actualOffset = e.getValue();
+            Assert.assertEquals("Unexpected offset.", expectedOffset, actualOffset);
         }
     }
 
@@ -393,30 +398,36 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val highestUpdateHashes = sortedUpdates.get(sortedUpdates.size() - 1).batch
                 .getItems().stream().map(TableKeyBatch.Item::getHash).collect(Collectors.toList());
 
-        List<Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
+        Map<KeyHash, Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
         for (int updateId = sortedUpdates.size() - 1; updateId >= 0; updateId--) {
             // Generate the expected backpointers.
-            List<Long> expectedBackpointers;
+            Map<KeyHash, Long> expectedBackpointers = new HashMap<>();
             if (updateId == 0) {
                 // For the first update, we do not expect any.
-                expectedBackpointers = new ArrayList<>();
-                for (int i = 0; i < backpointerSources.size(); i++) {
-                    expectedBackpointers.add(-1L);
-                }
+                backpointerSources.keySet().forEach(k -> expectedBackpointers.put(k, -1L));
             } else {
                 // For any other updates, it's whatever got executed before this one.
-                expectedBackpointers = sortedUpdates.get(updateId - 1).update.join();
+                val previousUpdate = sortedUpdates.get(updateId - 1);
+                for (int i = 0; i < previousUpdate.batch.getItems().size(); i++) {
+                    expectedBackpointers.put(
+                            previousUpdate.batch.getItems().get(i).getHash(),
+                            previousUpdate.update.join().get(i));
+                }
             }
 
             // Fetch the actual values.
-            val actualBackpointers = backpointerSources
-                    .stream()
-                    .map(sourceOffset -> context.index.getBackpointerOffset(context.segment, sourceOffset, TIMEOUT).join())
-                    .collect(Collectors.toList());
+            Map<KeyHash, Long> actualBackpointers = backpointerSources
+                    .entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> context.index.getBackpointerOffset(context.segment, e.getValue(), TIMEOUT).join()));
 
             // Check and move on.
-            AssertExtensions.assertListEquals("Unexpected backpointer for update " + updateId,
-                    expectedBackpointers, actualBackpointers, Long::equals);
+            Assert.assertEquals("Unexpected backpointer count for update " + updateId, expectedBackpointers.size(), actualBackpointers.size());
+            for (val e : expectedBackpointers.entrySet()) {
+                val a = actualBackpointers.get(e.getKey());
+                Assert.assertNotNull("No backpointer for update "+updateId, a);
+                Assert.assertEquals("Unexpected backpointer for update " + updateId, e.getValue(), a);
+            }
+
             backpointerSources = expectedBackpointers;
         }
 

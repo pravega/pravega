@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -208,31 +209,31 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return CompletableFuture.completedFuture(Collections.emptyList());
         } else {
             TimeoutTimer timer = new TimeoutTimer(timeout);
-            List<KeyHash> hashes = keys.stream().map(this.hasher::hash).collect(Collectors.toList());
+            val resultBuilder = new GetResultBuilder(keys, this.hasher);
             return this.segmentContainer
                     .forSegment(segmentName, timer.getRemaining())
-                    .thenComposeAsync(segment -> this.keyIndex.getBucketOffsets(segment, hashes, timer)
-                                    .thenComposeAsync(offsets -> get(segment, keys, offsets, timer), this.executor),
+                    .thenComposeAsync(segment -> this.keyIndex.getBucketOffsets(segment, resultBuilder.getHashes(), timer)
+                                    .thenComposeAsync(offsets -> get(segment, resultBuilder, offsets, timer), this.executor),
                             this.executor);
         }
     }
 
-    private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, List<ArrayView> keys, List<Long> bucketOffsets, TimeoutTimer timer) {
-        assert keys.size() == bucketOffsets.size();
-        List<CompletableFuture<TableEntry>> searchFutures = new ArrayList<>();
-        for (int i = 0; i < bucketOffsets.size(); i++) {
-            long offset = bucketOffsets.get(i);
+    private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, GetResultBuilder builder,
+                                                    Map<KeyHash, Long> bucketOffsets, TimeoutTimer timer) {
+        int resultSize = builder.getHashes().size();
+        for (int i = 0; i < resultSize; i++) {
+            long offset = bucketOffsets.get(builder.getHashes().get(i));
             if (offset == TableKey.NOT_EXISTS) {
                 // Bucket does not exist, hence neither does the key.
-                searchFutures.add(CompletableFuture.completedFuture(null));
+                builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                ArrayView key = keys.get(i);
-                searchFutures.add(findEntry(segment, key, offset, timer));
+                ArrayView key = builder.getKeys().get(i);
+                builder.includeResult(findEntry(segment, key, offset, timer));
             }
         }
 
-        return Futures.allOfWithResults(searchFutures);
+        return builder.getResultFutures();
     }
 
     @Override
@@ -367,4 +368,44 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     //endregion
+
+    //region GetResultBuilder
+
+    /**
+     * Helps build Result for the {@link #get} method.
+     */
+    private static class GetResultBuilder {
+        /**
+         * Sought keys.
+         */
+        @Getter
+        private final List<ArrayView> keys;
+        /**
+         * Sought keys's hashes, in the same order as the keys.
+         */
+        @Getter
+        private final List<KeyHash> hashes;
+
+        /**
+         * A list of Futures with the results for each key, in the same order as the keys.
+         */
+        private final List<CompletableFuture<TableEntry>> resultFutures;
+
+        GetResultBuilder(List<ArrayView> keys, KeyHasher hasher) {
+            this.keys = keys;
+            this.hashes = keys.stream().map(hasher::hash).collect(Collectors.toList());
+            this.resultFutures = new ArrayList<>();
+        }
+
+        void includeResult(CompletableFuture<TableEntry> entryFuture) {
+            this.resultFutures.add(entryFuture);
+        }
+
+        CompletableFuture<List<TableEntry>> getResultFutures() {
+            return Futures.allOfWithResults(this.resultFutures);
+        }
+    }
+
+    //endregion
+
 }
