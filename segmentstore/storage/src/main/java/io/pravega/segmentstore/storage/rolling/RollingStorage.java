@@ -253,7 +253,7 @@ public class RollingStorage implements SyncStorage {
         // Creating a segment also involves creating other related files (e.g., state, attributes, header). For this
         // reason, we propagate the same requestId to new request tags related to all these create operations.
         String segmentNameWithEpoch = extractTraceableSegmentName(segmentName);
-        RequestTag requestTag = getRequestTagAndPropagate("createSegment", segmentNameWithEpoch);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("createSegment", segmentNameWithEpoch));
 
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy, requestTag.getRequestId());
 
@@ -348,7 +348,7 @@ public class RollingStorage implements SyncStorage {
         val h = asWritableHandle(handle);
         ensureNotDeleted(h);
         String segmentNameWithEpoch = extractTraceableSegmentName(handle.getSegmentName());
-        RequestTag requestTag = getRequestTagAndPropagate("sealSegment", segmentNameWithEpoch);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("sealSegment", segmentNameWithEpoch));
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle, requestTag.getRequestId());
         sealActiveChunk(h, requestTag.getRequestId());
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -445,7 +445,7 @@ public class RollingStorage implements SyncStorage {
     public void delete(SegmentHandle handle) throws StreamSegmentException {
         val h = asReadableHandle(handle);
         String segmentNameWithEpoch = extractTraceableSegmentName(handle.getSegmentName());
-        RequestTag requestTag = getRequestTagAndPropagate("deleteSegment", segmentNameWithEpoch);
+        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor("deleteSegment", segmentNameWithEpoch));
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle, requestTag.getRequestId());
 
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -835,9 +835,6 @@ public class RollingStorage implements SyncStorage {
     /**
      * Extract the segment name that we use to trace operations related to a segment. Operations may be directed to the
      * main segment (header), or to its associate state and attribute segments. We aim at tracing all such operations.
-     *
-     * @param segmentName
-     * @return Base segment name used to trace a operation considering primary (header), state and attribute segments.
      */
     private String extractTraceableSegmentName(String segmentName) {
         if (isStateSegment(segmentName)) {
@@ -848,29 +845,6 @@ public class RollingStorage implements SyncStorage {
 
         // If this is neither an attribute nor a state segment, assume that is a regular one.
         return extractStreamSegmentNameWithEpoch(segmentName);
-    }
-
-    /**
-     * This method gets the request tag associated to an operation over a segment. In the case that the segment is the
-     * main one, this method creates two new request tags associated with the same request id. The reason is that the
-     * operations that we are tracking, such as create or delete, involve multiple operations on state and attribute
-     * segments. This method just adds tags for these subsequent operations, which are in fact related to the same
-     * request.
-     *
-     * @param operation
-     * @param segmentName
-     * @return
-     */
-    private RequestTag getRequestTagAndPropagate(String operation, String segmentName) {
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(buildRequestDescriptor(operation, segmentName));
-
-        // If this is an operation on the main segment, we create tags for upcoming requests to attributes/state segments.
-        if (!isAttributeSegment(segmentName) && !isStateSegment(segmentName)) {
-            RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, getStateSegmentName(segmentName)), requestTag.getRequestId());
-            RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, getAttributeSegmentName(segmentName)), requestTag.getRequestId());
-        }
-
-        return requestTag;
     }
 
     //endregion

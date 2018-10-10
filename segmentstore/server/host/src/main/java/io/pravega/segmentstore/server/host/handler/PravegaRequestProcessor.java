@@ -88,6 +88,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ;
+import static io.pravega.common.tracing.RequestTracker.buildRequestDescriptor;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
@@ -102,6 +103,8 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getAttributeSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getStateSegmentName;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -407,6 +410,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
        }
 
        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(createStreamSegment.getRequestId(), operation, createStreamSegment.getSegment());
+       initializeAuxiliarTier2RequestTags(operation, createStreamSegment.getSegment(), requestTag.getRequestId());
        log.info("[requestId={}] Creating stream segment {}.", requestTag.getRequestId(), createStreamSegment);
        segmentStore.createStreamSegment(createStreamSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {
@@ -436,6 +440,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(mergeSegments.getRequestId(), operation,
                 mergeSegments.getSource(), mergeSegments.getTarget());
+        // Merging two segments normally involve sealing and deleting the source segment, so create request tags for this.
+        initializeAllTier2RequestTags("sealSegment", mergeSegments.getSource(), requestTag.getRequestId());
+        initializeAllTier2RequestTags("deleteSegment", mergeSegments.getSource(), requestTag.getRequestId());
         log.info("[requestId={}] Merging Segments {} ", requestTag.getRequestId(), mergeSegments);
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
                     .thenAccept(txnProp -> {
@@ -464,6 +471,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(sealSegment.getRequestId(), operation, segment);
+        initializeAuxiliarTier2RequestTags(operation, segment, requestTag.getRequestId());
         log.info("[requestId={}] Sealing segment {} ", requestTag.getRequestId(), sealSegment);
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
@@ -507,6 +515,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(deleteSegment.getRequestId(), operation, segment);
+        initializeAuxiliarTier2RequestTags(operation, segment, requestTag.getRequestId());
         log.info("[requestId={}] Deleting segment {} ", requestTag.getRequestId(), deleteSegment);
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
@@ -621,8 +630,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Custom exception to indicate a {@link CancellationException} during a Read segment operation.
      */
     private class ReadCancellationException extends RuntimeException {
-        ReadCancellationException(Throwable wrapppedException) {
-            super("CancellationException during operation Read segment", wrapppedException);
+        ReadCancellationException(Throwable wrappedException) {
+            super("CancellationException during operation Read segment", wrappedException);
         }
     }
 
@@ -633,5 +642,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private void logAndUntrackRequest(String...requestInfo) {
         logAndUntrackRequest(RequestTracker.buildRequestDescriptor(requestInfo));
+    }
+
+
+    /**
+     * This method gets the request id associated to an operation over a segment and creates two new request tags
+     * associated with the same request id. The reason is that the operations that we are tracking, such as create or
+     * delete, involve multiple operations on state and attribute segments. This method just adds tags for these
+     * subsequent operations, which are in fact related to the same request.
+     */
+    private void initializeAuxiliarTier2RequestTags(String operation, String segmentName, long requestId) {
+        RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, getStateSegmentName(segmentName)), requestId);
+        RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, getAttributeSegmentName(segmentName)), requestId);
+    }
+
+    private void initializeAllTier2RequestTags(String operation, String segmentName, long requestId) {
+        RequestTracker.getInstance().trackRequest(buildRequestDescriptor(operation, segmentName), requestId);
+        initializeAuxiliarTier2RequestTags(operation, segmentName, requestId);
     }
 }

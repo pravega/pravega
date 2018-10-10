@@ -483,8 +483,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 if (sourceMetadata.getLength() == 0) {
                     // Source is still empty after sealing - OK to delete.
                     log.debug("[requestId={}] {}: Deleting empty source segment instead of merging {}.", requestId, this.traceObjectId, sourceMetadata.getName());
-                    // Track the delete of this segment as an operation related to a merge.
-                    RequestTracker.initializeAndTrackRequestTag(requestId, "deleteSegment", sourceMetadata.getName());
                     return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
                 } else {
                     // Source now has some data - we must merge the two.
@@ -589,8 +587,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (metadata.isSealed()) {
             return CompletableFuture.completedFuture(null);
         } else {
-            // Track the seal of this segment as an operation related to a previous merge.
-            RequestTracker.initializeAndTrackRequestTag(requestId, "sealSegment", metadata.getName());
             // It is OK to ignore StreamSegmentSealedException as the segment may have already been sealed by a concurrent
             // call to this or via some other operation.
             return Futures.exceptionallyExpecting(
