@@ -69,7 +69,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * @see java.io.OutputStream#close()
      */
     @Override
-    public abstract void close();
+    public abstract void close() throws IOException;
     
     /**
      * Blocks until all data written has been durably persisted.
@@ -82,7 +82,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * Closes the writer similar to {@link #close()} but also seals it so that no future writes can
      * ever be made.
      */
-    public abstract void closeAndSeal();
+    public abstract void closeAndSeal() throws IOException;
 
     /**
      * Similar to {@link #flush()} but does not block the calling thread, and instead returns a

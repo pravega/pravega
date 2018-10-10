@@ -87,10 +87,11 @@ public interface SegmentInputStream extends AutoCloseable {
     public abstract void close();
     
     /**
-     * Returns true if {@link #read()} can be invoked without blocking. (This may be because there
-     * is data in a buffer, or the call will throw EndOfSegmentException).
+     * Returns > 0 if {@link #read()} can be invoked without blocking. 
+     * Returns 0 if {@link #read()} will block. 
+     * Returns -1 if a call to read will throw EndOfSegmentException.
      *
-     * @return False if data read is blocking.
+     * @return 0 if data read is blocking.
      */
-    public boolean isSegmentReady();
+    public int bytesInBuffer();
 }

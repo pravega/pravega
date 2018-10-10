@@ -256,9 +256,15 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     
     @Override
     @Synchronized
-    public boolean isSegmentReady() {
-        boolean result = receivedEndOfSegment || receivedTruncated || buffer.dataAvailable() > 0 || (outstandingRequest != null && outstandingRequest.isDone());
-        log.trace("isSegmentReady {} on segment {} status is {}", result, getSegmentId(), this);
+    public int bytesInBuffer() {
+        int result = buffer.dataAvailable();
+        if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
+            result += outstandingRequest.join().getData().remaining();
+        }
+        if (result <= 0 && (receivedEndOfSegment || receivedTruncated)) {
+           result = -1;
+        }
+        log.trace("bytesInBuffer {} on segment {} status is {}", result, getSegmentId(), this);        
         return result;
     }
 

@@ -1,6 +1,5 @@
 package io.pravega.client.byteStream.impl;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.InvalidOffsetException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -13,7 +12,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
-import lombok.val;
 
 @RequiredArgsConstructor
 @ToString
@@ -65,7 +63,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
 
     @Override
     public long fetchTailOffset() {
-        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override

@@ -33,6 +33,10 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     
     /**
      * Returns the number of bytes that can be read without blocking.
+     * If the number returned is > 0 then a call to {@link #read(byte[]))} will return data from memory without blocking.
+     * If the number returned is 0 then {@link #read(byte[]))} will block
+     * If -1 is returned this indicates the end of the stream has been reached and a call to {@link #read(byte[])} will return -1.
+     * 
      * @see java.io.InputStream#available()
      */
     @Override
@@ -50,7 +54,11 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract int read() throws IOException;
     
     /**
-     * will only block if {@link #available()} is 0.
+     * See {@link InputStream#read(byte[])}.
+     * This is equivlent to calling  
+     * {@code read(b, 0, b.length) }
+     * 
+     * Will only block if {@link #available()} is 0.
      */
     @Override
     public abstract int read(byte b[]) throws IOException;

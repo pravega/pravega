@@ -2,31 +2,27 @@ package io.pravega.client.byteStream.impl;
 
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
-import io.pravega.common.util.CircularBuffer;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class ByteStreamWriterImpl extends ByteStreamWriter {
     
     private final SegmentOutputStream out;
-    @Getter(lazy = true, value = AccessLevel.PRIVATE)
-    private final CircularBuffer buffer = new CircularBuffer(4096);
 
     @Override
     public void write(ByteBuffer src) throws IOException {
-        out.write(new PendingEvent(routingKey, data, ackFuture));
+        out.write(PendingEvent.withoutHeader(null, src, null));
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         ByteBuffer data = ByteBuffer.wrap(b, off, len);
-        out.write(event);
+        out.write(PendingEvent.withoutHeader(null, data, null));
     }
 
     @Override
@@ -35,13 +31,17 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public void close() {
-        out.close();
+    public void close() throws IOException {
+        try {
+            out.close();
+        } catch (SegmentSealedException e) {
+            throw new IOException(e);
+        }
     }
 
     @Override
     public void flush() throws IOException {
-        out.close();
+        out.flush();
     }
 
     @Override
