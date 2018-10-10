@@ -9,7 +9,8 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import io.pravega.common.util.ArrayView;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.Getter;
 
 /**
@@ -19,21 +20,22 @@ import lombok.Getter;
 public class BadKeyVersionException extends ConditionalTableUpdateException {
     private static final long serialVersionUID = 1L;
     @Getter
-    private final long expectedVersion;
-    @Getter
-    private final long compareVersion;
+    private final Map<TableKey, Long> expectedVersions;
 
     /**
      * Creates a new instance of the BadKeyVersionException class.
      *
      * @param segmentName     The name of the affected Table Segment.
-     * @param key             The Key that does not exist.
-     * @param expectedVersion The version of the Key in the Table.
-     * @param compareVersion  The version of the Key provided by the request.
+     * @param expectedVersions A Map Of {@link TableKey} to Longs representing the keys to expected versions.
      */
-    public BadKeyVersionException(String segmentName, ArrayView key, long expectedVersion, long compareVersion) {
-        super(segmentName, key, String.format("Version mismatch (expected %s, given %s).", expectedVersion, compareVersion));
-        this.expectedVersion = expectedVersion;
-        this.compareVersion = compareVersion;
+    public BadKeyVersionException(String segmentName, Map<TableKey, Long> expectedVersions) {
+        super(segmentName, String.format("Version mismatch for %s key(s): %s.", expectedVersions.size(), getMessage(expectedVersions)));
+        this.expectedVersions = expectedVersions;
+    }
+
+    private static String getMessage(Map<TableKey, Long> expectedVersions) {
+        return expectedVersions.entrySet().stream()
+                               .map(e -> String.format("%s (%s)", e.getValue(), e.getKey().getVersion()))
+                               .collect(Collectors.joining(", "));
     }
 }

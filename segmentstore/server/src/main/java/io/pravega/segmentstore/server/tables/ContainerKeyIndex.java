@@ -13,6 +13,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ConcurrentDependentProcessor;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
@@ -32,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -295,8 +297,19 @@ class ContainerKeyIndex implements AutoCloseable {
         List<KeyHash> hashes = batch.getVersionedItems().stream()
                 .map(TableKeyBatch.Item::getHash)
                 .collect(Collectors.toList());
-        return getBucketOffsets(segment, hashes, timer)
+        CompletableFuture<Void> result = getBucketOffsets(segment, hashes, timer)
                 .thenAccept(offsets -> validateConditionalUpdate(batch.getVersionedItems(), offsets, segment.getInfo().getName()));
+        return Futures.exceptionallyCompose(
+                result,
+                ex -> {
+                    ex = Exceptions.unwrap(ex);
+                    if (ex instanceof BadKeyVersionException) {
+                        return validateConditionalUpdateFailures(segment, ((BadKeyVersionException) ex).getExpectedVersions(), timer);
+                    }
+
+                    // Some other exception. Re-throw.
+                    return Futures.failedFuture(ex);
+                });
     }
 
     /**
@@ -313,6 +326,7 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     @SneakyThrows(ConditionalTableUpdateException.class)
     private void validateConditionalUpdate(List<TableKeyBatch.Item> items, Map<KeyHash, Long> bucketOffsets, String segmentName) {
+        val badKeyVersions = new HashMap<TableKey, Long>(); // Key = Key that failed, Value = Key's bucket offset.
         for (val item : items) {
             // Validate compareVersion.
             TableKey key = item.getKey();
@@ -325,11 +339,46 @@ class ContainerKeyIndex implements AutoCloseable {
                 }
             } else if (bucketOffset != key.getVersion()) {
                 // Key does exist, but has the wrong version.
-                throw new BadKeyVersionException(segmentName, key.getKey(), bucketOffset, key.getVersion());
+                badKeyVersions.put(key, bucketOffset);
             }
         }
 
+        if (!badKeyVersions.isEmpty()) {
+            // Throw the bad key version in bulk - helps speed verification.
+            throw new BadKeyVersionException(segmentName, badKeyVersions);
+        }
+
         // All validations for all items passed.
+    }
+
+    private CompletableFuture<Void> validateConditionalUpdateFailures(DirectSegmentAccess segment, Map<TableKey, Long> expectedVersions, TimeoutTimer timer) {
+        assert !expectedVersions.isEmpty();
+        System.out.println("X");
+        val finder = new TableEntryFinder(this, new EntrySerializer(), this.executor);
+        val searches = expectedVersions.entrySet().stream()
+                                       .collect(Collectors.toMap(Map.Entry::getKey, e -> finder.findKey(segment, e.getKey().getKey(), e.getValue(), timer)));
+        return Futures
+                .allOf(searches.values())
+                .thenRun(() -> {
+                    val failed = new HashMap<TableKey, Long>();
+                    for (val e : searches.entrySet()) {
+                        val actual = e.getValue().join();
+                        boolean isValid = true;
+                        if (actual == null) {
+                            isValid = e.getKey().getVersion() == TableKey.NOT_EXISTS;
+                        } else {
+                            isValid = e.getKey().getVersion() == actual.getVersion();
+                        }
+
+                        if (!isValid) {
+                            failed.put(e.getKey(), actual == null ? TableKey.NOT_EXISTS : actual.getVersion());
+                        }
+                    }
+
+                    if (!failed.isEmpty()) {
+                        throw new CompletionException(new BadKeyVersionException(segment.getInfo().getName(), failed));
+                    }
+                });
     }
 
     /**

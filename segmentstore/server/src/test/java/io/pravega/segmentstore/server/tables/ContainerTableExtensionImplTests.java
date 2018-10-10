@@ -33,7 +33,6 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -75,6 +74,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int MAX_VALUE_LENGTH = 64;
     private static final int UPDATE_COUNT = 10000;
     private static final int UPDATE_BATCH_SIZE = 689;
+//    private static final int UPDATE_COUNT = 100;
+//    private static final int UPDATE_BATCH_SIZE = 9;
+//    private static final int UPDATE_COUNT = 1000;
+//    private static final int UPDATE_BATCH_SIZE = 49;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -257,10 +260,20 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         // Process each such batch in turn. Keep track of the removed keys, as well as of existing key versions.
         val removedKeys = new HashSet<ArrayView>();
-        val keyVersions = new HashMap<KeyHash, Long>(); // Versions are tracked by bucket.
-        Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(context.hasher.hash(k), TableKey.NOT_EXISTS);
+        val keyVersions = new HashMap<ArrayView, Long>();
+        Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
         TestBatchData last = null;
+        int batchid=0;
         for (val current : data) {
+            System.out.println("\nBatch " +batchid++);
+            System.out.println("Update");
+            current.toUpdate.forEach((k,v)->{
+                System.out.println(String.format("\tKey = %s, Hash = %s -> %s",
+                        k,
+                        context.hasher.hash(k).getSignature(),
+                        keyVersions.get(context.hasher.hash(k))));
+            });
+
             // Update entries.
             val toUpdate = current.toUpdate
                     .entrySet().stream().map(e -> generateToUpdate.apply(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
@@ -271,12 +284,22 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                                          // Update key versions.
                                          Assert.assertEquals(toUpdate.size(), versions.size());
                                          for (int i = 0; i < versions.size(); i++) {
-                                             keyVersions.put(context.hasher.hash(toUpdate.get(i).getKey().getKey()), versions.get(i));
+                                             keyVersions.put(toUpdate.get(i).getKey().getKey(), versions.get(i));
                                          }
                                      }),
                     processor,
                     context.segment().getInfo()::getLength);
             removedKeys.removeAll(current.toUpdate.keySet());
+
+            // TODO: when removing, the bucket offset increases. A subsequent update on that key (or a key that does not exist but
+            // is part of an existing bucket) will fail if conditioned on it not existing.
+            System.out.println("Remove");
+            current.toRemove.forEach(k->{
+                System.out.println(String.format("\tKey = %s, Hash = %s -> %s",
+                        k,
+                        context.hasher.hash(k).getSignature(),
+                        keyVersions.get(context.hasher.hash(k))));
+            });
 
             // Remove entries.
             val toRemove = current.toRemove
@@ -284,7 +307,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
             addToProcessor(() -> context.ext.remove(SEGMENT_NAME, toRemove, TIMEOUT), processor, context.segment().getInfo()::getLength);
             removedKeys.addAll(current.toRemove);
-            current.toRemove.stream().map(context.hasher::hash).forEach(keyVersions::remove);
+            keyVersions.keySet().removeAll(current.toRemove);
 
             // Flush the processor.
             Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
@@ -293,6 +316,15 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
             // Verify result (from cache).
             check(current.expectedEntries, removedKeys, context.ext);
+
+            System.out.println("After update");
+            current.expectedEntries.forEach((k, v)->{
+                System.out.println(String.format("\tKey = %s, Hash = %s -> E: %s, A: %s",
+                        k,
+                        context.hasher.hash(k).getSignature(),
+                        keyVersions.get(context.hasher.hash(k)),
+                        context.ext.get(SEGMENT_NAME,Collections.singletonList(k), TIMEOUT).join().get(0).getKey().getVersion()));
+            });
 
             last = current;
         }

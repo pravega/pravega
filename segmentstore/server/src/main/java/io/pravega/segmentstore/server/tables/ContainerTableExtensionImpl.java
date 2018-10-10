@@ -18,7 +18,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -29,7 +28,6 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
-import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.tables.hashing.HashConfig;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
@@ -43,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -70,6 +67,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final KeyHasher hasher;
     private final ContainerKeyIndex keyIndex;
     private final EntrySerializer serializer;
+    private final TableEntryFinder entryFinder;
     private final AtomicBoolean closed;
 
     //endregion
@@ -106,6 +104,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.hasher = hasher;
         this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.executor);
         this.serializer = new EntrySerializer();
+        this.entryFinder = new TableEntryFinder(this.keyIndex, this.serializer, this.executor);
         this.closed = new AtomicBoolean();
     }
 
@@ -228,8 +227,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                ArrayView key = builder.getKeys().get(i);
-                builder.includeResult(findEntry(segment, key, offset, timer));
+                builder.includeResult(this.entryFinder.findEntry(segment, builder.getKeys().get(i), offset, timer));
             }
         }
 
@@ -284,51 +282,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         byte[] s = new byte[serializationLength];
         serializer.accept(toCommit, s);
         return segment.append(s, null, timeout);
-    }
-
-    private CompletableFuture<TableEntry> findEntry(DirectSegmentAccess segment, ArrayView key, long bucketOffset, TimeoutTimer timer) {
-        final int maxReadLength = EntrySerializer.MAX_SERIALIZATION_LENGTH;
-
-        // Read the Key at the current offset and check it against the sought one.
-        AtomicLong offset = new AtomicLong(bucketOffset);
-        CompletableFuture<TableEntry> result = new CompletableFuture<>();
-        Futures.loop(
-                () -> !result.isDone(),
-                () -> {
-                    ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    val entryReader = AsyncTableEntryReader.readEntry(key, offset.get(), this.serializer, timer);
-                    AsyncReadResultProcessor.process(readResult, entryReader, this.executor);
-                    return entryReader
-                            .getResult()
-                            .thenComposeAsync(entry -> {
-                                if (entry == null) {
-                                    // No match: Try to use backpointers to re-get offset and repeat.
-                                    return this.keyIndex
-                                            .getBackpointerOffset(segment, offset.get(), timer.getRemaining())
-                                            .thenAccept(newOffset -> {
-                                                offset.set(newOffset);
-                                                if (newOffset < 0) {
-                                                    // Could not find anything.
-                                                    result.complete(null);
-                                                }
-                                            });
-                                } else if (entry.getValue() == null) {
-                                    // Key matched, but was a deletion.
-                                    result.complete(null);
-                                    return CompletableFuture.<Void>completedFuture(null);
-                                } else {
-                                    // Match.
-                                    result.complete(entry);
-                                    return CompletableFuture.<Void>completedFuture(null);
-                                }
-                            }, this.executor);
-                },
-                this.executor)
-                .exceptionally(ex -> {
-                    result.completeExceptionally(ex);
-                    return null;
-                });
-        return result;
     }
 
     //endregion

@@ -189,13 +189,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "update() allowed conditional update on existent key conditioned on not existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, TableKey.NOT_EXISTS)), noPersist, context.timer),
-                ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getKey(), keyData));
+                ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getExpectedVersions(), keyData));
 
         // Key exists, but we conditioned on the wrong value.
         AssertExtensions.assertThrows(
                 "update() allowed conditional update on inexistent key conditioned on existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 123L)), noPersist, context.timer),
-                ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getKey(), keyData));
+                ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getExpectedVersions(), keyData));
     }
 
     /**
@@ -472,6 +472,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
     private boolean keyMatches(ArrayView k1, ArrayView k2) {
         return new HashedArray(k1).equals(new HashedArray(k2));
+    }
+
+    private boolean keyMatches(Map<TableKey, Long> expectedVersions, ArrayView k2) {
+        return expectedVersions.size() == 1 && keyMatches(expectedVersions.keySet().stream().findFirst().get().getKey(), k2);
     }
 
     //region Helper Classes

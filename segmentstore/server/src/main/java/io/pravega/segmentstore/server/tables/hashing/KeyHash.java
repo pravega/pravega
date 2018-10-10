@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables.hashing;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
@@ -76,7 +77,8 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
         return super.equals(obj);
     }
 
-    private String getSignature() {
+    @VisibleForTesting
+    public String getSignature() {
         return Arrays.stream(this.parts)
                      .map(p -> p.get(p.getLength() - 1))
                      .map(Object::toString)
