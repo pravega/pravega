@@ -43,7 +43,7 @@ public class ServiceConfig {
     public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zkTrustStorePasswordPath", "");
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
-    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.INMEMORY);
+    public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
     public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
@@ -51,6 +51,7 @@ public class ServiceConfig {
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
+    public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -237,6 +238,12 @@ public class ServiceConfig {
     @Getter
     private final CachePolicy cachePolicy;
 
+    /**
+     * Defines whether server-side stack traces should be send to clients as part of an error response.
+     */
+    @Getter
+    private final boolean replyWithStackTraceOnError;
+
     //endregion
 
     //region Constructor
@@ -291,6 +298,7 @@ public class ServiceConfig {
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
+        this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
     }
 
     /**

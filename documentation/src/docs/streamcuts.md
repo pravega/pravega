@@ -9,15 +9,18 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: StreamCuts
 
-This section describes `StreamCut`s and how they can be used with streaming clients and batch clients.
-Pre-requisites: You should be familiar with [Pravega Concepts](pravega-concepts.md).
+This section describes `StreamCut`s and its usage with streaming clients and batch clients.
+
+## Pre-requisites
+
+Familiarity with [Pravega Concepts](pravega-concepts.md).
 
 ## Definition
 
 A Pravega stream is formed by one or multiple parallel segments for storing/reading events. A Pravega stream
-is elastic, which means that the number of parallel segments may change along time to accommodate
-fluctuating workloads. That said, a `StreamCut` represents a consistent position in the stream. It contains
-a set of segment and offset pairs for a single stream which represents the complete keyspace at a given
+is elastic, as it handles the changes in the number of parallel segments along time to accommodate
+fluctuating workloads. A `StreamCut` represents a consistent position in the stream. It contains
+a set of segments and offset pairs for a single stream which represents the complete keyspace at a given
 point in time. The offset always points to the event boundary and hence there will be no offset pointing to
 an incomplete event.
 
@@ -36,9 +39,8 @@ interchangeably.
 
 A ReaderGroup is a named collection of Readers that together, in parallel, read Events from a given Stream. Every
 Reader is always associated with a ReaderGroup. `StreamCut`(s) can be obtained from a ReaderGroup using the
-following api ```io.pravega.client.stream.ReaderGroup.getStreamCuts ```. This api returns a
-```Map<Stream, StreamCut>``` which represents the last known position of the Readers for all the streams managed by
-the ReaderGroup.
+following API ```io.pravega.client.stream.ReaderGroup.getStreamCuts ```. This API returns a
+```Map<Stream, StreamCut>``` which represents the last known position of the Readers for all the streams managed by the ReaderGroup.
 
 A `StreamCut` can be used to configure a ReaderGroup to enable bounded processing of a Stream. The start
 and/or end `StreamCut` of a Stream can be passed as part of the ReaderGroup configuration. The below example
@@ -67,7 +69,7 @@ The below API can be used to reset an existing ReaderGroup with a new ReaderGrou
 ReaderGroup.
 ```
 /*
- * ReaderGroup api used to reset a ReaderGroup to a newer ReaderGroup configuration.
+ * ReaderGroup API used to reset a ReaderGroup to a newer ReaderGroup configuration.
  */
 io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 ```
@@ -83,13 +85,10 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
 ```
-BatchClient can be used to perform bounded processing of the stream given the start and end `StreamCut`s. BatchClient
-api ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
-fetch segments which reside between the given startStreamCut and endStreamCut. With the retrieved segment information
-the user can consume all the events in parallel without adhering to time ordering of events.
+BatchClient can be used to perform bounded processing of the stream given the start and end `StreamCut`s. BatchClient API ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
+fetch segments which reside between the given `startStreamCut` and `endStreamCut`. With the retrieved segment information, the user can consume all the events in parallel without adhering to time ordering of events.
 
-It must be noted that passing ```StreamCut.UNBOUNDED``` to startStreamCut and endStreamCut will result in using the
-current head of stream and the current tail of the stream, respectively.
+It must be noted that passing ```StreamCut.UNBOUNDED``` to `startStreamCut` and `endStreamCut` will result in using the current head of stream and the current tail of the stream, respectively.
 
 
-We have provided a simple yet illustrative example of using StreamCut [here.](https://github.com/pravega/pravega-samples/tree/v0.3.0/pravega-client-examples/src/main/java/io/pravega/example/streamcuts)
+We have provided a simple yet illustrative example of using StreamCut [here](https://github.com/pravega/pravega-samples/tree/v0.3.2/pravega-client-examples/src/main/java/io/pravega/example/streamcuts).

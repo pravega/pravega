@@ -64,7 +64,7 @@ public class AsyncSegmentInputStreamTest {
         }).doAnswer(new Answer<Void>() {
         @Override
         public Void answer(InvocationOnMock invocation) throws Throwable {
-            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(100));
+            connectionFactory.getProcessor(endpoint).authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(100, "SomeException"));
             return null;
         }
         }).doAnswer(new Answer<Void>() {
@@ -130,6 +130,7 @@ public class AsyncSegmentInputStreamTest {
 
     @Test(timeout = 10000)
     public void testSegmentTruncated() throws ConnectionFailedException {
+        String mockClientReplyStackTrace = "SomeException";
         Segment segment = new Segment("scope", "testRead", 1);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -141,7 +142,7 @@ public class AsyncSegmentInputStreamTest {
         connectionFactory.provideConnection(endpoint, c);
 
         //segment truncated response from Segment store.
-        WireCommands.SegmentIsTruncated segmentIsTruncated = new WireCommands.SegmentIsTruncated(1234L, segment.getScopedName(), 1234);
+        WireCommands.SegmentIsTruncated segmentIsTruncated = new WireCommands.SegmentIsTruncated(1234L, segment.getScopedName(), 1234, mockClientReplyStackTrace);
         //Trigger read.
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
 

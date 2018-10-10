@@ -50,7 +50,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class PravegaTest {
+public class PravegaTest extends AbstractSystemTest {
 
     private final static String STREAM_NAME = "testStreamSampleY";
     private final static String STREAM_SCOPE = "testScopeSampleY";
@@ -61,7 +61,11 @@ public class PravegaTest {
     public Timeout globalTimeout = Timeout.seconds(12 * 60);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scope(STREAM_SCOPE)
+                                                                  .streamName(STREAM_NAME)
+                                                                  .scalingPolicy(scalingPolicy)
+                                                                  .build();
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -71,44 +75,11 @@ public class PravegaTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws MarathonException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
+    public static void initialize() throws MarathonException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @BeforeClass
@@ -192,5 +163,4 @@ public class PravegaTest {
         reader.close();
         groupManager.deleteReaderGroup(READER_GROUP);
     }
-
 }

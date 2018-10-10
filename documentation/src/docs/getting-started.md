@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# Getting started
+# Getting Started
 
 
 The best way to get to know Pravega is to start it up and run a sample Pravega
@@ -35,29 +35,32 @@ $ tar xfvz pravega-<version>.tgz
 **Run Pravega in standalone mode**
 
 This launches all the components of Pravega on your local machine.
-NOTE: this is for testing/demo purposes only, *do not* use this mode of deployment 
-in Production! More options for [Running Pravega](deployment/deployment.md) are
-covered in the running Pravega guide.           
+
+**Note:** This is for testing/demo purposes only, *do not* use this mode of deployment 
+in Production! 
+
+More options to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
+           
 
 ```
 $ cd pravega-<version>
 $ bin/pravega-standalone
 ```
 
-That's it.  Pravega should be up and running very soon.
+By using the above commands, Pravega should be up and running very soon.
 
-You can find additional ways to run Pravega in [Running Pravega](deployment/deployment.md).
+More options and additional ways to run Pravega can be found in [Running Pravega](deployment/deployment.md).
 
-## Running a sample Pravega App is simple too
+## Running a sample Pravega App
 
-Pravega maintains a separate github repository for sample applications.  It is located at:
-[https://github.com/pravega/pravega-samples](https://github.com/pravega/pravega-samples)
+It is very simple to run a sample pravega App. Pravega maintains a separate github repository for sample applications.  It is located at:
+[Pravega Samples](https://github.com/pravega/pravega-samples)
 
-Lets download and run the "Hello World" Pravega sample reader and writer apps. Pravega
+Download and run the "Hello World" Pravega sample reader and writer apps. Pravega
 dependencies will be pulled from maven central.
 
-Note: The samples can also use a locally compiled version of Pravega. For more information
-about this see the note on maven publishing in the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.0/README.md).
+**Note:** The samples can also use a locally compiled version of Pravega. For more information
+about this see the note on maven publishing in the [README.md](../../../README.md).
 
 **Download the Pravega-Samples git repo**
 
@@ -73,6 +76,7 @@ $ ./gradlew installDist
 ```
 
 **Run the sample "HelloWorldWriter"**
+
 This runs a simple Java application that writes a "hello world" message
         as an event into a Pravega stream.
 ```
@@ -85,8 +89,8 @@ _Example HelloWorldWriter output_
 Writing message: 'hello world' with routing-key: 'helloRoutingKey' to stream 'examples / helloStream'
 ...
 ```
-See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md) file in the standalone-examples for more details
-    on running the HelloWorldWriter with different parameters
+See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the standalone-examples for more details
+    on running the HelloWorldWriter with different parameters.
 
 **Run the sample "HelloWorldReader"**
 
@@ -105,5 +109,6 @@ No more events from examples/helloStream
 ...
 ```
 
-See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
-    HelloWorldReader application
+See the [README.md](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
+    HelloWorldReader application.
+

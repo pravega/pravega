@@ -545,12 +545,12 @@ public class ZkStreamTest {
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
         ZKStream stream = new ZKStream("scope", "stream", storeHelper);
-
+        final int startingSegmentNumber = 0;
         storeHelper.createZNodeIfNotExist("/store/scope").join();
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
                 .scope("scope").streamName("stream").scalingPolicy(policy1).build();
-        stream.create(configuration1, System.currentTimeMillis()).join();
+        stream.create(configuration1, System.currentTimeMillis(), startingSegmentNumber).join();
         stream.updateState(State.ACTIVE).join();
         UUID txId = stream.generateNewTxnId(0, 0L).join();
         stream.createTransaction(txId, 1000L, 1000L).join();
