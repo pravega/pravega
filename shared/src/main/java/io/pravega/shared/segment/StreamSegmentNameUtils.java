@@ -23,24 +23,29 @@ public final class StreamSegmentNameUtils {
     //region Members
 
     /**
+     * Delimiter for the different files created in tier 2 to store the state of a Segment.
+     */
+    private static final String TIER2_SEGMENT_DELIMITER = "$";
+
+    /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its State.
      */
-    private static final String STATE_SUFFIX = "$state";
+    private static final String STATE_SUFFIX = TIER2_SEGMENT_DELIMITER + "state";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
      */
-    private static final String ATTRIBUTE_SUFFIX = "$attributes";
+    private static final String ATTRIBUTE_SUFFIX = TIER2_SEGMENT_DELIMITER + "attributes";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.
      */
-    private static final String HEADER_SUFFIX = "$header";
+    private static final String HEADER_SUFFIX = TIER2_SEGMENT_DELIMITER + "header";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it represents a SegmentChunk.
      */
-    private static final String OFFSET_SUFFIX = "$offset.";
+    private static final String OFFSET_SUFFIX = TIER2_SEGMENT_DELIMITER + "offset.";
 
     /**
      * This is appended to the end of the Parent Segment Name, then we append a unique identifier.
@@ -117,17 +122,24 @@ public final class StreamSegmentNameUtils {
         return true;
     }
 
+    /**
+     * Checks if the given stream segment name is related to store segment attributes.
+     *
+     * @param streamSegmentName The name of the StreamSegment to check for attribute suffix delimiter.
+     * @return true if the stream segment name contains attribute suffix delimiter, otherwise false.
+     */
     public static boolean isAttributeSegment(String streamSegmentName) {
         return checkSegmentType(streamSegmentName, ATTRIBUTE_SUFFIX);
     }
 
+    /**
+     * Checks if the given stream segment name is related to store segment state.
+     *
+     * @param streamSegmentName The name of the StreamSegment to check for state suffix delimiter.
+     * @return true if the stream segment name contains state suffix delimiter, otherwise false.
+     */
     public static boolean isStateSegment(String streamSegmentName) {
         return checkSegmentType(streamSegmentName, STATE_SUFFIX);
-    }
-
-    private static boolean checkSegmentType(String streamSegmentName, String expectedSegmentType) {
-        // Check to see if the given name is a properly formatted Transaction.
-        return streamSegmentName.lastIndexOf(expectedSegmentType) >= 0;
     }
 
     /**
@@ -149,12 +161,19 @@ public final class StreamSegmentNameUtils {
         return streamSegmentName.substring(0, endOfStreamNamePos);
     }
 
+    /**
+     * Attempts to extract the part of stream segment name before the Tier 2 segment delimiter.
+     *
+     * @param streamSegmentName The name of the StreamSegment to extract the segment name up to the tier 2 delimiter.
+     * @return The part of the segment name up to the tier 2 delimiter.
+     */
     public static String extractStreamSegmentNameWithEpoch(String streamSegmentName) {
-        int endOfStreamNamePos = streamSegmentName.lastIndexOf("$");
+        int endOfStreamNamePos = streamSegmentName.lastIndexOf(TIER2_SEGMENT_DELIMITER);
         if (endOfStreamNamePos < 0) {
             // epoch delimiter not present in the name, return the full name
             return streamSegmentName;
         }
+
         return streamSegmentName.substring(0, endOfStreamNamePos);
     }
 
@@ -324,5 +343,9 @@ public final class StreamSegmentNameUtils {
         }
         sb.append(streamName);
         return sb;
+    }
+
+    private static boolean checkSegmentType(String streamSegmentName, String expectedSegmentType) {
+        return streamSegmentName.lastIndexOf(expectedSegmentType) >= 0;
     }
 }
