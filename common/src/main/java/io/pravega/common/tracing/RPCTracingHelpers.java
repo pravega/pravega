@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
  * requests for intra-component tracing.
  */
 @Slf4j
-public final class TracingHelpers {
+public final class RPCTracingHelpers {
 
     private static final String REQUEST_DESCRIPTOR = "requestDescriptor";
     private static final String REQUEST_ID = "requestId";

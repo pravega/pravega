@@ -40,7 +40,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
@@ -76,7 +76,7 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());

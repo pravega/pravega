@@ -313,9 +313,7 @@ public class SegmentHelper {
                                                      final long segmentId,
                                                      final UUID txId,
                                                      final HostControllerStore hostControllerStore,
-                                                     final ConnectionFactory clientCF,
-                                                     String delegationToken,
-                                                     final long requestId) {
+                                                     final ConnectionFactory clientCF, String delegationToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
 
@@ -325,31 +323,32 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                log.warn("[requestId={}] createTransaction {} connectionDropped", requestId, transactionName);
+                log.warn("createTransaction {} connectionDropped", transactionName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn("[requestId={}] createTransaction {} wrong host", requestId, transactionName);
+                log.warn("createTransaction {} wrong host", transactionName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentCreated(WireCommands.SegmentCreated transactionCreated) {
-                log.debug("[requestId={}] createTransaction {} TransactionCreated", requestId, transactionName);
+                log.debug("createTransaction {} TransactionCreated", transactionName);
+
                 result.complete(txId);
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.debug("[requestId={}] createTransaction {} TransactionCreated", requestId, transactionName);
+                log.debug("createTransaction {} TransactionCreated", transactionName);
                 result.complete(txId);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error("[requestId={}] createTransaction {} failed", requestId, transactionName, error);
+                log.error("createTransaction {} failed", transactionName, error);
                 result.completeExceptionally(error);
             }
 
@@ -361,7 +360,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, transactionName,
+        WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), transactionName,
                 WireCommands.CreateSegment.NO_SCALE, 0, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;

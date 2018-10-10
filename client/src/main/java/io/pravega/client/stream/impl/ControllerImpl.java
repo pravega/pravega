@@ -33,7 +33,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.common.tracing.TracingHelpers;
+import io.pravega.common.tracing.RPCTracingHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -158,7 +158,7 @@ public class ControllerImpl implements Controller {
         }
 
         // Trace channel.
-        channelBuilder = channelBuilder.intercept(TracingHelpers.getClientInterceptor());
+        channelBuilder = channelBuilder.intercept(RPCTracingHelpers.getClientInterceptor());
 
         // Create Async RPC client.
         this.channel = channelBuilder.build();
@@ -777,19 +777,18 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateTxnResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateTxnResponse> callback = new RPCAsyncCallback<>(traceId, "createTransaction");
-            addTagsToRequest(client, traceId, "createTransaction", stream.getScope(), stream.getStreamName())
-                    .createTransaction(
-                        CreateTxnRequest.newBuilder()
+            client.createTransaction(
+                    CreateTxnRequest.newBuilder()
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
                             .setLease(lease)
                             .build(),
-                        callback);
+                    callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(this::convert)
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn("[requestId={}] createTransaction failed: ", traceId, e);
+                        log.warn("createTransaction failed: ", e);
                     }
                     LoggerHelpers.traceLeave(log, "createTransaction", traceId);
                 });
@@ -988,7 +987,7 @@ public class ControllerImpl implements Controller {
      * @return Base client stub with parameters as call options.
      */
     private static ControllerServiceStub addTagsToRequest(ControllerServiceStub clientStub, long traceId, String...requestInfo) {
-        return clientStub.withOption(TracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.buildRequestDescriptor(requestInfo))
-                         .withOption(TracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
+        return clientStub.withOption(RPCTracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.buildRequestDescriptor(requestInfo))
+                         .withOption(RPCTracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
     }
 }

@@ -443,6 +443,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         connection.send(new WireCommands.SegmentsMerged(requestTag.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
                     })
                     .exceptionally(e -> {
+                        logAndUntrackRequest(operation, mergeSegments.getSource(), mergeSegments.getTarget());
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
                             log.info("[requestId={}] Stream segment is already merged '{}'.", requestTag.getRequestId(), mergeSegments.getSource());
                             connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
@@ -628,5 +629,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private void logAndUntrackRequest(String requestDescriptor) {
         log.info("[requestId={}] Untracking request: {}.", RequestTracker.getInstance().untrackRequest(requestDescriptor),
                 requestDescriptor);
+    }
+
+    private void logAndUntrackRequest(String...requestInfo) {
+        logAndUntrackRequest(RequestTracker.buildRequestDescriptor(requestInfo));
     }
 }

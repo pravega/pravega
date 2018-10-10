@@ -109,7 +109,7 @@ public class SegmentHelperTest {
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<UUID> retVal = helper.createTransaction("", "", 0L, new UUID(0, 0L),
-                new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+                new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
