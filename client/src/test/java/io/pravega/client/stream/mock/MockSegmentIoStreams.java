@@ -135,8 +135,11 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public boolean isSegmentReady() {
-        return true;
+    public int bytesInBuffer() {
+        if (readIndex >= eventsWritten) {
+            return -1;
+        }
+        return (int) (writeOffset - readOffset);
     }
 
     @Override

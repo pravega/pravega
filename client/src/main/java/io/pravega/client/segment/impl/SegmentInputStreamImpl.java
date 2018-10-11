@@ -163,7 +163,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     private boolean dataWaitingToGoInBuffer() {
-        return outstandingRequest != null && Futures.isSuccessful(outstandingRequest) && buffer.capacityAvailable() > 0;
+        return outstandingRequest != null && outstandingRequest.isDone() && buffer.capacityAvailable() > 0;
     }
 
     private void handleRequest() throws SegmentTruncatedException {
@@ -247,21 +247,24 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             while (dataWaitingToGoInBuffer()) {
                 handleRequest();
             }
-            return outstandingRequest.thenApply(r -> null);
         } catch (SegmentTruncatedException e) {
             log.warn("Encountered exception filling buffer", e);
             return Futures.failedFuture(e);
         }
+        return outstandingRequest == null ? CompletableFuture.completedFuture(null) : outstandingRequest.thenApply(r -> null);
     }
     
     @Override
     @Synchronized
     public int bytesInBuffer() {
         int result = buffer.dataAvailable();
+        boolean atEnd = receivedEndOfSegment || receivedTruncated;
         if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
-            result += outstandingRequest.join().getData().remaining();
+            SegmentRead request = outstandingRequest.join();
+            result += request.getData().remaining();
+            atEnd |= request.isEndOfSegment();
         }
-        if (result <= 0 && (receivedEndOfSegment || receivedTruncated)) {
+        if (result <= 0 && atEnd) {
            result = -1;
         }
         log.trace("bytesInBuffer {} on segment {} status is {}", result, getSegmentId(), this);        

@@ -49,8 +49,8 @@ public class OrdererTest {
         }
 
         @Override
-        public boolean isSegmentReady() {
-            return canReadWithoutBlocking;
+        public int bytesInBuffer() {
+            return canReadWithoutBlocking ? 1 : 0;
         }
     }
 
