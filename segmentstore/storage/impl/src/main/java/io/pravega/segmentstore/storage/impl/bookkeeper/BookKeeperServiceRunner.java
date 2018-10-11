@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.auth.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -175,10 +176,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         log.info("Formatting ZooKeeper ...");
 
         if (this.secureZK) {
-            System.setProperty("zookeeper.client.secure", "true");
-            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty("zookeeper.ssl.trustStore.location", this.tlsTrustStore);
-            System.setProperty("zookeeper.ssl.trustStore.password", loadPasswdFromFile(this.tLSKeyStorePasswordPath));
+            ZKTLSUtils.setSecureZKClientProperties(this.tlsTrustStore, loadPasswdFromFile(this.tLSKeyStorePasswordPath));
         }
 
         @Cleanup

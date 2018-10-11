@@ -17,6 +17,7 @@ import org.apache.commons.io.FileUtils;
 
 /**
  * Helper methods for handling JKS and JKS password files.
+ * Please see here for further reference: https://docs.oracle.com/cd/E19509-01/820-3503/6nf1il6ek/index.html
  */
 @Slf4j
 public class JKSHelper {

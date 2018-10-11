@@ -10,6 +10,7 @@
 package io.pravega.local;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.auth.ZKTLSUtils;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -210,10 +211,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .sessionTimeoutMs(5000)
                 .retryPolicy(rp);
         if (secureZK) {
-            System.setProperty("zookeeper.client.secure", "true");
-            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty("zookeeper.ssl.trustStore.location", jksTrustFile);
-            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
+            ZKTLSUtils.setSecureZKClientProperties(jksTrustFile, "1111_aaaa");
         }
 
         @Cleanup

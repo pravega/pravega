@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.auth.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
@@ -145,10 +146,7 @@ public final class ServiceStarter {
             }
 
             if (this.serviceConfig.isSecureZK()) {
-                System.clearProperty(SECURE_CLIENT);
-                System.clearProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET);
-                System.clearProperty(SSL_TRUSTSTORE_LOCATION);
-                System.clearProperty(SSL_TRUSTSTORE_PASSWD);
+                ZKTLSUtils.unsetSecureZKClientProperties();
             }
             this.closed = true;
         }

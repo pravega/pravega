@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.auth.ZKTLSUtils;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -52,10 +53,7 @@ public class StoreClientFactory {
 
     private static CuratorFramework createZKClient(ZKClientConfig zkClientConfig) {
         if (zkClientConfig.isSecureConnectionToZooKeeper()) {
-            System.setProperty("zookeeper.client.secure", "true");
-            System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty("zookeeper.ssl.trustStore.location", zkClientConfig.getTrustStorePath());
-            System.setProperty("zookeeper.ssl.trustStore.password", JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
+            ZKTLSUtils.setSecureZKClientProperties(zkClientConfig.getTrustStorePath(), JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
         }
         //Create and initialize the curator client framework.
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
