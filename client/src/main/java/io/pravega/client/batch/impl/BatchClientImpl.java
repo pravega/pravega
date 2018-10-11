@@ -12,6 +12,8 @@ package io.pravega.client.batch.impl;
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+import io.pravega.client.StreamCutHelper;
+import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
@@ -28,21 +30,18 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -51,17 +50,21 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 public class BatchClientImpl implements BatchClient {
 
     private final Controller controller;
+    private final ConnectionFactory connectionFactory;
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentMetadataClientFactory segmentMetadataClientFactory;
+    private final StreamCutHelper streamCutHelper;
 
     @GuardedBy("this")
     private final AtomicReference<String> latestDelegationToken;
 
     public BatchClientImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
-        inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        latestDelegationToken = new AtomicReference<>();
+        this.connectionFactory = connectionFactory;
+        this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
+        this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
+        this.latestDelegationToken = new AtomicReference<>();
     }
 
     /**
@@ -73,12 +76,10 @@ public class BatchClientImpl implements BatchClient {
     public CompletableFuture<io.pravega.client.batch.StreamInfo> getStreamInfo(final Stream stream) {
         Preconditions.checkNotNull(stream, "stream");
 
-        //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
-        CompletableFuture<StreamCut> currentTailStreamCut = fetchTailStreamCut(stream);
-        CompletableFuture<StreamCut> currentHeadStreamCut = fetchHeadStreamCut(stream);
-        return currentTailStreamCut.thenCombine(currentHeadStreamCut,
-                (tailSC, headSC) -> new io.pravega.client.batch.StreamInfo(stream.getScope(), stream.getStreamName(),
-                                                                           tailSC, headSC));
+        StreamManagerImpl streamManager = new StreamManagerImpl(this.controller, this.connectionFactory);
+        return streamManager.getStreamInfo(stream)
+                            .thenApply(info -> new io.pravega.client.batch.StreamInfo(
+                                    info.getScope(), info.getStreamName(), info.getTailStreamCut(), info.getHeadStreamCut()));
     }
 
     @Override
@@ -105,30 +106,14 @@ public class BatchClientImpl implements BatchClient {
         // if startStreamCut is not provided use the streamCut at the start of the stream.
         // if toStreamCut is not provided obtain a streamCut at the tail of the stream.
         CompletableFuture<StreamCut> startSCFuture = startCut.isPresent() ?
-                CompletableFuture.completedFuture(startCut.get()) : fetchHeadStreamCut(stream);
+                CompletableFuture.completedFuture(startCut.get()) : streamCutHelper.fetchHeadStreamCut(stream);
         CompletableFuture<StreamCut> endSCFuture = endCut.isPresent() ?
-                CompletableFuture.completedFuture(endCut.get()) : fetchTailStreamCut(stream);
+                CompletableFuture.completedFuture(endCut.get()) : streamCutHelper.fetchTailStreamCut(stream);
 
         //fetch the StreamSegmentsInfo based on start and end streamCuts.
         CompletableFuture<StreamSegmentsIterator> streamSegmentInfo = startSCFuture.thenCombine(endSCFuture,
                 (startSC, endSC) -> getStreamSegmentInfo(startSC, endSC));
         return getAndHandleExceptions(streamSegmentInfo, RuntimeException::new);
-    }
-
-    private CompletableFuture<StreamCut> fetchHeadStreamCut(final Stream stream) {
-        //Fetch segments pointing to the current HEAD of the stream.
-        return controller.getSegmentsAtTime(new StreamImpl(stream.getScope(), stream.getStreamName()), 0L)
-                .thenApply( s -> new StreamCutImpl(stream, s));
-    }
-
-    private CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {
-        return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
-                         .thenApply(s -> {
-                             Map<Segment, Long> pos =
-                                     s.getSegments().stream().map(this::segmentToInfo)
-                                      .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
-                             return new StreamCutImpl(stream, pos);
-                         });
     }
 
     private StreamSegmentsIterator getStreamSegmentInfo(final StreamCut startStreamCut, final StreamCut endStreamCut) {

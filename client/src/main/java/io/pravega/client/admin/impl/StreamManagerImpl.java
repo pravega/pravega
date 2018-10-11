@@ -12,10 +12,9 @@ package io.pravega.client.admin.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.StreamCutHelper;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
@@ -39,14 +38,15 @@ import java.util.concurrent.ScheduledExecutorService;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
-    private ConnectionFactory connectionFactory;
-
+    private final ConnectionFactory connectionFactory;
     private final ScheduledExecutorService executor;
+    private final StreamCutHelper streamCutHelper;
     
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
         this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
     }
 
     @VisibleForTesting
@@ -54,6 +54,7 @@ public class StreamManagerImpl implements StreamManager {
         this.executor = null;
         this.controller = controller;
         this.connectionFactory = connectionFactory;
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
     }
 
     @Override
@@ -115,16 +116,28 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public StreamInfo getStreamInfo(String scopeName, String streamName) {
         log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
-        final BatchClient client = new BatchClientImpl(controller, connectionFactory);
-
-        CompletableFuture<StreamInfo> streamInfo = client.getStreamInfo(Stream.of(scopeName, streamName))
-                                                         .thenApply(info -> new StreamInfo(info.getScope(), info.getStreamName(),
-                                                                                           info.getTailStreamCut(),
-                                                                                           info.getHeadStreamCut()));
+        CompletableFuture<StreamInfo> streamInfo = getStreamInfo(Stream.of(scopeName, streamName));
         return Futures.getAndHandleExceptions(streamInfo, RuntimeException::new);
+    }
+
+    /**
+     * Fetch the {@link StreamInfo} for a given stream.
+     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)}
+     * is removed.
+     *
+     * @param stream The Stream.
+     * @return A future representing {@link StreamInfo}.
+     */
+    public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+        //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
+        CompletableFuture<StreamCut> currentTailStreamCut = streamCutHelper.fetchTailStreamCut(stream);
+        CompletableFuture<StreamCut> currentHeadStreamCut = streamCutHelper.fetchHeadStreamCut(stream);
+        return currentTailStreamCut.thenCombine(currentHeadStreamCut,
+                                                (tailSC, headSC) -> new StreamInfo(stream.getScope(),
+                                                                                   stream.getStreamName(),
+                                                                                   tailSC, headSC));
     }
 
     @Override
