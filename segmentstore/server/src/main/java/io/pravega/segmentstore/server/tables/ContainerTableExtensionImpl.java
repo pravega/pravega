@@ -67,7 +67,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final KeyHasher hasher;
     private final ContainerKeyIndex keyIndex;
     private final EntrySerializer serializer;
-    private final TableEntryFinder entryFinder;
     private final AtomicBoolean closed;
 
     //endregion
@@ -82,8 +81,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param executor         An Executor to use for async tasks.
      */
-    public ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheFactory cacheFactory,
-                                       @NonNull CacheManager cacheManager, @NonNull ScheduledExecutorService executor) {
+    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory,
+                                       CacheManager cacheManager, ScheduledExecutorService executor) {
         this(segmentContainer, cacheFactory, cacheManager, KeyHasher.sha512(HASH_CONFIG), executor);
     }
 
@@ -104,7 +103,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.hasher = hasher;
         this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.executor);
         this.serializer = new EntrySerializer();
-        this.entryFinder = new TableEntryFinder(this.keyIndex, this.serializer, this.executor);
         this.closed = new AtomicBoolean();
     }
 
@@ -219,6 +217,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, GetResultBuilder builder,
                                                     Map<KeyHash, Long> bucketOffsets, TimeoutTimer timer) {
+        val tableReader = TableReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
         int resultSize = builder.getHashes().size();
         for (int i = 0; i < resultSize; i++) {
             long offset = bucketOffsets.get(builder.getHashes().get(i));
@@ -227,7 +226,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                builder.includeResult(this.entryFinder.findEntry(segment, builder.getKeys().get(i), offset, timer));
+                builder.includeResult(tableReader.find(builder.getKeys().get(i), offset, timer));
             }
         }
 

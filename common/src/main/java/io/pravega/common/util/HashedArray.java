@@ -47,7 +47,7 @@ public class HashedArray extends ByteArraySegment {
     public boolean equals(Object obj) {
         if (obj instanceof HashedArray) {
             HashedArray ha = (HashedArray) obj;
-            return this.hashCode == ha.hashCode && arrayEquals(ha);
+            return this.hashCode == ha.hashCode && arrayEquals(this, ha);
         }
 
         return false;
@@ -58,16 +58,23 @@ public class HashedArray extends ByteArraySegment {
         return String.format("Length=%d, Hash=%d", getLength(), this.hashCode);
     }
 
-    private boolean arrayEquals(HashedArray other) {
-        int len = getLength();
-        if (len != other.getLength()) {
+    /**
+     * Determines if the given {@link ArrayView} instances contain the same data.
+     *
+     * @param av1 The first instance.
+     * @param av2 The second instance.
+     * @return True if both instances have the same length and contain the same data.
+     */
+    public static boolean arrayEquals(ArrayView av1, ArrayView av2) {
+        int len = av1.getLength();
+        if (len != av2.getLength()) {
             return false;
         }
 
-        byte[] a1 = this.array();
-        int o1 = this.arrayOffset();
-        byte[] a2 = other.array();
-        int o2 = other.arrayOffset();
+        byte[] a1 = av1.array();
+        int o1 = av1.arrayOffset();
+        byte[] a2 = av2.array();
+        int o2 = av2.arrayOffset();
         for (int i = 0; i < len; i++) {
             if (a1[o1 + i] != a2[o2 + i]) {
                 return false;

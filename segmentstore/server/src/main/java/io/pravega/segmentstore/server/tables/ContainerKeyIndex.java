@@ -353,10 +353,9 @@ class ContainerKeyIndex implements AutoCloseable {
 
     private CompletableFuture<Void> validateConditionalUpdateFailures(DirectSegmentAccess segment, Map<TableKey, Long> expectedVersions, TimeoutTimer timer) {
         assert !expectedVersions.isEmpty();
-        System.out.println("X");
-        val finder = new TableEntryFinder(this, new EntrySerializer(), this.executor);
+        val tableReader = TableReader.key(segment, this::getBackpointerOffset, this.executor);
         val searches = expectedVersions.entrySet().stream()
-                                       .collect(Collectors.toMap(Map.Entry::getKey, e -> finder.findKey(segment, e.getKey().getKey(), e.getValue(), timer)));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> tableReader.find(e.getKey().getKey(), e.getValue(), timer)));
         return Futures
                 .allOf(searches.values())
                 .thenRun(() -> {

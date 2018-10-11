@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.time.Duration;
@@ -71,6 +72,8 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * Creates a new {@link AsyncTableEntryReader} that can be used to match a key to a sought one.
      *
      * @param soughtKey  An {@link ArrayView} representing the Key to match.
+     * @param keyVersion The version of the {@link TableKey} that is located at this position. This will be used for
+     *                   constructing the result and has no bearing on the reading/matching logic.
      * @param serializer The {@link EntrySerializer} to use for deserializing the Keys.
      * @param timer      Timer for the whole operation.
      * @return A new instance of the {@link AsyncTableEntryReader} class. The {@link #getResult()} will be completed with
@@ -83,13 +86,15 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     /**
      * Creates a new {@link AsyncTableEntryReader} that can be used to read a key.
      *
+     * @param keyVersion The version of the {@link TableKey} that is located at this position. This will be used for
+     *                   constructing the result and has no bearing on the reading/matching logic.
      * @param serializer The {@link EntrySerializer} to use for deserializing the Keys.
      * @param timer      Timer for the whole operation.
      * @return A new instance of the {@link AsyncTableEntryReader} class. The {@link #getResult()} will be completed with
-     * an {@link ArrayView} instance once a key is read.
+     * an {@link TableKey} instance once a key is read.
      */
-    static AsyncTableEntryReader<ArrayView> readKey(EntrySerializer serializer, TimeoutTimer timer) {
-        return new KeyReader(serializer, timer);
+    static AsyncTableEntryReader<TableKey> readKey(long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
+        return new KeyReader(keyVersion, serializer, timer);
     }
 
     //endregion
@@ -178,9 +183,12 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     /**
      * AsyncTableEntryReader implementation that reads a Key from a ReadResult.
      */
-    private static class KeyReader extends AsyncTableEntryReader<ArrayView> {
-        KeyReader(EntrySerializer serializer, TimeoutTimer timer) {
+    private static class KeyReader extends AsyncTableEntryReader<TableKey> {
+        private final long keyVersion;
+
+        KeyReader(long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
             super(serializer, timer);
+            this.keyVersion = keyVersion;
         }
 
         @Override
@@ -191,7 +199,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
                 // We read enough information.
                 ArrayView keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
-                complete(keyData);
+                complete(TableKey.versioned(keyData, this.keyVersion));
                 return true; // We are done.
             }
 

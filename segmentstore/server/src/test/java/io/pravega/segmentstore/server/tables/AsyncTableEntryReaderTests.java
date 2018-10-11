@@ -52,14 +52,16 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
     public void testReadKey() throws Exception {
         val testItems = generateTestItems();
         for (val e : testItems) {
-            val keyReader = AsyncTableEntryReader.readKey(SERIALIZER, new TimeoutTimer(TIMEOUT));
+            val keyReader = AsyncTableEntryReader.readKey(1L, SERIALIZER, new TimeoutTimer(TIMEOUT));
             @Cleanup
             val rr = new ReadResultMock(e.serialization, e.serialization.length, 1);
             AsyncReadResultProcessor.process(rr, keyReader, executorService());
 
             // Get the result and compare it with the original key.
             val result = keyReader.getResult().get(BASE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            AssertExtensions.assertArrayEquals("Unexpected key read back.", e.key, 0, result.array(), result.arrayOffset(), e.key.length);
+            Assert.assertEquals("Unexpected version.", 1L, result.getVersion());
+            AssertExtensions.assertArrayEquals("Unexpected key read back.", e.key, 0,
+                    result.getKey().array(), result.getKey().arrayOffset(), e.key.length);
         }
     }
 
@@ -71,7 +73,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
         val testItem = generateTestItem(new byte[0], new byte[0], false);
 
         // Start a new reader & processor for this key-serialization pair.
-        val keyReader = AsyncTableEntryReader.readKey(SERIALIZER, new TimeoutTimer(TIMEOUT));
+        val keyReader = AsyncTableEntryReader.readKey(1L, SERIALIZER, new TimeoutTimer(TIMEOUT));
         @Cleanup
         val rr = new ReadResultMock(testItem.serialization, testItem.serialization.length, 1);
         AsyncReadResultProcessor.process(rr, keyReader, executorService());
@@ -90,13 +92,13 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
         val testItems = generateTestItems();
         for (val e : testItems) {
             // Start a new reader & processor for this key-serialization pair.
-            val keyReader = AsyncTableEntryReader.readKey(SERIALIZER, new TimeoutTimer(TIMEOUT));
+            val keyReader = AsyncTableEntryReader.readKey(1L, SERIALIZER, new TimeoutTimer(TIMEOUT));
             @Cleanup
             val rr = new ReadResultMock(e.serialization, e.key.length - 1, 1);
             AsyncReadResultProcessor.process(rr, keyReader, executorService());
 
             AssertExtensions.assertThrows(
-                    "Unexpected behavior for shorter read result..",
+                    "Unexpected behavior for shorter read result.",
                     () -> keyReader.getResult().get(BASE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
                     ex -> ex instanceof SerializationException);
         }

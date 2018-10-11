@@ -17,6 +17,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -28,6 +29,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +38,7 @@ import java.util.Random;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -179,10 +182,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 0L)), noPersist, context.timer),
                 ex -> ex instanceof KeyNotExistsException && keyMatches(((KeyNotExistsException) ex).getKey(), keyData));
 
-        // Create the key.
+        // Create the key. We must actually write something to the segment here as this will be used in the subsequent
+        // calls to validate the key.
+        val s = new EntrySerializer();
+        val toUpdate = TableEntry.versioned(keyData, new ByteArraySegment(new byte[100]), TableKey.NOT_EXISTS);
+        byte[] toWrite = new byte[s.getUpdateLength(toUpdate)];
+        s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
         context.index.update(context.segment,
-                toUpdateBatch(TableKey.versioned(keyData, TableKey.NOT_EXISTS)),
-                () -> CompletableFuture.completedFuture(0L),
+                toUpdateBatch(toUpdate.getKey()),
+                () -> context.segment.append(toWrite, null, TIMEOUT),
                 context.timer).join();
 
         // Key exists, but we conditioned on it not existing.
@@ -196,6 +204,61 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 "update() allowed conditional update on inexistent key conditioned on existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 123L)), noPersist, context.timer),
                 ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getExpectedVersions(), keyData));
+    }
+
+
+    /**
+     * Tests the ability of the {@link ContainerKeyIndex} to reconcile conditional updates if the condition does not match
+     * the given Key's Bucket offset, but it matches the Key's offset (this is a corner scenario in a situation with multiple
+     * Keys sharing the same bucket).
+     */
+    @Test
+    public void testConditionalUpdateFailureReconciliation() {
+        val hasher = KeyHashers.CONSTANT_HASHER;
+        @Cleanup
+        val context = new TestContext();
+
+        Supplier<CompletableFuture<Long>> noPersist = () -> Futures.failedFuture(new AssertionError("Not expecting persist to be invoked."));
+        val keys = generateUnversionedKeys(2, context);
+
+        // First, write two keys with the same hash (and serialize them to the Segment).
+        val versions = new HashMap<ArrayView, Long>();
+        for (val key : keys) {
+            val s = new EntrySerializer();
+            val toUpdate = TableEntry.unversioned(key.getKey(), new ByteArraySegment(new byte[100]));
+            byte[] toWrite = new byte[s.getUpdateLength(toUpdate)];
+            s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
+            val r = context.index.update(context.segment,
+                    toUpdateBatch(hasher, Collections.singletonList(toUpdate.getKey())),
+                    () -> context.segment.append(toWrite, null, TIMEOUT),
+                    context.timer).join();
+            versions.put(key.getKey(), r.get(0));
+        }
+
+        // We want to remove the first key.
+        val keyToRemove = keys.get(0);
+        val validVersion = versions.get(keyToRemove.getKey());
+        val invalidVersion = validVersion + 1;
+
+        // Verify that a bad version won't work.
+        AssertExtensions.assertThrows(
+                "update() allowed conditional update with invalid version.",
+                () -> context.index.update(context.segment,
+                        toUpdateBatch(hasher, Collections.singletonList(TableKey.versioned(keyToRemove.getKey(), invalidVersion))),
+                        noPersist,
+                        context.timer),
+                ex -> ex instanceof BadKeyVersionException);
+
+        // Verify that the key's version (which is different than the bucket's version), works.
+        AtomicBoolean persisted = new AtomicBoolean();
+        context.index.update(context.segment,
+                toUpdateBatch(hasher, Collections.singletonList(TableKey.versioned(keyToRemove.getKey(), validVersion))),
+                () -> {
+                    persisted.set(true);
+                    return CompletableFuture.completedFuture(context.segment.getInfo().getLength());
+                },
+                context.timer).join();
+        Assert.assertTrue("Expected persisted to have been invoked after reconciled conditional update.", persisted.get());
     }
 
     /**
@@ -460,10 +523,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
     @SafeVarargs
     private final TableKeyBatch toUpdateBatch(List<TableKey>... keyLists) {
+        return toUpdateBatch(HASHER, keyLists);
+    }
+
+    @SafeVarargs
+    private final TableKeyBatch toUpdateBatch(KeyHasher hasher, List<TableKey>... keyLists) {
         val batch = TableKeyBatch.update();
         for (val keyList : keyLists) {
             for (val key : keyList) {
-                batch.add(key, HASHER.hash(key.getKey()), key.getKey().getLength());
+                batch.add(key, hasher.hash(key.getKey()), key.getKey().getLength());
             }
         }
 

@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -72,12 +74,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final String SEGMENT_NAME = "TableSegment";
     private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_VALUE_LENGTH = 64;
-    private static final int UPDATE_COUNT = 10000;
-    private static final int UPDATE_BATCH_SIZE = 689;
-//    private static final int UPDATE_COUNT = 100;
-//    private static final int UPDATE_BATCH_SIZE = 9;
-//    private static final int UPDATE_COUNT = 1000;
-//    private static final int UPDATE_BATCH_SIZE = 49;
+    private static final int SINGLE_UPDATE_COUNT = 10;
+    private static final int BATCH_UPDATE_COUNT = 10000;
+    private static final int BATCH_SIZE = 689;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
@@ -141,12 +140,48 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to perform unconditional updates using a single key at a time using a {@link KeyHasher} that is
+     * not prone to collisions.
+     */
+    @Test
+    public void testSingleUpdateUnconditional() {
+        testSingleUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+    }
+
+    /**
+     * Tests the ability to perform unconditional updates using a single key at a time using a {@link KeyHasher} that is
+     * very prone to collisions (in this case, it hashes everything to the same hash).
+     */
+    @Test
+    public void testSingleUpdateUnconditionalCollisions() {
+        testSingleUpdates(KeyHashers.CONSTANT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+    }
+
+    /**
+     * Tests the ability to perform conditional updates using a single key at a time using a {@link KeyHasher} that is
+     * not prone to collisions.
+     */
+    @Test
+    public void testSingleUpdateConditional() {
+        testSingleUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    }
+
+    /**
+     * Tests the ability to perform conditional updates using a single key at a time using a {@link KeyHasher} that is
+     * very prone to collisions (in this case, it hashes everything to the same hash).
+     */
+    @Test
+    public void testSingleUpdateConditionalCollisions() {
+        testSingleUpdates(KeyHashers.CONSTANT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    }
+
+    /**
      * Tests the ability to perform unconditional updates and removals using a {@link KeyHasher} that is not prone to
      * collisions.
      */
     @Test
-    public void testUnconditionalUpdates() {
-        testUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+    public void testBatchUpdatesUnconditional() {
+        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
     }
 
     /**
@@ -154,24 +189,24 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      * collisions.
      */
     @Test
-    public void testUnconditionalUpdatesCollisions() {
-        testUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+    public void testBatchUpdatesUnconditionalWithCollisions() {
+        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
     }
 
     /**
      * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is not prone to collisions.
      */
     @Test
-    public void testConditionalUpdates() {
-        testUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    public void testBatchUpdatesConditional() {
+        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
     }
 
     /**
      * Tests the ability to perform conditional updates and removals using a {@link KeyHasher} that is very prone to collisions.
      */
     @Test
-    public void testConditionalUpdatesWithCollisions() {
-        testUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    public void testBatchUpdatesConditionalWithCollisions() {
+        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
     }
 
     /**
@@ -245,7 +280,57 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
-    private void testUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+    private void testSingleUpdates(KeyHasher hasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+        @Cleanup
+        val context = new TestContext(hasher);
+
+        // Generate the keys.
+        val keys = IntStream.range(0, SINGLE_UPDATE_COUNT)
+                .mapToObj(i -> createRandomData(MAX_KEY_LENGTH, context))
+                .collect(Collectors.toList());
+
+        // Create the Segment.
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        @Cleanup
+        val processor = (WriterTableProcessor) context.ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+        Assert.assertNotNull(processor);
+
+        // Update.
+        val expectedEntries = new HashMap<HashedArray, HashedArray>();
+        val removedKeys = new ArrayList<ArrayView>();
+        val keyVersions = new HashMap<ArrayView, Long>();
+        Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
+        for (val key : keys) {
+            val toUpdate = generateToUpdate.apply(key, createRandomData(MAX_VALUE_LENGTH, context), getKeyVersion.apply(key));
+            val updateResult = new AtomicReference<List<Long>>();
+            addToProcessor(
+                    () -> context.ext.put(SEGMENT_NAME, Collections.singletonList(toUpdate), TIMEOUT).thenAccept(updateResult::set),
+                    processor,
+                    context.segment().getInfo()::getLength);
+            Assert.assertEquals("Unexpected result size from update.", 1, updateResult.get().size());
+            keyVersions.put(key, updateResult.get().get(0));
+
+            expectedEntries.put(new HashedArray(toUpdate.getKey().getKey()), new HashedArray(toUpdate.getValue()));
+            check(expectedEntries, removedKeys, context.ext);
+            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            check(expectedEntries, removedKeys, context.ext);
+        }
+
+        // Remove.
+        for (val key : keys) {
+            val toRemove = generateToRemove.apply(key, getKeyVersion.apply(key));
+            addToProcessor(() -> context.ext.remove(SEGMENT_NAME, Collections.singleton(toRemove), TIMEOUT), processor, context.segment().getInfo()::getLength);
+            removedKeys.add(key);
+            expectedEntries.remove(new HashedArray(key));
+            keyVersions.remove(key);
+            check(expectedEntries, removedKeys, context.ext);
+            processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            check(expectedEntries, removedKeys, context.ext);
+        }
+    }
+
+    @SneakyThrows
+    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
         @Cleanup
         val context = new TestContext(keyHasher);
 
@@ -263,17 +348,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val keyVersions = new HashMap<ArrayView, Long>();
         Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
         TestBatchData last = null;
-        int batchid=0;
         for (val current : data) {
-            System.out.println("\nBatch " +batchid++);
-            System.out.println("Update");
-            current.toUpdate.forEach((k,v)->{
-                System.out.println(String.format("\tKey = %s, Hash = %s -> %s",
-                        k,
-                        context.hasher.hash(k).getSignature(),
-                        keyVersions.get(context.hasher.hash(k))));
-            });
-
             // Update entries.
             val toUpdate = current.toUpdate
                     .entrySet().stream().map(e -> generateToUpdate.apply(e.getKey(), e.getValue(), getKeyVersion.apply(e.getKey())))
@@ -291,16 +366,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     context.segment().getInfo()::getLength);
             removedKeys.removeAll(current.toUpdate.keySet());
 
-            // TODO: when removing, the bucket offset increases. A subsequent update on that key (or a key that does not exist but
-            // is part of an existing bucket) will fail if conditioned on it not existing.
-            System.out.println("Remove");
-            current.toRemove.forEach(k->{
-                System.out.println(String.format("\tKey = %s, Hash = %s -> %s",
-                        k,
-                        context.hasher.hash(k).getSignature(),
-                        keyVersions.get(context.hasher.hash(k))));
-            });
-
             // Remove entries.
             val toRemove = current.toRemove
                     .stream().map(k -> generateToRemove.apply(k, getKeyVersion.apply(k))).collect(Collectors.toList());
@@ -316,15 +381,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
             // Verify result (from cache).
             check(current.expectedEntries, removedKeys, context.ext);
-
-            System.out.println("After update");
-            current.expectedEntries.forEach((k, v)->{
-                System.out.println(String.format("\tKey = %s, Hash = %s -> E: %s, A: %s",
-                        k,
-                        context.hasher.hash(k).getSignature(),
-                        keyVersions.get(context.hasher.hash(k)),
-                        context.ext.get(SEGMENT_NAME,Collections.singletonList(k), TIMEOUT).join().get(0).getKey().getVersion()));
-            });
 
             last = current;
         }
@@ -385,8 +441,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private ArrayList<TestBatchData> generateTestData(TestContext context) {
         val result = new ArrayList<TestBatchData>();
         int count = 0;
-        while (count < UPDATE_COUNT) {
-            int batchSize = Math.min(UPDATE_BATCH_SIZE, UPDATE_COUNT - count);
+        while (count < BATCH_UPDATE_COUNT) {
+            int batchSize = Math.min(BATCH_SIZE, BATCH_UPDATE_COUNT - count);
             TestBatchData prev = result.isEmpty() ? null : result.get(result.size() - 1);
             result.add(generateAndPopulateEntriesBatch(batchSize, prev, context));
             count += batchSize;
@@ -416,12 +472,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 removalCandidates.remove(key);
             } else {
                 // Generate a new Table Entry.
-                byte[] keyData = new byte[Math.max(1, context.random.nextInt(MAX_KEY_LENGTH))];
-                context.random.nextBytes(keyData);
-                byte[] valueData = new byte[context.random.nextInt(MAX_VALUE_LENGTH)];
-                context.random.nextBytes(valueData);
-                HashedArray key = new HashedArray(keyData);
-                HashedArray value = new HashedArray(valueData);
+                HashedArray key = createRandomData(Math.max(1, context.random.nextInt(MAX_KEY_LENGTH)), context);
+                HashedArray value = createRandomData(context.random.nextInt(MAX_VALUE_LENGTH), context);
                 toUpdate.put(key, value);
                 removalCandidates.add(key);
             }
@@ -430,6 +482,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         expectedEntries.putAll(toUpdate);
         expectedEntries.keySet().removeAll(toRemove);
         return new TestBatchData(toUpdate, toRemove, expectedEntries);
+    }
+
+    private HashedArray createRandomData(int length, TestContext context) {
+        byte[] data = new byte[length];
+        context.random.nextBytes(data);
+        return new HashedArray(data);
     }
 
     private TableEntry toConditionalTableEntry(ArrayView key, ArrayView value, long currentVersion) {

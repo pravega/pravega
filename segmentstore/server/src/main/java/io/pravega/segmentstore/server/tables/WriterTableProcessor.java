@@ -365,12 +365,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 () -> {
                     // Read the Key from the Segment.
                     ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    val keyReader = AsyncTableEntryReader.readKey(this.connector.getSerializer(), timer);
+                    val keyReader = AsyncTableEntryReader.readKey(offset.get(), this.connector.getSerializer(), timer);
                     AsyncReadResultProcessor.process(readResult, keyReader, this.executor);
                     return keyReader.getResult()
-                                  .thenComposeAsync(keyView -> {
+                                  .thenComposeAsync(tableKey -> {
                                       // Record the Key and its location.
-                                      bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(keyView), offset.get()));
+                                      bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(tableKey.getKey()), offset.get()));
 
                                       // Get the next Key Location for this bucket.
                                       return this.indexWriter.getBackpointerOffset(offset.get(), segment, timer.getRemaining());

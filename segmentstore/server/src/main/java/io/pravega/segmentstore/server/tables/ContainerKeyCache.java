@@ -622,7 +622,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             Preconditions.checkArgument(currentLastIndexedOffset >= this.lastIndexedOffset,
                     "currentLastIndexedOffset must be at least the current value");
             this.lastIndexedOffset = currentLastIndexedOffset;
-            this.backpointers.keySet().removeIf(sourceOffset -> sourceOffset <= currentLastIndexedOffset);
+            this.backpointers.keySet().removeIf(sourceOffset -> sourceOffset < currentLastIndexedOffset);
         }
 
         /**
@@ -637,7 +637,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          */
         synchronized void recordBackpointer(long sourceOffset, long targetOffset) {
             Preconditions.checkArgument(sourceOffset > targetOffset, "sourceOffset must be greater than targetOffset");
-            if (sourceOffset > this.lastIndexedOffset) {
+            if (sourceOffset >= this.lastIndexedOffset) {
                 this.backpointers.put(sourceOffset, targetOffset);
             }
         }

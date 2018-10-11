@@ -45,6 +45,15 @@ class KeyHashers {
      */
     static final KeyHasher COLLISION_HASHER = KeyHasher.custom(KeyHashers::hashWithCollisions, HASH_CONFIG);
 
+    /**
+     * 64-byte Hasher using {@link #HASH_CONFIG} and generating the same hash for all values.
+     */
+    static final KeyHasher CONSTANT_HASHER = KeyHasher.custom(KeyHashers::hashConstant, HASH_CONFIG);
+
+    private static byte[] hashConstant(ArrayView arrayView) {
+        return new byte[HASH_CONFIG.getMinHashLengthBytes()];
+    }
+
     private static byte[] hashWithCollisions(ArrayView arrayView) {
         // Generate SHA512 hash. We'll use this as the basis for our collision-prone hash.
         val baseHash = DEFAULT_HASHER.hash(arrayView);

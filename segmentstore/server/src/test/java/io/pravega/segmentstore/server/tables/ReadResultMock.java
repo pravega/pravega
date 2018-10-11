@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.MathHelpers;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;

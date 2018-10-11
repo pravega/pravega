@@ -298,6 +298,9 @@ public class ContainerKeyCacheTests {
         checkCache(expectedResult, keyCache);
     }
 
+    /**
+     * Tests the ability to record and purge backpointers.
+     */
     @Test
     public void testBackpointers() {
         final long segmentId = 1L;
@@ -327,7 +330,7 @@ public class ContainerKeyCacheTests {
         for (int lio = 0; lio < count; lio++) {
             keyCache.updateSegmentIndexOffset(segmentId, lio);
             for (int i = 0; i < count; i++) {
-                long expectedValue = i <= lio ? -1 : i - 1;
+                long expectedValue = i < lio ? -1 : i - 1;
                 long actualValue = keyCache.getBackpointer(segmentId, i);
                 Assert.assertEquals("Unexpected backpointer value after LIO = " + lio, expectedValue, actualValue);
             }
