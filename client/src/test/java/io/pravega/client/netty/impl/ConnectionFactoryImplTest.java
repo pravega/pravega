@@ -33,6 +33,8 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
@@ -40,6 +42,9 @@ import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class ConnectionFactoryImplTest {
 
@@ -129,5 +134,46 @@ public class ConnectionFactoryImplTest {
         }).join();
 
         connection.send(new WireCommands.Hello(0, 0));
+    }
+
+    @Test
+    public void getActiveChannelTest() throws InterruptedException, ConnectionFailedException {
+        @Cleanup
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create( "tcp://" + "localhost"))
+                                                                              .build());
+        // establish a connection.
+        @Cleanup
+        ClientConnectionInboundHandler connection = (ClientConnectionInboundHandler) factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        }).join();
+
+        assertEquals("Expected active channel count is 1", 1, factory.getActiveChannelCount());
+
+        // add a listener to track the channel close.
+        final CountDownLatch latch = new CountDownLatch(1);
+        connection.getChannel().closeFuture().addListener(future -> latch.countDown());
+
+        // close the connection.
+        connection.close();
+
+        // wait until the channel is closed.
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
+        assertEquals(0, factory.getChannelGroup().size()); // verify that the channel is removed from channelGroup too.
     }
 }
