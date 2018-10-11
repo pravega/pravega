@@ -63,7 +63,7 @@ To use this you need to have Docker `1.12` or later.
 Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
 
 ```
-wget https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml
+wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/docker-compose.yml
 ```
 
 You need to set the IP address of your local machine as the value of HOST_IP in the following command. To run:
