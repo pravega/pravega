@@ -27,21 +27,21 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     private final ConnectionFactory cf;
     
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment) {
-        return createInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentInputStream createInputStreamForSegment(Segment segment) {
+        return createInputStreamForSegment(segment, EventSegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
-        return getSegmentInputStream(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+        return getSegmentInputStream(segment, endOffset, EventSegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+    public EventSegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
         return getSegmentInputStream(segment, Long.MAX_VALUE, bufferSize);
     }
 
-    private SegmentInputStream getSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
+    private EventSegmentInputStream getSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
         AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
@@ -49,6 +49,6 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return new SegmentInputStreamImpl(result, 0, endOffset,  bufferSize);
+        return new EventSegmentInputStreamImpl(result, 0, endOffset,  bufferSize);
     }
 }

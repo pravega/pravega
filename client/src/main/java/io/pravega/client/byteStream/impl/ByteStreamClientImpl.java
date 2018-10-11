@@ -22,7 +22,7 @@ public class ByteStreamClientImpl implements ByteStreamClient {
     }
     
     ByteStreamReader createByteStreamReaders(Segment segment) {
-        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment));
+        return null;// new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment));
     }
 
     @Override

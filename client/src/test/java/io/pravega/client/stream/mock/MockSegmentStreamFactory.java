@@ -11,8 +11,8 @@ package io.pravega.client.stream.mock;
 
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
+import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -46,17 +46,17 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
+    public EventSegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
         return createInputStreamForSegment(segment);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment) {
+    public EventSegmentInputStream createInputStreamForSegment(Segment segment) {
         return getMockStream(segment);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+    public EventSegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
         return getMockStream(segment);
     }
 

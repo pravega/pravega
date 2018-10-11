@@ -20,9 +20,9 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
@@ -199,7 +199,7 @@ public class ReadTest {
         out.flush();
 
         @Cleanup("close")
-        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
+        EventSegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
 
@@ -240,7 +240,7 @@ public class ReadTest {
         assertTrue(out.write(ByteBuffer.wrap(testString), 0));
 
         @Cleanup("close")
-        SegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
+        EventSegmentInputStream in = segmentConsumerClient.createInputStreamForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString), result);
         assertNull(in.read(100));

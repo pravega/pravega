@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.common.MathHelpers;
 import java.util.List;
@@ -37,7 +38,7 @@ public class Orderer {
      * Given a list of segments this reader owns, (which contain their positions) returns the one
      * that should be read from next. This is done in way to minimize blocking and ensure fairness.
      * 
-     * This is done by calling {@link SegmentInputStream#isSegmentReady()} on each segment.
+     * This is done by calling {@link EventSegmentInputStream#isSegmentReady()} on each segment.
      * This method will prefer to return streams where that method is true. This method should
      * reflect that the next call to {@link SegmentInputStream#read()} will not block (either
      * because it has data or will throw {@link EndOfSegmentException}
@@ -47,7 +48,7 @@ public class Orderer {
      * @return A segment that this reader should read from next.
      */
     @VisibleForTesting
-    public <T extends SegmentInputStream> T nextSegment(List<T> segments) {
+    public <T extends EventSegmentInputStream> T nextSegment(List<T> segments) {
         if (segments.isEmpty()) {
             return null;
         }

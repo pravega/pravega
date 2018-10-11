@@ -11,20 +11,22 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class OrdererTest {
 
     @Data
-    private class StubSegmentInputStream implements SegmentInputStream {
+    private class StubSegmentInputStream implements EventSegmentInputStream {
         final int number;
         boolean canReadWithoutBlocking = true;
         long offset = 0;

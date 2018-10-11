@@ -35,7 +35,7 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
  */
 @Slf4j
 @ToString
-class SegmentInputStreamImpl implements SegmentInputStream {
+class EventSegmentInputStreamImpl implements EventSegmentInputStream {
     static final int DEFAULT_BUFFER_SIZE = 1024 * 1024;
     private static final int DEFAULT_READ_LENGTH = 256 * 1024;
     private static final long UNBOUNDED_END_OFFSET = Long.MAX_VALUE;
@@ -57,11 +57,11 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @GuardedBy("$lock")
     private CompletableFuture<SegmentRead> outstandingRequest = null;
 
-    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
+    EventSegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset) {
         this(asyncInput, startOffset, UNBOUNDED_END_OFFSET, DEFAULT_BUFFER_SIZE);
     }
 
-    SegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int bufferSize) {
+    EventSegmentInputStreamImpl(AsyncSegmentInputStream asyncInput, long startOffset, long endOffset, int bufferSize) {
         Preconditions.checkArgument(startOffset >= 0);
         Preconditions.checkNotNull(asyncInput);
         Preconditions.checkNotNull(endOffset, "endOffset");

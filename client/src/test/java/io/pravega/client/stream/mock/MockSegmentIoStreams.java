@@ -12,10 +12,10 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.segment.impl.SegmentInfo;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
+public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
 
     private final Segment segment;
     @GuardedBy("$lock")
