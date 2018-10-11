@@ -107,6 +107,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
      * counts, parallel segment reads and reads with offsets using stream cuts.
      */
     @Test
+    @SuppressWarnings("deprecation")
     public void batchClientSimpleTest() {
         final int totalEvents = RG_PARALLELISM * 100;
         final int offsetEvents = RG_PARALLELISM * 20;

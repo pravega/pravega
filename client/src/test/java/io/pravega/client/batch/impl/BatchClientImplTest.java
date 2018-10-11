@@ -105,6 +105,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
+    @SuppressWarnings("deprecation")
     public void testStreamInfo() throws Exception {
         final String scope = "scope";
         final String streamName = STREAM;

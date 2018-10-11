@@ -31,8 +31,6 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.net.URI;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
@@ -43,7 +41,6 @@ public class StreamManagerImplTest {
     private static final int SERVICE_PORT = 12345;
     private final String defaultScope = "foo";
     private final int controllerPort = TestUtils.getAvailableListenPort();
-    private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     private StreamManager streamManager;
     private JavaSerializer<String> serializer;
     private Controller controller = null;

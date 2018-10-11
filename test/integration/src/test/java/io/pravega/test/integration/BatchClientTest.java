@@ -148,6 +148,7 @@ public class BatchClientTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws Exception {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
