@@ -195,7 +195,7 @@ public class ClientFactoryImpl implements ClientFactory {
     
     @Override
     public ByteStreamClient createByteStreamClient() {
-        return new ByteStreamClientImpl(inFactory, outFactory);
+        return new ByteStreamClientImpl(scope, inFactory, outFactory);
     }
 
     @Override

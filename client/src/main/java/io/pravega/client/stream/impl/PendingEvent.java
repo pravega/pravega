@@ -40,7 +40,6 @@ public class PendingEvent {
        
     private PendingEvent(String routingKey, ByteBuf data, CompletableFuture<Void> ackFuture) {
         Preconditions.checkNotNull(data);
-        Preconditions.checkNotNull(ackFuture);
         Preconditions.checkArgument(data.readableBytes() <= MAX_WRITE_SIZE, "Write size too large: %s", data.readableBytes());
         this.routingKey = routingKey;
         this.data = data;
