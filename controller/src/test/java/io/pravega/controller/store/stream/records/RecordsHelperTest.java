@@ -45,13 +45,13 @@ public class RecordsHelperTest {
     @Test
     public void historyTimeIndexTest() {
         List<Long> leaves = Lists.newArrayList(10L, 30L, 75L, 100L, 152L);
-        HistoryTimeIndexRootNode root = new HistoryTimeIndexRootNode(leaves);
-        HistoryTimeIndexLeaf leaf0 = new HistoryTimeIndexLeaf(Lists.newArrayList(10L, 11L, 18L, 25L, 29L));
-        HistoryTimeIndexLeaf leaf1 = new HistoryTimeIndexLeaf(Lists.newArrayList(30L, 32L, 35L, 45L, 71L));
-        HistoryTimeIndexLeaf leaf2 = new HistoryTimeIndexLeaf(Lists.newArrayList(75L, 81L, 94L, 96L, 99L));
-        HistoryTimeIndexLeaf leaf3 = new HistoryTimeIndexLeaf(Lists.newArrayList(100L, 132L, 135L, 145L, 151L));
-        HistoryTimeIndexLeaf leaf4 = new HistoryTimeIndexLeaf(Lists.newArrayList(152L, 312L, 351L, 415L, 711L));
-        List<HistoryTimeIndexLeaf> leavesRecords = Lists.newArrayList(leaf0, leaf1, leaf2, leaf3, leaf4);
+        RetentionTimeIndexRootNode root = new RetentionTimeIndexRootNode(leaves);
+        RetentionTimeIndexLeaf leaf0 = new RetentionTimeIndexLeaf(Lists.newArrayList(10L, 11L, 18L, 25L, 29L));
+        RetentionTimeIndexLeaf leaf1 = new RetentionTimeIndexLeaf(Lists.newArrayList(30L, 32L, 35L, 45L, 71L));
+        RetentionTimeIndexLeaf leaf2 = new RetentionTimeIndexLeaf(Lists.newArrayList(75L, 81L, 94L, 96L, 99L));
+        RetentionTimeIndexLeaf leaf3 = new RetentionTimeIndexLeaf(Lists.newArrayList(100L, 132L, 135L, 145L, 151L));
+        RetentionTimeIndexLeaf leaf4 = new RetentionTimeIndexLeaf(Lists.newArrayList(152L, 312L, 351L, 415L, 711L));
+        List<RetentionTimeIndexLeaf> leavesRecords = Lists.newArrayList(leaf0, leaf1, leaf2, leaf3, leaf4);
         int leaf = root.findLeafNode(0L);
         assertEquals(leaf, 0);
         leaf = root.findLeafNode(10L);

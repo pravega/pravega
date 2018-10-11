@@ -12,8 +12,6 @@ package io.pravega.controller.store.stream.records.serializers;
 import com.google.common.collect.Lists;
 import io.pravega.controller.store.stream.records.CommitTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeIndexLeaf;
-import io.pravega.controller.store.stream.records.HistoryTimeIndexRootNode;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.HistoryTimeSeriesRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
@@ -53,28 +51,7 @@ public class ControllerMetadataRecordSerializerTest {
         EpochRecord record = EpochRecord.builder().epoch(10).referenceEpoch(0).creationTime(10L).segments(list).build();
         assertEquals(EpochRecord.parse(record.toByteArray()), record);
     }
-
-    @Test
-    public void historyTimeIndexTest() {
-        List<Long> leaves = Lists.newArrayList(0L, 100L, 200L);
-        HistoryTimeIndexRootNode rootNode = HistoryTimeIndexRootNode.builder().leaves(leaves).build();
-        assertEquals(HistoryTimeIndexRootNode.parse(rootNode.toByteArray()), rootNode);
-
-        List<Long> record = Lists.newArrayList(0L, 1L, 2L);
-
-        HistoryTimeIndexLeaf leaf = HistoryTimeIndexLeaf.builder().records(record).build();
-        assertEquals(HistoryTimeIndexLeaf.parse(leaf.toByteArray()), leaf);
-
-        HistoryTimeIndexRootNode newRoot = HistoryTimeIndexRootNode.addNewLeaf(rootNode, 150L);
-        assertEquals(rootNode, newRoot);
-        newRoot = HistoryTimeIndexRootNode.addNewLeaf(rootNode, 250L);
-        assertEquals(4, newRoot.getLeaves().size());
-        HistoryTimeIndexLeaf newLeaf = HistoryTimeIndexLeaf.addRecord(leaf, 1L);
-        assertEquals(newLeaf, leaf);
-        newLeaf = HistoryTimeIndexLeaf.addRecord(leaf, 4L);
-        assertEquals(4, newLeaf.getRecords().size());
-    }
-
+    
     @Test
     public void historyTimeSeriesTest() {
         List<StreamSegmentRecord> sealedSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
