@@ -23,7 +23,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ConcurrentDependentProcessor class.
@@ -31,6 +33,9 @@ import org.junit.Test;
 public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
     private static final int SHORT_TIMEOUT_MILLIS = 50;
     private static final int TIMEOUT_MILLIS = 10000;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
