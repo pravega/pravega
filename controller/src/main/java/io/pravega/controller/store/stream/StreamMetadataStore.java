@@ -119,8 +119,28 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<State> getState(final String scope, final String name, final boolean ignoreCached, final OperationContext context, final Executor executor);
 
-     CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name, final OperationContext context, final Executor executor);
+    /**
+     * Api to get the current state with its current version.
+     *
+     * @param scope scope
+     * @param name stream
+     * @param context operation context
+     * @param executor executor
+     * @return Future which when completed has the versioned state.
+     */
+    CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name, final OperationContext context, final Executor executor);
 
+    /**
+     * Api to update versioned state as a CAS operation.
+     *
+     * @param scope scope
+     * @param name stream
+     * @param state desired state
+     * @param previous current state with version
+     * @param context operation context
+     * @param executor executor
+     * @return Future which when completed contains the updated state and version if successful or exception otherwise.
+     */
     CompletableFuture<VersionedMetadata<State>> updateVersionedState(final String scope, final String name,
                                                     final State state, final VersionedMetadata<State> previous, final OperationContext context,
                                                     final Executor executor);
@@ -441,7 +461,10 @@ public interface StreamMetadataStore {
                                                                             final Executor executor);
 
     /**
-     * Method to create new segments in stream metadata.
+     * Method to start a new scale. This method will check if epoch transition record is consistent or if
+     * a rolling transaction has rendered it inconsistent with the state in store.
+     * For manual scale this method will migrate the epoch transaction. For auto scale, it will discard any
+     * inconsistent record and reset the state.
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -450,7 +473,7 @@ public interface StreamMetadataStore {
      * @param state  previous versioned state
      * @param context        operation context
      * @param executor       callers executor
-     * @return future
+     * @return future Future which when completed contains updated epoch transition record with version or exception otherwise.
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final String scope,
                                        final String name,

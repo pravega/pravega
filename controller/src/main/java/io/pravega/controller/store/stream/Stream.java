@@ -116,8 +116,19 @@ interface Stream {
      */
     CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationRecord();
 
+    /**
+     * Api to get the current state with its current version.
+     *
+     * @return Future which when completed has the versioned state.
+     */
     CompletableFuture<VersionedMetadata<State>> getVersionedState();
 
+    /**
+     * Api to update versioned state as a CAS operation.
+     *
+     * @param state desired state
+     * @return Future which when completed contains the updated state and version if successful or exception otherwise.
+     */
     CompletableFuture<VersionedMetadata<State>> updateVersionedState(final VersionedMetadata<State> state, final State newState);
 
     /**
@@ -206,9 +217,15 @@ interface Stream {
                                                                             final long scaleTimestamp);
 
     /**
-     * Called to start metadata updates to stream store wrt new scale event.
+     * Method to start a new scale. This method will check if epoch transition record is consistent or if
+     * a rolling transaction has rendered it inconsistent with the state in store.
+     * For manual scale this method will migrate the epoch transaction. For auto scale, it will discard any
+     * inconsistent record and reset the state.
      *
-     * @return sequence of newly created segments
+     * @param isManualScale  flag to indicate that the processing is being performed for manual scale
+     * @param record previous versioned record
+     * @param state  previous versioned state
+     * @return future Future which when completed contains updated epoch transition record with version or exception otherwise.
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final boolean isManualScale,
                                                                            final VersionedMetadata<EpochTransitionRecord> record,
