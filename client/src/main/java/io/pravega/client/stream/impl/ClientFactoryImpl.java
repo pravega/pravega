@@ -16,6 +16,8 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
+import io.pravega.client.byteStream.ByteStreamClient;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
@@ -189,6 +191,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public BatchClient createBatchClient() {
         return new BatchClientImpl(controller, connectionFactory);
+    }
+    
+    @Override
+    public ByteStreamClient createByteStreamClient() {
+        return new ByteStreamClientImpl(inFactory, outFactory);
     }
 
     @Override

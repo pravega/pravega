@@ -69,4 +69,9 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
         return getMockStream(segment);
     }
+
+    @Override
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config) {
+        return getMockStream(segment);
+    }
 }
