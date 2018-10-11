@@ -9,8 +9,8 @@
  */
 package io.pravega.client.admin.impl;
 
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;

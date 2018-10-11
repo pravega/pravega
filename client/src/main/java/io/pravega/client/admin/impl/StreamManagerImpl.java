@@ -12,9 +12,9 @@ package io.pravega.client.admin.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.batch.impl.BatchClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -29,6 +29,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -118,7 +119,12 @@ public class StreamManagerImpl implements StreamManager {
     public StreamInfo getStreamInfo(String scopeName, String streamName) {
         log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
         final BatchClient client = new BatchClientImpl(controller, connectionFactory);
-        return Futures.getAndHandleExceptions(client.getStreamInfo(Stream.of(scopeName, streamName)), RuntimeException::new);
+
+        CompletableFuture<StreamInfo> streamInfo = client.getStreamInfo(Stream.of(scopeName, streamName))
+                                                         .thenApply(info -> new StreamInfo(info.getScope(), info.getStreamName(),
+                                                                                           info.getTailStreamCut(),
+                                                                                           info.getHeadStreamCut()));
+        return Futures.getAndHandleExceptions(streamInfo, RuntimeException::new);
     }
 
     @Override

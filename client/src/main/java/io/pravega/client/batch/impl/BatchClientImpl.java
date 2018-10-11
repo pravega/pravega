@@ -15,7 +15,6 @@ import com.google.common.collect.Iterators;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -71,14 +70,15 @@ public class BatchClientImpl implements BatchClient {
      */
     @Override
     @Deprecated
-    public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+    public CompletableFuture<io.pravega.client.batch.StreamInfo> getStreamInfo(final Stream stream) {
         Preconditions.checkNotNull(stream, "stream");
 
         //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
         CompletableFuture<StreamCut> currentTailStreamCut = fetchTailStreamCut(stream);
         CompletableFuture<StreamCut> currentHeadStreamCut = fetchHeadStreamCut(stream);
         return currentTailStreamCut.thenCombine(currentHeadStreamCut,
-                (tailSC, headSC) -> new StreamInfo(stream.getScope(), stream.getStreamName(), tailSC, headSC));
+                (tailSC, headSC) -> new io.pravega.client.batch.StreamInfo(stream.getScope(), stream.getStreamName(),
+                                                                           tailSC, headSC));
     }
 
     @Override
