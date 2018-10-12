@@ -914,7 +914,7 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments());
+            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments(), isSilent);
         }
 
         private static class CreateCheckpointBuilder implements ObjectBuilder<CreateCheckpoint> {

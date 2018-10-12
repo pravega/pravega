@@ -19,6 +19,8 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
 import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.util.ByteArraySegment;
+
+import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -50,18 +52,21 @@ public class CheckpointState {
      *  Maps CheckpointId to positions in segments.
      */
     private final Map<String, Map<Segment, Long>> checkpointPositions;
+    /**
+     * Maps CheckpointId to silent attribute.
+     */
+    private final Map<String, Boolean> checkPointSilentAttribute;
 
     private Map<Segment, Long> lastCheckpointPosition;
 
-    private final boolean isSilent;
 
     public CheckpointState() {
-        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, false);
+        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, new HashMap<>());
     }
     
     @Builder
     private CheckpointState(List<String> checkpoints, Map<String, List<String>> uncheckpointedHosts,
-            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition, boolean isSilent) {
+            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition, Map<String, Boolean> silentAttribute) {
         Preconditions.checkNotNull(checkpoints);
         Preconditions.checkNotNull(uncheckpointedHosts);
         Preconditions.checkNotNull(checkpointPositions);
@@ -69,16 +74,21 @@ public class CheckpointState {
         this.uncheckpointedHosts = uncheckpointedHosts;
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
-        this.isSilent = isSilent;
+        this.checkPointSilentAttribute = silentAttribute;
     }
-    
+
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
+        beginNewCheckpoint(checkpointId, currentReaders, knownPositions, false);
+    }
+
+    void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions, boolean isSilent) {
         if (!checkpointPositions.containsKey(checkpointId)) {
             if (!currentReaders.isEmpty()) {
                 uncheckpointedHosts.put(checkpointId, new ArrayList<>(currentReaders));
             }
             checkpointPositions.put(checkpointId, new HashMap<>(knownPositions));
             checkpoints.add(checkpointId);
+            checkPointSilentAttribute.put(checkpointId, isSilent);
         }
     }
     
@@ -122,6 +132,10 @@ public class CheckpointState {
     
     boolean isCheckpointComplete(String checkpointId) {
         return !uncheckpointedHosts.containsKey(checkpointId);
+    }
+
+    boolean isCheckpointSilent(String checkpointId) {
+        return checkPointSilentAttribute.get(checkpointId); // TODO: default value.
     }
     
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
@@ -167,7 +181,8 @@ public class CheckpointState {
         Map<String, Map<Segment, Long>> cpps = new HashMap<>();
         checkpointPositions.forEach((cp, pos) -> cpps.put(cp, new HashMap<>(pos)));
         Map<Segment, Long> lcp = lastCheckpointPosition == null ? null : new HashMap<>(lastCheckpointPosition);
-        return new CheckpointState(cps, ucph, cpps, lcp, isSilent);
+        Map<String, Boolean> cpSilentFlags = new HashMap<>(checkPointSilentAttribute);
+        return new CheckpointState(cps, ucph, cpps, lcp, cpSilentFlags);
     }
     
     @Override
@@ -177,7 +192,6 @@ public class CheckpointState {
         sb.append(checkpoints.toString());
         sb.append(",  readersBlockingEachCheckpoint: ");
         sb.append(uncheckpointedHosts.toString());
-        sb.append(", isSilent: ").append(isSilent);
         sb.append(" }");
         return sb.toString();
     }
@@ -212,7 +226,7 @@ public class CheckpointState {
             builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
             builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
             builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
-            builder.isSilent(input.readBoolean());
+            builder.silentAttribute(input.readMap(stringDeserializer, RevisionDataInput::readBoolean));
         }
 
         private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
@@ -223,7 +237,7 @@ public class CheckpointState {
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
             output.writeMap(object.checkpointPositions, stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
             output.writeMap(object.lastCheckpointPosition, segmentSerializer, longSerializer);
-            output.writeBoolean(object.isSilent);
+            output.writeMap(object.checkPointSilentAttribute, stringSerializer, DataOutput::writeBoolean);
         }
     }
 

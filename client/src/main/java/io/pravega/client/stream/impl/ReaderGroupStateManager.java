@@ -399,6 +399,7 @@ public class ReaderGroupStateManager {
         return state.getCheckpointForReader(readerId);
     }
     
+    
     void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState((state, updates) -> {
@@ -417,4 +418,5 @@ public class ReaderGroupStateManager {
     public String getOrRefreshDelegationTokenFor(Segment segmentId) {
             return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
     }
+
 }
