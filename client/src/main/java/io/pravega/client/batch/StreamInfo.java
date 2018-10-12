@@ -21,7 +21,8 @@ import lombok.Data;
  *  <li> - {@link StreamCut} which represents the current TAIL of the stream.
  *  <li> - {@link StreamCut} which represents the current HEAD of the stream.
  *
- *  @deprecated Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo represented
+ *  @deprecated This class is deprecated and will be removed in the subsequent releases. Use
+ *  {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo represented
  *  by {@link io.pravega.client.admin.StreamInfo}.
  */
 @Beta

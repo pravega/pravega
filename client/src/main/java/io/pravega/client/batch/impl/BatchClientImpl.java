@@ -12,7 +12,7 @@ package io.pravega.client.batch.impl;
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-import io.pravega.client.StreamCutHelper;
+import io.pravega.client.admin.impl.StreamCutHelper;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
