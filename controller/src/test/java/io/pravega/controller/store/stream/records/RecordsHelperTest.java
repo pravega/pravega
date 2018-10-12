@@ -43,36 +43,6 @@ public class RecordsHelperTest {
     }
 
     @Test
-    public void historyTimeIndexTest() {
-        List<Long> leaves = Lists.newArrayList(10L, 30L, 75L, 100L, 152L);
-        RetentionTimeIndexRootNode root = new RetentionTimeIndexRootNode(leaves);
-        RetentionTimeIndexLeaf leaf0 = new RetentionTimeIndexLeaf(Lists.newArrayList(10L, 11L, 18L, 25L, 29L));
-        RetentionTimeIndexLeaf leaf1 = new RetentionTimeIndexLeaf(Lists.newArrayList(30L, 32L, 35L, 45L, 71L));
-        RetentionTimeIndexLeaf leaf2 = new RetentionTimeIndexLeaf(Lists.newArrayList(75L, 81L, 94L, 96L, 99L));
-        RetentionTimeIndexLeaf leaf3 = new RetentionTimeIndexLeaf(Lists.newArrayList(100L, 132L, 135L, 145L, 151L));
-        RetentionTimeIndexLeaf leaf4 = new RetentionTimeIndexLeaf(Lists.newArrayList(152L, 312L, 351L, 415L, 711L));
-        List<RetentionTimeIndexLeaf> leavesRecords = Lists.newArrayList(leaf0, leaf1, leaf2, leaf3, leaf4);
-        int leaf = root.findLeafNode(0L);
-        assertEquals(leaf, 0);
-        leaf = root.findLeafNode(10L);
-        assertEquals(leaf, 0);
-        leaf = root.findLeafNode(77L);
-        assertEquals(leaf, 2);
-        leaf = root.findLeafNode(166L);
-        assertEquals(leaf, 4);
-
-        leaf = root.findLeafNode(0L);
-        int recordIndex = leavesRecords.get(leaf).findIndexAtTime(0L);
-        assertEquals(recordIndex, 0);
-        recordIndex = leavesRecords.get(leaf).findIndexAtTime(10L);
-        assertEquals(recordIndex, 0);
-        recordIndex = leavesRecords.get(leaf).findIndexAtTime(21L);
-        assertEquals(recordIndex, 2);
-        recordIndex = leavesRecords.get(leaf).findIndexAtTime(29L);
-        assertEquals(recordIndex, 4);
-    }
-
-    @Test
     public void sealedSegmentShardingTest() {
         Map<Integer, SealedSegmentsMapShard> mapshards = new HashMap<>();
 
