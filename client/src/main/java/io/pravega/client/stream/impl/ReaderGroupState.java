@@ -253,7 +253,7 @@ public class ReaderGroupState implements Revisioned {
         return positionMap.map(map -> map.entrySet().stream()
                                          .collect(groupingBy(o -> o.getKey().getStream(),
                                                              collectingAndThen(toMap(Entry::getKey, Entry::getValue),
-                                                                               x -> new StreamCutImpl(map.keySet().stream().findAny().get().getStream(), x)))));
+                                                                               x -> new StreamCutImpl(x.keySet().stream().findAny().get().getStream(), x)))));
     }
 
     @Synchronized
@@ -893,7 +893,6 @@ public class ReaderGroupState implements Revisioned {
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         @Getter
         private final String checkpointId;
-
         @Getter
         private final boolean isSilent;
 
