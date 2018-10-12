@@ -98,7 +98,7 @@ class EventSegmentInputStreamImpl implements EventSegmentInputStream {
     }
 
     /**
-     * @see SegmentInputStream#read()
+     * @see EventSegmentInputStream#read()
      */
     @Override
     @Synchronized

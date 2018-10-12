@@ -12,7 +12,6 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentInputStream;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.common.MathHelpers;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,7 +39,7 @@ public class Orderer {
      * 
      * This is done by calling {@link EventSegmentInputStream#isSegmentReady()} on each segment.
      * This method will prefer to return streams where that method is true. This method should
-     * reflect that the next call to {@link SegmentInputStream#read()} will not block (either
+     * reflect that the next call to {@link EventSegmentInputStream#read()} will not block (either
      * because it has data or will throw {@link EndOfSegmentException}
      *
      * @param <T> The type of the SegmentInputStream that is being selected from.
