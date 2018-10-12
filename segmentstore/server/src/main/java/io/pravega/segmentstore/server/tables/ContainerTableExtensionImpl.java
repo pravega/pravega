@@ -217,7 +217,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, GetResultBuilder builder,
                                                     Map<KeyHash, Long> bucketOffsets, TimeoutTimer timer) {
-        val tableReader = TableReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
+        val bucketReader = TableBucketReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
         int resultSize = builder.getHashes().size();
         for (int i = 0; i < resultSize; i++) {
             long offset = bucketOffsets.get(builder.getHashes().get(i));
@@ -226,7 +226,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                builder.includeResult(tableReader.find(builder.getKeys().get(i), offset, timer));
+                builder.includeResult(bucketReader.find(builder.getKeys().get(i), offset, timer));
             }
         }
 

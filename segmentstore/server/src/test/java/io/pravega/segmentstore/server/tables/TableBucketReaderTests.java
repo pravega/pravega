@@ -29,9 +29,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link TableReader} class.
+ * Unit tests for the {@link TableBucketReader} class.
  */
-public class TableReaderTests extends ThreadPooledTestSuite {
+public class TableBucketReaderTests extends ThreadPooledTestSuite {
     private static final int COUNT = 10;
     private static final int KEY_LENGTH = 16;
     private static final int VALUE_LENGTH = 16;
@@ -42,7 +42,7 @@ public class TableReaderTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to locate Table Keys in a Table Bucket using {@link TableReader#key}.
+     * Tests the ability to locate Table Keys in a Table Bucket using {@link TableBucketReader#key}.
      */
     @Test
     public void testFindKey() throws Exception {
@@ -51,7 +51,7 @@ public class TableReaderTests extends ThreadPooledTestSuite {
         // Generate our test data and append it to the segment.
         val data = generateData();
         segment.append(data.serialization, null, TIMEOUT).join();
-        val reader = TableReader.key(segment,
+        val reader = TableBucketReader.key(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)),
                 executorService());
 
@@ -68,7 +68,7 @@ public class TableReaderTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to locate Table Entries in a Table Bucket using {@link TableReader#key}.
+     * Tests the ability to locate Table Entries in a Table Bucket using {@link TableBucketReader#key}.
      */
     @Test
     public void testFindEntry() throws Exception {
@@ -77,7 +77,7 @@ public class TableReaderTests extends ThreadPooledTestSuite {
         // Generate our test data and append it to the segment.
         val data = generateData();
         segment.append(data.serialization, null, TIMEOUT).join();
-        val reader = TableReader.entry(segment,
+        val reader = TableBucketReader.entry(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)),
                 executorService());
 
@@ -107,7 +107,7 @@ public class TableReaderTests extends ThreadPooledTestSuite {
         byte[] data = new byte[es.getRemovalLength(deletedKey)];
         es.serializeRemoval(Collections.singleton(deletedKey), data);
         segment.append(data, null, TIMEOUT).join();
-        val reader = TableReader.entry(segment,
+        val reader = TableBucketReader.entry(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(-1L), // No backpointers.
                 executorService());
 

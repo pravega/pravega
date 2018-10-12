@@ -32,7 +32,7 @@ import lombok.val;
  * @param <ResultT> Type of the objects returned by an instance of this class.
  */
 @RequiredArgsConstructor
-abstract class TableReader<ResultT> {
+abstract class TableBucketReader<ResultT> {
     //region Members
 
     protected final EntrySerializer serializer = new EntrySerializer();
@@ -45,32 +45,31 @@ abstract class TableReader<ResultT> {
     //region Constructor
 
     /**
-     * Creates a new instance of the {@link TableReader} class that can read {@link TableEntry} instances.
+     * Creates a new instance of the {@link TableBucketReader} class that can read {@link TableEntry} instances.
      *
      * @param segment        A {@link DirectSegmentAccess} that can be used to read from the Segment.
      * @param getBackpointer A Function that, when invoked with a {@link DirectSegmentAccess} and an offset, will return
      *                       a Backpointer originating at that offset, or -1 if no such backpointer exists.
      * @param executor       An Executor for async operations.
-     * @return A new instance of the {@link TableReader} class.
+     * @return A new instance of the {@link TableBucketReader} class.
      */
-    static TableReader<TableEntry> entry(@NonNull DirectSegmentAccess segment,
-                                         @NonNull GetBackpointer getBackpointer, @NonNull ScheduledExecutorService executor) {
-        return new TableReader.Entry(segment, getBackpointer, executor);
-
+    static TableBucketReader<TableEntry> entry(@NonNull DirectSegmentAccess segment,
+                                               @NonNull GetBackpointer getBackpointer, @NonNull ScheduledExecutorService executor) {
+        return new TableBucketReader.Entry(segment, getBackpointer, executor);
     }
 
     /**
-     * Creates a new instance of the {@link TableReader} class that can read {@link TableKey} instances.
+     * Creates a new instance of the {@link TableBucketReader} class that can read {@link TableKey} instances.
      *
      * @param segment        A {@link DirectSegmentAccess} that can be used to read from the Segment.
      * @param getBackpointer A Function that, when invoked with a {@link DirectSegmentAccess} and an offset, will return
      *                       a Backpointer originating at that offset, or -1 if no such backpointer exists.
      * @param executor       An Executor for async operations.
-     * @return A new instance of the {@link TableReader} class.
+     * @return A new instance of the {@link TableBucketReader} class.
      */
-    static TableReader<TableKey> key(@NonNull DirectSegmentAccess segment,
-                                     @NonNull GetBackpointer getBackpointer, @NonNull ScheduledExecutorService executor) {
-        return new TableReader.Key(segment, getBackpointer, executor);
+    static TableBucketReader<TableKey> key(@NonNull DirectSegmentAccess segment,
+                                           @NonNull GetBackpointer getBackpointer, @NonNull ScheduledExecutorService executor) {
+        return new TableBucketReader.Key(segment, getBackpointer, executor);
     }
 
     //endregion
@@ -157,9 +156,9 @@ abstract class TableReader<ResultT> {
     //region Entry
 
     /**
-     * {@link TableReader} implementation that can read {@link TableEntry} instances.
+     * {@link TableBucketReader} implementation that can read {@link TableEntry} instances.
      */
-    private static class Entry extends TableReader<TableEntry> {
+    private static class Entry extends TableBucketReader<TableEntry> {
         private Entry(DirectSegmentAccess segment, GetBackpointer getBackpointer, ScheduledExecutorService executor) {
             super(segment, getBackpointer, executor);
         }
@@ -194,9 +193,9 @@ abstract class TableReader<ResultT> {
     //region Key
 
     /**
-     * {@link TableReader} implementation that can read {@link TableKey} instances.
+     * {@link TableBucketReader} implementation that can read {@link TableKey} instances.
      */
-    private static class Key extends TableReader<TableKey> {
+    private static class Key extends TableBucketReader<TableKey> {
         private Key(DirectSegmentAccess segment, GetBackpointer getBackpointer, ScheduledExecutorService executor) {
             super(segment, getBackpointer, executor);
         }
