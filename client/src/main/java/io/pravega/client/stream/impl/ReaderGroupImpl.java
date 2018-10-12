@@ -157,9 +157,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @SneakyThrows(CheckpointFailedException.class)
     private Map<Stream, StreamCut> completeAndFetchStreamCut(String checkpointName) {
-        Map<Segment, Long> map = completeCheckpoint(checkpointName);
-        //        map.entrySet().stream().
-        return null;
+        return compleCheckpointAndFetchStreamCut(checkpointName);
     }
 
     private Map<Segment, Long> completeCheckpoint(String checkpointName) throws CheckpointFailedException {
@@ -172,6 +170,12 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return map;
     }
 
+    private Map<Stream, StreamCut> compleCheckpointAndFetchStreamCut(String checkpointName) throws CheckpointFailedException {
+        ReaderGroupState state = synchronizer.getState();
+        Optional<Map<Stream, StreamCut>> cuts = state.getStreamCutsForCompletedCheckpoint(checkpointName);
+        synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkpointName));
+        return cuts.orElseThrow(() -> new CheckpointFailedException("Checkpoint was cleared before results could be read."));
+    }
 
 
     /**

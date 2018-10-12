@@ -419,4 +419,7 @@ public class ReaderGroupStateManager {
             return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
     }
 
+    boolean isCheckpointSilent(String atCheckpoint) {
+        return sync.getState().getCheckpointState().isCheckpointSilent(atCheckpoint);
+    }
 }
