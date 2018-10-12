@@ -266,21 +266,20 @@ public class StreamTransactionMetadataTasksTest {
                 new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
-        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 5000, null).join().getKey();
-        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 5000, null).join().getKey();
-        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 5000, null).join().getKey();
+        VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
+        VersionedTransactionData tx2 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
+        VersionedTransactionData tx3 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
+        VersionedTransactionData tx4 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
 
         // Ping another txn from failedHost.
-        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
-        streamStore.createTransaction(SCOPE, STREAM, txnId, 5000, 300000, null, executor).join();
-        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, txnId, 30000, null).join();
-        VersionedTransactionData tx4 = streamStore.getTransactionData(SCOPE, STREAM, txnId, null, executor).join();
+        PingTxnStatus pingStatus = failedTxnTasks.pingTxn(SCOPE, STREAM, tx4.getId(), 10000, null).join();
+        VersionedTransactionData tx4get = streamStore.getTransactionData(SCOPE, STREAM, tx4.getId(), null, executor).join();
 
         // Validate versions of all txn
         Assert.assertEquals(0, tx1.getVersion().asIntVersion().getIntValue().intValue());
         Assert.assertEquals(0, tx2.getVersion().asIntVersion().getIntValue().intValue());
         Assert.assertEquals(0, tx3.getVersion().asIntVersion().getIntValue().intValue());
-        Assert.assertEquals(1, tx4.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(1, tx4get.getVersion().asIntVersion().getIntValue().intValue());
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         // Validate the txn index.
@@ -316,15 +315,22 @@ public class StreamTransactionMetadataTasksTest {
         txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")).join();
 
         // Validate that sweeping completes correctly.
-        Assert.assertEquals(0, streamStore.listHostsOwningTxn().join().size());
-        Assert.assertEquals(TxnStatus.ABORTING,
+        Set<String> listOfHosts = streamStore.listHostsOwningTxn().join();
+        Assert.assertEquals(1, listOfHosts.size());
+        Assert.assertTrue(listOfHosts.contains("host"));
+        Assert.assertEquals(TxnStatus.OPEN,
                 streamStore.transactionStatus(SCOPE, STREAM, tx1.getId(), null, executor).join());
         Assert.assertEquals(TxnStatus.COMMITTING,
                 streamStore.transactionStatus(SCOPE, STREAM, tx2.getId(), null, executor).join());
         Assert.assertEquals(TxnStatus.ABORTING,
                 streamStore.transactionStatus(SCOPE, STREAM, tx3.getId(), null, executor).join());
-        Assert.assertEquals(TxnStatus.ABORTING,
+        Assert.assertEquals(TxnStatus.OPEN,
                 streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
+
+        VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, tx1.getId(), null, executor).join();
+        Assert.assertEquals(1, txnData.getVersion().asIntVersion().getIntValue().intValue());
+        txnData = streamStore.getTransactionData(SCOPE, STREAM, tx4.getId(), null, executor).join();
+        Assert.assertEquals(2, txnData.getVersion().asIntVersion().getIntValue().intValue());
 
         // Create commit and abort event processors.
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();

@@ -15,9 +15,10 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.util.Config;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -142,11 +143,9 @@ public class TxnSweeper implements FailoverSweeper {
                     throw new CompletionException(e);
                 }
             }
-
             return r;
         }).thenComposeAsync(txData -> {
             int epoch = txData.getEpoch();
-
             switch (txData.getStatus()) {
                 case OPEN:
                     return failOverOpenTxn(failedHost, txn)
@@ -189,9 +188,8 @@ public class TxnSweeper implements FailoverSweeper {
         String stream = txn.getStream();
         UUID txnId = txn.getTxnId();
         log.debug("Host = {}, failing over open transaction {}/{}/{}", failedHost, scope, stream, txnId);
-        return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync(version -> {
-            return transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null)
-                    .thenApplyAsync(status -> null, executor);
-        }, executor);
+        return streamMetadataStore.getTransactionData(scope, stream, txnId, null, executor)
+                .thenCompose(txnData -> transactionMetadataTasks.pingTxn(scope, stream, txn.getTxnId(), Config.MAX_LEASE_VALUE, null))
+                .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
 }

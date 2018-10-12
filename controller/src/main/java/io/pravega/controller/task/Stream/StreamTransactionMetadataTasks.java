@@ -375,8 +375,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<VersionedTransactionData> createTxnInStore(String scope, String stream, long lease,
-                                                                                            OperationContext ctx, long maxExecutionPeriod, UUID txnId,
-                                                                                            CompletableFuture<Void> addIndex) {
+                                                                         OperationContext ctx, long maxExecutionPeriod, UUID txnId,
+                                                                         CompletableFuture<Void> addIndex) {
         return addIndex.thenComposeAsync(ignore ->
                                 streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
                                         ctx, executor), executor).whenComplete((v, e) -> {
@@ -476,7 +476,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 TxnResource resource = new TxnResource(scope, stream, txnId);
 
                 // Step 2. Add txn to host-transaction index
-                CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion()).whenComplete((v, e) -> {
+                CompletableFuture<Void> addIndex = !timeoutService.containsTxn(scope, stream, txnId) ?
+                        streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion()) :
+                        CompletableFuture.completedFuture(null);
+
+                addIndex.whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
                     } else {
@@ -507,6 +511,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             log.debug("Txn={}, extending lease in timeout service", txnId);
                             timeoutService.pingTxn(scope, stream, txnId, version, lease);
                         } else {
+                            log.debug("Txn={}, adding in timeout service", txnId);
                             timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime);
                         }
                         return createStatus(Status.OK);
