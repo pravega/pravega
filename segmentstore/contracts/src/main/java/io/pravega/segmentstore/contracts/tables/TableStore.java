@@ -211,28 +211,6 @@ public interface TableStore {
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState state, Duration timeout);
 
     /**
-     * Gets the {@link UpdateListener} for a particular TableSegment.
-     *
-     * @param listener    The {@link UpdateListener} to register.
-     * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain a {@link UpdateListener}. If the operation failed,
-     * the future will be failed with the causing exception. Notable exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * </ul>
-     */
-    CompletableFuture<Void> registerListener(UpdateListener listener, Duration timeout);
-
-    /**
-     * Unregisters an {@link UpdateListener}.
-     *
-     * @param listener The {@link UpdateListener} to unregister.
-     * @return True if the {@link UpdateListener} was registered before this call, false otherwise.
-     */
-    boolean unregisterListener(UpdateListener listener);
-
-    /**
      * Defines an iteration result that is returned by the {@link AsyncIterator} when invoking
      * {@link #entryIterator(String, IteratorState, Duration)} or {@link #keyIterator(String, IteratorState, Duration)} .
      */

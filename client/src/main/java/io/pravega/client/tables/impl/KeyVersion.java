@@ -36,7 +36,7 @@ interface KeyVersion {
     ByteBuffer toBytes();
 
     /**
-     * Deserializes the KeyVersion from its serialized from obtained from calling {@link #toBytes()}.
+     * Deserializes the KeyVersion from its serialized form obtained from calling {@link #toBytes()}.
      *
      * @param serializedKeyVersion A serialized KeyVersion.
      * @return The KeyVersion object.

@@ -22,7 +22,7 @@ interface IteratorState {
     ByteBuffer toBytes();
 
     /**
-     * Deserializes the IteratorState from its serialized from obtained from calling {@link #toBytes()}.
+     * Deserializes the IteratorState from its serialized form obtained from calling {@link #toBytes()}.
      *
      * @param serializedState A serialized IteratorState.
      * @return The IteratorState object.
