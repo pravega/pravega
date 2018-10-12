@@ -19,6 +19,7 @@ import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -27,6 +28,18 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -40,22 +53,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
-import lombok.val;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * This class encapsulates the state machine of a reader group. The class represents the full state,
  * and each of the nested classes are state transitions that can occur.
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Slf4j
 public class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
@@ -239,6 +247,16 @@ public class ReaderGroupState implements Revisioned {
     }
 
     @Synchronized
+    Optional<Map<Stream, StreamCut>> getStreamCutsForCompletedCheckpoint(final String checkpointId) {
+        final Optional<Map<Segment, Long>> positionMap = Optional.ofNullable(checkpointState.getPositionsForCompletedCheckpoint(checkpointId));
+
+        return positionMap.map(map -> map.entrySet().stream()
+                                         .collect(groupingBy(o -> o.getKey().getStream(),
+                                                             collectingAndThen(toMap(Entry::getKey, Entry::getValue),
+                                                                               x -> new StreamCutImpl(map.keySet().stream().findAny().get().getStream(), x)))));
+    }
+
+    @Synchronized
     Optional<Map<Stream, Map<Segment, Long>>> getPositionsForLastCompletedCheckpoint() {
         Optional<Map<Segment, Long>> positions = checkpointState.getPositionsForLatestCompletedCheckpoint();
         if (positions.isPresent()) {
@@ -282,7 +300,7 @@ public class ReaderGroupState implements Revisioned {
         sb.append(" }");
         return sb.toString();
     }
-    
+
     @Data
     @Builder
     @RequiredArgsConstructor
@@ -362,16 +380,16 @@ public class ReaderGroupState implements Revisioned {
                 endSegments = state.endSegments;
             }
         }
-        
+
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
                                         futureSegments, assignedSegments, unassignedSegments, endSegments);
         }
-        
+
         @VisibleForTesting
         static class CompactReaderGroupStateBuilder implements ObjectBuilder<CompactReaderGroupState> {
-            
+
         }
         
         static class CompactReaderGroupStateSerializer extends VersionedSerializer.WithBuilder<CompactReaderGroupState, CompactReaderGroupStateBuilder> {
@@ -875,9 +893,21 @@ public class ReaderGroupState implements Revisioned {
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         @Getter
         private final String checkpointId;
-        
+
+        @Getter
+        private final boolean isSilent;
+
         CreateCheckpoint() {
-            this(UUID.randomUUID().toString());
+            this(false);
+        }
+
+        CreateCheckpoint(boolean isSilent) {
+            this(UUID.randomUUID().toString(), isSilent);
+        }
+
+        CreateCheckpoint(String checkpointId) {
+            this.isSilent = false;
+            this.checkpointId = checkpointId;
         }
         
         /**
@@ -911,10 +941,12 @@ public class ReaderGroupState implements Revisioned {
 
             private void read00(RevisionDataInput in, CreateCheckpointBuilder builder) throws IOException {
                 builder.checkpointId(in.readUTF());
+                builder.isSilent(in.readBoolean());
             }
 
             private void write00(CreateCheckpoint object, RevisionDataOutput out) throws IOException {
                 out.writeUTF(object.checkpointId);
+                out.writeBoolean(object.isSilent);
             }
         }
     }
@@ -962,7 +994,7 @@ public class ReaderGroupState implements Revisioned {
             }
         }
     }
-    
+
     public static class ReaderGroupInitSerializer
             extends VersionedSerializer.MultiType<InitialUpdate<ReaderGroupState>> {
         @Override

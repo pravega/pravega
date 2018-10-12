@@ -144,6 +144,13 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * @return Map of streams that this group is reading from to the corresponding cuts.
      */
     Map<Stream, StreamCut> getStreamCuts();
+
+    /**
+     * TODO:.
+     * @param backgroundExecutor ex.
+     * @return
+     */
+    CompletableFuture<Map<Stream, StreamCut>> getCurrentStreamCut(ScheduledExecutorService backgroundExecutor);
     
     /**
      * Closes the reader group, freeing any resources associated with it.

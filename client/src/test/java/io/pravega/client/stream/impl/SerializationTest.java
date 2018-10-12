@@ -50,6 +50,7 @@ import java.util.concurrent.Callable;
 import lombok.Cleanup;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -159,7 +160,7 @@ public class SerializationTest {
         verify(serializer, new SegmentCompleted(createString(), createSegment(),
                                                 createMap(this::createSegment, this::createLongList)));
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
-        verify(serializer, new CreateCheckpoint(createString()));
+        verify(serializer, new CreateCheckpoint(createString(), RandomUtils.nextBoolean()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
     }
     
