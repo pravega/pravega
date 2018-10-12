@@ -41,7 +41,7 @@ public interface EventSegmentInputStream extends AutoCloseable {
     public abstract long getOffset();
 
     /**
-     * Reads bytes from the segment a single event. Buffering is performed internally to try to prevent
+     * Reads a single event's bytes from the segment. Buffering is performed internally to try to prevent
      * blocking. If there is no event after timeout null will be returned. EndOfSegmentException indicates the
      * segment has ended an no more events may be read.
      *
