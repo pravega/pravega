@@ -53,7 +53,7 @@ public class Orderer {
         }
         for (int i = 0; i < segments.size(); i++) {
             T inputStream = segments.get(MathHelpers.abs(counter.incrementAndGet()) % segments.size());
-            if (inputStream.bytesInBuffer() != 0) {
+            if (inputStream.isSegmentReady()) {
                 log.trace("Selecting segment: " + inputStream.getSegmentId());
                 return inputStream;
             } else {

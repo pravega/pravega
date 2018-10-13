@@ -2,10 +2,8 @@ package io.pravega.client.byteStream.impl;
 
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.InvalidOffsetException;
-import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.ByteBufferUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
@@ -23,12 +21,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     @Override
     public int read(ByteBuffer dst) throws IOException {
         Exceptions.checkNotClosed(closed.get(), this);
-        try {
-            ByteBuffer buffer = input.read(dst.remaining());
-            return ByteBufferUtils.copy(buffer, dst);
-        } catch (EndOfSegmentException e) {
-            return -1;
-        }
+        return input.read(dst, Long.MAX_VALUE);
     }
 
     @Override
@@ -69,38 +62,23 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     @Override
     public int read() throws IOException {
         Exceptions.checkNotClosed(closed.get(), this);
-        try {
-            ByteBuffer read = input.read(1);
-            return read.get() & 0xFF;
-        } catch (EndOfSegmentException e) {
-            return -1;
+        ByteBuffer buffer = ByteBuffer.allocate(1);
+        int read = input.read(buffer, Long.MAX_VALUE);
+        if (read > 0) {
+            return buffer.get() & 0xFF;
+        } else {
+            return read;
         }
     }
 
     @Override
     public int read(byte[] b) throws IOException {
-        Exceptions.checkNotClosed(closed.get(), this);
-        try {
-            ByteBuffer buffer = input.read(b.length);
-            int bytesRead = buffer.remaining();
-            buffer.get(b, 0, bytesRead);
-            return bytesRead;
-        } catch (EndOfSegmentException e) {
-            return -1;
-        }
+        return read(ByteBuffer.wrap(b));
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        Exceptions.checkNotClosed(closed.get(), this);
-        try {
-            ByteBuffer buffer = input.read(b.length);
-            int bytesRead = buffer.remaining();
-            buffer.get(b, off, bytesRead);
-            return bytesRead;
-        } catch (EndOfSegmentException e) {
-            return -1;
-        }
+        return read(ByteBuffer.wrap(b, off, len));
     }
 
     @Override

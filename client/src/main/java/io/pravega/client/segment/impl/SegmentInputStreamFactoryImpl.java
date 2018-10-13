@@ -28,27 +28,40 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     
     @Override
     public EventSegmentInputStream createInputStreamForSegment(Segment segment) {
-        return createInputStreamForSegment(segment, EventSegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+        return createInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
     public EventSegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
-        return getSegmentInputStream(segment, endOffset, EventSegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+        return getEventSegmentInputStream(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
     public EventSegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
-        return getSegmentInputStream(segment, Long.MAX_VALUE, bufferSize);
+        return getEventSegmentInputStream(segment, Long.MAX_VALUE, bufferSize);
     }
 
-    private EventSegmentInputStream getSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+    private EventSegmentInputStream getEventSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
+                                                                                                          segment.getStream()
+                                                                                                                 .getStreamName()),
+                                                                RuntimeException::new);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
-            Exceptions.handleInterrupted(() -> result.getConnection().get());
+            Exceptions.handleInterrupted(() -> async.getConnection().get());
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return new EventSegmentInputStreamImpl(result, 0, endOffset,  bufferSize);
+        return getEventSegmentInputStream(async, 0, endOffset, bufferSize);
+    }
+    
+    @VisibleForTesting
+    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async,long startOffset, long endOffset, int bufferSize) {
+        return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset, endOffset,  bufferSize));
+    }
+    
+    @VisibleForTesting
+    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async,long startOffset) {
+        return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset));
     }
 }

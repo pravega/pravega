@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -135,11 +134,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentIn
     }
 
     @Override
-    public int bytesInBuffer() {
-        if (readIndex >= eventsWritten) {
-            return -1;
-        }
-        return (int) (writeOffset - readOffset);
+    public boolean isSegmentReady() {
+        return true;
     }
 
     @Override
@@ -148,8 +144,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentIn
     }
 
     @Override
-    public CompletableFuture<Void> fillBuffer() {
-        return CompletableFuture.completedFuture(null);
+    public void fillBuffer() {
+        //Noting to do.
     }
 
     @Override

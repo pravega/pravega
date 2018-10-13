@@ -15,7 +15,6 @@ import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 import org.junit.Test;
 
@@ -42,8 +41,7 @@ public class OrdererTest {
         }
 
         @Override
-        public CompletableFuture<Void> fillBuffer() {
-            return CompletableFuture.completedFuture(null);
+        public void fillBuffer() {
         }
 
         @Override
@@ -51,8 +49,8 @@ public class OrdererTest {
         }
 
         @Override
-        public int bytesInBuffer() {
-            return canReadWithoutBlocking ? 1 : 0;
+        public boolean isSegmentReady() {
+            return canReadWithoutBlocking;
         }
     }
 
