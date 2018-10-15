@@ -205,7 +205,6 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.getCurrentStreamCut(backgroundExecutor);
         // The reader group state will be updated after 1 second.
         TimeUnit.SECONDS.sleep(1);
-        log.info("==> read again");
         EventRead<String> data = reader.readNextEvent(15000);
         assertTrue(Futures.await(sc)); // wait until the streamCut is obtained.
 
