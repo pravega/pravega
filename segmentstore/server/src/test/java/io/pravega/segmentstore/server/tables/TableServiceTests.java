@@ -250,7 +250,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
         }
 
-        val actualResults = Futures.allOfWithResults(searchFutures).get()//TODO.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+        val actualResults = Futures.allOfWithResults(searchFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
                                    .stream().flatMap(List::stream).collect(Collectors.toList());
 
         Assert.assertEquals("Unexpected number of search results.", expectedResult.size(), actualResults.size());
