@@ -26,7 +26,9 @@ import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the {@link AsyncTableEntryReader} class.
@@ -34,9 +36,10 @@ import org.junit.Test;
 public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
     private static final EntrySerializer SERIALIZER = new EntrySerializer();
     private static final int COUNT = 100;
-
     private static final long BASE_TIMEOUT_MILLIS = 10 * 1000;
     private static final Duration TIMEOUT = Duration.ofMillis(BASE_TIMEOUT_MILLIS * 3);
+    @Rule
+    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {

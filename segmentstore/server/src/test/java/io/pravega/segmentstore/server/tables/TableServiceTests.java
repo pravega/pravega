@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -43,26 +44,29 @@ import lombok.val;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Tests for the {@link TableService} class.
  */
 @Slf4j
-@Ignore //TODO: remove this
 public class TableServiceTests extends ThreadPooledTestSuite {
+    //region Config and Setup
+
     private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
     private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
     private static final int THREADPOOL_SIZE_TEST = 3;
-    private static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
     private static final int SEGMENT_COUNT = 10;
     private static final int KEY_COUNT = 1000;
     private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_VALUE_LENGTH = 32;
-    private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
+    @Rule
+    public Timeout globalTimeout = new Timeout((int) TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
-    protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
+    private final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
             .builder()
             .include(ServiceConfig
                     .builder()
@@ -115,6 +119,16 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         }
     }
 
+    //endregion
+
+    /**
+     * Tests an End-to-End scenario for a {@link TableStore} implementation using a real implementation of {@link StreamSegmentStore}
+     * (without any mocks or manual event triggering or other test aids). Features tested:
+     * - Table Segment creation and deletion.
+     * - Conditional and unconditional updates.
+     * - Conditional and unconditional removals.
+     * - Recovering of Table Segments after failover.
+     */
     @Test
     public void testEndToEnd() throws Exception {
         val rnd = new Random(0);
@@ -218,8 +232,41 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void check(HashMap<HashedArray, EntryData> keyInfo, TableStore tableStore) {
-        // TODO: implement.
+    private void check(HashMap<HashedArray, EntryData> keyInfo, TableStore tableStore) throws Exception {
+        val bySegment = keyInfo.entrySet().stream()
+                               .collect(Collectors.groupingBy(e -> e.getValue().segmentName));
+
+        // Check inexistent keys.
+        val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
+        val expectedResult = new ArrayList<Map.Entry<HashedArray, EntryData>>();
+        for (val e : bySegment.entrySet()) {
+            String segmentName = e.getKey();
+            val keys = new ArrayList<ArrayView>();
+            for (val se : e.getValue()) {
+                keys.add(se.getKey());
+                expectedResult.add(se);
+            }
+
+            searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
+        }
+
+        val actualResults = Futures.allOfWithResults(searchFutures).get()//TODO.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                                   .stream().flatMap(List::stream).collect(Collectors.toList());
+
+        Assert.assertEquals("Unexpected number of search results.", expectedResult.size(), actualResults.size());
+        for (int i = 0; i < expectedResult.size(); i++) {
+            val expectedKey = expectedResult.get(i).getKey();
+            val expectedEntry = expectedResult.get(i).getValue();
+            val actual = actualResults.get(i);
+            if (expectedEntry.isDeleted()) {
+                // Deleted keys will be returned as nulls.
+                Assert.assertNull("Not expecting a value for a deleted Key", actual);
+            } else {
+                Assert.assertTrue("Unexpected value for non-deleted Key.", HashedArray.arrayEquals(expectedEntry.getValue(), actual.getValue()));
+                Assert.assertTrue("Unexpected key for non-deleted Key.", HashedArray.arrayEquals(expectedKey, actual.getKey().getKey()));
+                Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
+            }
+        }
     }
 
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {
@@ -317,7 +364,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         return new HashedArray(keyData);
     }
 
-    private ArrayList<String> createSegments(TableStore store) {
+    private ArrayList<String> createSegments(TableStore store) throws Exception {
         ArrayList<String> segmentNames = new ArrayList<>();
         ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < SEGMENT_COUNT; i++) {
@@ -326,8 +373,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             futures.add(store.createSegment(segmentName, TIMEOUT));
         }
 
-        futures.add(store.createSegment(EMPTY_SEGMENT_NAME, TIMEOUT));
-        Futures.allOf(futures).join();
+        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         return segmentNames;
     }
 
@@ -363,8 +409,21 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             setValue(null, TableKey.NOT_EXISTS);
         }
 
+        boolean isDeleted() {
+            return this.version.get() == TableKey.NOT_EXISTS;
+        }
+
+        ArrayView getValue() {
+            return this.value.get();
+        }
+
         long getVersion() {
             return this.version.get();
+        }
+
+        @Override
+        public String toString() {
+            return String.format("[%s @%s]: %s.", this.segmentName, this.version, this.value);
         }
     }
 

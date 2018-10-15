@@ -19,12 +19,15 @@ import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the {@link ContainerKeyCache} class.
@@ -36,6 +39,8 @@ public class ContainerKeyCacheTests {
     private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int SIMPLE_HASH_LENGTH = 64; // We use this to test sub-grouping inside the Cache Entry.
     private static final int HASH_HASHCODE_BUCKETS = 10; // This sub-groups the KeyHashes into smaller buckets (to test grouping).
+    @Rule
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
 
     /**
      * Tests the {@link ContainerKeyCache#includeExistingKey} method.

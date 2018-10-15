@@ -26,7 +26,9 @@ import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the {@link TableBucketReader} class.
@@ -36,6 +38,8 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
     private static final int KEY_LENGTH = 16;
     private static final int VALUE_LENGTH = 16;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    @Rule
+    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     protected int getThreadPoolSize() {
         return 2;
