@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-
 import java.util.Collection;
 
 /**
@@ -25,4 +24,13 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * @return A Collection with the SegmentProperties for these segments.
      */
     Collection<SegmentProperties> getActiveSegments();
+
+    /**
+     * Gets a registered {@link SegmentContainerExtension} of the given type.
+     *
+     * @param extensionClass Class of the {@link SegmentContainerExtension}.
+     * @param <T>         Type of the {@link SegmentContainerExtension}.
+     * @return A registered {@link SegmentContainerExtension} of the requested type.
+     */
+    <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass);
 }

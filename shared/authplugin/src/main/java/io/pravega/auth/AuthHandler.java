@@ -9,6 +9,8 @@
  */
 package io.pravega.auth;
 
+import java.security.Principal;
+
 /**
  * Custom authorization/authentication handlers implement this interface.
  * The implementations are loaded from the classpath using `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
@@ -46,9 +48,11 @@ public interface AuthHandler {
      * The custom implementation returns whether the user represented by these headers is authenticated.
      *
      * @param token the credentials token passed via the {@code Authorization} header.
-     * @return Returns true when the user is authenticated.
+     * @return Returns the Principal represented by the token.
+     *
+     * @throws AuthException Exception of type AuthException thrown if there is any error.
      */
-    boolean authenticate(String token);
+    Principal authenticate(String token) throws AuthException;
 
     /**
      * Authorizes the access to a given resource. Pravega controller passes the HTTP headers associated with the call.
@@ -56,10 +60,11 @@ public interface AuthHandler {
      * by the headers.
      *
      * @param resource the resource that needs to be accessed.
-     * @param token the credentials token passed via the {@code Authorization} header.
+     * @param principal the Principal which needs to be authorized. This is generally a Principal returned by an earlier
+     *                  call to `authenticate` method.
      * @return The level of authorization.
      */
-    Permissions authorize(String resource, String token);
+    Permissions authorize(String resource, Principal principal);
 
     /**
      * Sets the configuration. If the auth handler needs to access the server configuration, it can be accessed though this var.

@@ -11,9 +11,11 @@ package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
 import io.grpc.ServerBuilder;
+import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
-import io.pravega.common.auth.AuthenticationException;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
@@ -57,26 +59,72 @@ public class PravegaAuthManager {
      *                 Returns false if the entity does not have access. 
      * @throws AuthenticationException if an authentication failure occurred.
      */
-    public boolean authenticate(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
+    public boolean authenticateAndAuthorize(String resource, String credentials, AuthHandler.Permissions level) throws AuthenticationException {
         Preconditions.checkNotNull(credentials, "credentials");
         boolean retVal = false;
         try {
-            String[] parts = credentials.split("\\s+", 2);
-            if (parts.length != 2) {
-                throw new AuthenticationException("Malformed request");
-            }
+            String[] parts = extractMethodAndToken(credentials);
             String method = parts[0];
             String token = parts[1];
             AuthHandler handler = getHandler(method);
-            assert handler != null;
-            if (!handler.authenticate(token)) {
+            Preconditions.checkNotNull( handler, "Can not find handler.");
+            Principal principal;
+            if ((principal = handler.authenticate(token)) == null) {
                 throw new AuthenticationException("Authentication failure");
             }
-            retVal = handler.authorize(resource, token).ordinal() >= level.ordinal();
-        } catch (RuntimeException e) {
-            throw new AuthenticationException(e);
+            retVal = handler.authorize(resource, principal).ordinal() >= level.ordinal();
+        } catch (AuthException e) {
+            throw new AuthenticationException("Authentication failure");
         }
         return retVal;
+    }
+
+    /**
+     *
+     * API to authenticate a given credential.
+     * @param credentials  Credentials used for authentication.
+     *
+     * @return Returns the Principal if the entity represented by credentials is authenticated.
+     * @throws AuthException if an authentication failure occurred.
+     */
+    public Principal authenticate(String credentials) throws AuthException {
+        Preconditions.checkNotNull(credentials, "credentials");
+        String[] parts = extractMethodAndToken(credentials);
+        String method = parts[0];
+        String token = parts[1];
+        AuthHandler handler = getHandler(method);
+        Preconditions.checkNotNull( handler, "Can not find handler.");
+        return handler.authenticate(token);
+    }
+
+    private String[] extractMethodAndToken(String credentials) throws AuthenticationException {
+        String[] parts = credentials.split("\\s+", 2);
+        if (parts.length != 2) {
+            throw new AuthenticationException("Malformed request");
+        }
+        return parts;
+    }
+
+    /**
+     *
+     * API to authorize a given principal and credential.
+     *
+     * @param resource The resource identifier for which the access needs to be controlled.
+     * @param credentials Credentials used for authentication.
+     * @param level Expected level of access.
+     * @param principal Principal associated with the credentials.
+     *
+     * @return Returns true if the entity represented by the credentials has given level of access to the resource.
+     *      Returns false if the entity does not have access.
+     * @throws AuthException if an authentication failure occurred.
+     */
+    public boolean authorize(String resource, Principal principal, String credentials, AuthHandler.Permissions level) throws AuthException {
+        Preconditions.checkNotNull(credentials, "credentials");
+        String[] parts = extractMethodAndToken(credentials);
+        String method = parts[0];
+        AuthHandler handler = getHandler(method);
+        Preconditions.checkNotNull( handler, "Can not find handler.");
+        return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
     /**

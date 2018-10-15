@@ -332,6 +332,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .tlsKeyFile(this.keyFile)
                 .userPasswordFile(this.passwdFile)
                 .tokenSigningKey("secret")
+                .replyWithStackTraceOnError(false)
                 .build();
 
         RESTServerConfig restServerConfig = null;

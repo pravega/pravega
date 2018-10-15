@@ -43,11 +43,12 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
+public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
 
     private static final String STREAM_NAME = "testMultiReaderWriterStream";
     private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
+
     //The execution time for @Before + @After + @Test methods should be less than 15 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15 * 60);
@@ -64,8 +65,8 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 3);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 3);
     }
 
     @Before
@@ -109,20 +110,17 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
 
         testState = new TestState(false);
         //read and write count variables
-        testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerURIDirect).build());
-
     }
 
     @After
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -134,7 +132,7 @@ public class MultiReaderWriterWithFailOverTest extends  AbstractFailoverTests {
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 15 * 60 * 1000)
+    @Test
     public void multiReaderWriterWithFailOverTest() throws Exception {
         try {
             createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
