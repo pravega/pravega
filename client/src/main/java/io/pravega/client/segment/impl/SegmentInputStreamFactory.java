@@ -16,8 +16,9 @@ import io.pravega.client.stream.EventStreamReader;
  * Creates {@link SegmentInputStream} for reading from existing segments.
  */
 public interface SegmentInputStreamFactory {
+    
     /**
-     * Opens an existing segment for reading. This operation will fail if the
+     * Opens an existing segment for reading bytes. This operation will fail if the
      * segment does not exist.
      * This operation may be called multiple times on the same stream from the
      * same client (i.e., there can be concurrent Stream Readers in the same
@@ -26,7 +27,19 @@ public interface SegmentInputStreamFactory {
      * @param segment The segment to create an input for.
      * @return New instance of SegmentInputStream for reading.
      */
-    EventSegmentInputStream createInputStreamForSegment(Segment segment);
+    SegmentInputStream createInputStreamForSegment(Segment segment);
+    
+    /**
+     * Opens an existing segment for reading events. This operation will fail if the
+     * segment does not exist.
+     * This operation may be called multiple times on the same stream from the
+     * same client (i.e., there can be concurrent Stream Readers in the same
+     * process space).
+     *
+     * @param segment The segment to create an input for.
+     * @return New instance of EventSegmentInputStream for reading.
+     */
+    EventSegmentInputStream createEventInputStreamForSegment(Segment segment);
 
     /**
      * Open an existing segment for reading up to the provided end offset. This operation will fail if the segment
@@ -36,7 +49,7 @@ public interface SegmentInputStreamFactory {
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the SegmentInputStream for reading.
      */
-    EventSegmentInputStream createInputStreamForSegment(Segment segment, long endOffset);
+    EventSegmentInputStream createEventInputStreamForSegment(Segment segment, long endOffset);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the
@@ -53,5 +66,5 @@ public interface SegmentInputStreamFactory {
      * @param bufferSize Size of the input stream read buffer.
      * @return A segment input stream.
      */
-    EventSegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize);
+    EventSegmentInputStream createEventInputStreamForSegment(Segment segment, int bufferSize);
 }

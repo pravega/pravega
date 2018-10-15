@@ -13,6 +13,7 @@ import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -46,17 +47,17 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public EventSegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
-        return createInputStreamForSegment(segment);
+    public EventSegmentInputStream createEventInputStreamForSegment(Segment segment, int bufferSize) {
+        return createEventInputStreamForSegment(segment);
     }
 
     @Override
-    public EventSegmentInputStream createInputStreamForSegment(Segment segment) {
+    public EventSegmentInputStream createEventInputStreamForSegment(Segment segment) {
         return getMockStream(segment);
     }
 
     @Override
-    public EventSegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+    public EventSegmentInputStream createEventInputStreamForSegment(Segment segment, long endOffset) {
         return getMockStream(segment);
     }
 
@@ -71,7 +72,12 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment) {
         return getMockStream(segment);
     }
 }

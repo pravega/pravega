@@ -16,16 +16,19 @@ import io.pravega.client.segment.impl.EventSegmentInputStream;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentAttribute;
 import io.pravega.client.segment.impl.SegmentInfo;
+import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
@@ -33,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
 @RequiredArgsConstructor
-public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
+public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputStream, EventSegmentInputStream, ConditionalOutputStream, SegmentMetadataClient {
 
     private final Segment segment;
     @GuardedBy("$lock")
@@ -93,16 +96,21 @@ public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentIn
         }
         ByteBuffer buffer = dataWritten.get(readIndex);
         readIndex++;
-        readOffset += buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-        return buffer.slice();
+        readOffset += buffer.remaining();
+        ByteBuffer result = buffer.slice();
+        result.position(WireCommands.TYPE_PLUS_LENGTH_SIZE);
+        return result;
     }
 
     @Override
     @Synchronized
     public void write(PendingEvent event) {
-        ByteBuffer data = event.getData().skipBytes(WireCommands.TYPE_PLUS_LENGTH_SIZE).nioBuffer();
+        ByteBuffer data = event.getData().nioBuffer();
         write(data);
-        event.getAckFuture().complete(null);
+        CompletableFuture<Void> ackFuture = event.getAckFuture();
+        if (ackFuture != null) {            
+            ackFuture.complete(null);
+        }
     }
     
     @Override
@@ -120,7 +128,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentIn
         dataWritten.add(data.slice());
         offsetList.add(writeOffset);
         eventsWritten++;
-        writeOffset += data.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+        writeOffset += data.remaining();
     }
     
     @Override
@@ -144,8 +152,8 @@ public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentIn
     }
 
     @Override
-    public void fillBuffer() {
-        //Noting to do.
+    public CompletableFuture<Void> fillBuffer() {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -192,5 +200,29 @@ public class MockSegmentIoStreams implements SegmentOutputStream, EventSegmentIn
     @Override
     public String getScopedSegmentName() {
         return segment.getScopedName();
+    }
+
+    @Override
+    @Synchronized
+    public int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+        if (readIndex >= eventsWritten) {
+            throw new EndOfSegmentException();
+        }
+        if (readOffset < startingOffset) {
+            throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
+        }
+        ByteBuffer buffer = dataWritten.get(readIndex);
+        if (buffer.remaining() <= toFill.remaining()) {            
+            readIndex++;
+        }
+        int read = ByteBufferUtils.copy(buffer, toFill);
+        readOffset += read;
+        return read;
+    }
+
+    @Override
+    @Synchronized
+    public int bytesInBuffer() {
+        return (int) (writeOffset - readOffset);
     }
 }

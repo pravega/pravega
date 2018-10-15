@@ -1,6 +1,7 @@
 package io.pravega.client.byteStream.impl;
 
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 public class ByteStreamWriterImpl extends ByteStreamWriter {
     
     private final SegmentOutputStream out;
+    private final SegmentMetadataClient meta;
 
     @Override
     public void write(ByteBuffer src) throws IOException {
@@ -56,7 +58,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
 
     @Override
     public long fetchPersistedOffset() {
-        throw new UnsupportedOperationException();
+        return meta.fetchCurrentSegmentLength();
     }
 
     @Override

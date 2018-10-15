@@ -15,6 +15,7 @@ import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -98,8 +99,8 @@ class EventSegmentInputStreamImpl implements EventSegmentInputStream {
 
     @Override
     @Synchronized
-    public void fillBuffer() {
-        in.fillBuffer();
+    public CompletableFuture<Void> fillBuffer() {
+        return in.fillBuffer();
     }
     
     @Override

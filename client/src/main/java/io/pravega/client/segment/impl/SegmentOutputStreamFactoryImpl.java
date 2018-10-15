@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
@@ -58,10 +57,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStreamName()),
-                                                                RuntimeException::new);
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
         return new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID(),
                                            Callbacks::doNothing, getRetryFromConfig(config), delegationToken);
     }

@@ -159,7 +159,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
-        EventSegmentInputStream in = inFactory.createInputStreamForSegment(segment);
+        EventSegmentInputStream in = inFactory.createEventInputStreamForSegment(segment);
         // Segment sealed is not expected for Revisioned Stream Client.
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
@@ -195,7 +195,7 @@ public class ClientFactoryImpl implements ClientFactory {
     
     @Override
     public ByteStreamClient createByteStreamClient() {
-        return new ByteStreamClientImpl(scope, inFactory, outFactory);
+        return new ByteStreamClientImpl(scope, controller, inFactory, outFactory, metaFactory);
     }
 
     @Override

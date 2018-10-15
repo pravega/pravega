@@ -53,7 +53,8 @@ public interface SegmentOutputStreamFactory {
      *
      * @param segment The segment.
      * @param config  The configuration for the writer
+     * @param delegationToken token to pass on to segmentstore to authenticate access to the segment.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken);
 }
