@@ -68,11 +68,6 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public void setThrowBeforeBlocking(boolean shouldThrow) {
-        out.setThrowBeforeBlocking(shouldThrow);
-    }
-
-    @Override
     public void close() throws IOException {
         flushBuffer();
         out.close();

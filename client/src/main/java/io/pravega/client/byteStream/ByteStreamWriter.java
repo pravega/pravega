@@ -55,12 +55,6 @@ public abstract class ByteStreamWriter extends OutputStream {
      */
     @Override
     public abstract void write(byte b[], int off, int len) throws IOException;
-    
-    /**
-     * @param shouldThrow True if {@link #write(byte[])} should throw an exception rather than block
-     *            in the event that data is backing up.
-     */
-    public abstract void setThrowBeforeBlocking(boolean shouldThrow);
 
     /**
      * Flushes the buffer and closes the writer.

@@ -28,11 +28,6 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public void setThrowBeforeBlocking(boolean shouldThrow) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void close() throws IOException {
         try {
             out.close();
