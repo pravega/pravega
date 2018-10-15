@@ -31,7 +31,7 @@ public class JKSHelper {
             return "";
         }
         try {
-            return FileUtils.readFileToString(passwordFile, Charsets.UTF_8);
+            return FileUtils.readFileToString(passwordFile, Charsets.UTF_8).trim();
         } catch (IOException e) {
             log.warn("Exception while parsing the password file.", e);
             return "";
