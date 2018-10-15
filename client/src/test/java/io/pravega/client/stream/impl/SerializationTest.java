@@ -139,6 +139,7 @@ public class SerializationTest {
                                                                                                            this::createSegmentToLongMap))
                                                                             .uncheckpointedHosts(createMap(this::createString,
                                                                                                            this::createStringList))
+                                                                            .silentAttribute(createMap(this::createString, r::nextBoolean))
                                                                             .build());
         builder.config(config);
         builder.distanceToTail(createMap(this::createString, r::nextLong));
