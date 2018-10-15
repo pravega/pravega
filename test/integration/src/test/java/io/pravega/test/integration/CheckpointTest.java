@@ -10,6 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -33,6 +34,8 @@ import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -311,5 +314,64 @@ public class CheckpointTest {
         Checkpoint cpResult = checkpoint1.get(5, TimeUnit.SECONDS);
         assertTrue(checkpoint1.isDone());
         assertEquals("Checkpoint1", cpResult.getName());
+    }
+
+    @Test(timeout = 20000)
+    public void testGetCurrentStreamCuts() throws Exception {
+        String endpoint = "localhost";
+        String streamName = "abc";
+        String readerName = "reader";
+        String readerGroupName = "group";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String scope = "Scope1";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                                                         .disableAutomaticCheckpoints()
+                                                         .stream(Stream.of(scope, streamName)).build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                                                                         .scope(scope)
+                                                                         .streamName(streamName)
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .build());
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                                                                             EventWriterConfig.builder().build());
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroupName, serializer,
+                                                                      ReaderConfig.builder().build(), clock::get,
+                                                                      clock::get);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        EventRead<String> read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
+
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.getCurrentStreamCut(backgroundExecutor);
+        assertFalse(sc.isDone());
+
+        read = reader.readNextEvent(60000);
+        assertEquals(testString, read.getEvent());
     }
 }

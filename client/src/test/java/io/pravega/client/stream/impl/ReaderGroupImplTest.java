@@ -33,12 +33,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.IntStream;
+
+import io.pravega.test.common.InlineExecutor;
+import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -154,6 +158,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void initiateCheckpointFailure() {
         when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(false);
         CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
@@ -166,10 +171,35 @@ public class ReaderGroupImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void initiateCheckpointSuccess() {
         when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
         CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
         assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
+    }
+
+    @Test(timeout = 10000)
+    public void getCurrentStreamCut() {
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.isCheckpointComplete(any(String.class))).thenReturn(false).thenReturn(true);
+        when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.of(ImmutableMap.of(createStream("s1"),
+                                                                                                                            createStreamCut("s1", 2))));
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.getCurrentStreamCut(executor);
+        assertEquals(createStreamCut("s1", 2), result.join().get(createStream("s1")));
+    }
+
+    @Test(timeout = 10000)
+    public void getCurrentStreamCutError() {
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.isCheckpointComplete(any(String.class))).thenReturn(true);
+        when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.empty()); //mock empty.
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.getCurrentStreamCut(executor);
+        assertThrows("CheckpointFailedException is expected", () -> readerGroup.getCurrentStreamCut(executor),
+                     t -> t instanceof CheckpointFailedException);
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
