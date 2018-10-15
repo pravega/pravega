@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
@@ -57,7 +58,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final String tLSKeyStore;
     private final String tLSKeyStorePasswordPath;
     private final boolean secureZK;
-    private String tlsTrustStore;
+    private final String tlsTrustStore;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -176,7 +177,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         log.info("Formatting ZooKeeper ...");
 
         if (this.secureZK) {
-            ZKTLSUtils.setSecureZKClientProperties(this.tlsTrustStore, loadPasswdFromFile(this.tLSKeyStorePasswordPath));
+            ZKTLSUtils.setSecureZKClientProperties(this.tlsTrustStore, JKSHelper.loadPasswordFrom(this.tLSKeyStorePasswordPath));
         }
 
         @Cleanup
@@ -198,20 +199,6 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         znodePath.append("available");
         zkc.create(znodePath.toString(), new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-    }
-
-    private String loadPasswdFromFile(String tLSKeyStorePasswordPath) {
-            byte[] pwd;
-            File passwdFile = new File(tLSKeyStorePasswordPath);
-            if (passwdFile.length() == 0) {
-                return "";
-            }
-            try {
-                pwd = FileUtils.readFileToByteArray(passwdFile);
-            } catch (IOException e) {
-                return "";
-            }
-            return new String(pwd).trim();
     }
 
     private void runBookies() throws Exception {

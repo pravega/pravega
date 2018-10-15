@@ -26,18 +26,16 @@ public class JKSHelper {
     private static final long MAX_FILE_LENGTH = 4 * 1024 * 1024;
 
     public static String loadPasswordFrom(String zkTrustStorePasswordPath) {
-        byte[] password;
         File passwordFile = new File(zkTrustStorePasswordPath);
         if (passwordFile.length() == 0 || passwordFile.length() > MAX_FILE_LENGTH) {
             return "";
         }
         try {
-            password = FileUtils.readFileToByteArray(passwordFile);
+            return FileUtils.readFileToString(passwordFile, Charsets.UTF_8);
         } catch (IOException e) {
             log.warn("Exception while parsing the password file.", e);
             return "";
         }
-        return new String(password, Charsets.UTF_8).trim();
     }
 
 }
