@@ -122,7 +122,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                         maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
                 return false;
             } else {
-                updates.add(new CreateCheckpoint(checkpointName, true));
+                updates.add(new CreateCheckpoint(checkpointName, false));
                 return true;
             }
 

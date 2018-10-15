@@ -10,7 +10,6 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
@@ -56,10 +55,10 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     protected ControllerWrapper controllerWrapper;
     protected ServiceBuilder serviceBuilder;
     protected final Serializer<String> serializer = new JavaSerializer<>();
+    final Random random = new Random();
+    final Supplier<String> randomKeyGenerator = () -> String.valueOf(random.nextInt());
+    final Function<Integer, String> getEventData = eventNumber -> String.valueOf(eventNumber) + ":constant data"; //event
 
-    private final Random random = new Random();
-    protected final Supplier<String> randomKeyGenerator = () -> String.valueOf(random.nextInt());
-    protected final Function<Integer, String> getEventData = eventNumber -> String.valueOf(eventNumber) + ":constant data"; //event
 
     @Before
     public void setUp() throws Exception {

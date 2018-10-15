@@ -17,12 +17,10 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -31,34 +29,19 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
-import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
-import io.pravega.client.stream.impl.StreamCutInternal;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.InlineExecutor;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URI;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -185,6 +168,8 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     @Test(timeout = 30000)
     public void getCurrentStreamCutTest() throws Exception {
         final Stream stream = Stream.of(SCOPE, STREAM);
+        final String group = "group";
+
         createScope(SCOPE);
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
 
@@ -202,17 +187,16 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
-        final String RG_NAME = "group";
-        groupManager.createReaderGroup(RG_NAME, ReaderGroupConfig
+        groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
                 .stream(stream)
                 .build());
 
-        ReaderGroup readerGroup = groupManager.getReaderGroup(RG_NAME);
+        ReaderGroup readerGroup = groupManager.getReaderGroup(group);
 
         //Create a reader
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", RG_NAME, serializer,
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, serializer,
                                                                       ReaderConfig.builder().build());
 
         readAndVerify(reader, 1);
