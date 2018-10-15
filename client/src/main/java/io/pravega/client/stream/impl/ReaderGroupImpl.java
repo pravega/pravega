@@ -61,8 +61,6 @@ import lombok.extern.slf4j.Slf4j;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
-import static java.util.stream.Collectors.collectingAndThen;
-import static java.util.stream.Collectors.groupingBy;
 
 @Slf4j
 @Data
@@ -124,7 +122,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                         maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
                 return false;
             } else {
-                updates.add(new CreateCheckpoint(checkpointName, false));
+                updates.add(new CreateCheckpoint(checkpointName, true));
                 return true;
             }
 
@@ -146,37 +144,19 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor)
-                      .thenApply(v -> completeAndFetchCheckpoint(checkpointName));
+                      .thenApply(v -> completeCheckpoint(checkpointName));
     }
 
     @SneakyThrows(CheckpointFailedException.class)
-    private Checkpoint completeAndFetchCheckpoint(String checkpointName) {
-        Map<Segment, Long> map = completeCheckpoint(checkpointName);
-        return new CheckpointImpl(checkpointName, map);
-    }
-
-    @SneakyThrows(CheckpointFailedException.class)
-    private Map<Stream, StreamCut> completeAndFetchStreamCut(String checkpointName) {
-        return compleCheckpointAndFetchStreamCut(checkpointName);
-    }
-
-    private Map<Segment, Long> completeCheckpoint(String checkpointName) throws CheckpointFailedException {
+    private Checkpoint completeCheckpoint(String checkpointName) {
         ReaderGroupState state = synchronizer.getState();
         Map<Segment, Long> map = state.getPositionsForCompletedCheckpoint(checkpointName);
         synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkpointName));
         if (map == null) {
             throw new CheckpointFailedException("Checkpoint was cleared before results could be read.");
         }
-        return map;
+        return new CheckpointImpl(checkpointName, map);
     }
-
-    private Map<Stream, StreamCut> compleCheckpointAndFetchStreamCut(String checkpointName) throws CheckpointFailedException {
-        ReaderGroupState state = synchronizer.getState();
-        Optional<Map<Stream, StreamCut>> cuts = state.getStreamCutsForCompletedCheckpoint(checkpointName);
-        synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkpointName));
-        return cuts.orElseThrow(() -> new CheckpointFailedException("Checkpoint was cleared before results could be read."));
-    }
-
 
     /**
      * Used to reset a reset a reader group to a checkpoint. This should be removed in time.
@@ -329,59 +309,34 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Map<Stream, StreamCut>> getCurrentStreamCut(ScheduledExecutorService backgroundExecutor) {
-        UUID id = UUID.randomUUID();
-        synchronizer.updateStateUnconditionally(new CreateCheckpoint(id.toString(), true));
+        String internalChkPointId = UUID.randomUUID().toString();
+        log.debug("Fetching the current StreamCut using id {}", internalChkPointId);
+        synchronizer.updateStateUnconditionally(new CreateCheckpoint(internalChkPointId, true));
         AtomicBoolean fetchStreamCutPending = new AtomicBoolean(true);
 
         return Futures.loop(fetchStreamCutPending::get, () -> {
             return Futures.delayedTask(() -> {
                 synchronizer.fetchUpdates();
-                fetchStreamCutPending.set(!synchronizer.getState().isCheckpointComplete(id.toString()));
+                fetchStreamCutPending.set(!synchronizer.getState().isCheckpointComplete(internalChkPointId));
                 if (fetchStreamCutPending.get()) {
-                    log.debug("Waiting on fetch StreamCut: {} currentState is: {}", id, synchronizer.getState());
+                    log.debug("Waiting on fetch StreamCut with id {}, currentState is: {}", internalChkPointId, synchronizer.getState());
                 }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor)
-                      .thenApply(v -> completeAndFetchStreamCut(id.toString()));
+                      .thenApply(v -> completeChkPointAndFetchStreamCut(internalChkPointId));
     }
 
-    //    @SneakyThrows(FetchStreamCutFailedException.class)
-    //    private Map<Stream, StreamCut> completeFetchStreamCut(String id) {
-    //        ReaderGroupState state = synchronizer.getState();
-    //        Map<Stream, StreamCut> map = state.getPositionForStreamCutBarrier(id);
-    //        synchronizer.updateStateUnconditionally(new ClearStreamCutBarrierBefore(id));
-    //        if (map == null) {
-    //            throw new FetchStreamCutFailedException("StreamCut data was cleared before results could be read.");
-    //        }
-    //        return map;
-    //    }
+    @SneakyThrows(CheckpointFailedException.class)
+    private Map<Stream, StreamCut> completeChkPointAndFetchStreamCut(String checkPointId) {
+        ReaderGroupState state = synchronizer.getState();
+        Optional<Map<Stream, StreamCut>> cuts = state.getStreamCutsForCompletedCheckpoint(checkPointId);
+        synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkPointId));
+        return cuts.orElseThrow(() -> new CheckpointFailedException("Internal CheckPoint was cleared before results could be read."));
+    }
 
     @Override
     public void close() {
         synchronizer.close();
-    }
-
-    static StreamCut toStreamCut(Map<Segment, Long> map) {
-        Stream stream = map.keySet().stream().findAny().get().getStream();
-        return new StreamCutImpl(stream, map);
-    }
-
-    public static void main(String[] args) {
-        Map<Segment, Long> map = new HashMap<>();
-        Map<Stream, StreamCut> result = map.entrySet().stream().collect(groupingBy(x -> x.getKey().getStream(),
-                                                   collectingAndThen(Collectors.toMap(Entry::getKey, Entry::getValue), ReaderGroupImpl::toStreamCut)));
-
-        Map<Stream, StreamCut> r1 = map.entrySet().stream().collect(groupingBy(o -> o.getKey().getStream(),
-                                                                               collectingAndThen(Collectors.toMap(Entry::getKey, Entry::getValue),
-                                                                                                 m -> new StreamCutImpl(m.keySet().stream().findFirst().get().getStream(), m))));
-        //        List<Stream> streams = map.keySet().stream().map(Segment::getStream).distinct().collect(Collectors.toList());
-        //        map.entrySet().stream().collect(groupingBy(o -> o.getKey().getStream(), groupingBy()))
-        //
-        //        Map<Stream, Long> r2 = map.entrySet().stream().collect(Collectors.toMap(o -> o.getKey().getStream(), o -> o.getValue()));
-        //
-        ////        r1 = map.entrySet().stream().collect(Collectors.groupingBy(o -> o.getKey().getStream(), mapping(segmentLongEntry -> segmentLongEntry, Collectors.toMap())));
-        //
-        //        result =  map.entrySet().stream().collect(groupingBy(o -> o.getStream()))
     }
 }

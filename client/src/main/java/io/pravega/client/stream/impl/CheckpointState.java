@@ -36,9 +36,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 @NotThreadSafe
 @EqualsAndHashCode
+@Slf4j
 public class CheckpointState {
     
     private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
@@ -116,6 +118,7 @@ public class CheckpointState {
     }
     
     void readerCheckpointed(String checkpointId, String readerName, Map<Segment, Long> position) {
+        log.debug("Reader : {} completed checkpointing for Checkpoint : {}", readerName, checkpointId);
         List<String> readers = uncheckpointedHosts.get(checkpointId);
         if (readers != null) {
             boolean removed = readers.remove(readerName);
@@ -124,6 +127,7 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
+                checkPointSilentAttribute.remove(checkpointId);
                 //checkpoint operation completed for all readers, update the last checkpoint position.
                 lastCheckpointPosition = checkpointPositions.get(checkpointId);
             }
@@ -135,7 +139,7 @@ public class CheckpointState {
     }
 
     boolean isCheckpointSilent(String checkpointId) {
-        return checkPointSilentAttribute.get(checkpointId); // TODO: default value.
+        return checkPointSilentAttribute.get(checkpointId);
     }
     
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
@@ -166,6 +170,7 @@ public class CheckpointState {
                 }
                 uncheckpointedHosts.remove(cp);
                 checkpointPositions.remove(cp);
+                checkPointSilentAttribute.remove(cp);
                 iterator.remove();
             }
         }

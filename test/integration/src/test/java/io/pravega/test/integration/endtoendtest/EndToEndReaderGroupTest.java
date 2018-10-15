@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -181,8 +182,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertTrue(managedStreams.contains(Stream.of(scopeB, streamName).getScopedName()));
     }
 
-    @Test//(timeout = 30000)
-    public void getCurrentStreamCutTest() throws Exception{
+    @Test(timeout = 30000)
+    public void getCurrentStreamCutTest() throws Exception {
+        final Stream stream = Stream.of(SCOPE, STREAM);
         createScope(SCOPE);
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
 
@@ -202,8 +204,8 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
         final String RG_NAME = "group";
         groupManager.createReaderGroup(RG_NAME, ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(100)
-                .stream(Stream.of(SCOPE, STREAM))
+                .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
+                .stream(stream)
                 .build());
 
         ReaderGroup readerGroup = groupManager.getReaderGroup(RG_NAME);
@@ -215,17 +217,20 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         readAndVerify(reader, 1);
         @Cleanup("shutdown")
-        final ScheduledExecutorService backgroundExecutor = Executors.newSingleThreadScheduledExecutor();
-
-        CompletableFuture<Map<Stream, StreamCut>> streamCut = readerGroup.getCurrentStreamCut(backgroundExecutor);
+        InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.getCurrentStreamCut(backgroundExecutor);
+        // The reader group state will be updated after 1 second.
+        TimeUnit.SECONDS.sleep(1);
+        log.info("==> read again");
         EventRead<String> data = reader.readNextEvent(15000);
-        assertTrue(Futures.await(streamCut)); // wait until the streamCut is obtained.
+        assertTrue(Futures.await(sc)); // wait until the streamCut is obtained.
 
         //expected segment 0 offset is 30L.
-        Map<Segment, Long> map = ImmutableMap.of(getSegment(0, 0), 30L);
-        assertEquals(map, streamCut.join().get(Stream.of(SCOPE, STREAM)).asImpl().getPositions() );
+        Map<Segment, Long> expectedOffsetMap = ImmutableMap.of(getSegment(0, 0), 30L);
+        Map<Stream, StreamCut> scMap = sc.join();
 
-
+        assertEquals("StreamCut for a single stream expected", 1, scMap.size());
+        assertEquals("StreamCut pointing ot offset 30L expected", new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
     }
 
 

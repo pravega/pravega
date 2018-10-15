@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.notifications.ReaderGroupNotificationListener;
 
@@ -146,10 +147,15 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     Map<Stream, StreamCut> getStreamCuts();
 
     /**
-     * TODO:.
-     * @param backgroundExecutor ex.
-     * @return
+     * Fetch the latest {@link StreamCut} after co-ordinating with all the readers using
+     * {@link io.pravega.client.state.StateSynchronizer}. The StreamCut returned by this api is guaranteed to be
+     * greater than the position of the readers at the point of invocation.
+     *
+     * @param backgroundExecutor A thread pool that will be used to poll if the positions from all the readers have been
+     *                           fetched.
+     * @return A future to a Map of streams that this group is reading from to the correspoding cuts.
      */
+    @Beta
     CompletableFuture<Map<Stream, StreamCut>> getCurrentStreamCut(ScheduledExecutorService backgroundExecutor);
     
     /**
