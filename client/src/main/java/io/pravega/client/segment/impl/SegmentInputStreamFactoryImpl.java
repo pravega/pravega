@@ -25,7 +25,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     private final Controller controller;
     private final ConnectionFactory cf;
-    
+
     @Override
     public EventSegmentInputStream createEventInputStreamForSegment(Segment segment) {
         return createEventInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
@@ -54,14 +54,15 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
         }
         return getEventSegmentInputStream(async, 0, endOffset, bufferSize);
     }
-    
+
     @VisibleForTesting
-    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async,long startOffset, long endOffset, int bufferSize) {
-        return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset, endOffset,  bufferSize));
+    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async, long startOffset,
+                                                                  long endOffset, int bufferSize) {
+        return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset, endOffset, bufferSize));
     }
-    
+
     @VisibleForTesting
-    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async,long startOffset) {
+    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async, long startOffset) {
         return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset));
     }
 

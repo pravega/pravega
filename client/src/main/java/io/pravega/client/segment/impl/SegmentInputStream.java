@@ -46,6 +46,8 @@ public interface SegmentInputStream extends AutoCloseable {
      * wants to avoid blocking they call call {@link #fillBuffer()} and use the future to be
      * notified when more data can be read without blocking.
      *
+     * @param toFill the buffer to fill.
+     * @param timeout the maximum time to block if no data is in memory.
      * @return The number of bytes read.
      * @throws EndOfSegmentException If no data could be read because the end of the segment was
      *             reached.

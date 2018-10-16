@@ -68,7 +68,7 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * Will only block if {@link #available()} is 0.
      */
     @Override
-    public abstract int read(byte b[]) throws IOException;
+    public abstract int read(byte[] b) throws IOException;
 
     /**
      * If {@link #available()} is non-zero will read bytes out of a in-memory buffer into the
@@ -80,25 +80,28 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * @see java.io.InputStream#read(byte[], int, int)
      */
     @Override
-    public abstract int read(byte b[], int off, int len) throws IOException;
+    public abstract int read(byte[] b, int off, int len) throws IOException;
 
     /**
      * Similar to {@link #read(byte[], int, int)} but takes a byteBuffer.
+     * 
+     * @param dst the destination buffer to read into.
+     * @throws IOException If the stream cannot be read from for any reason including if truncation
+     *             has deleted the data.
      */
     public abstract int read(ByteBuffer dst) throws IOException;
 
     /**
      * This method skips forward by the provided number of bytes. This method is non-blocking but
-     * may not be able to skip n bytes.
-     * 
-     * @see java.io.InputStream#skip(long) in such a case it will return the number of bytes it
-     *      skipped. It may be preferable to call {@link #jumpToOffset(long)} for large jumps are
-     *      that does not have this property.
+     * may not be able to skip n bytes. {@link InputStream#skip(long)} in such a case it will return
+     * the number of bytes it skipped. It may be preferable to call {@link #jumpToOffset(long)} for
+     * large jumps are that does not have this property.
      */
     @Override
     public abstract long skip(long n);
 
     /**
+     * Closes the reader.
      * @see java.io.InputStream#close()
      */
     @Override
@@ -108,6 +111,8 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * Returns a future that will be completed when there is data available to be read. The Integer
      * in the result will be the number of bytes {@link #available()} or -1 if the reader has
      * reached the end of a sealed segment.
+     * 
+     * @return A the number of bytes {@link #available()}
      */
     public abstract CompletableFuture<Integer> onDataAvailable();
 

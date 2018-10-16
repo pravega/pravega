@@ -85,6 +85,10 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         return read(Long.MAX_VALUE);
     }
     
+    /** 
+     * Event read.
+     * @see io.pravega.client.segment.impl.EventSegmentInputStream#read(long)
+     */
     @Override
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
@@ -100,6 +104,28 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         ByteBuffer result = buffer.slice();
         result.position(WireCommands.TYPE_PLUS_LENGTH_SIZE);
         return result;
+    }
+    
+    /** 
+     * Byte oriented read.
+     * @see io.pravega.client.segment.impl.SegmentInputStream#read(java.nio.ByteBuffer, long)
+     */
+    @Override
+    @Synchronized
+    public int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+        if (readIndex >= eventsWritten) {
+            throw new EndOfSegmentException();
+        }
+        if (readOffset < startingOffset) {
+            throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
+        }
+        ByteBuffer buffer = dataWritten.get(readIndex);
+        if (buffer.remaining() <= toFill.remaining()) {            
+            readIndex++;
+        }
+        int read = ByteBufferUtils.copy(buffer, toFill);
+        readOffset += read;
+        return read;
     }
 
     @Override
@@ -200,24 +226,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     public String getScopedSegmentName() {
         return segment.getScopedName();
-    }
-
-    @Override
-    @Synchronized
-    public int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException {
-        if (readIndex >= eventsWritten) {
-            throw new EndOfSegmentException();
-        }
-        if (readOffset < startingOffset) {
-            throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
-        }
-        ByteBuffer buffer = dataWritten.get(readIndex);
-        if (buffer.remaining() <= toFill.remaining()) {            
-            readIndex++;
-        }
-        int read = ByteBufferUtils.copy(buffer, toFill);
-        readOffset += read;
-        return read;
     }
 
     @Override

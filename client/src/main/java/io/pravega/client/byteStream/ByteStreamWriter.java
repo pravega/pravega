@@ -47,23 +47,27 @@ public abstract class ByteStreamWriter extends OutputStream {
      * written becomes a memory issue. If this behavior is undesirable the method
      * {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an exception
      * instead of blocking.
+     * 
+     * @param src The bytes to write.
+     * @throws IOException If for any reason an error occurs writing the data, including if the
+     *             stream is sealed.
      */
     public abstract void write(ByteBuffer src) throws IOException;
 
     /**
+     * Writes the provided data to the segment. The data is buffered internally to avoid blocking.
+     * As such it cannot be assumed to be durably stored until a flush completes.
+     * 
+     * It is intended that this method not block, but it may in the event that the server becomes
+     * disconnected for sufficiently long or is sufficiently slow that that backlog of data to be
+     * written becomes a memory issue. If this behavior is undesirable the method
+     * {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an exception
+     * instead of blocking.
+     * 
      * @see java.io.OutputStream#write(byte[], int, int)
-     * 
-     *      Writes the provided data to the segment. The data is buffered internally to avoid
-     *      blocking. As such it cannot be assumed to be durably stored until a flush completes.
-     * 
-     *      It is intended that this method not block, but it may in the event that the server
-     *      becomes disconnected for sufficiently long or is sufficiently slow that that backlog of
-     *      data to be written becomes a memory issue. If this behavior is undesirable the method
-     *      {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an
-     *      exception instead of blocking.
      */
     @Override
-    public abstract void write(byte b[], int off, int len) throws IOException;
+    public abstract void write(byte[] b, int off, int len) throws IOException;
 
     /**
      * Flushes the buffer and closes the writer. If there is data to flush, this is a blocking
@@ -78,6 +82,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * Blocks until all data written has been durably persisted.
      * 
      * @see java.io.OutputStream#flush()
+     * @throws IOException If for any reason the flush fails including if the stream is sealed.
      */
     @Override
     public abstract void flush() throws IOException;
@@ -85,6 +90,8 @@ public abstract class ByteStreamWriter extends OutputStream {
     /**
      * Closes the writer similar to {@link #close()} but also seals it so that no future writes can
      * ever be made.
+     * 
+     * @throws IOException If for any reason the flush fails including if the stream is sealed.
      */
     public abstract void closeAndSeal() throws IOException;
 

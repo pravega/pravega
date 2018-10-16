@@ -47,6 +47,16 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
+        return getMockStream(segment);
+    }
+
+    @Override
     public EventSegmentInputStream createEventInputStreamForSegment(Segment segment, int bufferSize) {
         return createEventInputStreamForSegment(segment);
     }
@@ -62,22 +72,13 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment) {
+        return getMockStream(segment);
+    }
+
+    @Override
     public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
         return getMockStream(segment);
     }
 
-    @Override
-    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
-        return getMockStream(segment);
-    }
-
-    @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
-        return getMockStream(segment);
-    }
-
-    @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment) {
-        return getMockStream(segment);
-    }
 }

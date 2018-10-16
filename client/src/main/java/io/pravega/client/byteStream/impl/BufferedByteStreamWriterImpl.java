@@ -51,6 +51,18 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
         }
     }
 
+    @Override
+    public void write(ByteBuffer src) throws IOException {
+        flushBuffer();
+        out.write(src);
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        flushBuffer();
+        out.write(b, off, len);
+    }
+
     private void flushBuffer() throws IOException {
         if (buffer.get() != null) {
             synchronized (buffer) {
@@ -64,18 +76,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
         }
     }
 
-    @Override
-    public void write(ByteBuffer src) throws IOException {
-        flushBuffer();
-        out.write(src);
-    }
-
-    @Override
-    public void write(byte[] b, int off, int len) throws IOException {
-        flushBuffer();
-        out.write(b, off, len);
-    }
-
+    
     @Override
     public void close() throws IOException {
         flushBuffer();
