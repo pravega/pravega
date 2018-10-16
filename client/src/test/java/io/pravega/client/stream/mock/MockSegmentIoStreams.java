@@ -117,7 +117,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Synchronized
     public boolean write(ByteBuffer data, long expectedOffset) {
         if (writeOffset == expectedOffset) {
-            write(data);
+            write(PendingEvent.withHeader(null, data, null).getData().nioBuffer());
             return true;
         } else {
             return false;
