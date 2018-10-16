@@ -89,7 +89,7 @@ public class SegmentMetadataClientTest {
                 return null;
             }
         }).when(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L, ""));
-        client.truncateSegment(segment, 123L);
+        client.truncateSegment(123L);
         Mockito.verify(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L, ""));
     }  
 

@@ -59,6 +59,7 @@ public final class Config {
     private static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
     private static final String TLS_TRUST_STORE = CONFIG.getString("config.controller.server.tlsTrustStore");
     private static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
+    private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR = CONFIG.getBoolean("config.controller.server.replyWithStackTraceOnError");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -117,7 +118,8 @@ public final class Config {
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
-                                   .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
+                .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
+                .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
                 .build();
     }
 

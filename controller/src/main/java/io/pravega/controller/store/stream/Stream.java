@@ -55,7 +55,7 @@ interface Stream {
      * @param configuration stream configuration.
      * @return boolean indicating success.
      */
-    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp);
+    CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, final long createTimestamp, final int startingSegmentNumber);
 
     /**
      * Deletes an already SEALED stream.
@@ -168,6 +168,13 @@ interface Stream {
      * @return Future which when completed gives list of segments between given streamcuts.
      */
     CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final Map<Long, Long> from, final Map<Long, Long> to);
+
+    /**
+     * Method to validate stream cut based on its definition - disjoint sets that cover the entire range of keyspace.
+     * @param streamCut stream cut to validate.
+     * @return Future which when completed has the result of validation check (true for valid and false for illegal streamCuts).
+     */
+    CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut);
 
     /**
      * @return currently active segments
@@ -468,6 +475,13 @@ interface Stream {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
+
+    /**
+     * This method returns the base number that will be used to create segment ids in this stream.
+     *
+     * @return Starting segment number.
+     */
+    CompletableFuture<Integer> getStartingSegmentNumber();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

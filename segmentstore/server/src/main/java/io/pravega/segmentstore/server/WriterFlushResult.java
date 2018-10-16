@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.writer;
+package io.pravega.segmentstore.server;
 
 import com.google.common.base.Preconditions;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,15 +16,15 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Represents the result of a Storage Flush Operation.
  */
-class FlushResult {
+public class WriterFlushResult {
     private AtomicLong flushedBytes;
     private AtomicLong mergedBytes;
     private AtomicInteger flushedAttributes;
 
     /**
-     * Creates a new instance of the FlushResult class.
+     * Creates a new instance of the WriterFlushResult class.
      */
-    FlushResult() {
+    public WriterFlushResult() {
         this.flushedBytes = new AtomicLong();
         this.mergedBytes = new AtomicLong();
         this.flushedAttributes = new AtomicInteger();
@@ -36,7 +36,7 @@ class FlushResult {
      * @param flushedBytes The value to add.
      * @return This object.
      */
-    FlushResult withFlushedBytes(long flushedBytes) {
+    public WriterFlushResult withFlushedBytes(long flushedBytes) {
         Preconditions.checkArgument(flushedBytes >= 0, "flushedBytes must be a positive number.");
         this.flushedBytes.addAndGet(flushedBytes);
         return this;
@@ -48,7 +48,7 @@ class FlushResult {
      * @param mergedBytes The value to add.
      * @return This object.
      */
-    FlushResult withMergedBytes(long mergedBytes) {
+    public WriterFlushResult withMergedBytes(long mergedBytes) {
         Preconditions.checkArgument(mergedBytes >= 0, "mergedBytes must be a positive number.");
         this.mergedBytes.addAndGet(mergedBytes);
         return this;
@@ -60,19 +60,19 @@ class FlushResult {
      * @param flushedAttributes The value to add.
      * @return This object.
      */
-    FlushResult withFlushedAttributes(int flushedAttributes) {
+    public WriterFlushResult withFlushedAttributes(int flushedAttributes) {
         Preconditions.checkArgument(flushedAttributes >= 0, "flushedAttributes must be a positive number.");
         this.flushedAttributes.addAndGet(flushedAttributes);
         return this;
     }
 
     /**
-     * Adds the given FlushResult to this one.
+     * Adds the given WriterFlushResult to this one.
      *
      * @param flushResult The flush result to add.
      * @return This object.
      */
-    FlushResult withFlushResult(FlushResult flushResult) {
+    public WriterFlushResult withFlushResult(WriterFlushResult flushResult) {
         this.flushedBytes.addAndGet(flushResult.flushedBytes.get());
         this.mergedBytes.addAndGet(flushResult.mergedBytes.get());
         this.flushedAttributes.addAndGet(flushResult.flushedAttributes.get());
@@ -82,21 +82,21 @@ class FlushResult {
     /**
      * Gets a value indicating the total amount of data flushed, in bytes.
      */
-    long getFlushedBytes() {
+    public long getFlushedBytes() {
         return this.flushedBytes.get();
     }
 
     /**
      * Gets a value indicating the total amount of data that was merged, in bytes.
      */
-    long getMergedBytes() {
+    public long getMergedBytes() {
         return this.mergedBytes.get();
     }
 
     /**
      * Gets a value indicating the number of attributes flushed.
      */
-    int getFlushedAttributes() {
+    public int getFlushedAttributes() {
         return this.flushedAttributes.get();
     }
 

@@ -201,6 +201,16 @@ public class SegmentInputStreamTest {
     }
     
     @Test
+    public void testStreamTruncatedWithPartialEvent() throws EndOfSegmentException {
+        ByteBuffer trailingData = ByteBuffer.wrap(new byte[] {0, 1});
+        TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
+        @Cleanup
+        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, trailingData.slice()));
+        AssertExtensions.assertThrows(EndOfSegmentException.class, () -> stream.read());
+    }
+    
+    @Test
     public void testIsSegmentReady() throws EndOfSegmentException, SegmentTruncatedException {
         byte[] data = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int numEntries = SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE / data.length;

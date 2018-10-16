@@ -185,7 +185,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
+        meta.truncateSegment(newStart.asImpl().getOffsetInSegment());
     }
 
     @Override

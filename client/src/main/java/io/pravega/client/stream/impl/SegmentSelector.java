@@ -140,7 +140,7 @@ public class SegmentSelector {
     @Synchronized
     private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
-        currentSegments = currentSegments.withReplacementRange(successors);
+        currentSegments = currentSegments.withReplacementRange(sealedSegment, successors);
         createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
         return writers.remove(sealedSegment).getUnackedEventsOnSeal();

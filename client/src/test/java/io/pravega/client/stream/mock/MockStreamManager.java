@@ -43,6 +43,7 @@ import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStr
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
+    @Getter
     private final ConnectionFactoryImpl connectionFactory;
     private final MockController controller;
     @Getter

@@ -11,6 +11,7 @@ package io.pravega.controller.mocks;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
@@ -46,7 +47,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                               final ConnectionFactory connectionFactory,
                                               boolean authEnabled,
                                               String tokenSigningKey) {
-        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, authEnabled, tokenSigningKey);
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, new AuthHelper(authEnabled, tokenSigningKey));
         this.streamMetadataStore = streamMetadataStore;
     }
 
