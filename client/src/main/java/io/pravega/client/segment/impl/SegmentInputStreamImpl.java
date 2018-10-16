@@ -223,7 +223,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     @Synchronized
     public int bytesInBuffer() {
         int result = buffer.dataAvailable();
-        boolean atEnd = receivedEndOfSegment || receivedTruncated || outstandingRequest.isCompletedExceptionally();
+        boolean atEnd = receivedEndOfSegment || receivedTruncated || (outstandingRequest != null && outstandingRequest.isCompletedExceptionally());
         if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
             SegmentRead request = outstandingRequest.join();
             result += request.getData().remaining();

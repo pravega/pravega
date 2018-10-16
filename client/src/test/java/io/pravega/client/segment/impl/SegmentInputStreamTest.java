@@ -205,7 +205,7 @@ public class SegmentInputStreamTest {
         ByteBuffer trailingData = ByteBuffer.wrap(new byte[] {0, 1});
         TestAsyncSegmentInputStream fakeNetwork = new TestAsyncSegmentInputStream(segment, 1);
         @Cleanup
-        SegmentInputStreamImpl stream = new SegmentInputStreamImpl(fakeNetwork, 0);
+        EventSegmentInputStreamImpl stream = SegmentInputStreamFactoryImpl.getEventSegmentInputStream(fakeNetwork, 0);
         fakeNetwork.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, trailingData.slice()));
         AssertExtensions.assertThrows(EndOfSegmentException.class, () -> stream.read());
     }
