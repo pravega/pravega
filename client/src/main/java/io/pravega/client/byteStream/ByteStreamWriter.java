@@ -34,8 +34,8 @@ import java.util.concurrent.CompletableFuture;
  * It is safe to invoke methods on this class from multiple threads but doing so will not result in
  * an increase in performance.
  */
-public abstract class ByteStreamWriter extends OutputStream {  
-    
+public abstract class ByteStreamWriter extends OutputStream {
+
     /**
      * Similar to {@link #write(byte[], int, int)}
      * 
@@ -49,38 +49,39 @@ public abstract class ByteStreamWriter extends OutputStream {
      * instead of blocking.
      */
     public abstract void write(ByteBuffer src) throws IOException;
-    
+
     /**
      * @see java.io.OutputStream#write(byte[], int, int)
      * 
-     * Writes the provided data to the segment. The data is buffered internally to avoid blocking.
-     * As such it cannot be assumed to be durably stored until a flush completes.
+     *      Writes the provided data to the segment. The data is buffered internally to avoid
+     *      blocking. As such it cannot be assumed to be durably stored until a flush completes.
      * 
-     * It is intended that this method not block, but it may in the event that the server becomes
-     * disconnected for sufficiently long or is sufficiently slow that that backlog of data to be
-     * written becomes a memory issue. If this behavior is undesirable the method
-     * {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an exception
-     * instead of blocking.
+     *      It is intended that this method not block, but it may in the event that the server
+     *      becomes disconnected for sufficiently long or is sufficiently slow that that backlog of
+     *      data to be written becomes a memory issue. If this behavior is undesirable the method
+     *      {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an
+     *      exception instead of blocking.
      */
     @Override
     public abstract void write(byte b[], int off, int len) throws IOException;
 
     /**
-     * Flushes the buffer and closes the writer.
-     * If there is data to flush, this is a blocking method.
+     * Flushes the buffer and closes the writer. If there is data to flush, this is a blocking
+     * method.
      * 
      * @see java.io.OutputStream#close()
      */
     @Override
     public abstract void close() throws IOException;
-    
+
     /**
      * Blocks until all data written has been durably persisted.
+     * 
      * @see java.io.OutputStream#flush()
      */
     @Override
     public abstract void flush() throws IOException;
-    
+
     /**
      * Closes the writer similar to {@link #close()} but also seals it so that no future writes can
      * ever be made.
@@ -92,7 +93,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * future that will be completed when the flush is done.
      */
     public abstract CompletableFuture<Void> flushAsync();
-    
+
     /**
      * This makes a synchronous RPC call to the server to obtain the total number of bytes written
      * to the segment in its history. This is the sum total of the bytes written in all calls to

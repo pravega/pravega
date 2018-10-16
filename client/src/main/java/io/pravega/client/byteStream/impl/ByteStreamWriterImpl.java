@@ -26,6 +26,11 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     private final SegmentMetadataClient meta;
 
     @Override
+    public void write(int b) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+    
+    @Override
     public void write(ByteBuffer src) throws IOException {
         out.write(PendingEvent.withoutHeader(null, src, null));
     }
@@ -63,11 +68,6 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public long fetchOffset() {
         return meta.fetchCurrentSegmentLength();
-    }
-
-    @Override
-    public void write(int b) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
 }

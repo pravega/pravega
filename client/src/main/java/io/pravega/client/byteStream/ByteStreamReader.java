@@ -26,56 +26,53 @@ import java.util.concurrent.CompletableFuture;
 public abstract class ByteStreamReader extends InputStream implements AsynchronousChannel, AutoCloseable {
 
     /**
-     * Returns the current byte offset in the segment.
-     * This call does not block.
+     * Returns the current byte offset in the segment. This call does not block.
      */
     public abstract long getOffset();
-    
+
     /**
-     * Jumps to the provided offset. Future read calls will read from this position.
-     * This makes a synchronous RPC to the server to validate the offset provided. 
+     * Jumps to the provided offset. Future read calls will read from this position. This makes a
+     * synchronous RPC to the server to validate the offset provided.
      * 
      * @param offset The offset to jump to.
      * @throws InvalidOffsetException If the offset provided does not exist in the segment.
      */
     public abstract void jumpToOffset(long offset) throws InvalidOffsetException;
-    
+
     /**
-     * Returns the number of bytes that can be read without blocking.
-     * If the number returned is > 0 then a call to {@link #read(byte[]))} will return data from memory without blocking.
-     * If the number returned is 0 then {@link #read(byte[]))} will block
-     * If -1 is returned this indicates the end of the stream has been reached and a call to {@link #read(byte[])} will return -1.
+     * Returns the number of bytes that can be read without blocking. If the number returned is > 0
+     * then a call to {@link #read(byte[]))} will return data from memory without blocking. If the
+     * number returned is 0 then {@link #read(byte[]))} will block If -1 is returned this indicates
+     * the end of the stream has been reached and a call to {@link #read(byte[])} will return -1.
      * 
      * @see java.io.InputStream#available()
      */
     @Override
     public abstract int available();
-    
+
     /**
      * This make a RPC to the server to fetch the highest offset in the segment.
      */
     public abstract long fetchTailOffset();
-    
+
     /**
      * Don't call this. It is very wasteful.
      */
     @Override
     public abstract int read() throws IOException;
-    
+
     /**
-     * See {@link InputStream#read(byte[])}.
-     * This is equivlent to calling  
+     * See {@link InputStream#read(byte[])}. This is equivlent to calling
      * {@code read(b, 0, b.length) }
      * 
      * Will only block if {@link #available()} is 0.
      */
     @Override
     public abstract int read(byte b[]) throws IOException;
-    
+
     /**
      * If {@link #available()} is non-zero will read bytes out of a in-memory buffer into the
-     * provided array.
-     * If {@link #available()} is zero will wait for additional data to arrive and
+     * provided array. If {@link #available()} is zero will wait for additional data to arrive and
      * then fill the provided array. This method will only block if {@link #available()} is 0.
      * 
      * @return The number of bytes copied into the provided buffer. Or -1 if the stream is sealed
@@ -84,35 +81,34 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      */
     @Override
     public abstract int read(byte b[], int off, int len) throws IOException;
-    
+
     /**
      * Similar to {@link #read(byte[], int, int)} but takes a byteBuffer.
      */
     public abstract int read(ByteBuffer dst) throws IOException;
-    
+
     /**
      * This method skips forward by the provided number of bytes. This method is non-blocking but
      * may not be able to skip n bytes.
      * 
      * @see java.io.InputStream#skip(long) in such a case it will return the number of bytes it
-     *      skipped.
-     * It may be preferable to call {@link #jumpToOffset(long)} for large jumps are that does
-     * not have this property.
+     *      skipped. It may be preferable to call {@link #jumpToOffset(long)} for large jumps are
+     *      that does not have this property.
      */
     @Override
     public abstract long skip(long n);
-    
+
     /**
      * @see java.io.InputStream#close()
      */
     @Override
     public abstract void close();
-    
+
     /**
      * Returns a future that will be completed when there is data available to be read. The Integer
      * in the result will be the number of bytes {@link #available()} or -1 if the reader has
      * reached the end of a sealed segment.
      */
     public abstract CompletableFuture<Integer> onDataAvailable();
-    
+
 }

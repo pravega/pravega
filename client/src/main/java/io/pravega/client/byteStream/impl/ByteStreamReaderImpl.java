@@ -28,12 +28,6 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     private final AtomicBoolean closed = new AtomicBoolean(false); 
 
     @Override
-    public int read(ByteBuffer dst) throws IOException {
-        Exceptions.checkNotClosed(closed.get(), this);
-        return input.read(dst, Long.MAX_VALUE);
-    }
-
-    @Override
     public boolean isOpen() {
         return !closed.get();
     }
@@ -66,6 +60,12 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     @Override
     public long fetchTailOffset() {
         throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public int read(ByteBuffer dst) throws IOException {
+        Exceptions.checkNotClosed(closed.get(), this);
+        return input.read(dst, Long.MAX_VALUE);
     }
 
     @Override

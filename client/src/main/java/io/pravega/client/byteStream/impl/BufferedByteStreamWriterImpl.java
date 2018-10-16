@@ -20,9 +20,9 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
-    
+
     private final ByteStreamWriterImpl out;
-    
+
     @GuardedBy("buffer")
     private final AtomicReference<ByteBuffer> buffer = new AtomicReference<>(null);
 
@@ -39,7 +39,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
         }
         return result;
     }
-    
+
     @Override
     public void write(int b) throws IOException {
         ByteBuffer localBuffer = getBuffer();
@@ -47,7 +47,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
             if (!localBuffer.hasRemaining()) {
                 flushBuffer();
             }
-            localBuffer.put((byte) b); 
+            localBuffer.put((byte) b);
         }
     }
 
@@ -73,7 +73,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
         flushBuffer();
-        out.write(b, off, len);  
+        out.write(b, off, len);
     }
 
     @Override
