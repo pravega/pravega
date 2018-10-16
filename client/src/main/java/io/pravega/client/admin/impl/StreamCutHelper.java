@@ -23,7 +23,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,14 +34,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StreamCutHelper {
     private final Controller controller;
-    private SegmentMetadataClientFactory segmentMetadataClientFactory;
-    private ConnectionFactory connectionFactory;
-    @GuardedBy("this")
-    private AtomicReference<String> latestDelegationToken;
+    private final SegmentMetadataClientFactory segmentMetadataClientFactory;
+    private final AtomicReference<String> latestDelegationToken;
 
     public StreamCutHelper(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
-        this.connectionFactory = connectionFactory;
         this.segmentMetadataClientFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
         this.latestDelegationToken = new AtomicReference<>();
     }
@@ -66,9 +62,7 @@ public class StreamCutHelper {
     public CompletableFuture<StreamCut> fetchTailStreamCut(final Stream stream) {
         return controller.getCurrentSegments(stream.getScope(), stream.getStreamName())
                          .thenApply(s -> {
-                             synchronized (this) {
-                                 latestDelegationToken.set(s.getDelegationToken());
-                             }
+                             latestDelegationToken.set(s.getDelegationToken());
                              Map<Segment, Long> pos =
                                      s.getSegments().stream().map(this::segmentToInfo)
                                       .collect(Collectors.toMap(SegmentInfo::getSegment, SegmentInfo::getWriteOffset));
@@ -77,12 +71,8 @@ public class StreamCutHelper {
     }
 
     private SegmentInfo segmentToInfo(Segment s) {
-        String delegationToken;
-        synchronized (this) {
-            delegationToken = latestDelegationToken.get();
-        }
         @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, delegationToken);
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, latestDelegationToken.get());
         return client.getSegmentInfo();
     }
 }
