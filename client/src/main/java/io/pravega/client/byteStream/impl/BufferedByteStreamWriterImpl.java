@@ -23,13 +23,13 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
 
     private final ByteStreamWriterImpl out;
 
-    @GuardedBy("buffer")
+    @GuardedBy("this") //The ref is not guarded but the buffer inside the ref is.
     private final AtomicReference<ByteBuffer> buffer = new AtomicReference<>(null);
 
     private ByteBuffer getBuffer() {
         ByteBuffer result = buffer.get();
         if (result == null) {
-            synchronized (buffer) {
+            synchronized (this) {
                 result = buffer.get();
                 if (result == null) {
                     result = ByteBuffer.allocate(4096);
@@ -43,7 +43,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     public void write(int b) throws IOException {
         ByteBuffer localBuffer = getBuffer();
-        synchronized (buffer) {
+        synchronized (this) {
             if (!localBuffer.hasRemaining()) {
                 flushBuffer();
             }
@@ -65,7 +65,7 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
 
     private void flushBuffer() throws IOException {
         if (buffer.get() != null) {
-            synchronized (buffer) {
+            synchronized (this) {
                 ByteBuffer toWrite = buffer.get();
                 toWrite.flip();
                 if (toWrite.hasRemaining()) {
