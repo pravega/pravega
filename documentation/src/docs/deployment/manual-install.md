@@ -69,7 +69,7 @@ Replace `<$ZK_URL>` with the IP address of the Zookeeper nodes.
 
 ### Running Bookkeeper
 
-The bookie needs the following formatting before statring it:
+The bookie needs the following formatting before starting it:
 
 ```
 bin/bookkeeper shell metaformat -nonInteractive
@@ -156,6 +156,6 @@ After making the configuration changes, the segment store can be run using the f
 ```
 bin/pravega-segmentstore
 ```
-## Runing Pravega Controller and Segment Store with security enabled
-Here are the details for configurations for [Pravega controller](../security/pravega-security-configurations.md#Pravega controller) and [Pravega Segment store](../security/pravega-security-configurations.md#Pravega Segmentstore).
+## Running Pravega Controller and Segment Store with security enabled
+Here are the details for configurations for [Pravega controller](https://github.com/pravega/pravega/blob/c1ff65a144c8980be57aca84a0fe7e0997774bf9/documentation/src/docs/security/pravega-security-configurations.md#pravega-controller) and [Pravega Segment store](https://github.com/pravega/pravega/blob/c1ff65a144c8980be57aca84a0fe7e0997774bf9/documentation/src/docs/security/pravega-security-configurations.md#pravega-segment-store).
 These parameters can be changed to represent required security configurations.
