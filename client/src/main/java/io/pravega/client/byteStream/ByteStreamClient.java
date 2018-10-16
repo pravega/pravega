@@ -14,7 +14,7 @@ import com.google.common.annotations.Beta;
 public interface ByteStreamClient {
     
     @Beta
-    ByteStreamReader createByteStreamReaders(String streamName);
+    ByteStreamReader createByteStreamReader(String streamName);
     
     @Beta
     ByteStreamWriter createByteStreamWriter(String streamName);

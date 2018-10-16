@@ -31,7 +31,7 @@ public class ByteStreamClientImpl implements ByteStreamClient {
     private final SegmentMetadataClientFactory metaStreamFactory;
     
     @Override
-    public ByteStreamReader createByteStreamReaders(String streamName) {
+    public ByteStreamReader createByteStreamReader(String streamName) {
         return createByteStreamReaders(new Segment(scope, streamName, 0));
     }
     

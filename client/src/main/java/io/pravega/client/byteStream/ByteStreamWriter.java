@@ -96,8 +96,9 @@ public abstract class ByteStreamWriter extends OutputStream {
     /**
      * This makes a synchronous RPC call to the server to obtain the total number of bytes written
      * to the segment in its history. This is the sum total of the bytes written in all calls to
-     * {@link #write(byte[])} that have been flushed.
+     * {@link #write(byte[])} that have been flushed. It does not include data that was passed to
+     * {@link #write(byte[])} but which has not yet been persisted.
      */
-    public abstract long fetchPersistedOffset();
+    public abstract long fetchOffset();
     
 }

@@ -43,10 +43,10 @@ public class ByteStreamWriterTest {
         byte[] value = new byte[] { 1, 2, 3, 4, 5 };
         writer.write(value);
         writer.flush();
-        assertEquals(value.length, writer.fetchPersistedOffset());
+        assertEquals(value.length, writer.fetchOffset());
         writer.write(value);
         writer.write(value);
         writer.flush();
-        assertEquals(value.length * 3, writer.fetchPersistedOffset());
+        assertEquals(value.length * 3, writer.fetchOffset());
     }
 }

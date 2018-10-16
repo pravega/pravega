@@ -61,7 +61,7 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public long fetchPersistedOffset() {
+    public long fetchOffset() {
         return meta.fetchCurrentSegmentLength();
     }
 

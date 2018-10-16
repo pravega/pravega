@@ -142,6 +142,13 @@ public interface ClientFactory extends AutoCloseable {
                                                       Serializer<InitT> initSerializer,
                                                       SynchronizerConfig config);
 
+    /**
+     * Creates a new ByteStreamClient. The byteStreamClient can create readers and writers that work
+     * on a stream of bytes. The stream must be pre-created with a single fixed segment. Sharing a
+     * stream between the byte stream API and the Event stream readers/writers will not work.
+     * 
+     * @return A byteStreamClient
+     */
     @Beta
     ByteStreamClient createByteStreamClient();
     
