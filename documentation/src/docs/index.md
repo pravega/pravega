@@ -28,18 +28,18 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 -   **Storage Efficiency:** Pravega is used to build data processing pipelines that may combine batch and real-time applications without duplicating data for every step of the pipeline. This is possible because Pravega unifies stream (ordered) and batch (parallel) access to data events for data processing engines.
 
 -   **Durability:** Pravega persists and protects data events once the write operation is acknowledged to the client.
- 
+
 -   **Transaction Support:** A Pravega Transaction ensures that a set of events are written to a stream atomically. This is a key feature for distributed streaming applications requiring exactly-once guarantees on their output.
 
-- **Security and pluggable role based access control:** Pravega can be deployed by the administrators securely by enabling TLS for communications and can deploy their own implementation of role based access control plugin.   
+-   **Security and pluggable role based access control:** Pravega can be deployed by the administrators securely by enabling TLS for communications and can deploy their own implementation of role based access control plugin.   
 
 ## Releases
 
-The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
+The latest Pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
 ## Quick Start
 
-Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
+Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
 
 ## Frequently Asked Questions
 
@@ -51,15 +51,14 @@ Pravega can be installed locally or in a distributed environment. The installati
 
 ## Pravega Security, Role based access control and TLS
 
-Pravega supports encryption of all communication channels and pluggable role based access control.
-Find more details here:
+ Pravega supports encryption of all communication channels and pluggable role based access control. For more information please refer to the following:
 1. [TLS](security/pravega-security-encryption.md)
 2. [Authorization, authentication and RBAC](security/pravega-security-authorization-authentication.md)
 
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help. 
+Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help.
 Please open an issue in [Github
 Issues](https://github.com/pravega/pravega/issues) if you find a bug.
 
