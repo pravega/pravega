@@ -48,9 +48,11 @@ public class ByteStreamClientImpl implements ByteStreamClient {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStreamName()),
                                                                 RuntimeException::new);
-        return new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment, config,
-                                                                                         delegationToken),
-                                        metaStreamFactory.createSegmentMetadataClient(segment, delegationToken));
+        return new BufferedByteStreamWriterImpl(new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment,
+                                                                                                                          config,
+                                                                                                                          delegationToken),
+                                                                         metaStreamFactory.createSegmentMetadataClient(segment,
+                                                                                                                       delegationToken)));
     }
 
 }
