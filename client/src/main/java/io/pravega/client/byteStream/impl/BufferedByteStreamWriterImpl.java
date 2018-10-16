@@ -9,6 +9,7 @@
  */
 package io.pravega.client.byteStream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.common.concurrent.Futures;
 import java.io.IOException;
@@ -21,33 +22,25 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
 
+    @VisibleForTesting
+    public static final int BUFFER_SIZE = 4096;
     private final ByteStreamWriterImpl out;
 
     @GuardedBy("this") //The ref is not guarded but the buffer inside the ref is.
     private final AtomicReference<ByteBuffer> buffer = new AtomicReference<>(null);
 
-    private ByteBuffer getBuffer() {
-        ByteBuffer result = buffer.get();
-        if (result == null) {
-            synchronized (this) {
-                result = buffer.get();
-                if (result == null) {
-                    result = ByteBuffer.allocate(4096);
-                    buffer.set(result);
-                }
-            }
-        }
-        return result;
-    }
-
     @Override
     public void write(int b) throws IOException {
-        ByteBuffer localBuffer = getBuffer();
         synchronized (this) {
+            ByteBuffer localBuffer = buffer.get();
+            if (localBuffer == null) {
+                localBuffer = ByteBuffer.allocate(BUFFER_SIZE);
+                buffer.set(localBuffer);
+            }
+            localBuffer.put((byte) b);
             if (!localBuffer.hasRemaining()) {
                 flushBuffer();
             }
-            localBuffer.put((byte) b);
         }
     }
 
@@ -66,12 +59,11 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     private void flushBuffer() throws IOException {
         if (buffer.get() != null) {
             synchronized (this) {
-                ByteBuffer toWrite = buffer.get();
+                ByteBuffer toWrite = buffer.getAndSet(null);
                 toWrite.flip();
                 if (toWrite.hasRemaining()) {
                     out.write(toWrite);
                 }
-                buffer.set(ByteBuffer.allocate(4096));
             }
         }
     }
