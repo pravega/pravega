@@ -18,7 +18,6 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.contracts.tables.UpdateListener;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -116,7 +115,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<Void> deleteSegment(@NonNull String segmentName, Duration timeout) {
+    public CompletableFuture<Void> deleteSegment(@NonNull String segmentName, boolean mustBeEmpty, Duration timeout) {
+        if (mustBeEmpty) {
+            // TODO https://github.com/pravega/pravega/issues/2956
+            throw new UnsupportedOperationException("deleteSegment(mustBeEmpty==true)");
+        }
+
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.segmentContainer.deleteStreamSegment(segmentName, timeout);
     }
@@ -161,18 +165,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(@NonNull String segmentName, IteratorState continuationToken,
                                                                                     Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CompletableFuture<Void> registerListener(@NonNull UpdateListener listener, Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean unregisterListener(@NonNull UpdateListener listener) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         throw new UnsupportedOperationException();
     }

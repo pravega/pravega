@@ -14,6 +14,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.logs.MetadataUpdateException;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines a Container for StreamSegments.

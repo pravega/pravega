@@ -16,7 +16,6 @@ import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.contracts.tables.UpdateListener;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.segmentstore.server.store.SegmentContainerCollection;
 import io.pravega.shared.segment.SegmentToContainerMapper;
@@ -55,10 +54,10 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
-    public CompletableFuture<Void> deleteSegment(String segmentName, Duration timeout) {
+    public CompletableFuture<Void> deleteSegment(String segmentName, boolean mustBeEmpty, Duration timeout) {
         return invokeExtension(segmentName,
-                e -> e.deleteSegment(segmentName, timeout),
-                "deleteSegment", segmentName);
+                e -> e.deleteSegment(segmentName, mustBeEmpty, timeout),
+                "deleteSegment", segmentName, mustBeEmpty);
     }
 
     @Override
@@ -110,20 +109,6 @@ public class TableService extends SegmentContainerCollection implements TableSto
                 "entryIterator", segmentName, continuationToken);
     }
 
-    @Override
-    public CompletableFuture<Void> registerListener(UpdateListener listener, Duration timeout) {
-        return invokeExtension(listener.getSegmentName(),
-                e -> e.registerListener(listener, timeout),
-                "registerListener", listener.getSegmentName());
-    }
-
-    @Override
-    public boolean unregisterListener(UpdateListener listener) {
-        return invokeExtensionSync(listener.getSegmentName(),
-                e -> e.unregisterListener(listener),
-                "unregisterListener", listener.getSegmentName());
-    }
-
     //endregion
 
     //region Helpers
@@ -131,13 +116,6 @@ public class TableService extends SegmentContainerCollection implements TableSto
     private <T> CompletableFuture<T> invokeExtension(String streamSegmentName, Function<ContainerTableExtension, CompletableFuture<T>> toInvoke,
                                                      String methodName, Object... logArgs) {
         return super.invoke(streamSegmentName,
-                segmentContainer -> toInvoke.apply(segmentContainer.getExtension(ContainerTableExtension.class)),
-                methodName, logArgs);
-    }
-
-    private <T> T invokeExtensionSync(String streamSegmentName, Function<ContainerTableExtension, T> toInvoke,
-                                      String methodName, Object... logArgs) {
-        return super.invokeSync(streamSegmentName,
                 segmentContainer -> toInvoke.apply(segmentContainer.getExtension(ContainerTableExtension.class)),
                 methodName, logArgs);
     }
