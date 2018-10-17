@@ -16,7 +16,6 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Checkpoint;
@@ -107,6 +106,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
      * counts, parallel segment reads and reads with offsets using stream cuts.
      */
     @Test
+    @SuppressWarnings("deprecation")
     public void batchClientSimpleTest() {
         final int totalEvents = RG_PARALLELISM * 100;
         final int offsetEvents = RG_PARALLELISM * 20;
@@ -141,7 +141,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
         // Instantiate the batch client and assert it provides correct stream info.
         log.debug("Creating batch client.");
         BatchClient batchClient = clientFactory.createBatchClient();
-        StreamInfo streamInfo = batchClient.getStreamInfo(stream).join();
+        io.pravega.client.batch.StreamInfo streamInfo = batchClient.getStreamInfo(stream).join();
         log.debug("Validating stream metadata fields.");
         assertEquals("Expected Stream name: ", STREAM, streamInfo.getStreamName());
         assertEquals("Expected Scope name: ", SCOPE, streamInfo.getScope());

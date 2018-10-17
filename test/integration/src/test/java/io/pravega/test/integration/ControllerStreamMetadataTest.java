@@ -9,8 +9,11 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -158,7 +161,9 @@ public class ControllerStreamMetadataTest {
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller, cf);
 
         // Create and delete scope
         assertTrue(streamManager.createScope(SCOPE));

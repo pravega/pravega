@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.batch;
+package io.pravega.client.admin;
 
 import com.google.common.annotations.Beta;
 import io.pravega.client.stream.StreamCut;
@@ -20,14 +20,9 @@ import lombok.Data;
  *  <li> - name of stream.
  *  <li> - {@link StreamCut} which represents the current TAIL of the stream.
  *  <li> - {@link StreamCut} which represents the current HEAD of the stream.
- *
- *  @deprecated This class is deprecated and will be removed in the subsequent releases. Use
- *  {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo represented
- *  by {@link io.pravega.client.admin.StreamInfo}.
  */
 @Beta
 @Data
-@Deprecated
 public class StreamInfo {
     /**
      * Scope name of the stream.

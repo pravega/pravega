@@ -15,7 +15,6 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
@@ -148,6 +147,7 @@ public class BatchClientTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws Exception {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
@@ -161,7 +161,7 @@ public class BatchClientTest {
         // 3a. Fetch Segments using StreamCut.UNBOUNDED>
         ArrayList<SegmentRange> segmentsPostTruncation1 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         // 3b. Fetch Segments using getStreamInfo() api.
-        StreamInfo streamInfo = batchClient.getStreamInfo(Stream.of(SCOPE, STREAM)).join();
+        io.pravega.client.batch.StreamInfo streamInfo = batchClient.getStreamInfo(Stream.of(SCOPE, STREAM)).join();
         ArrayList<SegmentRange> segmentsPostTruncation2 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), streamInfo.getHeadStreamCut(), streamInfo.getTailStreamCut()).getIterator());
         // Validate results.
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation1);
