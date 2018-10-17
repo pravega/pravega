@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -113,6 +115,22 @@ public class ReaderGroupStateTest {
         assertTrue(latestPosition.isPresent());
         assertEquals(3L, latestPosition.get().get(getStream("S1")).get(getSegment("S1")).longValue());
         assertEquals(3L, latestPosition.get().get(getStream("S2")).get(getSegment("S2")).longValue());
+    }
+
+    @Test
+    public void getStreamNames() {
+        // configured Streams.
+        Set<String> configuredStreams = ImmutableSet.of(getStream("S1").getScopedName(), getStream("S2").getScopedName());
+
+        // validate stream names
+        assertEquals(configuredStreams, readerState.getStreamNames());
+
+        //Simulate addition of a reader and assigning of segments to the reader.
+        new AddReader("reader1").applyTo(readerState, revision);
+        new ReaderGroupState.AcquireSegment("reader1", new Segment(SCOPE, "S1", 0)).applyTo(readerState, revision);
+
+        // validate stream names
+        assertEquals(configuredStreams, readerState.getStreamNames());
     }
 
     private Segment getSegment(String streamName) {

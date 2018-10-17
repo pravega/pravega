@@ -53,8 +53,9 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
      * Initiate a checkpoint. This causes all readers in the group to receive a special
      * {@link EventRead} that contains the provided checkpoint name. This can be used to provide an
      * indication to them that they should persist their state. Once all of the readers have
-     * received the notification, a {@link Checkpoint} object will be returned. This can be used to
-     * reset the group to this point in the stream by calling
+     * received the notification and resumed reading the future will return a {@link Checkpoint}
+     * object which contains the StreamCut of the reader group at the time they received the
+     * checkpoint. This can be used to reset the group to this point in the stream by calling
      * {@link #resetReadersToCheckpoint(Checkpoint)} if the checkpoint fails or the result cannot be
      * obtained an exception will be set on the future.
      * 
@@ -129,7 +130,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
     Set<String> getOnlineReaders();
 
     /**
-     * Returns the set of stream names which was used to configure this group.
+     * Returns the set of scoped stream names which was used to configure this group.
      *
      * @return Set of streams for this group.
      */

@@ -32,6 +32,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -106,7 +107,7 @@ public class EndToEndChannelLeakTest {
         controllerWrapper.getControllerService().createScope(SCOPE).get();
         controller.createStream(config).get();
         @Cleanup
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build(), new InlineExecutor());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
 

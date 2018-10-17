@@ -15,31 +15,31 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 ## Key Features 
 
--   Exactly-Once Semantics - Ensure that each event is delivered and processed exactly once, with exact ordering guarantees, despite failures in clients, servers or the network.
+-   **Exactly-Once Semantics:** Pravega ensures that each event is delivered and processed exactly once, with exact ordering guarantees, despite failures in clients, servers or the network.
 
--   Auto Scaling - Unlike systems with static partitioning, Pravega can automatically scale individual data streams to accommodate changes in data ingestion rate.
+-   **Auto Scaling:** Pravega automatically changes the parallelism of the individual data streams to accommodate fluctuations in data ingestion rate.
 
--   Distributed Computing Primitive - Pravega is great for distributed computing; it can be used as a data storage mechanism, for messaging between processes and for other distributed computing services such as leader election.
+-   **Distributed Computing Primitive:** Pravega is not only a great storage service for data streams. It can also be used as a durable, consistent messaging service across processes. Even more, Pravega provides unique abstractions that make it easy for users to build advanced services, such as distributed consensus and leader election.
 
--   Write Efficiency - Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
+-   **Write Performance:** Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
 
--   Unlimited Retention - Ingest, process and retain data in streams forever. Use same paradigm to access both real-time and historical events stored in Pravega.
+-   **Unlimited Retention:** Pravega decouples brokering of events from the actual data storage. This allows Pravega to transparently move data events from low-latency, durable storage tier to a cloud storage service (e.g., HDFS, Amazon S3, or DellEMC Isilon/ECS), while clients are agnostic to the actual location of data.
 
--   Storage Efficiency - Use Pravega to build pipelines of data processing, combining batch, real-time and other applications without duplicating data for every step of the pipeline.
+-   **Storage Efficiency:** Pravega is used to build data processing pipelines that may combine batch and real-time applications without duplicating data for every step of the pipeline. This is possible because Pravega unifies stream (ordered) and batch (parallel) access to data events for data processing engines.
 
--   Durability - Don't compromise between performance, durability and consistency.
-    Pravega persists and protects data before the write operation is acknowledged to the client.
-    
--   Transaction Support - A developer uses a Pravega Transaction to ensure that a set of events are written to a stream atomically.
+-   **Durability:** Pravega persists and protects data events once the write operation is acknowledged to the client.
 
+-   **Transaction Support:** A Pravega Transaction ensures that a set of events are written to a stream atomically. This is a key feature for distributed streaming applications requiring exactly-once guarantees on their output.
+
+-   **Security and pluggable role-based access control:** Pravega can be deployed by the administrators securely by enabling TLS for communications and can deploy their own implementation of role-based access control plugin.   
 
 ## Releases
 
-The latest pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
+The latest Pravega releases can be found on the [Github Release](https://github.com/pravega/pravega/releases) project page.
 
 ## Quick Start
 
-Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications. 
+Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
 
 ## Frequently Asked Questions
 
@@ -49,18 +49,24 @@ You can find a list of frequently asked questions [here](faq.md).
 
 Pravega can be installed locally or in a distributed environment. The installation and deployment of Pravega is covered in the [Running Pravega](deployment/deployment.md) guide.
 
+## Pravega Security, Role-based access control and TLS
+
+ Pravega supports encryption of all communication channels and pluggable role-based access control. For more information please refer to the following:
+1. [TLS](security/pravega-security-encryption.md)
+2. [Authorization, authentication and RBAC](security/pravega-security-authorization-authentication.md)
+
+
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help. 
-Open an issue if you found a bug on [Github
-Issues](https://github.com/pravega/pravega/issues).
+Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help.
+Please open an issue in [Github
+Issues](https://github.com/pravega/pravega/issues) if you find a bug.
 
 ## Contributing
 
 Become one of the contributors! We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-[Here](contributing.md) we describe how to
-contribute to Pravega! You can see the roadmap document [here](roadmap.md).
+We describe how to contribute to Pravega [here](contributing.md)! You can see the roadmap document [here](roadmap.md).
 
 ## About
 

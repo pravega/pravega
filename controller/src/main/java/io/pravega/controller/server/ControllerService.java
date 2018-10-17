@@ -264,6 +264,14 @@ public class ControllerService {
                 .thenApplyAsync(x -> x.stream().anyMatch(z -> z.segmentId() == segmentId), executor);
     }
 
+    public CompletableFuture<Boolean> isStreamCutValid(final String scope,
+                                                     final String stream,
+                                                     final Map<Long, Long> streamCut) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamStore.isStreamCutValid(scope, stream, streamCut, null, executor);
+    }
+
     @SuppressWarnings("ReturnCount")
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
                                                                                final long lease) {

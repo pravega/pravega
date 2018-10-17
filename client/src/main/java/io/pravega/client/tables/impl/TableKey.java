@@ -7,17 +7,21 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
-
-import java.io.Serializable;
-import lombok.Builder;
-import lombok.Data;
+package io.pravega.client.tables.impl;
 
 /**
- * Configuration for the TableReader.
+ * A Table Key with a Version.
+ *
+ * @param <KeyT> Type of the Key.
  */
-@Data
-@Builder
-public class TableReaderConfig implements Serializable {
-    private static final long serialVersionUID = 1L;
+interface TableKey<KeyT> {
+    /**
+     * The Key.
+     */
+    KeyT getKey();
+
+    /**
+     * The Version. If null, any updates for this Key will be unconditional.
+     */
+    KeyVersion getVersion();
 }

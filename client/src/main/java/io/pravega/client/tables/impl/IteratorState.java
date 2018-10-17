@@ -9,12 +9,25 @@
  */
 package io.pravega.client.tables.impl;
 
-import com.google.common.annotations.Beta;
-import java.io.Serializable;
+import java.nio.ByteBuffer;
 
 /**
  * Defines the state of a resumable iterator.
  */
-@Beta
-public interface IteratorState extends Serializable {
+interface IteratorState {
+
+    /**
+     * Serializes the IteratorState instance to a compact byte array.
+     */
+    ByteBuffer toBytes();
+
+    /**
+     * Deserializes the IteratorState from its serialized form obtained from calling {@link #toBytes()}.
+     *
+     * @param serializedState A serialized IteratorState.
+     * @return The IteratorState object.
+     */
+    static IteratorState fromBytes(ByteBuffer serializedState) {
+        throw new UnsupportedOperationException("Not Implemented");
+    }
 }

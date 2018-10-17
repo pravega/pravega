@@ -30,6 +30,7 @@ service ControllerService {
     rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
+    rpc isStreamCutValid(StreamCut) returns (StreamCutValidityResponse);
     rpc createTransaction(CreateTxnRequest) returns (CreateTxnResponse);
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
@@ -295,6 +296,10 @@ message GetSegmentsRequest {
 }
 
 message SegmentValidityResponse {
+    bool response = 1;
+}
+
+message StreamCutValidityResponse {
     bool response = 1;
 }
 

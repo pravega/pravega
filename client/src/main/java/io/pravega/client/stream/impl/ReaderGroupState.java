@@ -214,11 +214,11 @@ public class ReaderGroupState implements Revisioned {
         Set<String> result = new HashSet<>();
         for (Map<Segment, Long> segments : assignedSegments.values()) {
             for (Segment segment : segments.keySet()) {
-                result.add(segment.getStreamName());
+                result.add(segment.getScopedStreamName());
             }
         }
         for (Segment segment : unassignedSegments.keySet()) {
-            result.add(segment.getStreamName());
+            result.add(segment.getScopedStreamName());
         }
         return result;
     }

@@ -156,7 +156,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, resendToSuccessorsCallback, RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT));
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT, "SomeException"));
         CompletableFuture<ClientConnection> connectionFuture = output.getConnection();
         assertThrows(NoSuchSegmentException.class, () -> Futures.getThrowingException(connectionFuture));
         assertTrue(callbackInvoked.get());
@@ -188,7 +188,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.getProcessor(uri).connectionDropped();
         verify(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
 
-        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(3, SEGMENT, "newHost"));
+        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(3, SEGMENT, "newHost", "SomeException"));
         verify(connection).send(new SetupAppend(4, cid, SEGMENT, ""));
     }
 
@@ -595,7 +595,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         output.write(new PendingEvent(null, data, ack));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
-        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
         output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
@@ -623,7 +623,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -662,7 +662,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "netty-callback");
         //simulate a SegmentIsSealed WireCommand from SegmentStore.
-        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT)));
+        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException")));
 
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -818,7 +818,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
             output.getUnackedEventsOnSeal();
         });
         verify(connection).send(new WireCommands.KeepAlive());
@@ -853,7 +853,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT));
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT, "SomeException"));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -888,7 +888,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
-            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT));
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT, "SomeException"));
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
@@ -918,7 +918,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         assertFalse(ack1.isDone()); //writer is not complete until a response from Segment Store is received.
 
         // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
-        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT));
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT, "SomeException"));
 
         //Trigger a second write.
         CompletableFuture<Void> ack2 = new CompletableFuture<>();

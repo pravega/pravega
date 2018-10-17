@@ -34,6 +34,7 @@ import io.pravega.controller.store.stream.tables.StreamCutRecord;
 import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -440,6 +441,26 @@ public abstract class PersistentStreamBase<T> implements Stream {
                                         .thenApply(segmentTable ->
                                                 TableHelper.findSegmentsBetweenStreamCuts(historyIndex.getData(), historyTable.getData(),
                                                         segmentIndex.getData(), segmentTable.getData(), from, to)))));
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
+        return Futures.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
+                new SimpleEntry<>(segment.getKeyStart(), segment.getKeyEnd())))
+                .collect(Collectors.toList()))
+                .thenAccept(TableHelper::validateStreamCut)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
+                            return false;
+                        } else {
+                            log.warn("Exception while trying to validate a stream cut for stream {}/{}", scope, name);
+                            throw Lombok.sneakyThrow(e);
+                        }
+                    } else {
+                        return true;
+                    }
+                });
     }
 
     /**

@@ -10,6 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -211,8 +212,104 @@ public class CheckpointTest {
         assertEquals("Checkpoint", read.getCheckpointName());
         assertNull(read.getEvent());
         
+        read = reader1.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+        assertEquals(testString, read.getEvent());
+        read = reader2.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+        assertNull(read.getEvent());
+        
         Checkpoint cpResult = checkpoint.get(5, TimeUnit.SECONDS);
         assertTrue(checkpoint.isDone());
         assertEquals("Checkpoint", cpResult.getName());
+    }
+
+    @Test(timeout = 20000)
+    public void testMaxPendingCheckpoint() throws ReinitializationRequiredException, InterruptedException,
+            ExecutionException, TimeoutException {
+        String endpoint = "localhost";
+        String streamName = "abcd";
+        String readerGroupName = "group1";
+        int port = TestUtils.getAvailableListenPort();
+        String testString = "Hello world\n";
+        String scope = "Scope12";
+        StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        @Cleanup
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        server.startListening();
+        @Cleanup
+        MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
+        MockClientFactory clientFactory = streamManager.getClientFactory();
+        int maxOutstandingCheckpointRequest = 1;
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder()
+                .stream(Stream.of(scope, streamName))
+                .maxOutstandingCheckpointRequest(maxOutstandingCheckpointRequest)
+                .build();
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, StreamConfiguration.builder()
+                .scope(scope)
+                .streamName(streamName)
+                .scalingPolicy(ScalingPolicy.fixed(1))
+                .build());
+        streamManager.createReaderGroup(readerGroupName, groupConfig);
+
+        @Cleanup
+        ReaderGroup readerGroup = streamManager.getReaderGroup(readerGroupName);
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, serializer,
+                EventWriterConfig.builder().build());
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.writeEvent(testString);
+        producer.flush();
+
+        AtomicLong clock = new AtomicLong();
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", readerGroupName, serializer,
+                ReaderConfig.builder().build(), clock::get,
+                clock::get);
+        clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
+
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor1 = new InlineExecutor();
+        @Cleanup("shutdown")
+        final InlineExecutor backgroundExecutor2 = new InlineExecutor();
+
+        CompletableFuture<Checkpoint> checkpoint1 = readerGroup.initiateCheckpoint("Checkpoint1", backgroundExecutor1);
+        assertFalse(checkpoint1.isDone());
+
+        CompletableFuture<Checkpoint> checkpoint2 = readerGroup.initiateCheckpoint("Checkpoint2", backgroundExecutor2);
+        assertTrue(checkpoint2.isCompletedExceptionally());
+        try {
+            checkpoint2.get();
+        } catch (ExecutionException e) {
+            assertTrue(e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
+            assertTrue(e.getCause().getMessage()
+                    .equals("rejecting checkpoint request since pending checkpoint reaches max allowed limit"));
+        }
+
+        EventRead<String> read = reader1.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint1", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        read = reader2.readNextEvent(100);
+        assertTrue(read.isCheckpoint());
+        assertEquals("Checkpoint1", read.getCheckpointName());
+        assertNull(read.getEvent());
+
+        read = reader1.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+
+        read = reader2.readNextEvent(100);
+        assertFalse(read.isCheckpoint());
+
+        Checkpoint cpResult = checkpoint1.get(5, TimeUnit.SECONDS);
+        assertTrue(checkpoint1.isDone());
+        assertEquals("Checkpoint1", cpResult.getName());
     }
 }

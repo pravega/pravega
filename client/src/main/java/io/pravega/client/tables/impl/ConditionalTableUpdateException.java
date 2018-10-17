@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.tables;
+package io.pravega.client.tables.impl;
 
 import java.util.Collection;
 import lombok.Getter;
@@ -15,20 +15,20 @@ import lombok.Getter;
 /**
  * Exception that is thrown whenever a Conditional Update to a Table (based on versions) failed.
  */
-public class ConditionalTableUpdateException extends Exception {
+class ConditionalTableUpdateException extends Exception {
     private static final long serialVersionUID = 1L;
     /**
      * A Collection of Keys that failed conditional update validation.
      */
     @Getter
-    private final Collection<Object> keys;
+    private final Collection<TableKey> keys;
 
     /**
      * Creates a new instance of the ConditionalTableUpdateException class.
      *
      * @param keys A Collection of Keys that failed conditional update validation.
      */
-    public ConditionalTableUpdateException(Collection<Object> keys) {
+    public ConditionalTableUpdateException(Collection<TableKey> keys) {
         super(String.format("Conditional update failed for %s key(s).", keys.size()));
         this.keys = keys;
     }

@@ -118,7 +118,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper());
+        controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), true);
     }
 
     @Override
