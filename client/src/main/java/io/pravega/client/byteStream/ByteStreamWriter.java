@@ -44,9 +44,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * 
      * It is intended that this method not block, but it may in the event that the server becomes
      * disconnected for sufficiently long or is sufficiently slow that that backlog of data to be
-     * written becomes a memory issue. If this behavior is undesirable the method
-     * {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an exception
-     * instead of blocking.
+     * written becomes a memory issue. 
      * 
      * @param src The bytes to write.
      * @throws IOException If for any reason an error occurs writing the data, including if the

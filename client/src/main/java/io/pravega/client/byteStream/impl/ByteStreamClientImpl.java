@@ -1,11 +1,10 @@
 /**
  * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.client.byteStream.impl;
 
@@ -29,21 +28,26 @@ public class ByteStreamClientImpl implements ByteStreamClient {
     private final SegmentInputStreamFactory inputStreamFactory;
     private final SegmentOutputStreamFactory outputStreamFactory;
     private final SegmentMetadataClientFactory metaStreamFactory;
-    
+
     @Override
     public ByteStreamReader createByteStreamReader(String streamName) {
         return createByteStreamReaders(new Segment(scope, streamName, 0));
     }
-    
+
     ByteStreamReader createByteStreamReaders(Segment segment) {
-        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment));
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
+                                                                                                          segment.getStream()
+                                                                                                                 .getStreamName()),
+                                                                RuntimeException::new);
+        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, delegationToken),
+                                        metaStreamFactory.createSegmentMetadataClient(segment, delegationToken));
     }
 
     @Override
     public ByteStreamWriter createByteStreamWriter(String streamName) {
         return createByteStreamWriter(new Segment(scope, streamName, 0), EventWriterConfig.builder().build());
     }
-    
+
     ByteStreamWriter createByteStreamWriter(Segment segment, EventWriterConfig config) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStreamName()),

@@ -67,11 +67,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStream()
-                                                                                                                 .getStreamName()),
-                                                                RuntimeException::new);
+    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         try {
             Exceptions.handleInterrupted(() -> async.getConnection().get());

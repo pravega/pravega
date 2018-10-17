@@ -11,7 +11,9 @@ package io.pravega.client.byteStream.impl;
 
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.InvalidOffsetException;
+import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.SegmentInputStream;
+import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.common.Exceptions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,6 +27,7 @@ import lombok.ToString;
 public class ByteStreamReaderImpl extends ByteStreamReader {
 
     private final SegmentInputStream input;
+    private final SegmentMetadataClient meta;
     private final AtomicBoolean closed = new AtomicBoolean(false); 
 
     @Override
@@ -46,7 +49,6 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     @Override
     public int available() {
         Exceptions.checkNotClosed(closed.get(), this);
-        //Can't replace isSegmentReady because does not handle EOF correctly. Need to have a way to deal with that.
         return input.bytesInBuffer();
     }
 
@@ -59,24 +61,33 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
 
     @Override
     public long fetchTailOffset() {
-        throw new UnsupportedOperationException("TODO");
+        return meta.fetchCurrentSegmentLength();
     }
 
     @Override
     public int read(ByteBuffer dst) throws IOException {
         Exceptions.checkNotClosed(closed.get(), this);
-        return input.read(dst, Long.MAX_VALUE);
+        try {
+            return input.read(dst, Long.MAX_VALUE);
+        } catch (EndOfSegmentException e) {
+            return -1;
+        }
     }
 
     @Override
     public int read() throws IOException {
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer buffer = ByteBuffer.allocate(1);
-        int read = input.read(buffer, Long.MAX_VALUE);
-        if (read > 0) {
-            return buffer.get() & 0xFF;
-        } else {
-            return read;
+        try {
+            int read = input.read(buffer, Long.MAX_VALUE);
+            if (read > 0) {
+                buffer.flip();
+                return buffer.get() & 0xFF;
+            } else {
+                return read;
+            }
+        } catch (EndOfSegmentException e) {
+            return -1;
         }
     }
 

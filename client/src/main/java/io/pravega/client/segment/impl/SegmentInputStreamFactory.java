@@ -25,9 +25,10 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
+     * @param delegationToken The delegation used to connect to the server.
      * @return New instance of SegmentInputStream for reading.
      */
-    SegmentInputStream createInputStreamForSegment(Segment segment);
+    SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken);
     
     /**
      * Opens an existing segment for reading events. This operation will fail if the

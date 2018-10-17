@@ -25,9 +25,9 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,8 +40,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     private final Segment segment;
     @GuardedBy("$lock")
-    private int readIndex; 
-    @GuardedBy("$lock")
     private long readOffset = 0;
     @GuardedBy("$lock")
     private int eventsWritten = 0;
@@ -50,20 +48,20 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @GuardedBy("$lock")
     private long writeOffset = 0;
     @GuardedBy("$lock")
-    private final ArrayList<ByteBuffer> dataWritten = new ArrayList<>();
+    private final TreeMap<Long, ByteBuffer> dataWritten = new TreeMap<>();
     @GuardedBy("$lock")
-    private final ArrayList<Long> offsetList = new ArrayList<>();
     private final AtomicBoolean close = new AtomicBoolean();
     private final ConcurrentHashMap<SegmentAttribute, Long> attributes = new ConcurrentHashMap<>();
     
     @Override
     @Synchronized
     public void setOffset(long offset) {
-        int index = offsetList.indexOf(offset);
-        if (index < 0) {
-            throw new IllegalArgumentException("There is not an entry at offset: " + offset);
+        if (offset < 0) {
+            throw new IllegalArgumentException("Invalid offset " + offset);
         }
-        readIndex = index;
+        if (offset > writeOffset) {
+            throw new IllegalArgumentException("Beyond the end of the stream: " + offset);
+        }
         readOffset = offset;
     }
 
@@ -92,14 +90,13 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
-        if (readIndex >= eventsWritten) {
+        if (readOffset >= writeOffset) {
             throw new EndOfSegmentException();
         }
         if (readOffset < startingOffset) {
             throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
         }
-        ByteBuffer buffer = dataWritten.get(readIndex);
-        readIndex++;
+        ByteBuffer buffer = dataWritten.floorEntry(readOffset).getValue();
         readOffset += buffer.remaining();
         ByteBuffer result = buffer.slice();
         result.position(WireCommands.TYPE_PLUS_LENGTH_SIZE);
@@ -113,19 +110,20 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     @Override
     @Synchronized
     public int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException {
-        if (readIndex >= eventsWritten) {
+        if (readOffset >= writeOffset) {
             throw new EndOfSegmentException();
         }
         if (readOffset < startingOffset) {
             throw new SegmentTruncatedException("Data below " + startingOffset + " has been truncated");
         }
-        ByteBuffer buffer = dataWritten.get(readIndex);
-        if (buffer.remaining() <= toFill.remaining()) {            
-            readIndex++;
+        int result = 0;
+        while (toFill.hasRemaining() && readOffset < writeOffset) {
+            ByteBuffer buffer = dataWritten.floorEntry(readOffset).getValue();
+            int read = ByteBufferUtils.copy(buffer, toFill);
+            readOffset += read;
+            result += read;
         }
-        int read = ByteBufferUtils.copy(buffer, toFill);
-        readOffset += read;
-        return read;
+        return result;
     }
 
     @Override
@@ -151,8 +149,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     private void write(ByteBuffer data) {
-        dataWritten.add(data.slice());
-        offsetList.add(writeOffset);
+        dataWritten.put(writeOffset, data.slice());
         eventsWritten++;
         writeOffset += data.remaining();
     }
