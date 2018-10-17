@@ -20,7 +20,6 @@ import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
 import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
