@@ -47,12 +47,12 @@ public class RequestTrackerTest {
         Assert.assertEquals(Long.MIN_VALUE, RequestTracker.getInstance().untrackRequest(requestDescriptor));
 
         // Check that null arguments are not accepted and appropriate exceptions are thrown.
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
+        AssertExtensions.assertThrows(NullPointerException.class,
                 () -> RequestTracker.getInstance().trackRequest(new RequestTag(null, requestId)));
-        AssertExtensions.assertThrows(IllegalArgumentException.class,
+        AssertExtensions.assertThrows(NullPointerException.class,
                 () -> RequestTracker.getInstance().untrackRequest(new RequestTag(null, requestId)));
         String nullDescriptor = null;
-        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> RequestTracker.getInstance().getRequestIdFor(nullDescriptor));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> RequestTracker.getInstance().getRequestIdFor(nullDescriptor));
     }
 
     /**
