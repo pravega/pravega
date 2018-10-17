@@ -26,7 +26,7 @@ import java.util.UUID;
 @Builder
 /**
  * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
- * transcations that current round of processing will attempt to commit. If the processing fails and retries, it will
+ * transactions that current round of processing will attempt to commit. If the processing fails and retries, it will
  * find the list of transcations and reattempt to process them in exact same order.
  * This also includes optional "active epoch" field which is set if the commits have to be rolled over because they are
  * over an older epoch.
@@ -38,16 +38,16 @@ public class CommitTransactionsRecord {
     /**
      * Epoch from which transactions are committed.
      */
-    final int epoch;
+    private final int epoch;
     /**
      * Transactions to be be committed.
      */
-    final List<UUID> transactionsToCommit;
+    private final List<UUID> transactionsToCommit;
 
     /**
      * Set only for rolling transactions and identify the active epoch that is being rolled over.
      */
-    Optional<Integer> activeEpoch;
+    private Optional<Integer> activeEpoch;
 
     CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
         this(epoch, transactionsToCommit, Optional.empty());
@@ -82,11 +82,7 @@ public class CommitTransactionsRecord {
         return new CommitTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
     }
 
-    public boolean isRollingTxRecord() {
+    public boolean isRollingTxnRecord() {
         return activeEpoch.isPresent();
-    }
-
-    public int getActiveEpoch() {
-        return activeEpoch.orElse(Integer.MIN_VALUE);
     }
 }

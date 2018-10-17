@@ -66,8 +66,9 @@ public class HistoryTimeSeries {
     public static HistoryTimeSeries addHistoryRecord(HistoryTimeSeries series, HistoryTimeSeriesRecord record) {
         List<HistoryTimeSeriesRecord> list = Lists.newArrayList(series.historyRecords);
 
-        // add only if cut.recordingTime is newer than any previous record
-        if (list.stream().noneMatch(x -> x.getScaleTime() >= record.getScaleTime())) {
+        // add only if cut.recordingTime is newer than the previous record
+        
+        if (list.get(list.size() - 1).getScaleTime() <= record.getScaleTime()) {
             list.add(record);
         }
 

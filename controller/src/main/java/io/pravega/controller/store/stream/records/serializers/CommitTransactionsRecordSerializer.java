@@ -46,7 +46,7 @@ public class CommitTransactionsRecordSerializer
     private void write00(CommitTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
         revisionDataOutput.writeInt(record.getEpoch());
         revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
-        revisionDataOutput.writeInt(record.getActiveEpoch());
+        revisionDataOutput.writeInt(record.getActiveEpoch().orElse(Integer.MIN_VALUE));
     }
 
     @Override

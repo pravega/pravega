@@ -30,14 +30,15 @@ import java.util.Map;
 @Slf4j
 @Data
 /**
- * Sealed Segments Map is divided into multiple shards with each shard containing sealed sizes for a group of segments
- * identified by some hashing function.
- * For example, a simple modulo of segment number divided by shard_size can computed to determine the shard where the
- * segmentIds sealed size should be stored. Another alternative is to take epoch from the segmentid and use it to compute the
- * shard number.
- * So each shard can theoretically contain unbounded number of segment ids but if a good hash is chosen, we should not have very large number of
- * entries in it.
- */
+ * Sealed Segments Map is divided into multiple shards with each shard containing sealed sizes
+ * for a group of segments, with shard membership determined by a hash function. For example,
+ * we can use a simple modulo of the segment number to determine the shard where the
+ * corresponding sizes of the sealed segments are stored. An alternative is to take the epoch
+ * from the segmentId to compute the shard number.
+ *
+ * Each shard can contain unbounded number of segment ids, but if we use a good hash function,
+ * then the load is expected to be balanced across shards.
+*/
 public class SealedSegmentsMapShard {
     public static final SealedSegmentsMapShardSerializer SERIALIZER = new SealedSegmentsMapShardSerializer();
     public static final int SHARD_SIZE = 10000;

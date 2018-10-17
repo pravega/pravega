@@ -37,10 +37,8 @@ public class HistoryTimeSeriesRecord {
     private final int referenceEpoch;
     @Getter
     private final List<StreamSegmentRecord> segmentsSealed;
-
     @Getter
     private final List<StreamSegmentRecord> segmentsCreated;
-
     @Getter
     private final long scaleTime;
 

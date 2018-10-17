@@ -29,80 +29,7 @@ import java.util.stream.IntStream;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 
 public class RecordHelper {
-    public static <T> int binarySearch(final List<T> list, final long time, Function<T, Long> getTime) {
-        return binarySearch(list, 0, list.size(), time, getTime);
-    }
-
-    private static <T> int binarySearch(final List<T> list, final int lower, final int upper, final long time, Function<T, Long> getTime) {
-        if (upper < lower) {
-            assert getTime.apply(list.get(0)) > time;
-            // return index 0.
-            return 0;
-        }
-
-        final int middle = (lower + upper) / 2;
-
-        T middleRecord = list.get(middle);
-
-        if (getTime.apply(middleRecord) <= time) {
-            T next = list.size() > middle + 1 ? list.get(middle + 1) : null;
-            if (next == null || (getTime.apply(next) > time)) {
-                return middle;
-            } else {
-                return binarySearch(list, middle + 1, upper, time, getTime);
-            }
-        } else {
-            return binarySearch(list, lower, middle - 1, time, getTime);
-        }
-    }
-
-    /**
-     * Get active segments at given timestamp.
-     * Perform binary search on index table to find the record corresponding to timestamp.
-     * Once we find the segments, compare them to truncationRecord and take the more recent of the two.
-     *
-     * @param epochRecord epoch record
-     * @param truncationRecord truncation record
-     * @return list of active segments.
-     */
-    public static Map<StreamSegmentRecord, Long> getActiveSegments(EpochRecord epochRecord, final TruncationRecord truncationRecord) {
-
-        Map<StreamSegmentRecord, Long> segmentsWithOffset;
-        if (truncationRecord.equals(TruncationRecord.EMPTY)) {
-            segmentsWithOffset = epochRecord.getSegments().stream().collect(Collectors.toMap(x -> x, x -> 0L));
-        } else {
-            // case 1: if record.epoch is before truncation, simply pick the truncation stream cut
-            if (epochRecord.getEpoch() < truncationRecord.getTruncationEpochLow()) {
-                segmentsWithOffset = truncationRecord.getStreamCut().entrySet().stream()
-                        .collect(Collectors.toMap(e -> truncationRecord.getSpan().keySet().stream()
-                                .filter(x -> x.segmentId() == e.getKey()).findAny().get(), Map.Entry::getValue));
-            } else if (epochRecord.getEpoch() > truncationRecord.getTruncationEpochHigh()) {
-                // case 2: if record.epoch is after truncation, simply use the record epoch
-                segmentsWithOffset = epochRecord.getSegments().stream().collect(Collectors.toMap(x -> x,
-                        x -> truncationRecord.getStreamCut().getOrDefault(x, 0L)));
-            } else {
-                // case 3: overlap between requested epoch and stream cut.
-                // take segments from stream cut that are from or after this epoch.
-                // take remaining segments from this epoch.
-                segmentsWithOffset = new HashMap<>();
-                // all segments from stream cut that have epoch >= this epoch
-                List<StreamSegmentRecord> fromStreamCut = truncationRecord.getSpan().entrySet().stream()
-                        .filter(x -> x.getValue() >= epochRecord.getEpoch())
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toList());
-
-                // add segments from the truncation record with corresponding offsets
-                fromStreamCut.forEach(x -> segmentsWithOffset.put(x, truncationRecord.getStreamCut().get(x)));
-
-                // put remaining segments as those that dont overlap with ones taken from streamCut.
-                // Note: we will use the head of these segments, basically offset = 0
-                epochRecord.getSegments().stream().filter(x -> fromStreamCut.stream().noneMatch(x::overlaps))
-                        .forEach(x -> segmentsWithOffset.put(x, 0L));
-            }
-        }
-        return segmentsWithOffset;
-    }
-
+    
     // region scale helper methods
     /**
      * Method to validate supplied scale input. It performs a check that new ranges are identical to sealed ranges.
@@ -129,16 +56,28 @@ public class RecordHelper {
     }
 
     /**
-     * Method to check scale operation can be performed with given input.
+     * Method to check that segments to seal are present in current epoch
      *
      * @param segmentsToSeal segments to seal
      * @param currentEpoch current epoch record
      * @return true if a scale operation can be performed, false otherwise
      */
     public static boolean canScaleFor(final List<Long> segmentsToSeal, final EpochRecord currentEpoch) {
-        return segmentsToSeal.stream().allMatch(x -> currentEpoch.getSegments().stream().anyMatch(y -> y.segmentId() == x));
+        return currentEpoch.getSegmentIds().containsAll(segmentsToSeal);
     }
 
+    /**
+     * Method to verify if supplied epoch transition record matches the supplied input which includes segments to seal, 
+     * new ranges to create. 
+     * For manual scale, it will verify that segments to seal match and epoch transition record share the same segment 
+     * number.
+     * 
+     * @param segmentsToSeal list of segments to seal
+     * @param newRanges list of new ranges to create
+     * @param isManualScale if it is manual scale
+     * @param record epoch transition record
+     * @return true if record matches supplied input, false otherwise. 
+     */
     public static boolean verifyRecordMatchesInput(List<Long> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                    boolean isManualScale, EpochTransitionRecord record) {
         boolean newRangeMatch = newRanges.stream().allMatch(x ->

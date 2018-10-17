@@ -62,6 +62,34 @@ public final class CollectionHelpers {
         return -1;
     }
 
+    public static <T> int binarySearch(final List<? extends T> list, final long time, Function<? super T, Long> getTime) {
+        return binarySearch(list, 0, list.size(), time, getTime);
+    }
+
+    private static <T> int binarySearch(final List<? extends T> list, final int lower, final int upper, 
+                                        final long time, Function<? super T, Long> getTime) {
+        if (upper < lower) {
+            assert getTime.apply(list.get(0)) > time;
+            // return index 0.
+            return 0;
+        }
+
+        final int middle = (lower + upper) / 2;
+
+        T middleRecord = list.get(middle);
+
+        if (getTime.apply(middleRecord) <= time) {
+            T next = list.size() > middle + 1 ? list.get(middle + 1) : null;
+            if (next == null || (getTime.apply(next) > time)) {
+                return middle;
+            } else {
+                return binarySearch(list, middle + 1, upper, time, getTime);
+            }
+        } else {
+            return binarySearch(list, lower, middle - 1, time, getTime);
+        }
+    }
+    
     /**
      * Performs a binary search on the given IndexedMap.
      *
