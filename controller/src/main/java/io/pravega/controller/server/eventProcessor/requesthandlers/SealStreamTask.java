@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
@@ -73,7 +74,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                             if (!noTransactions) {
                                 // If transactions exist on the stream, we will throw OperationNotAllowed so that this task
                                 // is retried.
-                                log.debug("[requestId={}] Found open transactions on stream {}/{}. Postponing its sealing.", requestId, scope, stream);
+                                LoggerHelpers.debugLogWithTag(log, requestId, "Found open transactions on stream {}/{}. Postponing its sealing.",
+                                        scope, stream);
                                 throw StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
                                         "Found ongoing transactions. Abort transaction requested." +
                                                 "Sealing stream segments should wait until transactions are aborted.");
@@ -125,8 +127,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                                                 // already being aborted.
                                                 // DataNotFoundException: If transaction metadata is cleaned up after reading list
                                                 // of active segments
-                                                log.debug("[requestId={}] A known exception thrown during seal stream while trying to abort transaction " +
-                                                        "on stream {}/{}", requestId, scope, stream, cause);
+                                                LoggerHelpers.debugLogWithTag(log, requestId, "A known exception thrown during seal stream " +
+                                                        "while trying to abort transaction on stream {}/{}", scope, stream, cause);
                                             } else {
                                                 // throw the original exception
                                                 // Note: we can ignore this error because if there are transactions found on a stream,
@@ -134,8 +136,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                                                 // So in subsequent iteration it will reattempt to abort all active transactions.
                                                 // This is a valid course of action because it is important to understand that
                                                 // all transactions are completable (either via abort of commit).
-                                                log.warn("[requestId={}] Exception thrown during seal stream while trying to abort transaction " +
-                                                        "on stream {}/{}", requestId, scope, stream, cause);
+                                                LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown during seal stream while trying " +
+                                                        "to abort transaction on stream {}/{}", scope, stream, cause);
                                             }
                                             return null;
                                         }));
@@ -152,7 +154,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<Segment> activeSegments, long requestId) {
         List<Long> segmentsToBeSealed = activeSegments.stream().map(Segment::segmentId).
                 collect(Collectors.toList());
-        log.debug("[requestId={}] Sending notification to segment store to seal segments for stream {}/{}", requestId, scope, stream);
+        LoggerHelpers.debugLogWithTag(log, requestId, "Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
         return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed, this.streamMetadataTasks.retrieveDelegationToken(), requestId)
                                   .thenCompose(v -> setSealed(scope, stream, context));
     }

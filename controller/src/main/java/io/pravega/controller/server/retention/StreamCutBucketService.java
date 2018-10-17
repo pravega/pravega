@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -127,17 +128,19 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
         long requestId = System.nanoTime();
-        log.debug("[requestId={}] Periodic background processing for retention called for stream {}/{}", requestId, stream.getScope(), stream.getStreamName());
+        LoggerHelpers.debugLogWithTag(log, requestId, "Periodic background processing for retention called for stream {}/{}",
+                stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                 .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
                         config.getRetentionPolicy(), requestId, context,
                         this.streamMetadataTasks.retrieveDelegationToken()))
                 .exceptionally(e -> {
-                    log.warn("[requestId={}] Exception thrown while performing auto retention for stream {} ", requestId, stream, e);
+                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown while performing auto retention for stream {} ", stream, e);
                     throw new CompletionException(e);
                 }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                 .exceptionally(e -> {
-                    log.warn("[requestId={}] Unable to perform retention for stream {}. Ignoring, retention will be attempted in next cycle.", requestId, stream, e);
+                    LoggerHelpers.warnLogWithTag(log, requestId, "Unable to perform retention for stream {}. " +
+                            "Ignoring, retention will be attempted in next cycle.", stream, e);
                     return null;
                 });
     }

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import com.google.common.base.Preconditions;
@@ -67,8 +68,8 @@ public class AutoScaleTask {
             // we are processing at much slower rate than the message ingestion rate into the stream. We should scale up.
             // Either way, logging this helps us know how often this is happening.
 
-            log.info("[requestId={}] Scale Request for stream {}/{} expired", request.getTimestamp(), request.getScope(),
-                    request.getStream());
+            LoggerHelpers.infoLogWithTag(log, request.getTimestamp(), "Scale Request for stream {}/{} expired",
+                    request.getScope(), request.getStream());
             return CompletableFuture.completedFuture(null);
         }
 
@@ -89,7 +90,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleUp(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
-        log.info("[requestId={}] Scale up request received for stream segment {}", request.getTimestamp(), qualifiedName);
+        LoggerHelpers.infoLogWithTag(log, request.getTimestamp(), "Scale up request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -115,7 +116,7 @@ public class AutoScaleTask {
 
     private CompletableFuture<Void> processScaleDown(final AutoScaleEvent request, final ScalingPolicy policy, final OperationContext context) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), request.getSegmentId());
-        log.info("[requestId={}] Scale down request received for stream segment {}", request.getTimestamp(), qualifiedName);
+        LoggerHelpers.infoLogWithTag(log, request.getTimestamp(), "Scale down request received for stream segment {}", qualifiedName);
         if (policy.getScaleType().equals(ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS)) {
             return CompletableFuture.completedFuture(null);
         }
@@ -169,8 +170,7 @@ public class AutoScaleTask {
                     if (toMerge != null && toMerge.size() > 1) {
                         toMerge.forEach(x -> {
                             String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(request.getScope(), request.getStream(), x.segmentId());
-
-                            log.debug("[requestId={}] Merging stream segment {} ", request.getTimestamp(), segmentName);
+                            LoggerHelpers.debugLogWithTag(log, request.getTimestamp(), "Merging stream segment {} ", segmentName);
                         });
 
                         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();

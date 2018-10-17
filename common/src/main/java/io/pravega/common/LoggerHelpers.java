@@ -110,4 +110,60 @@ public final class LoggerHelpers {
             log.trace("LEAVE {}::{}@{} {} (elapsed={}us).", context, method, traceEnterId, args, ELAPSED_MICRO.apply(traceEnterId));
         }
     }
+
+    /**
+     * Writes a debug-level log line on the provided logger consisting of a header tag (e.g., requestId) and the message
+     * passed (plus the arguments). Note that the message may include formatting anchors to be filled by subsequent
+     * arguments.
+     *
+     * @param log           The Logger to log to.
+     * @param requestId     Tag used as header for the log line.
+     * @param message       Message to log including formatting anchors.
+     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
+     */
+    public static void debugLogWithTag(Logger log, long requestId, String message, Object... args) {
+        log.debug("[requestId={}] ".concat(message), requestId, args);
+    }
+
+    /**
+     * Writes a info-level log line on the provided logger consisting of a header tag (e.g., requestId) and the message
+     * passed (plus the arguments). Note that the message may include formatting anchors to be filled by subsequent
+     * arguments.
+     *
+     * @param log           The Logger to log to.
+     * @param requestId     Tag used as header for the log line.
+     * @param message       Message to log including formatting anchors.
+     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
+     */
+    public static void infoLogWithTag(Logger log, long requestId, String message, Object... args) {
+        log.info("[requestId={}] ".concat(message), requestId, args);
+    }
+
+    /**
+     * Writes a warn-level log line on the provided logger consisting of a header tag (e.g., requestId) and the message
+     * passed (plus the arguments). Note that the message may include formatting anchors to be filled by subsequent
+     * arguments.
+     *
+     * @param log           The Logger to log to.
+     * @param requestId     Tag used as header for the log line.
+     * @param message       Message to log including formatting anchors.
+     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
+     */
+    public static void warnLogWithTag(Logger log, long requestId, String message, Object... args) {
+        log.warn("[requestId={}] ".concat(message), requestId, args);
+    }
+
+    /**
+     * Writes an error-level log line on the provided logger consisting of a header tag (e.g., requestId) and the
+     * message passed (plus the arguments). Note that the message may include formatting anchors to be filled by
+     * subsequent arguments.
+     *
+     * @param log           The Logger to log to.
+     * @param requestId     Tag used as header for the log line.
+     * @param message       Message to log including formatting anchors.
+     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
+     */
+    public static void errorLogWithTag(Logger log, long requestId, String message, Object... args) {
+        log.error("[requestId={}] ".concat(message), requestId, args);
+    }
 }

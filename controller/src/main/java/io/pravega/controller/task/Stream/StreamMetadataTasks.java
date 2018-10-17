@@ -21,6 +21,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.SegmentHelper;
@@ -177,12 +178,14 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(x -> checkDone(() -> isUpdated(scope, stream, newConfig, context))
                                         .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
                     } else {
-                        log.warn("[requestId={}] Another update in progress for {}/{}", requestId, scope, stream);
+                        LoggerHelpers.warnLogWithTag(log, requestId, "Another update in progress for {}/{}",
+                                scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn("[requestId={}] Exception thrown in trying to update stream configuration {}", requestId, ex.getMessage());
+                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown in trying to update stream configuration {}",
+                            ex.getMessage());
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -254,7 +257,8 @@ public class StreamMetadataTasks extends TaskBase {
                         .exceptionally(e -> {
                             if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
                                 // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                log.debug("[requestId={}] Cannot truncate at given streamCut because it intersects with existing truncation point", recordingTime);
+                                LoggerHelpers.debugLogWithTag(log, recordingTime, "Cannot truncate at given " +
+                                        "streamCut because it intersects with existing truncation point");
                                 return null;
                             } else {
                                 throw new CompletionException(e);
@@ -330,12 +334,12 @@ public class StreamMetadataTasks extends TaskBase {
                         return checkDone(() -> isTruncated(scope, stream, streamCut, context))
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
-                        log.warn("[requestId={}] Unable to start truncation for {}/{}", requestId, scope, stream);
+                        LoggerHelpers.warnLogWithTag(log, requestId, "Unable to start truncation for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn("[requestId={}] Exception thrown in trying to update stream configuration {}", requestId, ex);
+                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown in trying to update stream configuration {}", ex);
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -353,11 +357,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
                                 .thenApply(x -> {
-                                    log.debug("[requestId={}] Started truncation request for stream {}/{}", requestId, scope, stream);
+                                    LoggerHelpers.debugLogWithTag(log, requestId, "Started truncation request for stream {}/{}", scope, stream);
                                     return true;
                                 });
                     } else {
-                        log.warn("[requestId={}] Another truncation in progress for {}/{}", requestId, scope, stream);
+                        LoggerHelpers.warnLogWithTag(log, requestId, "Another truncation in progress for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(false);
                     }
                 });
@@ -402,7 +406,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn("[requestId={}] Exception thrown in trying to notify sealed segments {}", requestId, ex.getMessage());
+                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown in trying to notify sealed segments {}", ex.getMessage());
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -443,7 +447,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    log.warn("[requestId={}] Exception thrown while deleting stream", requestId, ex.getMessage());
+                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown while deleting stream {}", ex.getMessage());
                     return handleDeleteStreamError(ex, requestId);
                 });
     }
@@ -483,11 +487,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
-                                    log.warn("[requestId={}] Scale for stream {}/{} failed with exception {}", requestId, scope, stream, cause);
+                                    LoggerHelpers.warnLogWithTag(log, requestId, "Scale for stream {}/{} failed with exception {}", scope, stream, cause);
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
-                                log.info("[requestId={}] scale for stream {}/{} started successfully", requestId, scope, stream);
+                                LoggerHelpers.infoLogWithTag(log, requestId, "scale for stream {}/{} started successfully", scope, stream);
                                 response.setStatus(ScaleResponse.ScaleStreamStatus.STARTED);
                                 response.addAllSegments(
                                         startScaleResponse.getNewSegmentsWithRange().entrySet()
@@ -584,7 +588,7 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = RequestTracker.getInstance().getRequestIdFor("createStream", scope, stream);
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
-                    log.info("[requestId={}] {}/{} created in metadata store", requestId, scope, stream);
+                    LoggerHelpers.infoLogWithTag(log, requestId, "{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
                     // segments and change the state of the stream to active.
@@ -624,7 +628,7 @@ public class StreamMetadataTasks extends TaskBase {
                         if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
-                            log.warn("[requestId={}] Create stream failed due to ", requestId, ex);
+                            LoggerHelpers.warnLogWithTag(log, requestId, "Create stream failed due to ", ex);
                             return CreateStreamStatus.Status.FAILURE;
                         }
                     } else {
@@ -762,7 +766,7 @@ public class StreamMetadataTasks extends TaskBase {
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
-            log.warn("[requestId={}] Update stream failed due to ", requestId, cause);
+            LoggerHelpers.warnLogWithTag(log, requestId, "Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
         }
     }
@@ -772,7 +776,7 @@ public class StreamMetadataTasks extends TaskBase {
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
-            log.warn("[requestId={}] Delete stream failed.", requestId, ex);
+            LoggerHelpers.warnLogWithTag(log, requestId, "Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
         }
     }

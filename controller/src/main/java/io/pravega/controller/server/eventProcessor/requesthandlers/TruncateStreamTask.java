@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -75,7 +76,8 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
                                                     OperationContext context, String delegationToken, long requestId) {
-        log.info("[requestId={}] Truncating stream {}/{} at stream cut: {}", requestId, scope, stream, truncationRecord.getStreamCut());
+        LoggerHelpers.infoLogWithTag(log, requestId, "Truncating stream {}/{} at stream cut: {}", scope,
+                stream, truncationRecord.getStreamCut());
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
                 .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken, requestId))
                 .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken, requestId))
@@ -87,7 +89,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,
                                                          String delegationToken, long requestId) {
-        log.debug("[requestId={}] {}/{} deleting segments {}", requestId, scope, stream, segmentsToDelete);
+        LoggerHelpers.debugLogWithTag(log, requestId, "{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
                 .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment, delegationToken, requestId))
@@ -96,7 +98,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
     private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Long, Long> streamCut,
                                                            String delegationToken, long requestId) {
-        log.debug("[requestId={}] {}/{} truncating segments", requestId, scope, stream);
+        LoggerHelpers.debugLogWithTag(log, requestId, "{}/{} truncating segments", scope, stream);
         return Futures.allOf(streamCut.entrySet().stream()
                 .parallel()
                 .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut, delegationToken, requestId))

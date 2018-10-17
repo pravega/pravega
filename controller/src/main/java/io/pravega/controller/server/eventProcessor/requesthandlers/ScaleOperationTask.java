@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -52,7 +53,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        log.info("[requestId={}] starting scale request for {}/{} segments {} to new ranges {}", request.getScaleTime(),
+        LoggerHelpers.infoLogWithTag(log, request.getScaleTime(), "starting scale request for {}/{} segments {} to new ranges {}",
                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
         runScale(request, request.isRunOnlyIfStarted(), context,
@@ -63,11 +64,11 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
-                        log.warn("[requestId={}] processing scale request for {}/{} segments {} failed {}", request.getScaleTime(),
+                        LoggerHelpers.warnLogWithTag(log, request.getScaleTime(), "processing scale request for {}/{} segments {} failed {}",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
                         result.completeExceptionally(cause);
                     } else {
-                        log.info("[requestId={}] scale request for {}/{} segments {} to new ranges {} completed successfully.", request.getScaleTime(),
+                        LoggerHelpers.infoLogWithTag(log, request.getScaleTime(), "scale request for {}/{} segments {} to new ranges {} completed successfully.",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
                         result.complete(null);
@@ -105,7 +106,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                                     .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, context, executor))
                                     .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor))
                                     .thenApply(y -> {
-                                        log.info("[requestId={}] scale processing for {}/{} epoch {} completed.", requestId, scope, stream, response.getActiveEpoch());
+                                        LoggerHelpers.infoLogWithTag(log, requestId, "scale processing for {}/{} epoch {} completed.",
+                                                scope, stream, response.getActiveEpoch());
                                         return response;
                                     });
                         }));

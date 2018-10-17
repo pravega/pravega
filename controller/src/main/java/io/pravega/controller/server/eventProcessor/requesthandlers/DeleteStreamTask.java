@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
@@ -58,8 +59,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.isSealed(scope, stream, context, executor)
                 .thenComposeAsync(sealed -> {
                     if (!sealed) {
-                        log.warn("[requestId={}] {}/{} stream not sealed", requestId, scope, stream);
-
+                        LoggerHelpers.warnLogWithTag(log, requestId, "{}/{} stream not sealed", scope, stream);
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
                     return notifyAndDelete(context, scope, stream, requestId);
@@ -68,14 +68,14 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                     if (e instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
-                    log.error("[requestId={}] {}/{} stream delete workflow threw exception.", requestId, scope, stream, e);
+                    LoggerHelpers.errorLogWithTag(log, requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
 
                     throw new CompletionException(e);
                 });
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {
-        log.info("[requestId={}] {}/{} deleting segments", requestId, scope, stream);
+        LoggerHelpers.infoLogWithTag(log, requestId, "{}/{} deleting segments", scope, stream);
         return streamMetadataStore.getScaleMetadata(scope, stream, context, executor)
                 .thenComposeAsync(scaleMetadata -> {
                     Set<Long> toDelete = new HashSet<>();

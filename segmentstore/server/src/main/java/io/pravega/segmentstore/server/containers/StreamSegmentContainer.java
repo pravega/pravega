@@ -19,7 +19,6 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
@@ -76,7 +75,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import static io.pravega.common.tracing.RequestTracker.buildRequestDescriptor;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -413,7 +411,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
         ensureRunning();
 
-        logTrackedRequest("createSegment", "createStreamSegment", streamSegmentName);
+        logRequest("createStreamSegment", streamSegmentName);
         this.metrics.createSegment();
         return this.segmentMapper.createNewStreamSegment(streamSegmentName, attributes, timeout);
     }
@@ -422,7 +420,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
         ensureRunning();
 
-        logTrackedRequest("deleteSegment", "deleteStreamSegment", streamSegmentName);
+        logRequest("deleteStreamSegment", streamSegmentName);
         this.metrics.deleteSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
@@ -456,23 +454,23 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
         ensureRunning();
 
-        long requestId = logTrackedRequest("mergeSegments", "mergeStreamSegment", sourceStreamSegment, targetStreamSegment);
+        logRequest("mergeStreamSegment", targetStreamSegment, sourceStreamSegment);
         this.metrics.mergeSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         return this.segmentMapper
                 .getOrAssignStreamSegmentId(targetStreamSegment, timer.getRemaining(),
                         targetSegmentId -> this.segmentMapper.getOrAssignStreamSegmentId(sourceStreamSegment, timer.getRemaining(),
-                                sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer, requestId)))
+                                sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer)))
                 .thenComposeAsync(sp -> this.stateStore.remove(sourceStreamSegment, timer.getRemaining())
                                                        .thenApply(v -> sp), this.executor);
     }
 
-    private CompletableFuture<SegmentProperties> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer, long requestId) {
+    private CompletableFuture<SegmentProperties> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer) {
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
 
-        CompletableFuture<Void> result = trySealStreamSegment(sourceMetadata, timer.getRemaining(), requestId);
+        CompletableFuture<Void> result = trySealStreamSegment(sourceMetadata, timer.getRemaining());
         if (sourceMetadata.getLength() == 0) {
             // Source is empty. We may be able to skip the merge altogether and simply delete the segment. But we can only
             // be certain of this if the source is also sealed, otherwise it's possible it may still have outstanding
@@ -482,7 +480,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 // to and including the seal, so if there were any writes outstanding before, they should now be reflected in it.
                 if (sourceMetadata.getLength() == 0) {
                     // Source is still empty after sealing - OK to delete.
-                    log.debug("[requestId={}] {}: Deleting empty source segment instead of merging {}.", requestId, this.traceObjectId, sourceMetadata.getName());
+                    log.debug("{}: Deleting empty source segment instead of merging {}.", this.traceObjectId, sourceMetadata.getName());
                     return deleteStreamSegment(sourceMetadata.getName(), timer.getRemaining());
                 } else {
                     // Source now has some data - we must merge the two.
@@ -583,7 +581,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
      * @return A CompletableFuture that will indicate when the operation completes. If the given segment is already sealed,
      * this future will already be completed, otherwise it will complete once the seal is performed.
      */
-    private CompletableFuture<Void> trySealStreamSegment(SegmentMetadata metadata, Duration timeout, long requestId) {
+    private CompletableFuture<Void> trySealStreamSegment(SegmentMetadata metadata, Duration timeout) {
         if (metadata.isSealed()) {
             return CompletableFuture.completedFuture(null);
         } else {
@@ -741,13 +739,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private void logRequest(String requestName, Object... args) {
         log.debug("{}: {} {}", this.traceObjectId, requestName, args);
-    }
-
-    private long logTrackedRequest(String requestName, String methodName, String... args) {
-        String requestDescriptor = buildRequestDescriptor(requestName, args);
-        long requestId =  RequestTracker.getInstance().getRequestIdFor(requestDescriptor);
-        log.debug("[requestId={}] {}: {} {}", requestId, this.traceObjectId, methodName, args);
-        return requestId;
     }
 
     private void shutdownWhenStopped(Service component, String componentName) {

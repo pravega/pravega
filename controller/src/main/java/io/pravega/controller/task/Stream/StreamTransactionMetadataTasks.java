@@ -15,6 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.SegmentHelper;
@@ -561,9 +562,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
         addIndex.whenComplete((v, e) -> {
             if (e != null) {
-                log.debug("[requestId={}] Txn={}, already present/newly added to host-txn index of host={}", requestId, txnId, hostId);
+                LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, already present/newly added to host-txn index of host={}",
+                        txnId, hostId);
             } else {
-                log.debug("[requestId={}] Txn={}, added txn to host-txn index of host={}", requestId, txnId, hostId);
+                LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, added txn to host-txn index of host={}",
+                        txnId, hostId);
             }
         });
 
@@ -572,9 +575,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, ctx, executor), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
-                        log.debug("[requestId={}] Txn={}, failed sealing txn", requestId, txnId);
+                        LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, failed sealing txn", txnId);
                     } else {
-                        log.debug("[requestId={}] Txn={}, sealed successfully, commit={}", requestId, txnId, commit);
+                        LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, sealed successfully, commit={}",
+                                txnId, commit);
                     }
                 });
 
@@ -599,12 +603,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor).thenComposeAsync(status -> {
             // Step 4. Remove txn from timeoutService, and from the index.
             timeoutService.removeTxn(scope, stream, txnId);
-            log.debug("[requestId={}] Txn={}, removed from timeout service", requestId, txnId);
+            LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, removed from timeout service", txnId);
             return streamMetadataStore.removeTxnFromIndex(host, resource, true).whenComplete((v, e) -> {
                 if (e != null) {
-                    log.debug("[requestId={}] Txn={}, failed removing txn from host-txn index of host={}", requestId, txnId, hostId);
+                    LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, failed removing txn from host-txn index of host={}",
+                            txnId, hostId);
                 } else {
-                    log.debug("[requestId={}] Txn={}, removed txn from host-txn index of host={}", requestId, txnId, hostId);
+                    LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, removed txn from host-txn index of host={}",
+                            txnId, hostId);
                 }
             }).thenApply(x -> status);
         }, executor);

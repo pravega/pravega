@@ -12,7 +12,6 @@ package io.pravega.common.tracing;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.Lists;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -56,10 +55,6 @@ public final class RequestTracker {
         return Stream.of(requestInfo).collect(Collectors.joining(INTER_FIELD_DELIMITER));
     }
 
-    public static String buildRequestDescriptor(String first, String[] rest) {
-        return buildRequestDescriptor(Lists.asList(first, rest).toArray(new String[rest.length]));
-    }
-
     /**
      * Retrieves a RequestTag object formed by a request descriptor and request id pair. In the case of concurrent
      * requests with the same descriptor,
@@ -72,15 +67,14 @@ public final class RequestTracker {
     }
 
     public RequestTag getRequestTagFor(String requestDescriptor) {
-        Preconditions.checkArgument(requestDescriptor != null, "Attempting to get a null request descriptor.");
+        Preconditions.checkNotNull(requestDescriptor, "Attempting to get a null request descriptor.");
         List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
         if (requestIds == null) {
             log.warn("Attempting to get a non-existing tag: {}.", requestDescriptor);
             return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
         } else if (requestIds.size() > 1) {
-            log.warn("{} request ids are associated with same descriptor: {}. The first request id {} is the one that will be propagated, " +
-                "given that other operations will not take effect due to idempotence of traced operations.", requestIds,
-                    requestDescriptor, requestIds.get(0));
+            log.warn("{} request ids associated with same descriptor: {}. Propagating only first one: {}.",
+                    requestIds, requestDescriptor, requestIds.get(0));
         }
 
         return new RequestTag(requestDescriptor, requestIds.get(0));
@@ -111,7 +105,7 @@ public final class RequestTracker {
     }
 
     public synchronized void trackRequest(String requestDescriptor, long requestId) {
-        Preconditions.checkArgument(requestDescriptor != null, "Attempting to track a null request descriptor.");
+        Preconditions.checkNotNull(requestDescriptor, "Attempting to track a null request descriptor.");
         List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
         if (requestIds == null) {
             requestIds = new ArrayList<>();
@@ -119,8 +113,7 @@ public final class RequestTracker {
 
         requestIds.add(requestId);
         ongoingRequests.put(requestDescriptor, requestIds);
-        log.debug("Tracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestId,
-                ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
+        log.debug("Tracking request {} with id {}.", requestDescriptor, requestId);
     }
 
     /**
@@ -136,7 +129,7 @@ public final class RequestTracker {
     }
 
     public synchronized long untrackRequest(String requestDescriptor) {
-        Preconditions.checkArgument(requestDescriptor != null, "Attempting to untrack a null request descriptor.");
+        Preconditions.checkNotNull(requestDescriptor, "Attempting to untrack a null request descriptor.");
         List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
         if (requestIds == null) {
             log.warn("Attempting to untrack a non-existing key: {}.", requestDescriptor);
@@ -154,8 +147,7 @@ public final class RequestTracker {
             removedRequestId = requestIds.get(0);
         }
 
-        log.debug("Untracking request {} with id {}. Current ongoing requests: {}.", requestDescriptor, requestIds,
-                ongoingRequests.asMap().values().stream().mapToInt(List::size).sum());
+        log.debug("Untracking request {} with id {}.", requestDescriptor, requestIds);
         return removedRequestId;
     }
 

@@ -22,6 +22,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -152,7 +153,7 @@ public class AutoScaleProcessor {
             long timestamp = System.currentTimeMillis();
 
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info("[requestId={}] sending request for scale up for {}", timestamp, streamSegmentName);
+                LoggerHelpers.infoLogWithTag(log, timestamp, "sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
@@ -173,7 +174,7 @@ public class AutoScaleProcessor {
 
             long timestamp = System.currentTimeMillis();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info("[requestId={}] sending request for scale down for {}", timestamp, streamSegmentName);
+                LoggerHelpers.infoLogWithTag(log, timestamp, "sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
@@ -191,9 +192,9 @@ public class AutoScaleProcessor {
     private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
         return writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
             if (e != null) {
-                log.error("[requestId={}] error sending request to requeststream {}", event.getTimestamp(), e);
+                LoggerHelpers.errorLogWithTag(log, event.getTimestamp(), "error sending request to requeststream {}", e);
             } else {
-                log.debug("[requestId={}] scale event posted successfully", event.getTimestamp());
+                LoggerHelpers.debugLogWithTag(log, event.getTimestamp(), "scale event posted successfully");
             }
         });
     }

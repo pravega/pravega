@@ -11,6 +11,7 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
@@ -173,7 +174,8 @@ public class TxnSweeper implements FailoverSweeper {
         // To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource.
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "commitTransaction",
                 txn.getScope(), txn.getStream(), txn.getTxnId().toString());
-        log.debug("[requestId={}] Host = {}, failing over committing transaction {}/{}/{}", requestTag.getRequestId(), failedHost, scope, stream, txnId);
+        LoggerHelpers.debugLogWithTag(log, requestTag.getRequestId(), "Host = {}, failing over committing transaction {}/{}/{}",
+                failedHost, scope, stream, txnId);
         return transactionMetadataTasks.writeCommitEvent(scope, stream, epoch, txnId, TxnStatus.COMMITTING, requestTag.getRequestId())
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
@@ -185,7 +187,8 @@ public class TxnSweeper implements FailoverSweeper {
         // To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource.
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "abortTransaction",
                 txn.getScope(), txn.getStream(), txn.getTxnId().toString());
-        log.debug("[requestId={}] Host = {}, failing over aborting transaction {}/{}/{}", requestTag.getRequestId(), failedHost, scope, stream, txnId);
+        LoggerHelpers.debugLogWithTag(log, requestTag.getRequestId(), "Host = {}, failing over aborting transaction {}/{}/{}",
+                failedHost, scope, stream, txnId);
         return transactionMetadataTasks.writeAbortEvent(scope, stream, epoch, txnId, TxnStatus.ABORTING, requestTag.getRequestId())
                 .thenComposeAsync(status -> streamMetadataStore.removeTxnFromIndex(failedHost, txn, true), executor);
     }
@@ -197,7 +200,8 @@ public class TxnSweeper implements FailoverSweeper {
         // To persist the original requestId across hosts in TxnSweeper would require to add requestID in TxnResource.
         RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "openTransaction",
                 txn.getScope(), txn.getStream(), txn.getTxnId().toString());
-        log.debug("[requestId={}] Host = {}, failing over open transaction {}/{}/{}", requestTag.getRequestId(), failedHost, scope, stream, txnId);
+        LoggerHelpers.debugLogWithTag(log, requestTag.getRequestId(), "Host = {}, failing over open transaction {}/{}/{}",
+                failedHost, scope, stream, txnId);
         return streamMetadataStore.getTxnVersionFromIndex(failedHost, txn).thenComposeAsync((Integer version) ->
                 transactionMetadataTasks.sealTxnBody(failedHost, scope, stream, false, txnId, version, null, requestTag.getRequestId())
                         .thenApplyAsync(status -> null, executor), executor);

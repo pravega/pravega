@@ -21,6 +21,7 @@ import io.grpc.MethodDescriptor;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
+import io.pravega.common.LoggerHelpers;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -63,7 +64,7 @@ public final class RPCTracingHelpers {
                     if (requestDescriptor != null && requestId != null && !requestDescriptor.isEmpty() && !requestId.isEmpty()) {
                         headers.put(REQUEST_DESCRIPTOR_HEADER, requestDescriptor);
                         headers.put(REQUEST_ID_HEADER, requestId);
-                        log.info("[requestId={}] Tagging RPC request {}.", requestId, requestDescriptor);
+                        LoggerHelpers.infoLogWithTag(log, Long.parseLong(requestId), "Tagging RPC request {}.", requestDescriptor);
                     } else {
                         log.warn("Not tagging request {}: Call options not containing request tags.", method.getFullMethodName());
                     }
@@ -85,12 +86,13 @@ public final class RPCTracingHelpers {
     private static class FishTaggingServerInterceptor implements ServerInterceptor {
 
         @Override
-        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, final Metadata requestHeaders, ServerCallHandler<ReqT, RespT> next) {
+        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, final Metadata requestHeaders,
+                                                                     ServerCallHandler<ReqT, RespT> next) {
             // Check if this RPC has tags to track request (e.g., older clients).
             if (requestHeaders != null && requestHeaders.containsKey(REQUEST_DESCRIPTOR_HEADER) && requestHeaders.containsKey(REQUEST_ID_HEADER)) {
                 RequestTag requestTag = new RequestTag(requestHeaders.get(REQUEST_DESCRIPTOR_HEADER), Long.parseLong(requestHeaders.get(REQUEST_ID_HEADER)));
                 RequestTracker.getInstance().trackRequest(requestTag);
-                log.info("[requestId={}] Received tag from RPC request {}.", requestHeaders.get(REQUEST_ID_HEADER), requestHeaders.get(REQUEST_DESCRIPTOR_HEADER));
+                LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "Received tag from RPC request {}.", requestTag.getRequestDescriptor());
             } else {
                 log.info("No tags provided for call {} in headers: {}.", call.getMethodDescriptor().getFullMethodName(), requestHeaders);
             }
