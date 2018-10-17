@@ -15,10 +15,13 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.ws.rs.ProcessingException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
@@ -100,7 +103,7 @@ public abstract class PingTest {
 
     public static class SecurePingTest extends PingTest {
 
-        private String getResourcePath(String resource) throws Exception {
+        protected String getResourcePath(String resource) throws Exception {
             return this.getClass().getClassLoader().getResource(resource).toURI().getPath();
         }
 
@@ -128,5 +131,24 @@ public abstract class PingTest {
         protected String getURLScheme() {
             return "https";
         }
+    }
+
+    public static class FailingSecurePingTest extends SecurePingTest {
+        @Override
+        RESTServerConfig getServerConfig() throws Exception {
+            return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
+                                       .tlsEnabled(true)
+                                       .keyFilePath(getResourcePath("bookie.keystore.jks"))
+                                       .keyFilePasswordPath("Wrong_Path")
+                                       .build();
+        }
+
+        @Test
+        public void test() {
+            AssertExtensions.assertThrows(ProcessingException.class, () -> {
+                super.test();
+            });
+        }
+
     }
 }
