@@ -35,24 +35,25 @@ public final class RPCTracingHelpers {
     private static final String REQUEST_ID = "requestId";
     public static final CallOptions.Key<String> REQUEST_DESCRIPTOR_CALL_OPTION = CallOptions.Key.of(REQUEST_DESCRIPTOR, "");
     public static final CallOptions.Key<String> REQUEST_ID_CALL_OPTION = CallOptions.Key.of(REQUEST_ID, "");
-    private static final Metadata.Key<String> REQUEST_DESCRIPTOR_HEADER = Metadata.Key.of(REQUEST_DESCRIPTOR, Metadata.ASCII_STRING_MARSHALLER);
-    private static final Metadata.Key<String> REQUEST_ID_HEADER = Metadata.Key.of(REQUEST_ID, Metadata.ASCII_STRING_MARSHALLER);
+    private static final Metadata.Key<String> DESCRIPTOR_HEADER = Metadata.Key.of(REQUEST_DESCRIPTOR, Metadata.ASCII_STRING_MARSHALLER);
+    private static final Metadata.Key<String> ID_HEADER = Metadata.Key.of(REQUEST_ID, Metadata.ASCII_STRING_MARSHALLER);
 
     public static ClientInterceptor getClientInterceptor() {
-        return new FishTaggingClientInterceptor();
+        return new TaggingClientInterceptor();
     }
 
     public static ServerInterceptor getServerInterceptor() {
-        return new FishTaggingServerInterceptor();
+        return new TaggingServerInterceptor();
     }
 
     /**
      * This interceptor is intended to get request tags from call options and attach them to the RPC request.
      */
-    private static class FishTaggingClientInterceptor implements ClientInterceptor {
+    private static class TaggingClientInterceptor implements ClientInterceptor {
 
         @Override
-        public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> method, CallOptions callOptions, Channel next) {
+        public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> method,
+                                                                   CallOptions callOptions, Channel next) {
 
             return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
                 @Override
@@ -62,11 +63,12 @@ public final class RPCTracingHelpers {
                     final String requestId = callOptions.getOption(REQUEST_ID_CALL_OPTION);
 
                     if (requestDescriptor != null && requestId != null && !requestDescriptor.isEmpty() && !requestId.isEmpty()) {
-                        headers.put(REQUEST_DESCRIPTOR_HEADER, requestDescriptor);
-                        headers.put(REQUEST_ID_HEADER, requestId);
-                        LoggerHelpers.infoLogWithTag(log, Long.parseLong(requestId), "Tagging RPC request {}.", requestDescriptor);
+                        headers.put(DESCRIPTOR_HEADER, requestDescriptor);
+                        headers.put(ID_HEADER, requestId);
+                        LoggerHelpers.debugLogWithTag(log, Long.parseLong(requestId), "Tagging RPC request {}.",
+                                requestDescriptor);
                     } else {
-                        log.warn("Not tagging request {}: Call options not containing request tags.", method.getFullMethodName());
+                        log.debug("Request not tagged {}: Call options not containing request tags.", method.getFullMethodName());
                     }
 
                     super.start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
@@ -83,18 +85,20 @@ public final class RPCTracingHelpers {
     /**
      * This server interceptor is intended to get RPC tags from RPC headers and set the them in the request tracker.
      */
-    private static class FishTaggingServerInterceptor implements ServerInterceptor {
+    private static class TaggingServerInterceptor implements ServerInterceptor {
 
         @Override
-        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, final Metadata requestHeaders,
+        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, final Metadata headers,
                                                                      ServerCallHandler<ReqT, RespT> next) {
             // Check if this RPC has tags to track request (e.g., older clients).
-            if (requestHeaders != null && requestHeaders.containsKey(REQUEST_DESCRIPTOR_HEADER) && requestHeaders.containsKey(REQUEST_ID_HEADER)) {
-                RequestTag requestTag = new RequestTag(requestHeaders.get(REQUEST_DESCRIPTOR_HEADER), Long.parseLong(requestHeaders.get(REQUEST_ID_HEADER)));
+            if (headers != null && headers.containsKey(DESCRIPTOR_HEADER) && headers.containsKey(ID_HEADER)) {
+                RequestTag requestTag = new RequestTag(headers.get(DESCRIPTOR_HEADER), Long.parseLong(headers.get(ID_HEADER)));
                 RequestTracker.getInstance().trackRequest(requestTag);
-                LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "Received tag from RPC request {}.", requestTag.getRequestDescriptor());
+                LoggerHelpers.debugLogWithTag(log, requestTag.getRequestId(), "Received tag from RPC request {}.",
+                        requestTag.getRequestDescriptor());
             } else {
-                log.info("No tags provided for call {} in headers: {}.", call.getMethodDescriptor().getFullMethodName(), requestHeaders);
+                log.debug("No tags provided for call {} in headers: {}.", call.getMethodDescriptor().getFullMethodName(),
+                        headers);
             }
 
             return next.startCall(new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
@@ -102,7 +106,7 @@ public final class RPCTracingHelpers {
                 public void sendHeaders(Metadata responseHeaders) {
                     super.sendHeaders(responseHeaders);
                 }
-            }, requestHeaders);
+            }, headers);
         }
     }
 }

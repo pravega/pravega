@@ -929,13 +929,13 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
 
-        return result.thenApply(DelegationToken::getDelegationToken)
-                     .whenComplete((x, e) -> {
-                         if (e != null) {
-                             log.warn("getCurrentSegments failed: ", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
-                     });
+        return result.thenApply( token -> token.getDelegationToken())
+        .whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("getCurrentSegments failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+        });
     }
 
     // Local callback definition to wrap gRPC responses in CompletableFutures used by the rest of our code.

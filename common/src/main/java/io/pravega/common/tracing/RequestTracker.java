@@ -30,14 +30,16 @@ public final class RequestTracker {
 
     private static final RequestTracker INSTANCE = new RequestTracker();
     private static final String INTER_FIELD_DELIMITER = "-";
+    private static final int MAX_CACHE_SIZE = 1000000;
+    private static final int EVICTION_PERIOD_MINUTES = 10;
 
     private final Cache<String, List<Long>> ongoingRequests;
 
     private RequestTracker() {
         // Clean request tags after a certain amount of time.
         ongoingRequests = CacheBuilder.newBuilder()
-                                      .maximumSize(10000)
-                                      .expireAfterWrite(10, TimeUnit.MINUTES)
+                                      .maximumSize(MAX_CACHE_SIZE)
+                                      .expireAfterWrite(EVICTION_PERIOD_MINUTES, TimeUnit.MINUTES)
                                       .build();
     }
 
