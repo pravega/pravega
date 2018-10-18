@@ -94,7 +94,7 @@ public class ByteStreamWriterTest {
         ByteStreamClient client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
-        ByteBuffer toWrite = ByteBuffer.wrap(new byte[] {0,1,2,3,4});
+        ByteBuffer toWrite = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4 });
         writer.write(toWrite);
         writer.closeAndSeal();
         assertEquals(5, writer.fetchOffset());

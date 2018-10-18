@@ -98,7 +98,7 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * large jumps are that does not have this property.
      */
     @Override
-    public abstract long skip(long n) throws IOException ;
+    public abstract long skip(long n) throws IOException;
 
     /**
      * Closes the reader.
