@@ -15,6 +15,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,7 +53,9 @@ public class ControllerMetadataRecordSerializerTest {
     public void historyTimeSeriesTest() {
         List<StreamSegmentRecord> sealedSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
         List<StreamSegmentRecord> newSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
-        HistoryTimeSeriesRecord node = HistoryTimeSeriesRecord.builder().epoch(0).creationTime(0L).referenceEpoch(0).segmentsCreated(newSegments).segmentsSealed(sealedSegments).build();
+        HistoryTimeSeriesRecord node = HistoryTimeSeriesRecord.builder().epoch(0).creationTime(0L).referenceEpoch(0)
+                                                              .segmentsCreated(newSegments).segmentsSealed(sealedSegments)
+                                                              .build();
 
         assertEquals(HistoryTimeSeriesRecord.fromBytes(node.toBytes()), node);
 
@@ -62,10 +65,18 @@ public class ControllerMetadataRecordSerializerTest {
         HistoryTimeSeries newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node);
         assertEquals(newTimeSeries, timeSeries);
 
-        HistoryTimeSeriesRecord node2 = HistoryTimeSeriesRecord.builder().epoch(0).creationTime(1L).referenceEpoch(0).segmentsCreated(newSegments).segmentsSealed(sealedSegments).build();
+        HistoryTimeSeriesRecord node2 = HistoryTimeSeriesRecord.builder().epoch(1).creationTime(1L).referenceEpoch(0)
+                                                               .segmentsCreated(newSegments).segmentsSealed(sealedSegments)
+                                                               .build();
 
         newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node2);
         assertEquals(newTimeSeries.getLatestRecord(), node2);
+
+        HistoryTimeSeriesRecord node3 = HistoryTimeSeriesRecord.builder().epoch(4).creationTime(1L).referenceEpoch(0)
+                                                               .segmentsCreated(newSegments).segmentsSealed(sealedSegments)
+                                                               .build();
+
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> HistoryTimeSeries.addHistoryRecord(timeSeries, node3));
     }
 
     @Test

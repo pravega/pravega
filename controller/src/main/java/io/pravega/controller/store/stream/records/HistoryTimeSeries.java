@@ -70,10 +70,11 @@ public class HistoryTimeSeries {
         List<HistoryTimeSeriesRecord> list = Lists.newArrayList(series.historyRecords);
 
         // add only if cut.recordingTime is newer than the previous record
-        
-        if (list.get(list.size() - 1).getScaleTime() <= record.getScaleTime()) {
+        if (list.get(list.size() - 1).getEpoch() == record.getEpoch() - 1) {
             list.add(record);
-        }
+        } else if (list.get(list.size() - 1).getEpoch() != record.getEpoch()) {
+            throw new IllegalArgumentException("new epoch record is not continuous");
+        } 
 
         return new HistoryTimeSeries(list);
     }
