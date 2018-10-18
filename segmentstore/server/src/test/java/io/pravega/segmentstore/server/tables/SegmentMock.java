@@ -30,6 +30,7 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -42,7 +43,7 @@ import lombok.val;
 @ThreadSafe
 @RequiredArgsConstructor
 class SegmentMock implements DirectSegmentAccess {
-    @GuardedBy("this")
+    @Getter
     private final UpdateableSegmentMetadata metadata;
     @GuardedBy("this")
     private final EnhancedByteArrayOutputStream contents = new EnhancedByteArrayOutputStream();
@@ -74,7 +75,7 @@ class SegmentMock implements DirectSegmentAccess {
     public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
-            // this method should only be used for constucting the test data.
+            // this method should only be used for constructing the test data.
             long offset;
             synchronized (this) {
                 offset = this.contents.size();
@@ -101,7 +102,7 @@ class SegmentMock implements DirectSegmentAccess {
         }
 
         // We get a slice of the data view, and return a ReadResultMock with entry lengths of 3.
-        return new ReadResultMock(dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
+        return new ReadResultMock(offset, dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
     }
 
     @Override

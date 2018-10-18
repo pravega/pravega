@@ -99,8 +99,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testGenerateInitialTableAttributes() {
-        val w = newWriter(KeyHashers.DEFAULT_HASHER);
-        val updates = w.generateInitialTableAttributes();
+        val updates = IndexWriter.generateInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         Assert.assertEquals("Unexpected number of updates generated.", 2, values.size());
         Assert.assertEquals("Unexpected value for TableNodeID.", 0L, (long) values.get(Attributes.TABLE_NODE_ID));
@@ -253,7 +252,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     private void testUpdate(KeyHasher hasher, int updateBatchSize) {
         val rnd = new Random(0);
         val w = newWriter(hasher);
-        val segment = newMock(w);
+        val segment = newMock();
 
         // Generate batches and update them at once.
         long offset = 0;
@@ -291,7 +290,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     private void testRemove(KeyHasher hasher, int removeBatchSize) {
         val rnd = new Random(0);
         val w = newWriter(hasher);
-        val segment = newMock(w);
+        val segment = newMock();
 
         // Bulk-insert all the keys.
         val keys = new HashMap<Long, HashedArray>();
@@ -324,7 +323,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // Verify that all surviving nodes are index nodes. We do this by figuring out how many times we incremented
         // TABLE_NODE_ID, accounting for the fact that we have number of non-index attributes too and that it starts
         // at some predefined value.
-        val initialAttribs = w.generateInitialTableAttributes();
+        val initialAttribs = IndexWriter.generateInitialTableAttributes();
         int expectedAttributeCount = w.getTableNodeId(segment.getInfo())
                 + initialAttribs.size()
                 - (int) initialAttribs.stream().filter(a -> a.getAttributeId() == Attributes.TABLE_NODE_ID).findFirst().get().getValue();
@@ -337,7 +336,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         final int iterationCount = 200; // This should be smaller than batchSizeBase.
         val rnd = new Random(0);
         val w = newWriter(hasher);
-        val segment = newMock(w);
+        val segment = newMock();
 
         // Generate batches and update them at once.
         long offset = 0;
@@ -519,9 +518,9 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         return new HashedArray(key);
     }
 
-    private SegmentMock newMock(IndexWriter writer) {
+    private SegmentMock newMock() {
         val mock = new SegmentMock(executorService());
-        mock.updateAttributes(writer.generateInitialTableAttributes(), TIMEOUT).join();
+        mock.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
         return mock;
     }
 

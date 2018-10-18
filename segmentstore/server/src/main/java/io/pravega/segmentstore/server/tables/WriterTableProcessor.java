@@ -231,7 +231,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         if (tableIndexOffset < this.aggregator.getLastIndexedOffset()) {
             // This should not happen, ever!
             throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
-                            + "It lower than our known value (%s).",
+                            + "It is lower than our known value (%s).",
                     tableIndexOffset, this.connector.getMetadata().getId(), this.aggregator.getLastIndexedOffset()));
         }
 

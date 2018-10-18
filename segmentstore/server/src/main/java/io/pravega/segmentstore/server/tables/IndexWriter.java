@@ -74,7 +74,7 @@ class IndexWriter extends IndexReader {
      *
      * @return A Collection of {@link AttributeUpdate}s.
      */
-    Collection<AttributeUpdate> generateInitialTableAttributes() {
+    static Collection<AttributeUpdate> generateInitialTableAttributes() {
         return Arrays.asList(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 0L),
                 new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
     }
@@ -143,15 +143,18 @@ class IndexWriter extends IndexReader {
             currentTableNodeId += generateAttributeUpdates(bucketUpdate, currentTableNodeId, attributeUpdates);
         }
 
+        if (lastIndexedOffset > firstIndexedOffset) {
+            // Atomically update the Table-related attributes in the Segment's metadata, once we apply these changes.
+            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, initialTableNodeId, currentTableNodeId, attributeUpdates);
+        }
+
         if (attributeUpdates.isEmpty()) {
             // We haven't made any updates.
             return CompletableFuture.completedFuture(0);
         } else {
-            // Atomically update the Table-related attributes in the Segment's metadata, once we apply these changes.
-            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, initialTableNodeId, currentTableNodeId, attributeUpdates);
             final int result = currentTableNodeId - initialTableNodeId;
             return segment.updateAttributes(attributeUpdates, timeout)
-                    .thenApply(v -> result);
+                          .thenApply(v -> result);
         }
     }
 

@@ -27,6 +27,8 @@ import lombok.RequiredArgsConstructor;
 class ReadResultMock implements ReadResult {
     //region Members
 
+    @Getter
+    private final long streamSegmentStartOffset;
     private final ByteArraySegment data;
     private final int maxResultLength;
     private final int entryLength;
@@ -38,17 +40,12 @@ class ReadResultMock implements ReadResult {
     //region Constructor
 
     ReadResultMock(byte[] data, int maxResultLength, int entryLength) {
-        this(new ByteArraySegment(data), maxResultLength, entryLength);
+        this(0L, new ByteArraySegment(data), maxResultLength, entryLength);
     }
 
     //endregion
 
     //region ReadResult Implementation
-
-    @Override
-    public long getStreamSegmentStartOffset() {
-        return 0;
-    }
 
     @Override
     public void close() {
@@ -66,10 +63,10 @@ class ReadResultMock implements ReadResult {
             return null;
         }
 
-        int offset = this.consumedLength;
-        int length = Math.min(this.entryLength, this.maxResultLength - offset);
+        int relativeOffset = this.consumedLength;
+        int length = Math.min(this.entryLength, Math.min(this.data.getLength(), this.maxResultLength )- relativeOffset);
         this.consumedLength += length;
-        return new Entry(offset, length);
+        return new Entry(relativeOffset, length);
     }
 
     //endregion
@@ -79,20 +76,31 @@ class ReadResultMock implements ReadResult {
     @RequiredArgsConstructor
     @Getter
     private class Entry implements ReadResultEntry {
-        private final long streamSegmentOffset;
+        private final int relativeOffset;
         private final int requestedReadLength;
         private final CompletableFuture<ReadResultEntryContents> content = new CompletableFuture<>();
 
         @Override
+        public long getStreamSegmentOffset() {
+            return streamSegmentStartOffset + relativeOffset;
+        }
+
+        @Override
         public ReadResultEntryType getType() {
-            return ReadResultEntryType.Cache;
+            return this.requestedReadLength == 0 ? ReadResultEntryType.EndOfStreamSegment : ReadResultEntryType.Cache;
         }
 
         @Override
         public void requestContent(Duration timeout) {
             this.content.complete(new ReadResultEntryContents(
-                    data.getReader((int) this.streamSegmentOffset, this.requestedReadLength),
+                    data.getReader(this.relativeOffset, this.requestedReadLength),
                     this.requestedReadLength));
+        }
+
+        @Override
+        public String toString() {
+            return String.format("SegmentOffset = %s, RelativeOffset = %s, Length = %s", getStreamSegmentOffset(),
+                    this.relativeOffset, this.requestedReadLength);
         }
     }
 
