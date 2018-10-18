@@ -9,25 +9,21 @@
  */
 package io.pravega.controller.server.rest;
 
-import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.auth.JKSHelper;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
-import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
-import org.apache.curator.shaded.com.google.common.base.Charsets;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.ssl.SSLContextConfigurator;
@@ -80,7 +76,7 @@ public class RESTServer extends AbstractIdleService {
             if (restServerConfig.isTlsEnabled()) {
                 SSLContextConfigurator contextConfigurator = new SSLContextConfigurator();
                 contextConfigurator.setKeyStoreFile(restServerConfig.getKeyFilePath());
-                contextConfigurator.setKeyStorePass(loadPasswordFromFile(restServerConfig.getKeyFilePasswordPath()));
+                contextConfigurator.setKeyStorePass(JKSHelper.loadPasswordFrom(restServerConfig.getKeyFilePasswordPath()));
                 httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
                         new SSLEngineConfigurator(contextConfigurator, false, false, false));
             } else {
@@ -89,29 +85,6 @@ public class RESTServer extends AbstractIdleService {
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
-    }
-
-    private String loadPasswordFromFile(String keyFilePasswordPath) {
-        // In case the path is not specified, return empty string. This means the password is not used.
-        // In case of error (including very large password file), return empty password.
-        // Which will fail the SSL connection if the password is expected.
-
-        String password = "";
-        if (!Strings.isNullOrEmpty(keyFilePasswordPath)) {
-            File passwordFile = new File(keyFilePasswordPath);
-            if (passwordFile.length() != 0) {
-                if (passwordFile.length() > MAX_PASSWORD_LENGTH) {
-                    log.warn("Very large password file. Not parsing.");
-                } else {
-                    try {
-                        password = new String(FileUtils.readFileToByteArray(passwordFile), Charsets.UTF_8).trim();
-                    } catch (IOException e) {
-                        log.warn("Could not read the password from file.", e);
-                    }
-                }
-            }
-        }
-        return password;
     }
 
     /**
