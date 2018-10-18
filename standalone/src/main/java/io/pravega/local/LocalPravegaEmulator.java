@@ -30,8 +30,9 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String userName;
     private String passwdFile;
     private String keyFile;
-    private String keyStoreJKS;
-    private String keyStoreJKSPassword;
+    private String jksKeyFile;
+    private String jksTrustFile;
+    private String keyPasswordFile;
 
     @Getter
     private final InProcPravegaCluster inProcPravegaCluster;
@@ -41,6 +42,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
             this.inProcPravegaCluster = InProcPravegaCluster
                     .builder()
                     .isInProcZK(true)
+                    .secureZK(enableTls)
                     .zkUrl("localhost:" + zkPort)
                     .zkPort(zkPort)
                     .isInMemStorage(true)
@@ -56,16 +58,18 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableTls(enableTls)
                     .certFile(certFile)
                     .keyFile(keyFile)
+                    .jksKeyFile(jksKeyFile)
+                    .jksTrustFile(jksTrustFile)
+                    .keyPasswordFile(keyPasswordFile)
                     .passwdFile(passwdFile)
                     .userName(userName)
                     .passwd(passwd)
-                    .keyStoreJKS(keyStoreJKS)
-                    .keyStoreJKSPassword(keyStoreJKSPassword)
                     .build();
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
-                    enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, keyStoreJKS, keyStoreJKSPassword, inProcPravegaCluster);
+                    enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, jksKeyFile, jksTrustFile, keyPasswordFile,
+                    inProcPravegaCluster);
         }
     }
 

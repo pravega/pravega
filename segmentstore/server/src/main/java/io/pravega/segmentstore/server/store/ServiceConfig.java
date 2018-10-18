@@ -38,6 +38,9 @@ public class ServiceConfig {
     public static final Property<Integer> ZK_RETRY_SLEEP_MS = Property.named("zkRetrySleepMs", 5000);
     public static final Property<Integer> ZK_RETRY_COUNT = Property.named("zkRetryCount", 5);
     public static final Property<Integer> ZK_SESSION_TIMEOUT_MS = Property.named("zkSessionTimeoutMs", 10000);
+    public static final Property<Boolean> SECURE_ZK = Property.named("secureZK", false);
+    public static final Property<String> ZK_TRUSTSTORE_LOCATION = Property.named("zkTrustStore", "");
+    public static final Property<String> ZK_TRUST_STORE_PASSWORD_PATH = Property.named("zkTrustStorePasswordPath", "");
     public static final Property<String> CLUSTER_NAME = Property.named("clusterName", "pravega-cluster");
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
@@ -168,6 +171,24 @@ public class ServiceConfig {
     private final int zkRetryCount;
 
     /**
+     * The flag to denote whether connection to ZK is secure.
+     */
+    @Getter
+    private final boolean secureZK;
+
+    /**
+     * Location of trust store file to make a secure connection to ZK.
+     */
+    @Getter
+    private final String zkTrustStore;
+
+    /**
+     * Location of password file to access ZK trust store.
+     */
+    @Getter
+    private final String zkTrustStorePasswordPath;
+
+    /**
      * The cluster name.
      */
     @Getter
@@ -267,6 +288,9 @@ public class ServiceConfig {
         this.dataLogTypeImplementation = properties.getEnum(DATALOG_IMPLEMENTATION, DataLogType.class);
         this.storageImplementation = properties.getEnum(STORAGE_IMPLEMENTATION, StorageType.class);
         this.readOnlySegmentStore = properties.getBoolean(READONLY_SEGMENT_STORE);
+        this.secureZK = properties.getBoolean(SECURE_ZK);
+        this.zkTrustStore = properties.get(ZK_TRUSTSTORE_LOCATION);
+        this.zkTrustStorePasswordPath = properties.get(ZK_TRUST_STORE_PASSWORD_PATH);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         this.keyFile = properties.get(KEY_FILE);
         this.certFile = properties.get(CERT_FILE);

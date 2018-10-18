@@ -10,7 +10,6 @@
 package io.pravega.client.batch.impl;
 
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
@@ -105,6 +104,7 @@ public class BatchClientImplTest {
     }
 
     @Test(timeout = 5000)
+    @SuppressWarnings("deprecation")
     public void testStreamInfo() throws Exception {
         final String scope = "scope";
         final String streamName = STREAM;
@@ -145,7 +145,7 @@ public class BatchClientImplTest {
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build()).join();
 
-        StreamInfo info = client.getStreamInfo(stream).join();
+        io.pravega.client.batch.StreamInfo info = client.getStreamInfo(stream).join();
 
         //validate results.
         assertEquals(scope, info.getScope());

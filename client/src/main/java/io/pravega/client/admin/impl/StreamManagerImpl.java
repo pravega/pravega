@@ -12,7 +12,11 @@ package io.pravega.client.admin.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
@@ -21,8 +25,10 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * A stream manager. Used to bootstrap the client.
@@ -31,19 +37,23 @@ import lombok.extern.slf4j.Slf4j;
 public class StreamManagerImpl implements StreamManager {
 
     private final Controller controller;
-
-    private final ScheduledExecutorService executor; 
+    private final ConnectionFactory connectionFactory;
+    private final ScheduledExecutorService executor;
+    private final StreamCutHelper streamCutHelper;
     
     public StreamManagerImpl(ClientConfig clientConfig) {
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "StreamManager-Controller");
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig) .build(), executor);
-
+        this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
     }
 
     @VisibleForTesting
-    public StreamManagerImpl(Controller controller) {
+    public StreamManagerImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.executor = null;
         this.controller = controller;
+        this.connectionFactory = connectionFactory;
+        this.streamCutHelper = new StreamCutHelper(controller, connectionFactory);
     }
 
     @Override
@@ -105,12 +115,40 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
+    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
+        CompletableFuture<StreamInfo> streamInfo = getStreamInfo(Stream.of(scopeName, streamName));
+        return Futures.getAndHandleExceptions(streamInfo, RuntimeException::new);
+    }
+
+    /**
+     * Fetch the {@link StreamInfo} for a given stream.
+     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)}
+     * is removed.
+     *
+     * @param stream The Stream.
+     * @return A future representing {@link StreamInfo}.
+     */
+    public CompletableFuture<StreamInfo> getStreamInfo(final Stream stream) {
+        //Fetch the stream cut representing the current TAIL and current HEAD of the stream.
+        CompletableFuture<StreamCut> currentTailStreamCut = streamCutHelper.fetchTailStreamCut(stream);
+        CompletableFuture<StreamCut> currentHeadStreamCut = streamCutHelper.fetchHeadStreamCut(stream);
+        return currentTailStreamCut.thenCombine(currentHeadStreamCut,
+                                                (tailSC, headSC) -> new StreamInfo(stream.getScope(),
+                                                                                   stream.getStreamName(),
+                                                                                   tailSC, headSC));
+    }
+
+    @Override
     public void close() {
         if (this.controller != null) {
             this.controller.close();
         }
         if (this.executor != null) {
             ExecutorServiceHelpers.shutdown(this.executor);
+        }
+        if (this.connectionFactory != null) {
+            this.connectionFactory.close();
         }
     }
 }
