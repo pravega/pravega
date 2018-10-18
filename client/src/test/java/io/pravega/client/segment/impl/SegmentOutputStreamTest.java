@@ -11,6 +11,8 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.collect.ImmutableList;
 import io.netty.buffer.Unpooled;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ClientConnection.CompletedCallback;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -29,6 +31,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -39,9 +42,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-
-import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -49,7 +52,10 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -68,7 +74,19 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
     private static final int SERVICE_PORT = 12345;
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 1, 2);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
+    private Level originalLevel;
+    
+    @Before
+    public void setup() throws Exception {
+        originalLevel = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(Level.PARANOID);
+    }
 
+    @After
+    public void teardown() {
+        ResourceLeakDetector.setLevel(originalLevel);
+    }
+    
     private static ByteBuffer getBuffer(String s) {
         return ByteBuffer.wrap(s.getBytes());
     }

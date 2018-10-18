@@ -387,6 +387,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             for (PendingEvent toAck : state.removeInflightBelow(ackLevel)) {
                 if (toAck != null) {
                     toAck.getAckFuture().complete(null);
+                    toAck.getData().release();
                 }
             }
             state.releaseIfEmptyInflight();

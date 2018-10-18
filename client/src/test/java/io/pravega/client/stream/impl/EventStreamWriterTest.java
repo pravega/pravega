@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -39,6 +41,8 @@ import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -50,6 +54,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 public class EventStreamWriterTest extends ThreadPooledTestSuite {
+    
+    private Level originalLevel;
+    
+    @Before
+    public void setup() throws Exception {
+        originalLevel = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(Level.PARANOID);
+    }
+
+    @After
+    public void teardown() {
+        ResourceLeakDetector.setLevel(originalLevel);
+    }
     
     @Test
     public void testWrite() {
