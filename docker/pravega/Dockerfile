@@ -12,6 +12,7 @@ FROM openjdk:8-jre-alpine
 RUN apk add --update \
     rpcbind \
     nfs-utils \
+    python \
   && rm -rf /var/cache/apk/*
 
 EXPOSE 9090 9091 10000 12345

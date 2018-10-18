@@ -12,6 +12,7 @@ FROM openjdk:8-jre-alpine
 MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
 RUN apk add --update \
+    bash \
     wget \
     unzip \
 &&  rm -rf /var/cache/apk/* \

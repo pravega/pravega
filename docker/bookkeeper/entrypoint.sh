@@ -9,6 +9,8 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
+set -e
+
 ZK_HOME=/opt/zookeeper
 BK_HOME=/opt/bookkeeper
 
