@@ -12,12 +12,15 @@ package io.pravega.controller.store.stream.records;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.CommitTransactionsRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,12 +71,12 @@ public class CommitTransactionsRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public static CommitTransactionsRecord parse(final byte[] data) {
+    public static CommitTransactionsRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
 
@@ -84,5 +87,42 @@ public class CommitTransactionsRecord {
 
     public boolean isRollingTxnRecord() {
         return activeEpoch.isPresent();
+    }
+    
+    private static class CommitTransactionsRecordSerializer
+            extends VersionedSerializer.WithBuilder<CommitTransactionsRecord, CommitTransactionsRecord.CommitTransactionsRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, CommitTransactionsRecord.CommitTransactionsRecordBuilder builder)
+                throws IOException {
+            builder.epoch(revisionDataInput.readInt())
+                   .transactionsToCommit(revisionDataInput.readCollection(RevisionDataInput::readUUID, ArrayList::new));
+
+            int read = revisionDataInput.readInt();
+            if (read == Integer.MIN_VALUE) {
+                builder.activeEpoch(Optional.empty());
+            } else {
+                builder.activeEpoch(Optional.of(read));
+            }
+        }
+
+        private void write00(CommitTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeInt(record.getEpoch());
+            revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
+            revisionDataOutput.writeInt(record.getActiveEpoch().orElse(Integer.MIN_VALUE));
+        }
+
+        @Override
+        protected CommitTransactionsRecord.CommitTransactionsRecordBuilder newBuilder() {
+            return CommitTransactionsRecord.builder();
+        }
     }
 }

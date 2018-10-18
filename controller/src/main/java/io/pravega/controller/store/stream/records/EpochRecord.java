@@ -11,7 +11,9 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.EpochRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -20,6 +22,7 @@ import lombok.SneakyThrows;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -60,7 +63,7 @@ public class EpochRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
 
@@ -69,7 +72,7 @@ public class EpochRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public static EpochRecord parse(final byte[] record) {
+    public static EpochRecord fromBytes(final byte[] record) {
         InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(inputStream);
     }
@@ -80,5 +83,36 @@ public class EpochRecord {
 
     public static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
 
+    }
+    
+    private static class EpochRecordSerializer extends VersionedSerializer.WithBuilder<EpochRecord, EpochRecord.EpochRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
+            builder.epoch(revisionDataInput.readInt())
+                   .referenceEpoch(revisionDataInput.readInt())
+                   .segments(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
+                   .creationTime(revisionDataInput.readLong());
+        }
+
+        private void write00(EpochRecord history, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeInt(history.getEpoch());
+            revisionDataOutput.writeInt(history.getReferenceEpoch());
+            revisionDataOutput.writeCollection(history.getSegments(), StreamSegmentRecord.SERIALIZER::serialize);
+            revisionDataOutput.writeLong(history.getCreationTime());
+        }
+
+        @Override
+        protected EpochRecord.EpochRecordBuilder newBuilder() {
+            return EpochRecord.builder();
+        }
     }
 }

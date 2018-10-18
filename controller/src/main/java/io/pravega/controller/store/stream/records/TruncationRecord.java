@@ -13,12 +13,16 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.TruncationRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -124,12 +128,50 @@ public class TruncationRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public static TruncationRecord parse(final byte[] data) {
+    public static TruncationRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+    
+    private static class TruncationRecordSerializer
+            extends VersionedSerializer.WithBuilder<TruncationRecord, TruncationRecord.TruncationRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput,
+                            TruncationRecord.TruncationRecordBuilder streamTruncationRecordBuilder)
+                throws IOException {
+            streamTruncationRecordBuilder
+                    .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
+                    .span(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt))
+                    .deletedSegments(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readLong)))
+                    .toDelete(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readLong)))
+                    .updating(revisionDataInput.readBoolean());
+        }
+
+        private void write00(TruncationRecord streamTruncationRecord, RevisionDataOutput revisionDataOutput)
+                throws IOException {
+            revisionDataOutput.writeMap(streamTruncationRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
+            revisionDataOutput.writeMap(streamTruncationRecord.getSpan(), StreamSegmentRecord.SERIALIZER::serialize, DataOutput::writeInt);
+            revisionDataOutput.writeCollection(streamTruncationRecord.getDeletedSegments(), DataOutput::writeLong);
+            revisionDataOutput.writeCollection(streamTruncationRecord.getToDelete(), DataOutput::writeLong);
+            revisionDataOutput.writeBoolean(streamTruncationRecord.isUpdating());
+        }
+
+        @Override
+        protected TruncationRecord.TruncationRecordBuilder newBuilder() {
+            return TruncationRecord.builder();
+        }
     }
 }

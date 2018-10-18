@@ -11,7 +11,9 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableList;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.HistoryTimeSeriesRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -20,6 +22,7 @@ import lombok.SneakyThrows;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -57,22 +60,56 @@ public class HistoryTimeSeriesRecord {
         this(epoch, epoch, segmentsSealed, segmentsCreated, creationTime);
     }
 
-    @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
-        return SERIALIZER.serialize(this).getCopy();
-    }
-
     public boolean isDuplicate() {
         return epoch != referenceEpoch;
     }
 
     @SneakyThrows(IOException.class)
-    public static HistoryTimeSeriesRecord parse(final byte[] record) {
+    public byte[] toBytes() {
+        return SERIALIZER.serialize(this).getCopy();
+    }
+    
+    @SneakyThrows(IOException.class)
+    public static HistoryTimeSeriesRecord fromBytes(final byte[] record) {
         InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(inputStream);
     }
 
     public static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
 
+    }
+    
+    static class HistoryTimeSeriesRecordSerializer extends
+            VersionedSerializer.WithBuilder<HistoryTimeSeriesRecord, HistoryTimeSeriesRecord.HistoryTimeSeriesRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeriesRecord.HistoryTimeSeriesRecordBuilder builder) throws IOException {
+            builder.epoch(revisionDataInput.readInt())
+                   .referenceEpoch(revisionDataInput.readInt())
+                   .segmentsSealed(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
+                   .segmentsCreated(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
+                   .creationTime(revisionDataInput.readLong());
+        }
+
+        private void write00(HistoryTimeSeriesRecord history, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeInt(history.getEpoch());
+            revisionDataOutput.writeInt(history.getReferenceEpoch());
+            revisionDataOutput.writeCollection(history.getSegmentsSealed(), StreamSegmentRecord.SERIALIZER::serialize);
+            revisionDataOutput.writeCollection(history.getSegmentsCreated(), StreamSegmentRecord.SERIALIZER::serialize);
+            revisionDataOutput.writeLong(history.getScaleTime());
+        }
+
+        @Override
+        protected HistoryTimeSeriesRecord.HistoryTimeSeriesRecordBuilder newBuilder() {
+            return HistoryTimeSeriesRecord.builder();
+        }
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap;
@@ -18,12 +19,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+
+import lombok.Data;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Unit tests for the CollectionHelpers class.
@@ -82,6 +89,22 @@ public class CollectionHelpersTests {
             m.add(maxSearchElement, Integer.toString(maxSearchElement));
             allValues.put(maxSearchElement, Integer.toString(maxSearchElement));
         }
+    }
+
+    @Test
+    public void testSearchLessThanEq() {
+        List<TestElement> list = Lists.newArrayList(new TestElement(10L), new TestElement(30L), new TestElement(75L), 
+                new TestElement(100L), new TestElement(152L), new TestElement(200L), new TestElement(400L), new TestElement(700L));
+
+        BiFunction<TestElement, Long, Integer> func = (r, s) -> Long.compare(r.getElement(), s);
+        int index = CollectionHelpers.searchLessThanEq(list, 0L, func);
+        assertEquals(index, -1);
+        index = CollectionHelpers.searchLessThanEq(list, 29L, func);
+        assertEquals(index, 0);
+        index = CollectionHelpers.searchLessThanEq(list, 101L, func);
+        assertEquals(index, 3);
+        index = CollectionHelpers.searchLessThanEq(list, Long.MAX_VALUE, func);
+        assertEquals(index, 7);
     }
 
     /**
@@ -174,5 +197,10 @@ public class CollectionHelpersTests {
         public String getValue(int position) {
             return this.entries.get(position).getValue();
         }
+    }
+    
+    @Data
+    private static class TestElement {
+        private final long element;
     }
 }

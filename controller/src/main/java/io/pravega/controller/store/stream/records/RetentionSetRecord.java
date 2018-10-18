@@ -10,7 +10,9 @@
 package io.pravega.controller.store.stream.records;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.RetentionSetRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,7 +40,7 @@ public class RetentionSetRecord {
      */
     final long recordingTime;
     /**
-     * Amount of data in the stream preceeding this cut.
+     * Amount of data in the stream preceding this cut.
      */
     final long recordingSize;
 
@@ -47,12 +49,41 @@ public class RetentionSetRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public static RetentionSetRecord parse(final byte[] data) {
+    public static RetentionSetRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+    
+    static class RetentionSetRecordSerializer
+            extends VersionedSerializer.WithBuilder<RetentionSetRecord, RetentionSetRecord.RetentionSetRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, RetentionSetRecord.RetentionSetRecordBuilder retentionRecordBuilder)
+                throws IOException {
+            retentionRecordBuilder.recordingSize(revisionDataInput.readLong());
+            retentionRecordBuilder.recordingTime(revisionDataInput.readLong());
+        }
+
+        private void write00(RetentionSetRecord retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(retentionRecord.getRecordingSize());
+            revisionDataOutput.writeLong(retentionRecord.getRecordingTime());
+        }
+
+        @Override
+        protected RetentionSetRecord.RetentionSetRecordBuilder newBuilder() {
+            return RetentionSetRecord.builder();
+        }
     }
 }

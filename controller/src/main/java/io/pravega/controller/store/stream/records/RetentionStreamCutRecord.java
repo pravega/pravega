@@ -11,12 +11,16 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.RetentionStreamCutRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Map;
 
@@ -59,12 +63,44 @@ public class RetentionStreamCutRecord {
     }
 
     @SneakyThrows(IOException.class)
-    public static RetentionStreamCutRecord parse(final byte[] data) {
+    public static RetentionStreamCutRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
+
+    private static class RetentionStreamCutRecordSerializer
+            extends VersionedSerializer.WithBuilder<RetentionStreamCutRecord, RetentionStreamCutRecord.RetentionStreamCutRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, RetentionStreamCutRecord.RetentionStreamCutRecordBuilder streamCutRecordBuilder)
+                throws IOException {
+            streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
+                                  .recordingSize(revisionDataInput.readLong())
+                                  .streamCut(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readLong));
+        }
+
+        private void write00(RetentionStreamCutRecord streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(streamCutRecord.getRecordingTime());
+            revisionDataOutput.writeLong(streamCutRecord.getRecordingSize());
+            revisionDataOutput.writeMap(streamCutRecord.getStreamCut(), StreamSegmentRecord.SERIALIZER::serialize, DataOutput::writeLong);
+        }
+
+        @Override
+        protected RetentionStreamCutRecord.RetentionStreamCutRecordBuilder newBuilder() {
+            return RetentionStreamCutRecord.builder();
+        }
+    }
+
 }

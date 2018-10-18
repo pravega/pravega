@@ -29,20 +29,6 @@ import static org.junit.Assert.assertTrue;
 
 public class RecordsHelperTest {
     @Test
-    public void binarySearchTest() {
-        List<Long> list = Lists.newArrayList(10L, 30L, 75L, 100L, 152L, 200L, 400L, 700L);
-
-        int index = RecordHelper.binarySearch(list, 0L, x -> x);
-        assertEquals(index, 0);
-        index = RecordHelper.binarySearch(list, 29L, x -> x);
-        assertEquals(index, 0);
-        index = RecordHelper.binarySearch(list, 101L, x -> x);
-        assertEquals(index, 3);
-        index = RecordHelper.binarySearch(list, Integer.MAX_VALUE, x -> x);
-        assertEquals(index, 7);
-    }
-
-    @Test
     public void sealedSegmentShardingTest() {
         Map<Integer, SealedSegmentsMapShard> mapshards = new HashMap<>();
 

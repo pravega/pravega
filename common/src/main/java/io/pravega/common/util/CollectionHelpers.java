@@ -17,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -62,34 +63,6 @@ public final class CollectionHelpers {
         return -1;
     }
 
-    public static <T> int binarySearch(final List<? extends T> list, final long time, Function<? super T, Long> getTime) {
-        return binarySearch(list, 0, list.size(), time, getTime);
-    }
-
-    private static <T> int binarySearch(final List<? extends T> list, final int lower, final int upper, 
-                                        final long time, Function<? super T, Long> getTime) {
-        if (upper < lower) {
-            assert getTime.apply(list.get(0)) > time;
-            // return index 0.
-            return 0;
-        }
-
-        final int middle = (lower + upper) / 2;
-
-        T middleRecord = list.get(middle);
-
-        if (getTime.apply(middleRecord) <= time) {
-            T next = list.size() > middle + 1 ? list.get(middle + 1) : null;
-            if (next == null || (getTime.apply(next) > time)) {
-                return middle;
-            } else {
-                return binarySearch(list, middle + 1, upper, time, getTime);
-            }
-        } else {
-            return binarySearch(list, lower, middle - 1, time, getTime);
-        }
-    }
-    
     /**
      * Performs a binary search on the given IndexedMap.
      *
@@ -138,6 +111,47 @@ public final class CollectionHelpers {
         }
 
         return anythingFound;
+    }
+
+
+    /**
+     * Performs a binary search on the given sorted list to find the closest value smaller than supplied element. 
+     * @param list list to search in
+     * @param toFind value to find
+     * @param comparator A bifunction comparator that compares elements in list of type T to value of type U
+     * @param <T> Type of elements in the list
+     * @param <U> Type of value to be found
+     * @return returns index of element in the list that has largest value less than or equal to the given value. 
+     * If value is not found, this returns -1
+     */
+    public static <T, U> int searchLessThanEq(final List<T> list, final U toFind, BiFunction<T, U, Integer> comparator) {
+        Preconditions.checkArgument(!list.isEmpty(), "supplied list is empty");
+        return searchLessThanEq(list, 0, list.size(), toFind, comparator);
+    }
+
+    private static <T, U> int searchLessThanEq(final List<T> list, final int lower, final int upper,
+                                               final U toFind, BiFunction<T, U, Integer> comparator) {
+        if (upper < lower) {
+            // assert that first element in the list is also greater than toFind
+            assert comparator.apply(list.get(0), toFind) > 0;
+            return -1;
+        }
+
+        final int middle = (lower + upper) / 2;
+
+        T middleRecord = list.get(middle);
+
+        int compared = comparator.apply(middleRecord, toFind);
+        if (compared <= 0) {
+            T next = list.size() > middle + 1 ? list.get(middle + 1) : null;
+            if (next == null || (comparator.apply(next, toFind) > 0)) {
+                return middle;
+            } else {
+                return searchLessThanEq(list, middle + 1, upper, toFind, comparator);
+            }
+        } else {
+            return searchLessThanEq(list, lower, middle - 1, toFind, comparator);
+        }
     }
 
     /**

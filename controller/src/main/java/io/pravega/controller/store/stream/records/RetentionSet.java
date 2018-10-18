@@ -12,7 +12,9 @@ package io.pravega.controller.store.stream.records;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.RetentionSetSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -20,6 +22,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -72,12 +75,40 @@ public class RetentionSet {
     }
 
     @SneakyThrows(IOException.class)
-    public static RetentionSet parse(final byte[] data) {
+    public static RetentionSet fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
+    }
+    
+    private static class RetentionSetSerializer
+            extends VersionedSerializer.WithBuilder<RetentionSet, RetentionSet.RetentionSetBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, RetentionSet.RetentionSetBuilder retentionRecordBuilder)
+                throws IOException {
+            retentionRecordBuilder.retentionRecords(revisionDataInput.readCollection(RetentionSetRecord.SERIALIZER::deserialize,
+                    ArrayList::new));
+        }
+
+        private void write00(RetentionSet retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeCollection(retentionRecord.getRetentionRecords(), RetentionSetRecord.SERIALIZER::serialize);
+        }
+
+        @Override
+        protected RetentionSet.RetentionSetBuilder newBuilder() {
+            return RetentionSet.builder();
+        }
     }
 }

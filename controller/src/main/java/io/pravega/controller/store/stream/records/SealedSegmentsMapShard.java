@@ -10,7 +10,9 @@
 package io.pravega.controller.store.stream.records;
 
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.SealedSegmentsMapShardSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +20,8 @@ import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,8 +52,8 @@ public class SealedSegmentsMapShard {
      * Sealed segments with size at the time of sealing.
      * segmentId -> sealed segment record.
      * Each shard contains segments from a range of `segment epoch`.
-     * So each shard size would be say 10k segment numbers. Then the number of records in the map would be 10k
-     * * average number of segments per epoch.
+     * So each shard size would be say 10k segment numbers. Then the number of records in the map would be 
+     * 10k multiplied by `average number of segments per epoch`.
      *
      * So to get sealed segment record -> extract segment epoch from segment id. compute the shard by dividing segment number by 10k.
      * Fetch the record from the shard.
@@ -66,12 +70,12 @@ public class SealedSegmentsMapShard {
     }
 
     @SneakyThrows(IOException.class)
-    public static SealedSegmentsMapShard parse(final byte[] data) {
+    public static SealedSegmentsMapShard fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
 
@@ -92,5 +96,32 @@ public class SealedSegmentsMapShard {
 
     public static int getShardNumber(long segmentId, int shardChunkSize) {
         return StreamSegmentNameUtils.getEpoch(segmentId) / shardChunkSize;
+    }
+    
+    private static class SealedSegmentsMapShardSerializer
+            extends VersionedSerializer.WithBuilder<SealedSegmentsMapShard, SealedSegmentsMapShard.SealedSegmentsMapShardBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput,
+                            SealedSegmentsMapShard.SealedSegmentsMapShardBuilder sealedSegmentsRecordBuilder) throws IOException {
+            sealedSegmentsRecordBuilder.sealedSegmentsSizeMap(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong));
+        }
+
+        private void write00(SealedSegmentsMapShard sealedSegmentsRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeMap(sealedSegmentsRecord.getSealedSegmentsSizeMap(), DataOutput::writeLong, DataOutput::writeLong);
+        }
+
+        @Override
+        protected SealedSegmentsMapShard.SealedSegmentsMapShardBuilder newBuilder() {
+            return SealedSegmentsMapShard.builder();
+        }
     }
 }

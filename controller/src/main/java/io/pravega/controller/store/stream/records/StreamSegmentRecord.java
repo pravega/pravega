@@ -11,11 +11,14 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.StreamSegmentRecordSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Builder;
 import lombok.Data;
 
+import java.io.IOException;
 import java.util.AbstractMap;
 
 @Data
@@ -57,4 +60,38 @@ public class StreamSegmentRecord {
     public static StreamSegmentRecord newSegmentRecord(int num, int epoch, long time, double start, double end) {
         return StreamSegmentRecord.builder().segmentNumber(num).creationEpoch(epoch).creationTime(time).keyStart(start).keyEnd(end).build();
     }
+
+    static class StreamSegmentRecordSerializer extends VersionedSerializer.WithBuilder<StreamSegmentRecord, StreamSegmentRecord.StreamSegmentRecordBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, StreamSegmentRecord.StreamSegmentRecordBuilder builder) throws IOException {
+            builder.segmentNumber(revisionDataInput.readInt())
+                   .creationTime(revisionDataInput.readLong())
+                   .creationEpoch(revisionDataInput.readInt())
+                   .keyStart(Double.longBitsToDouble(revisionDataInput.readLong()))
+                   .keyEnd(Double.longBitsToDouble(revisionDataInput.readLong()));
+        }
+
+        private void write00(StreamSegmentRecord segment, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeInt(segment.getSegmentNumber());
+            revisionDataOutput.writeLong(segment.getCreationTime());
+            revisionDataOutput.writeInt(segment.getCreationEpoch());
+            revisionDataOutput.writeLong(Double.doubleToRawLongBits(segment.getKeyStart()));
+            revisionDataOutput.writeLong(Double.doubleToRawLongBits(segment.getKeyEnd()));
+        }
+
+        @Override
+        protected StreamSegmentRecord.StreamSegmentRecordBuilder newBuilder() {
+            return StreamSegmentRecord.builder();
+        }
+    }
+
 }

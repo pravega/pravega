@@ -12,7 +12,9 @@ package io.pravega.controller.store.stream.records;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
-import io.pravega.controller.store.stream.records.serializers.HistoryTimeSeriesSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -20,6 +22,7 @@ import lombok.SneakyThrows;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -30,7 +33,7 @@ import java.util.List;
  */
 public class HistoryTimeSeries {
     public static final HistoryTimeSeriesSerializer SERIALIZER = new HistoryTimeSeriesSerializer();
-    public static final int HISTORY_CHUNK_SIZE = 10000;
+    public static final int HISTORY_CHUNK_SIZE = 1000;
 
     private final List<HistoryTimeSeriesRecord> historyRecords;
 
@@ -41,12 +44,12 @@ public class HistoryTimeSeries {
     }
 
     @SneakyThrows(IOException.class)
-    public byte[] toByteArray() {
+    public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
 
     @SneakyThrows(IOException.class)
-    public static HistoryTimeSeries parse(final byte[] record) {
+    public static HistoryTimeSeries fromBytes(final byte[] record) {
         InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(inputStream);
     }
@@ -73,5 +76,32 @@ public class HistoryTimeSeries {
         }
 
         return new HistoryTimeSeries(list);
+    }
+    
+    private static class HistoryTimeSeriesSerializer extends
+            VersionedSerializer.WithBuilder<HistoryTimeSeries, HistoryTimeSeries.HistoryTimeSeriesBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeries.HistoryTimeSeriesBuilder builder) throws IOException {
+            builder.historyRecords(revisionDataInput.readCollection(HistoryTimeSeriesRecord.SERIALIZER::deserialize,
+                    ArrayList::new));
+        }
+
+        private void write00(HistoryTimeSeries history, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeCollection(history.getHistoryRecords(), HistoryTimeSeriesRecord.SERIALIZER::serialize);
+        }
+
+        @Override
+        protected HistoryTimeSeries.HistoryTimeSeriesBuilder newBuilder() {
+            return HistoryTimeSeries.builder();
+        }
     }
 }
