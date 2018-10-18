@@ -40,6 +40,7 @@ import lombok.val;
 
 /**
  * Provides read-write access to a Hash Array Mapped Tree implementation over Extended Attributes.
+ * See {@link IndexReader} for a description of the Index Structure.
  */
 class IndexWriter extends IndexReader {
     //region Members

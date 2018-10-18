@@ -30,15 +30,10 @@ class AttributeCalculator {
     static final int MAX_NODE_ID = (1 << 30) - 1; // First 2 bits are ignored.
     @VisibleForTesting
     static final long ONE_BIT_MASK = 0x7FFF_FFFF_FFFF_FFFFL; // Preserve lower 127 bits.
-    @VisibleForTesting
     private static final long TWO_BIT_MASK = 0x3FFF_FFFF_FFFF_FFFFL; // Preserve lower 126 bits.
-    @VisibleForTesting
     private static final long PRIMARY_HASH_SET = 0x8000_0000_0000_0000L; // First bit is 1.
-    @VisibleForTesting
     private static final long SECONDARY_HASH_SET = 0x4000_0000_0000_0000L; // First 2 bits are 01.
-    @VisibleForTesting
     private static final long INDEX_NODE_SET = 0x8000_0000_0000_0000L; // First bit is 1.
-    @VisibleForTesting
     private static final long BACKPOINTER_MSB = 0L; // First 64 bits are 0 (including first 2).
 
     //endregion

@@ -95,7 +95,9 @@ public abstract class KeyHasher {
 
         @Override
         public KeyHash hash(@NonNull ArrayView key) {
-            return new KeyHash(this.hash.hashBytes(key.array(), key.arrayOffset(), key.getLength()).asBytes(), this.config);
+            byte[] rawHash = this.hash.hashBytes(key.array(), key.arrayOffset(), key.getLength()).asBytes();
+            this.config.applyHashMask(rawHash);
+            return new KeyHash(rawHash, this.config);
         }
 
         @Override
@@ -120,6 +122,7 @@ public abstract class KeyHasher {
         public KeyHash hash(@NonNull ArrayView key) {
             byte[] rawHash = this.hashFunction.apply(key);
             Preconditions.checkState(rawHash.length == getHashLengthBytes(), "Resulting KeyHash has incorrect length.");
+            this.config.applyHashMask(rawHash);
             return new KeyHash(rawHash, this.config);
         }
 
