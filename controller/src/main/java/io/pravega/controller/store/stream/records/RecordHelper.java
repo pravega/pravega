@@ -55,7 +55,7 @@ public class RecordHelper {
     }
 
     /**
-     * Method to check that segments to seal are present in current epoch
+     * Method to check that segments to seal are present in current epoch.
      *
      * @param segmentsToSeal segments to seal
      * @param currentEpoch current epoch record
