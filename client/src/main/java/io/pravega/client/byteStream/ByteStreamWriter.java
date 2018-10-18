@@ -14,7 +14,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Allows for writing raw bytes directly to a segment. This is intended as low level building block
@@ -97,7 +96,8 @@ public abstract class ByteStreamWriter extends OutputStream {
      * Similar to {@link #flush()} but does not block the calling thread, and instead returns a
      * future that will be completed when the flush is done.
      */
-    public abstract CompletableFuture<Void> flushAsync();
+    //TODO:
+    //public abstract CompletableFuture<Void> flushAsync();
 
     /**
      * This makes a synchronous RPC call to the server to obtain the total number of bytes written

@@ -12,11 +12,9 @@ package io.pravega.client.byteStream.impl;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
-import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -43,11 +41,8 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
 
     @Override
     public void close() throws IOException {
-        try {
-            out.close();
-        } catch (SegmentSealedException e) {
-            throw new IOException(e);
-        }
+        out.close();
+        meta.close();
     }
 
     @Override
@@ -56,13 +51,10 @@ public class ByteStreamWriterImpl extends ByteStreamWriter {
     }
 
     @Override
-    public void closeAndSeal() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public CompletableFuture<Void> flushAsync() {
-        throw new UnsupportedOperationException();
+    public void closeAndSeal() throws IOException {
+        out.close();
+        meta.sealSegment();
+        meta.close();
     }
 
     @Override

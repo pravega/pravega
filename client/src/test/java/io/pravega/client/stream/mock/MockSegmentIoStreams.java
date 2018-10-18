@@ -230,4 +230,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     public int bytesInBuffer() {
         return (int) (writeOffset - readOffset);
     }
+
+    @Override
+    public void sealSegment() {
+        //Noting to do
+    }
 }

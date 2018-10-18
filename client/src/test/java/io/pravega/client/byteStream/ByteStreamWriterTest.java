@@ -16,6 +16,8 @@ import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import lombok.Cleanup;
 import org.junit.Test;
 
@@ -40,6 +42,7 @@ public class ByteStreamWriterTest {
                                                             streamFactory, streamFactory, streamFactory);
 
         ByteStreamClient client = clientFactory.createByteStreamClient();
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         byte[] value = new byte[] { 1, 2, 3, 4, 5 };
         writer.write(value);
@@ -65,6 +68,7 @@ public class ByteStreamWriterTest {
                                                             streamFactory, streamFactory, streamFactory);
 
         ByteStreamClient client = clientFactory.createByteStreamClient();
+        @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         int numBytes = BufferedByteStreamWriterImpl.BUFFER_SIZE * 2 + 1;
         for (int i = 0; i < numBytes; i++) {
@@ -72,5 +76,27 @@ public class ByteStreamWriterTest {
         }
         writer.flush();
         assertEquals(numBytes, writer.fetchOffset());
+    }
+    
+    @Test
+    public void testCloseAndSeal() throws IOException {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
+                                                            streamFactory, streamFactory, streamFactory);
+
+        ByteStreamClient client = clientFactory.createByteStreamClient();
+        @Cleanup
+        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteBuffer toWrite = ByteBuffer.wrap(new byte[] {0,1,2,3,4});
+        writer.write(toWrite);
+        writer.closeAndSeal();
+        assertEquals(5, writer.fetchOffset());
     }
 }

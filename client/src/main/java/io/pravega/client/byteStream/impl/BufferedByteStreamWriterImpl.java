@@ -11,10 +11,8 @@ package io.pravega.client.byteStream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.byteStream.ByteStreamWriter;
-import io.pravega.common.concurrent.Futures;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -85,16 +83,6 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     public void closeAndSeal() throws IOException {
         flushBuffer();
         out.closeAndSeal();
-    }
-
-    @Override
-    public CompletableFuture<Void> flushAsync() {
-        try {
-            flushBuffer();
-            return out.flushAsync();
-        } catch (IOException e) {
-            return Futures.failedFuture(e);
-        }
     }
 
     @Override
