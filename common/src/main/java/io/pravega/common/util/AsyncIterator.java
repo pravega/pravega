@@ -8,13 +8,11 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.common.util;
-
 import io.pravega.common.concurrent.Futures;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-
 /**
  * Defines an Iterator for which every invocation results in an async call with a delayed response.
  *

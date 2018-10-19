@@ -17,7 +17,7 @@ volumes:
       device: ":${NFS_PATH}"
 services:
   zookeeper:
-    image: jplock/zookeeper:3.5.2-alpha
+    image: zookeeper:3.5.4-beta
     ports:
       - "2181:2181"
 

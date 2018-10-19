@@ -31,6 +31,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.ContainerOfflineException;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
@@ -68,9 +69,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -353,10 +356,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("updateAttributes", streamSegmentName, attributeUpdates);
         this.metrics.updateAttributes();
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> {
-                    UpdateAttributesOperation operation = new UpdateAttributesOperation(streamSegmentId, attributeUpdates);
-                    return processAttributeUpdaterOperation(operation, timer);
-                });
+                streamSegmentId -> updateAttributesForSegment(streamSegmentId, attributeUpdates, timer.getRemaining()));
     }
 
     @Override
@@ -367,14 +367,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         logRequest("getAttributes", streamSegmentName, attributeIds);
         this.metrics.getAttributes();
         return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> {
-                    if (cache) {
-                        return CACHE_ATTRIBUTES_RETRY.runAsync(() ->
-                                getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer), this.executor);
-                    } else {
-                        return getAndCacheAttributes(this.metadata.getStreamSegmentMetadata(streamSegmentId), attributeIds, cache, timer);
-                    }
-                });
+                streamSegmentId -> getAttributesForSegment(streamSegmentId, attributeIds, cache, timer));
     }
 
     @Override
@@ -450,16 +443,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         ensureRunning();
-
         logRequest("truncateStreamSegment", streamSegmentName);
         this.metrics.truncate();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                        streamSegmentId -> {
-                            StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(streamSegmentId, offset);
-                            return this.durableLog.add(op, timer.getRemaining());
-                        });
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> truncate(streamSegmentId, offset, timer.getRemaining()));
     }
 
     @Override
@@ -512,18 +500,21 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
         ensureRunning();
-
-        logRequest("sealStreamSegment", streamSegmentName);
+        logRequest("seal", streamSegmentName);
         this.metrics.seal();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        AtomicReference<StreamSegmentSealOperation> operation = new AtomicReference<>();
+        return this.segmentMapper.getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
+                streamSegmentId -> seal(streamSegmentId, timer.getRemaining()));
+    }
+
+    @Override
+    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+        ensureRunning();
+
+        logRequest("forSegment", streamSegmentName);
         return this.segmentMapper
-                .getOrAssignStreamSegmentId(streamSegmentName, timer.getRemaining(),
-                        streamSegmentId -> {
-                    operation.set(new StreamSegmentSealOperation(streamSegmentId));
-                    return this.durableLog.add(operation.get(), timer.getRemaining());
-                })
-                .thenApply(seqNo -> operation.get().getStreamSegmentOffset());
+                .getOrAssignStreamSegmentId(streamSegmentName, timeout,
+                        segmentId -> CompletableFuture.completedFuture(new DirectSegmentWrapper(segmentId)));
     }
 
     //endregion
@@ -555,6 +546,32 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //endregion
 
     //region Helpers
+
+    private CompletableFuture<Void> updateAttributesForSegment(long segmentId, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        UpdateAttributesOperation operation = new UpdateAttributesOperation(segmentId, attributeUpdates);
+        return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout));
+    }
+
+    private CompletableFuture<Map<UUID, Long>> getAttributesForSegment(long segmentId, Collection<UUID> attributeIds, boolean cache, TimeoutTimer timer) {
+        SegmentMetadata metadata = this.metadata.getStreamSegmentMetadata(segmentId);
+        if (cache) {
+            return CACHE_ATTRIBUTES_RETRY.runAsync(() ->
+                    getAndCacheAttributes(metadata, attributeIds, cache, timer), StreamSegmentContainer.this.executor);
+        } else {
+            return getAndCacheAttributes(metadata, attributeIds, cache, timer);
+        }
+    }
+
+    private CompletableFuture<Long> seal(long segmentId, Duration timeout) {
+        StreamSegmentSealOperation operation = new StreamSegmentSealOperation(segmentId);
+        return StreamSegmentContainer.this.durableLog.add(operation, timeout)
+                                                     .thenApply(seqNo -> operation.getStreamSegmentOffset());
+    }
+
+    private CompletableFuture<Void> truncate(long segmentId, long offset, Duration timeout) {
+        StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(segmentId, offset);
+        return this.durableLog.add(op, timeout);
+    }
 
     /**
      * Attempts to seal a Segment that may already be sealed.
@@ -746,6 +763,70 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             }
         };
         Services.onStop(component, stoppedHandler, failedHandler, this.executor);
+    }
+
+    //endregion
+
+    //region DirectSegmentWrapper
+
+    /**
+     * Direct Segment Access implementation.
+     */
+    @RequiredArgsConstructor
+    private class DirectSegmentWrapper implements DirectSegmentAccess {
+        @Getter
+        private final long segmentId;
+
+        @Override
+        public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+            ensureRunning();
+            logRequest("append", this.segmentId, data.length);
+            StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
+            return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout))
+                    .thenApply(v -> operation.getStreamSegmentOffset());
+        }
+
+        @Override
+        public CompletableFuture<Void> updateAttributes(Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+            ensureRunning();
+            logRequest("updateAttributes", this.segmentId, attributeUpdates);
+            return StreamSegmentContainer.this.updateAttributesForSegment(this.segmentId, attributeUpdates, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Map<UUID, Long>> getAttributes(Collection<UUID> attributeIds, boolean cache, Duration timeout) {
+            ensureRunning();
+            logRequest("getAttributes", this.segmentId, attributeIds);
+            return StreamSegmentContainer.this.getAttributesForSegment(this.segmentId, attributeIds, cache, new TimeoutTimer(timeout));
+        }
+
+        @Override
+        @SneakyThrows(StreamSegmentNotExistsException.class)
+        public ReadResult read(long offset, int maxLength, Duration timeout) {
+            ensureRunning();
+            logRequest("read", this.segmentId, offset, maxLength);
+            return StreamSegmentContainer.this.readIndex.read(this.segmentId, offset, maxLength, timeout);
+        }
+
+        @Override
+        public SegmentProperties getInfo() {
+            ensureRunning();
+            return StreamSegmentContainer.this.metadata.getStreamSegmentMetadata(this.segmentId);
+        }
+
+        @Override
+        public CompletableFuture<Long> seal(Duration timeout) {
+            ensureRunning();
+            logRequest("seal", this.segmentId);
+            return StreamSegmentContainer.this.seal(this.segmentId, timeout);
+        }
+
+        @Override
+        public CompletableFuture<Void> truncate(long offset, Duration timeout) {
+            ensureRunning();
+            logRequest("truncateStreamSegment", this.segmentId);
+            return StreamSegmentContainer.this.truncate(this.segmentId, offset, timeout);
+        }
     }
 
     //endregion
