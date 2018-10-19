@@ -41,7 +41,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     }
 
     @Override
-    public void jumpToOffset(long offset) throws InvalidOffsetException {
+    public void seekToOffset(long offset) throws InvalidOffsetException {
         Exceptions.checkNotClosed(closed.get(), this);
         input.setOffset(offset);
     }

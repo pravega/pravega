@@ -117,7 +117,7 @@ public class ByteStreamReaderTest {
         long skipped = reader.skip(10);
         assertEquals(2, skipped);
         assertEquals(-1, reader.read());
-        reader.jumpToOffset(0);
+        reader.seekToOffset(0);
         assertEquals(0, reader.getOffset());
         assertEquals(5, reader.available());
     }

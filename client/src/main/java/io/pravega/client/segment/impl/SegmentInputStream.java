@@ -43,7 +43,7 @@ public interface SegmentInputStream extends AutoCloseable {
      * If the provided buffer cannot be fully filled it will return the data it has. If no data is
      * available it will block until some becomes available up to the provided timeout. A caller can
      * determine if this call will block in advance by calling {@link #bytesInBuffer()}. If a caller
-     * wants to avoid blocking they call call {@link #fillBuffer()} and use the future to be
+     * wants to avoid blocking they call {@link #fillBuffer()} and use the future to be
      * notified when more data can be read without blocking.
      *
      * @param toFill the buffer to fill.

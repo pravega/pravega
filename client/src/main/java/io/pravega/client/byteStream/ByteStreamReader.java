@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannel;
 import java.util.concurrent.CompletableFuture;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Allows for reading raw bytes from a segment. This class is designed such that it can be used with
@@ -23,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
  * It is safe to invoke methods on this class from multiple threads, but doing so will not increase
  * performance.
  */
+@ThreadSafe
 public abstract class ByteStreamReader extends InputStream implements AsynchronousChannel, AutoCloseable {
 
     /**
@@ -31,18 +33,19 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract long getOffset();
 
     /**
-     * Jumps to the provided offset. Future read calls will read from this position. This makes a
-     * synchronous RPC to the server to validate the offset provided.
+     * Seeks to the provided offset (It can be anywhere in the segment). Future read calls will read
+     * from this offset. This makes a synchronous RPC to the server to validate the offset
+     * provided.
      * 
-     * @param offset The offset to jump to.
+     * @param offset The offset to seek to.
      * @throws InvalidOffsetException If the offset provided does not exist in the segment.
      */
-    public abstract void jumpToOffset(long offset) throws InvalidOffsetException;
+    public abstract void seekToOffset(long offset) throws InvalidOffsetException;
 
     /**
      * Returns the number of bytes that can be read without blocking. If the number returned is > 0
      * then a call to {@link #read(byte[]))} will return data from memory without blocking. If the
-     * number returned is 0 then {@link #read(byte[]))} will block If -1 is returned this indicates
+     * number returned is 0 then {@link #read(byte[]))} will block. If -1 is returned this indicates
      * the end of the stream has been reached and a call to {@link #read(byte[])} will return -1.
      * 
      * @see java.io.InputStream#available()
@@ -56,13 +59,15 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract long fetchTailOffset();
 
     /**
-     * Don't call this. It is very wasteful.
+     * Reads a single byte. 
+     * Avoid this API if possible as it is very wasteful.
+     * {@see InputStream#read()}. 
      */
     @Override
     public abstract int read() throws IOException;
 
     /**
-     * See {@link InputStream#read(byte[])}. This is equivlent to calling
+     * See {@link InputStream#read(byte[])}. This is equivalent to calling
      * {@code read(b, 0, b.length) }
      * 
      * Will only block if {@link #available()} is 0.
@@ -71,11 +76,13 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract int read(byte[] b) throws IOException;
 
     /**
-     * If {@link #available()} is non-zero will read bytes out of a in-memory buffer into the
+     * If {@link #available()} is non-zero, this method will read bytes from an in-memory buffer into the
      * provided array. If {@link #available()} is zero will wait for additional data to arrive and
-     * then fill the provided array. This method will only block if {@link #available()} is 0.
+     * then fill the provided array. This method will only block if {@link #available()} is 0. In
+     * which case it will block until some data arrives and return that. (Which may or may not fill
+     * the provided buffer)
      * 
-     * @return The number of bytes copied into the provided buffer. Or -1 if the stream is sealed
+     * @return The number of bytes copied into the provided buffer. Or -1 if the segment is sealed
      *         and there are no more bytes to read.
      * @see java.io.InputStream#read(byte[], int, int)
      */
@@ -92,16 +99,21 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract int read(ByteBuffer dst) throws IOException;
 
     /**
-     * This method skips forward by the provided number of bytes. This method is non-blocking but
-     * may not be able to skip n bytes. {@link InputStream#skip(long)} in such a case it will return
-     * the number of bytes it skipped. It may be preferable to call {@link #jumpToOffset(long)} for
-     * large jumps are that does not have this property.
+     * This method attempts to skip forward by the provided number of bytes. If it is not possible
+     * to skip forward `n` bytes (because there are less than `n` bytes remaining, it will skip as
+     * many as possible and return the number skipped.
+     * 
+     * This method is not affected by truncation.
+     * 
+     * @throws IOException Thrown if an IOError occurs while attempting to obtain the length of the
+     *             stream.
      */
     @Override
     public abstract long skip(long n) throws IOException;
 
     /**
-     * Closes the reader.
+     * Closes the reader. 
+     * This may block on an ongoing {@link #read(ByteBuffer)} request if there is one.
      * @see java.io.InputStream#close()
      */
     @Override

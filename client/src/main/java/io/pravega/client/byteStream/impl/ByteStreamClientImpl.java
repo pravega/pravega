@@ -34,7 +34,7 @@ public class ByteStreamClientImpl implements ByteStreamClient {
         return createByteStreamReaders(new Segment(scope, streamName, 0));
     }
 
-    ByteStreamReader createByteStreamReaders(Segment segment) {
+    private ByteStreamReader createByteStreamReaders(Segment segment) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
@@ -48,7 +48,7 @@ public class ByteStreamClientImpl implements ByteStreamClient {
         return createByteStreamWriter(new Segment(scope, streamName, 0), EventWriterConfig.builder().build());
     }
 
-    ByteStreamWriter createByteStreamWriter(Segment segment, EventWriterConfig config) {
+    private ByteStreamWriter createByteStreamWriter(Segment segment, EventWriterConfig config) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStreamName()),
                                                                 RuntimeException::new);

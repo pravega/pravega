@@ -17,8 +17,7 @@ import java.nio.ByteBuffer;
 
 /**
  * Allows for writing raw bytes directly to a segment. This is intended as low level building block
- * for creating higher level components and is not appropriate for most applications to use
- * directly.
+ * for creating higher level components. As such it can break things.
  * 
  * This class does not frame, attach headers, or otherwise modify the bytes written to it in any
  * way. So unlike {@link EventStreamWriter} or {@link RevisionedStreamClient} the data written
@@ -57,9 +56,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * 
      * It is intended that this method not block, but it may in the event that the server becomes
      * disconnected for sufficiently long or is sufficiently slow that that backlog of data to be
-     * written becomes a memory issue. If this behavior is undesirable the method
-     * {@link #setThrowBeforeBlocking(boolean)} can be used to make this call throw an exception
-     * instead of blocking.
+     * written becomes a memory issue. 
      * 
      * @see java.io.OutputStream#write(byte[], int, int)
      */

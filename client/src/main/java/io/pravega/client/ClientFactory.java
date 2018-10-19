@@ -145,7 +145,8 @@ public interface ClientFactory extends AutoCloseable {
     /**
      * Creates a new ByteStreamClient. The byteStreamClient can create readers and writers that work
      * on a stream of bytes. The stream must be pre-created with a single fixed segment. Sharing a
-     * stream between the byte stream API and the Event stream readers/writers will not work.
+     * stream between the byte stream API and the Event stream readers/writers will CORRUPT YOUR
+     * DATA in an unrecoverable way.
      * 
      * @return A byteStreamClient
      */

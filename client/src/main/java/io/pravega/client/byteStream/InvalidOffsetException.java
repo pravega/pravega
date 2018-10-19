@@ -9,6 +9,18 @@
  */
 package io.pravega.client.byteStream;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * The offset provided is not valid. It is either negative or beyond the end of the segment.
+ */
+@RequiredArgsConstructor
 public class InvalidOffsetException extends RuntimeException {
 
+    private static final long serialVersionUID = 1L;
+
+    @Getter
+    private final long providedOffset;
+    
 }

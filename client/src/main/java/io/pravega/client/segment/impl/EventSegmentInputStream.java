@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
  * Defines a InputStream for a single segment.
  * Once created the offset must be provided by calling setOffset.
  * The next read will proceed from this offset. Subsequent reads will read from where the previous
- * one left off. (Parallel calls to read data will be serialized)
+ * read call on this instance left off. (Parallel calls to read data will be serialized)
  * Get offset can be used to store a location to revert back to that position in the future.
  */
 public interface EventSegmentInputStream extends AutoCloseable {
@@ -41,7 +41,7 @@ public interface EventSegmentInputStream extends AutoCloseable {
 
     /**
      * Reads a single event's bytes from the segment. Buffering is performed internally to try to prevent
-     * blocking. If there is no event after timeout null will be returned. EndOfSegmentException indicates the
+     * blocking. If there is no event after timeout, then it returns null. EndOfSegmentException indicates the
      * segment has ended an no more events may be read.
      *
      * @return A ByteBuffer containing the serialized data that was written via
@@ -54,8 +54,8 @@ public interface EventSegmentInputStream extends AutoCloseable {
     }
     
     /**
-     * Reads bytes from the segment a single event. Buffering is performed internally to try to prevent
-     * blocking. If there is no event after timeout null will be returned. EndOfSegmentException indicates the
+     * Reads bytes of a single event from the segment. Buffering is performed internally to try to prevent
+     * blocking. If there is no event after timeout, then it returns null. EndOfSegmentException indicates the
      * segment has ended an no more events may be read.
      * 
      * A timeout can be provided that will be used to determine how long to block obtaining the first byte of
