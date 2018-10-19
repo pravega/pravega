@@ -91,6 +91,7 @@ project('common') {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        //Do NOT add any additional dependencies here.
     }
 
     javadoc {
