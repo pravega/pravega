@@ -235,14 +235,16 @@ public class ControllerEventProcessorTest {
         streamStore.setState(SCOPE, STREAM, State.COMMITTING_TXN, null, executor).join();
 
         // verify that event that does not try to use `processor.withCompletion` runs without contention
-        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));
+        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L,
+                AutoScaleEvent.UP, 0L, 2, true, 0L))));
 
         // now same event's processing in face of a barrier should get postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, commitEventProcessor.getProcessorName(), null, executor).join();
-        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));
+        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L,
+                AutoScaleEvent.UP, 0L, 2, true, 0L))));
 
         AssertExtensions.assertThrows("Operation should be disallowed", streamRequestHandler.processEvent(
-                new ScaleOpEvent(SCOPE, STREAM, Collections.emptyList(), Collections.emptyList(), false, 0L)),
+                new ScaleOpEvent(SCOPE, STREAM, Collections.emptyList(), Collections.emptyList(), false, 0L, 0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());

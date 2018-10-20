@@ -156,7 +156,8 @@ public class AutoScaleProcessor {
                 LoggerHelpers.infoLogWithTag(log, timestamp, "sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
+                        AutoScaleEvent.UP, timestamp, numOfSplits, false, timestamp);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -177,8 +178,8 @@ public class AutoScaleProcessor {
                 LoggerHelpers.infoLogWithTag(log, timestamp, "sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
-                        segment.getSegmentId(), AutoScaleEvent.DOWN, timestamp, 0, silent);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
+                        AutoScaleEvent.DOWN, timestamp, 0, silent, timestamp);
                 writeRequest(event).thenAccept(x -> {
                     if (!silent) {
                         // mute only scale downs

@@ -160,6 +160,12 @@ project ('shared:metrics') {
     }
 }
 
+project('shared:controller-api') {
+    dependencies {
+        compile project(':common')
+    }
+}
+
 project('shared:protocol') {
     dependencies {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion

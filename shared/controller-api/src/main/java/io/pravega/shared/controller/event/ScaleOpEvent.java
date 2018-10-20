@@ -24,10 +24,11 @@ public class ScaleOpEvent implements ControllerEvent {
     private final List<Long> segmentsToSeal;
     private final List<AbstractMap.SimpleEntry<Long, Long>> newRanges;
     private final boolean runOnlyIfStarted;
-    private final long scaleTime; // scaleTime is an equivalent for requestId
+    private final long scaleTime;
+    private final long requestId;
 
     public ScaleOpEvent(String scope, String stream, List<Long> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRange,
-                        boolean runOnlyIfStarted, long scaleTime) {
+                        boolean runOnlyIfStarted, long scaleTime, long requestId) {
         this.scope = scope;
         this.stream = stream;
         this.segmentsToSeal = segmentsToSeal;
@@ -36,6 +37,7 @@ public class ScaleOpEvent implements ControllerEvent {
                 .collect(Collectors.toList());
         this.runOnlyIfStarted = runOnlyIfStarted;
         this.scaleTime = scaleTime;
+        this.requestId = requestId;
     }
 
     public List<AbstractMap.SimpleEntry<Double, Double>> getNewRanges() {

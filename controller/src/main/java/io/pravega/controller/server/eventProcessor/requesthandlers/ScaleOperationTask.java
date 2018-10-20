@@ -53,7 +53,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        LoggerHelpers.infoLogWithTag(log, request.getScaleTime(), "starting scale request for {}/{} segments {} to new ranges {}",
+        LoggerHelpers.infoLogWithTag(log, request.getRequestId(), "starting scale request for {}/{} segments {} to new ranges {}",
                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
         runScale(request, request.isRunOnlyIfStarted(), context,
@@ -64,11 +64,11 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
-                        LoggerHelpers.warnLogWithTag(log, request.getScaleTime(), "processing scale request for {}/{} segments {} failed {}",
+                        LoggerHelpers.warnLogWithTag(log, request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
                         result.completeExceptionally(cause);
                     } else {
-                        LoggerHelpers.infoLogWithTag(log, request.getScaleTime(), "scale request for {}/{} segments {} to new ranges {} completed successfully.",
+                        LoggerHelpers.infoLogWithTag(log, request.getRequestId(), "scale request for {}/{} segments {} to new ranges {} completed successfully.",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
                         result.complete(null);
@@ -87,7 +87,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     public CompletableFuture<EpochTransitionRecord> runScale(ScaleOpEvent scaleInput, boolean runOnlyIfStarted, OperationContext context, String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
-        long requestId = scaleInput.getScaleTime();
+        long requestId = scaleInput.getRequestId();
         // create epoch transition node (metadatastore.startScale)
         // Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
         // and deleted in startScale method.

@@ -72,10 +72,10 @@ public final class RequestTracker {
         Preconditions.checkNotNull(requestDescriptor, "Attempting to get a null request descriptor.");
         List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
         if (requestIds == null) {
-            log.warn("Attempting to get a non-existing tag: {}.", requestDescriptor);
+            log.debug("Attempting to get a non-existing tag: {}.", requestDescriptor);
             return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
         } else if (requestIds.size() > 1) {
-            log.warn("{} request ids associated with same descriptor: {}. Propagating only first one: {}.",
+            log.debug("{} request ids associated with same descriptor: {}. Propagating only first one: {}.",
                     requestIds, requestDescriptor, requestIds.get(0));
         }
 
@@ -134,14 +134,14 @@ public final class RequestTracker {
         Preconditions.checkNotNull(requestDescriptor, "Attempting to untrack a null request descriptor.");
         List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
         if (requestIds == null) {
-            log.warn("Attempting to untrack a non-existing key: {}.", requestDescriptor);
+            log.debug("Attempting to untrack a non-existing key: {}.", requestDescriptor);
             return RequestTag.NON_EXISTENT_ID;
         }
 
         long removedRequestId;
         if (requestIds.size() > 1) {
             removedRequestId = requestIds.remove(requestIds.size() - 1);
-            log.warn("{} concurrent requests with same descriptor: {}. Untracking the last of them {}.", requestIds,
+            log.debug("{} concurrent requests with same descriptor: {}. Untracking the last of them {}.", requestIds,
                     requestDescriptor, removedRequestId);
             ongoingRequests.put(requestDescriptor, requestIds);
         } else {
@@ -165,7 +165,7 @@ public final class RequestTracker {
     public static RequestTag initializeAndTrackRequestTag(long requestId, String...requestInfo) {
         RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(requestInfo);
         if (!requestTag.isTracked()) {
-            log.info("Tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.",
+            log.debug("Tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.",
                     requestId, RequestTracker.buildRequestDescriptor(requestInfo));
             requestTag = new RequestTag(RequestTracker.buildRequestDescriptor(requestInfo), requestId);
             RequestTracker.getInstance().trackRequest(requestTag);

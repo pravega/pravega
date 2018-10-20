@@ -9,16 +9,12 @@
  */
 package io.pravega.common.tracing;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 /**
  * Class to store a requestDescriptor, requestId pair in a cache (i.e., RequestTracker) for tracing purposes.
  */
 @Data
-@AllArgsConstructor
-@EqualsAndHashCode
 public class RequestTag {
 
     public final static long NON_EXISTENT_ID = Long.MIN_VALUE;

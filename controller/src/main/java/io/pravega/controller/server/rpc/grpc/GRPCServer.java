@@ -15,7 +15,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.tracing.RPCTracingHelpers;
+import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;

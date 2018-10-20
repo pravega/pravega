@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.tracing;
+package io.pravega.shared.controller.tracing;
 
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -22,6 +22,8 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.tracing.RequestTag;
+import io.pravega.common.tracing.RequestTracker;
 import lombok.extern.slf4j.Slf4j;
 
 /**

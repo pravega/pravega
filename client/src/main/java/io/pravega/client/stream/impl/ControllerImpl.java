@@ -33,7 +33,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.common.tracing.RPCTracingHelpers;
+import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -56,6 +56,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -178,8 +179,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateScopeStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateScopeStatus> callback = new RPCAsyncCallback<>(traceId, "createScope");
-            addTagsToRequest(client, traceId, "createScope", scopeName)
-                    .createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            new ControllerClientTagger(client).withTag(traceId, "createScope", scopeName)
+                                              .createScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -216,8 +217,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<DeleteScopeStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteScopeStatus> callback = new RPCAsyncCallback<>(traceId, "deleteScope");
-            addTagsToRequest(client, traceId, "deleteScope", scopeName)
-                    .deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            new ControllerClientTagger(client).withTag(traceId, "deleteScope", scopeName)
+                                              .deleteScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -255,8 +256,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "createStream");
-            addTagsToRequest(client, traceId, "createStream", streamConfig.getScope(), streamConfig.getStreamName())
-                    .createStream(ModelHelper.decode(streamConfig), callback);
+            new ControllerClientTagger(client).withTag(traceId, "createStream", streamConfig.getScope(), streamConfig.getStreamName())
+                                              .createStream(ModelHelper.decode(streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -297,8 +298,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "updateStream");
-            addTagsToRequest(client, traceId, "updateStream", streamConfig.getScope(), streamConfig.getStreamName())
-                    .updateStream(ModelHelper.decode(streamConfig), callback);
+            new ControllerClientTagger(client).withTag(traceId, "updateStream", streamConfig.getScope(), streamConfig.getStreamName())
+                                              .updateStream(ModelHelper.decode(streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -340,8 +341,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "truncateStream");
-            addTagsToRequest(client, traceId, "truncateStream", scope, stream)
-                    .truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
+            new ControllerClientTagger(client).withTag(traceId, "truncateStream", scope, stream)
+                                              .truncateStream(ModelHelper.decode(scope, stream, streamCut), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -476,21 +477,22 @@ public class ControllerImpl implements Controller {
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(sealedSegments, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
-        long scaleTimestamp = System.currentTimeMillis();
 
         final CompletableFuture<ScaleResponse> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<ScaleResponse> callback = new RPCAsyncCallback<>(traceId, method);
-            addTagsToRequest(client, traceId, method, stream.getScope(), stream.getStreamName(), String.valueOf(scaleTimestamp))
+            long scaleTimestamp = System.currentTimeMillis();
+            new ControllerClientTagger(client)
+                    .withTag(traceId, method, stream.getScope(), stream.getStreamName(), String.valueOf(scaleTimestamp))
                     .scale(ScaleRequest.newBuilder()
-                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                            .addAllSealedSegments(sealedSegments)
-                            .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
-                                    .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
-                                            .setStart(x.getKey()).setEnd(x.getValue()).build())
-                                    .collect(Collectors.toList()))
-                            .setScaleTimestamp(scaleTimestamp)
-                            .build(),
-                    callback);
+                                       .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                       .addAllSealedSegments(sealedSegments)
+                                       .addAllNewKeyRanges(newKeyRanges.entrySet().stream()
+                                                                       .map(x -> ScaleRequest.KeyRangeEntry.newBuilder()
+                                                                                                           .setStart(x.getKey()).setEnd(x.getValue()).build())
+                                                                       .collect(Collectors.toList()))
+                                       .setScaleTimestamp(scaleTimestamp)
+                                       .build(),
+                            callback);
             return callback.getFuture();
         }, this.executor);
         return result;
@@ -505,8 +507,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(traceId, "sealStream");
-            addTagsToRequest(client, traceId, "sealStream", scope, streamName)
-                    .sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            new ControllerClientTagger(client).withTag(traceId, "sealStream", scope, streamName)
+                                              .sealStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -544,8 +546,8 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<DeleteStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>(traceId, "deleteStream");
-            addTagsToRequest(client, traceId, "deleteStream", scope, streamName)
-                    .deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
+            new ControllerClientTagger(client).withTag(traceId, "deleteStream", scope, streamName)
+                                              .deleteStream(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
@@ -836,13 +838,14 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "commitTransaction");
-            addTagsToRequest(client, traceId, "commitTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
+            new ControllerClientTagger(client)
+                    .withTag(traceId, "commitTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
                     .commitTransaction(TxnRequest.newBuilder()
-                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                    stream.getStreamName()))
-                            .setTxnId(ModelHelper.decode(txId))
-                            .build(),
-                    callback);
+                                                 .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                         stream.getStreamName()))
+                                                 .setTxnId(ModelHelper.decode(txId))
+                                                 .build(),
+                            callback);
             return callback.getFuture();
         }, this.executor);
         return Futures.toVoidExpecting(result,
@@ -864,13 +867,13 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "abortTransaction");
-            addTagsToRequest(client, traceId, "abortTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
+            new ControllerClientTagger(client)
+                    .withTag(traceId, "abortTransaction", stream.getScope(), stream.getStreamName(), txId.toString())
                     .abortTransaction(TxnRequest.newBuilder()
-                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                    stream.getStreamName()))
-                            .setTxnId(ModelHelper.decode(txId))
-                            .build(),
-                    callback);
+                                                .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                                .setTxnId(ModelHelper.decode(txId))
+                                                .build(),
+                            callback);
             return callback.getFuture();
         }, this.executor);
         return Futures.toVoidExpecting(result,
@@ -974,17 +977,74 @@ public class ControllerImpl implements Controller {
     }
 
     /**
-     * We attach custom tags to requests by adding them as call options upon a controller request. This guarantees that,
-     * irrespective of whether the different threads issue and intercept the client request, the tags will be available
-     * for being attached to the RPC request.
-     *
-     * @param clientStub Base client stub to add call options.
-     * @param traceId Client-side trace id for this request.
-     * @param requestInfo Information that will be used as a descriptor for this request.
-     * @return Base client stub with parameters as call options.
+     * Wrapper class for a ControllerServiceStub object that i) abstracts the logic for attaching tags to client RPC
+     * requests, and ii) exposes only the operations that are currently supported by the tracing mechanism.
      */
-    private static ControllerServiceStub addTagsToRequest(ControllerServiceStub clientStub, long traceId, String...requestInfo) {
-        return clientStub.withOption(RPCTracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION, RequestTracker.buildRequestDescriptor(requestInfo))
-                         .withOption(RPCTracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
+    private static class ControllerClientTagger {
+
+        private ControllerServiceStub clientStub;
+
+        ControllerClientTagger(ControllerServiceStub clientStub) {
+            this.clientStub = clientStub;
+        }
+
+        /**
+         * We attach custom tags to requests by adding them as call options upon a controller request. This guarantees that,
+         * irrespective of whether the different threads issue and intercept the client request, the tags will be available
+         * for being attached to the RPC request.
+         *
+         * @param traceId Client-side trace id for this request.
+         * @param requestInfo Information that will be used as a descriptor for this request.
+         * @return Client stub wrapper with parameters as call options for the internal client stub.
+         */
+        ControllerClientTagger withTag(long traceId, String...requestInfo) {
+            clientStub = clientStub.withOption(RPCTracingHelpers.REQUEST_DESCRIPTOR_CALL_OPTION,
+                                               RequestTracker.buildRequestDescriptor(requestInfo))
+                                   .withOption(RPCTracingHelpers.REQUEST_ID_CALL_OPTION, String.valueOf(traceId));
+            return this;
+        }
+
+        // Region of ControllerService operations with end to end tracing supported.
+
+        public void createScope(ScopeInfo scopeInfo, RPCAsyncCallback<CreateScopeStatus> callback) {
+            clientStub.createScope(scopeInfo, callback);
+        }
+
+        public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
+            clientStub.deleteScope(scopeInfo, callback);
+        }
+
+        public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {
+            clientStub.createStream(streamConfig, callback);
+        }
+
+        public void scale(ScaleRequest scaleRequest, RPCAsyncCallback<ScaleResponse> callback) {
+            clientStub.scale(scaleRequest, callback);
+        }
+
+        public void updateStream(StreamConfig streamConfig, RPCAsyncCallback<UpdateStreamStatus> callback) {
+            clientStub.updateStream(streamConfig, callback);
+        }
+
+        public void truncateStream(io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut streamCut,
+                                   RPCAsyncCallback<UpdateStreamStatus> callback) {
+            clientStub.truncateStream(streamCut, callback);
+        }
+
+        public void sealStream(StreamInfo streamInfo, RPCAsyncCallback<UpdateStreamStatus> callback) {
+            clientStub.sealStream(streamInfo, callback);
+        }
+
+        public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
+            clientStub.deleteStream(streamInfo, callback);
+        }
+
+        public void commitTransaction(TxnRequest txnRequest, RPCAsyncCallback<TxnStatus> callback) {
+            clientStub.commitTransaction(txnRequest, callback);
+        }
+
+        public void abortTransaction(TxnRequest txnRequest, RPCAsyncCallback<TxnStatus> callback) {
+            clientStub.abortTransaction(txnRequest, callback);
+        }
     }
 }
