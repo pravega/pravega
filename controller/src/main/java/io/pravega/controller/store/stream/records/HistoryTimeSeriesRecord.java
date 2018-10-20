@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableList;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -48,10 +49,17 @@ public class HistoryTimeSeriesRecord {
     @Builder
     HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated,
                             long creationTime) {
+        if (epoch == referenceEpoch) {
+            Exceptions.checkNotNullOrEmpty(segmentsSealed, "segments sealed");
+            Exceptions.checkNotNullOrEmpty(segmentsCreated, "segments created");
+        } else {
+            Exceptions.checkArgument(segmentsSealed == null || segmentsSealed.isEmpty(), "sealed segments", "should be null for duplicate epoch");
+            Exceptions.checkArgument(segmentsCreated == null || segmentsCreated.isEmpty(), "created segments", "should be null for duplicate epoch");
+        }
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
-        this.segmentsSealed = ImmutableList.copyOf(segmentsSealed);
-        this.segmentsCreated = ImmutableList.copyOf(segmentsCreated);
+        this.segmentsSealed = segmentsSealed == null ? null : ImmutableList.copyOf(segmentsSealed);
+        this.segmentsCreated = segmentsCreated == null ? null : ImmutableList.copyOf(segmentsCreated);
         this.scaleTime = creationTime;
     }
 

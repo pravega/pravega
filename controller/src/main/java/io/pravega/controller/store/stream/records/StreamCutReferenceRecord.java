@@ -32,8 +32,8 @@ import java.io.IOException;
 /**
  * Data Class representing individual retention set records where recording time and recording sizes are stored.
  */
-public class RetentionSetRecord {
-    public static final RetentionSetRecordSerializer SERIALIZER = new RetentionSetRecordSerializer();
+public class StreamCutReferenceRecord {
+    public static final StreamCutReferenceRecordSerializer SERIALIZER = new StreamCutReferenceRecordSerializer();
 
     /**
      * Time when this stream cut was recorded.
@@ -44,12 +44,12 @@ public class RetentionSetRecord {
      */
     final long recordingSize;
 
-    public static class RetentionSetRecordBuilder implements ObjectBuilder<RetentionSetRecord> {
+    public static class StreamCutReferenceRecordBuilder implements ObjectBuilder<StreamCutReferenceRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static RetentionSetRecord fromBytes(final byte[] data) {
+    public static StreamCutReferenceRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -58,8 +58,8 @@ public class RetentionSetRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
     
-    static class RetentionSetRecordSerializer
-            extends VersionedSerializer.WithBuilder<RetentionSetRecord, RetentionSetRecord.RetentionSetRecordBuilder> {
+    static class StreamCutReferenceRecordSerializer
+            extends VersionedSerializer.WithBuilder<StreamCutReferenceRecord, StreamCutReferenceRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -70,20 +70,20 @@ public class RetentionSetRecord {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, RetentionSetRecord.RetentionSetRecordBuilder retentionRecordBuilder)
+        private void read00(RevisionDataInput revisionDataInput, StreamCutReferenceRecordBuilder retentionRecordBuilder)
                 throws IOException {
             retentionRecordBuilder.recordingSize(revisionDataInput.readLong());
             retentionRecordBuilder.recordingTime(revisionDataInput.readLong());
         }
 
-        private void write00(RetentionSetRecord retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(StreamCutReferenceRecord retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeLong(retentionRecord.getRecordingSize());
             revisionDataOutput.writeLong(retentionRecord.getRecordingTime());
         }
 
         @Override
-        protected RetentionSetRecord.RetentionSetRecordBuilder newBuilder() {
-            return RetentionSetRecord.builder();
+        protected StreamCutReferenceRecordBuilder newBuilder() {
+            return StreamCutReferenceRecord.builder();
         }
     }
 }

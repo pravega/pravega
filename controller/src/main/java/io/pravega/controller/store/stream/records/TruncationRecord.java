@@ -38,12 +38,12 @@ public class TruncationRecord {
     public static final TruncationRecordSerializer SERIALIZER = new TruncationRecordSerializer();
 
     public static final TruncationRecord EMPTY = new TruncationRecord(ImmutableMap.of(),
-            ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of(), false);
+            ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of(), 0L, false);
 
     /**
      * Stream cut that is applied as part of this truncation.
      */
-    private final ImmutableMap<Long, Long> streamCut;
+    private final Map<Long, Long> streamCut;
 
     /**
      * If a stream cut spans across multiple epochs then this map captures mapping of segments from the stream cut to
@@ -60,55 +60,44 @@ public class TruncationRecord {
      * applied on it to find segments that are available for consumption.
      * Refer to TableHelper.getActiveSegmentsAt
      */
-    private final ImmutableMap<StreamSegmentRecord, Integer> span;
-
+    private final Map<StreamSegmentRecord, Integer> span;
+    private final int spanEpochLow;
+    private final int spanEpochHigh;
     /**
      * All segments that have been deleted for this stream so far.
      */
-    private final ImmutableSet<Long> deletedSegments;
+    private final Set<Long> deletedSegments;
     /**
      * Segments to delete as part of this truncation.
      * This is non empty while truncation is ongoing.
      * This is reset to empty once truncation completes by calling mergeDeleted method.
      */
     private final ImmutableSet<Long> toDelete;
-
+    /**
+     * Size till stream cut.
+     */
+    private final long sizeTill;
+    
     private final boolean updating;
 
     @Builder
     public TruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
-                            Set<Long> deletedSegments, Set<Long> toDelete, boolean updating) {
+                            Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating) {
         this.streamCut = ImmutableMap.copyOf(streamCut);
         this.span = ImmutableMap.copyOf(span);
         this.deletedSegments = ImmutableSet.copyOf(deletedSegments);
         this.toDelete = ImmutableSet.copyOf(toDelete);
+        this.sizeTill = sizeTill;
         this.updating = updating;
+        this.spanEpochLow = span.values().stream().min(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
+        this.spanEpochHigh = span.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
 
-    int getTruncationEpochLow() {
-        return span.values().stream().min(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
-    }
-
-    int getTruncationEpochHigh() {
-        return span.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
-    }
-
-    public ImmutableMap<Long, Long> getStreamCut() {
-        return streamCut;
-    }
-
-    public ImmutableMap<StreamSegmentRecord, Integer> getSpan() {
-        return span;
-    }
-
-    public ImmutableSet<Long> getDeletedSegments() {
-        return deletedSegments;
-    }
-
-    public ImmutableSet<Long> getToDelete() {
-        return toDelete;
-    }
-
+    /**
+     * Method to complete a given ongoing truncation record by setting updating flag to false and merging toDelete in deletedSegments. 
+     * @param toComplete record to complete
+     * @return new record that has the updating flag set to false
+     */
     public static TruncationRecord complete(TruncationRecord toComplete) {
         Preconditions.checkState(toComplete.updating);
         Set<Long> deleted = new HashSet<>(toComplete.deletedSegments);
@@ -120,6 +109,7 @@ public class TruncationRecord {
                 .streamCut(toComplete.streamCut)
                 .deletedSegments(deleted)
                 .toDelete(ImmutableSet.of())
+                .sizeTill(toComplete.sizeTill)               
                 .build();
     }
 

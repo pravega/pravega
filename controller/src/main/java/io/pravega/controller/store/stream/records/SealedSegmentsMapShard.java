@@ -45,18 +45,25 @@ import java.util.Map;
 */
 public class SealedSegmentsMapShard {
     public static final SealedSegmentsMapShardSerializer SERIALIZER = new SealedSegmentsMapShardSerializer();
-    public static final int SHARD_SIZE = 10000;
+    public static final int SHARD_SIZE = 1000;
 
     private final int shardNumber;
     /**
-     * Sealed segments with size at the time of sealing.
-     * segmentId -> sealed segment record.
-     * Each shard contains segments from a range of `segment epoch`.
-     * So each shard size would be say 10k segment numbers. Then the number of records in the map would be 
-     * 10k multiplied by `average number of segments per epoch`.
-     *
-     * So to get sealed segment record -> extract segment epoch from segment id. compute the shard by dividing segment number by 10k.
-     * Fetch the record from the shard.
+     * We maintain a map of Sealed segments with size at the time of sealing. This map can grow very large, O(number of segments)
+     * and hence we will store this in multiple shards. Each shard should ideally contain limited number of entries and we should
+     * be able to compute the shard just by looking at segmentId. 
+     * A segmentId is composed of two parts, creationEpoch and segmentNumber. Which gives us two logical choices for sharding. 
+     * If we were to use segmentNumber to identify shard for a segment, then each shard can contain arbitrarily large number of
+     * entries because with rolling transactions, there can be many duplicate segments created per segment. 
+     * If we use creationEpoch, then we can still have unbounded number of entries because there is no limit on number of segments
+     * created in an epoch. However, typically with auto-scale, this number would be fairly small for each epoch. 
+     * However, with rolling transactions, all segments would be recreated in an epoch and this could be arbitrarily large.
+     * But with limiting the number of epochs and taking a view that about 1000 segments per epoch on average, we can still support
+     * million segments in each shard with a shard size of 1000. 
+     * 
+     * So we will have each shard contains segments from a range of epochs in batches of 1000. 
+     * So to get sealed segment record -> extract segment epoch from segment id. compute the shard by dividing segment number by SHARD_SIZE.
+     * Fetch the size from the shard map.
      */
     private final Map<Long, Long> sealedSegmentsSizeMap;
 

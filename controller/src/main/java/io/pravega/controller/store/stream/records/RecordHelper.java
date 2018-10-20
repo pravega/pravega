@@ -10,9 +10,6 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 
 import java.util.AbstractMap;
@@ -21,9 +18,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 
@@ -38,20 +35,26 @@ public class RecordHelper {
      * @param currentEpoch   current epoch record
      * @return true if scale input is valid, false otherwise.
      */
-    public static boolean validateInputRange(final List<Long> segmentsToSeal,
-                                             final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+    public static boolean validateInputRange(final Set<Long> segmentsToSeal,
+                                             final List<Map.Entry<Double, Double>> newRanges,
                                              final EpochRecord currentEpoch) {
-        boolean newRangesPredicate = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() &&
-                x.getKey() >= 0 && x.getValue() > 0);
+        boolean newRangesCheck = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() && x.getValue() > 0);
 
-        List<AbstractMap.SimpleEntry<Double, Double>> oldRanges = segmentsToSeal.stream()
-                .map(segmentId -> currentEpoch.getSegments().stream().filter(x -> x.segmentId() == segmentId).findFirst().map(x ->
-                        new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
-
-        return newRangesPredicate && reduce(oldRanges).equals(reduce(newRanges));
+        if (newRangesCheck) {
+            List<Map.Entry<Double, Double>> oldRanges = segmentsToSeal.stream()
+                    .map(segmentId -> {
+                        StreamSegmentRecord segment = currentEpoch.getSegment(segmentId);
+                        if (segment != null) {
+                            return new AbstractMap.SimpleEntry<>(segment.getKeyStart(), segment.getKeyEnd());
+                        } else {
+                            return null;
+                        }
+                    }).filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            return reduce(oldRanges).equals(reduce(newRanges));
+        }
+        
+        return false;
     }
 
     /**
@@ -61,8 +64,8 @@ public class RecordHelper {
      * @param currentEpoch current epoch record
      * @return true if a scale operation can be performed, false otherwise
      */
-    public static boolean canScaleFor(final List<Long> segmentsToSeal, final EpochRecord currentEpoch) {
-        return currentEpoch.getSegmentIds().containsAll(segmentsToSeal);
+    public static boolean canScaleFor(final Set<Long> segmentsToSeal, final EpochRecord currentEpoch) {
+        return segmentsToSeal.stream().allMatch(x -> currentEpoch.getSegment(x) != null);
     }
 
     /**
@@ -77,17 +80,29 @@ public class RecordHelper {
      * @param record epoch transition record
      * @return true if record matches supplied input, false otherwise. 
      */
-    public static boolean verifyRecordMatchesInput(List<Long> segmentsToSeal, List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+    public static boolean verifyRecordMatchesInput(Set<Long> segmentsToSeal, List<Map.Entry<Double, Double>> newRanges,
                                                    boolean isManualScale, EpochTransitionRecord record) {
+        // verify that supplied new range matches new range in the record
         boolean newRangeMatch = newRanges.stream().allMatch(x ->
                 record.getNewSegmentsWithRange().values().stream()
                         .anyMatch(y -> y.getKey().equals(x.getKey())
                                 && y.getValue().equals(x.getValue())));
-        boolean segmentsToSealMatch = record.getSegmentsToSeal().stream().allMatch(segmentsToSeal::contains) ||
-                (isManualScale && record.getSegmentsToSeal().stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet())
-                        .equals(segmentsToSeal.stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet())));
 
-        return newRangeMatch && segmentsToSealMatch;
+        if (newRangeMatch) {
+            final Set<Integer> segmentNumbersToSeal = isManualScale ? 
+                    segmentsToSeal.stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet()) :
+                    null;
+            return segmentsToSeal.stream().allMatch(segmentId -> {
+                if (isManualScale) {
+                    // compare segmentNumbers
+                    return segmentNumbersToSeal.contains(StreamSegmentNameUtils.getSegmentNumber(segmentId));
+                } else {
+                    // compare segmentIds
+                    return record.getSegmentsToSeal().contains(segmentId);
+                }
+            });
+        }
+        return false;
     }
 
     /**
@@ -99,18 +114,17 @@ public class RecordHelper {
      * @param scaleTimestamp scale time
      * @return new epoch transition record based on supplied input
      */
-    public static EpochTransitionRecord computeEpochTransition(EpochRecord currentEpoch, List<Long> segmentsToSeal,
-                                                               List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp) {
-        Preconditions.checkState(currentEpoch.getSegmentIds().containsAll(segmentsToSeal), "Invalid epoch transition request");
+    public static EpochTransitionRecord computeEpochTransition(EpochRecord currentEpoch, Set<Long> segmentsToSeal,
+                                                               List<Map.Entry<Double, Double>> newRanges, long scaleTimestamp) {
+        Preconditions.checkState(segmentsToSeal.stream().allMatch(currentEpoch::containsSegment), "Invalid epoch transition request");
 
         int newEpoch = currentEpoch.getEpoch() + 1;
         int nextSegmentNumber = currentEpoch.getSegments().stream().mapToInt(StreamSegmentRecord::getSegmentNumber).max().getAsInt() + 1;
-        Map<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = new HashMap<>();
-        IntStream.range(0, newRanges.size()).forEach(x -> {
-            newSegments.put(computeSegmentId(nextSegmentNumber + x, newEpoch), newRanges.get(x));
-        });
-        return new EpochTransitionRecord(currentEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal),
-                ImmutableMap.copyOf(newSegments));
+        Map<Long, Map.Entry<Double, Double>> newSegments = new HashMap<>();
+        for (int i = 0; i < newRanges.size(); i++) {
+            newSegments.put(computeSegmentId(nextSegmentNumber + i, newEpoch), newRanges.get(i));
+        }
+        return new EpochTransitionRecord(currentEpoch.getEpoch(), scaleTimestamp, segmentsToSeal, newSegments);
 
     }
     // endregion
@@ -122,13 +136,13 @@ public class RecordHelper {
      * @param input list of key ranges.
      * @return reduced list of key ranges.
      */
-    private static List<AbstractMap.SimpleEntry<Double, Double>> reduce(List<AbstractMap.SimpleEntry<Double, Double>> input) {
-        List<AbstractMap.SimpleEntry<Double, Double>> ranges = new ArrayList<>(input);
-        ranges.sort(Comparator.comparingDouble(AbstractMap.SimpleEntry::getKey));
-        List<AbstractMap.SimpleEntry<Double, Double>> result = new ArrayList<>();
+    private static List<Map.Entry<Double, Double>> reduce(List<Map.Entry<Double, Double>> input) {
+        List<Map.Entry<Double, Double>> ranges = new ArrayList<>(input);
+        ranges.sort(Comparator.comparingDouble(Map.Entry::getKey));
+        List<Map.Entry<Double, Double>> result = new ArrayList<>();
         double low = -1.0;
         double high = -1.0;
-        for (AbstractMap.SimpleEntry<Double, Double> range : ranges) {
+        for (Map.Entry<Double, Double> range : ranges) {
             if (high < range.getKey()) {
                 // add previous result and start a new result if prev.high is less than next.low
                 if (low != -1.0 && high != -1.0) {

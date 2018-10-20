@@ -62,7 +62,7 @@ public class CommitTransactionsRecord {
 
     private CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
-        this.transactionsToCommit = transactionsToCommit;
+        this.transactionsToCommit = ImmutableList.copyOf(transactionsToCommit);
         this.activeEpoch = activeEpoch;
     }
 

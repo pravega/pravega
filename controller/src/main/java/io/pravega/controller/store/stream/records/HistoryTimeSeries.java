@@ -23,7 +23,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 
 @Data
@@ -39,8 +38,7 @@ public class HistoryTimeSeries {
 
     @Builder
     HistoryTimeSeries(List<HistoryTimeSeriesRecord> historyRecords) {
-        this.historyRecords = new LinkedList<>();
-        this.historyRecords.addAll(historyRecords);
+        this.historyRecords = ImmutableList.copyOf(historyRecords);
     }
 
     @SneakyThrows(IOException.class)
@@ -57,11 +55,7 @@ public class HistoryTimeSeries {
     public static class HistoryTimeSeriesBuilder implements ObjectBuilder<HistoryTimeSeries> {
 
     }
-
-    public ImmutableList<HistoryTimeSeriesRecord> getHistoryRecords() {
-        return ImmutableList.copyOf(historyRecords);
-    }
-
+    
     public HistoryTimeSeriesRecord getLatestRecord() {
         return historyRecords.get(historyRecords.size() - 1);
     }
@@ -69,7 +63,7 @@ public class HistoryTimeSeries {
     public static HistoryTimeSeries addHistoryRecord(HistoryTimeSeries series, HistoryTimeSeriesRecord record) {
         List<HistoryTimeSeriesRecord> list = Lists.newArrayList(series.historyRecords);
 
-        // add only if cut.recordingTime is newer than the previous record
+        // add only if epoch is immediate epoch following the highest epoch in the series
         if (list.get(list.size() - 1).getEpoch() == record.getEpoch() - 1) {
             list.add(record);
         } else if (list.get(list.size() - 1).getEpoch() != record.getEpoch()) {

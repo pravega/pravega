@@ -19,7 +19,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.io.IOException;
-import java.util.AbstractMap;
+import java.util.Map;
 
 @Data
 @Builder
@@ -43,16 +43,33 @@ public class StreamSegmentRecord {
         return StreamSegmentNameUtils.computeSegmentId(segmentNumber, creationEpoch);
     }
 
+    /**
+     * Method to check if given segment overlaps with this segment.
+     * @param segment segment to check overlap for
+     * @return true if they overlap, false otherwise
+     */
     public boolean overlaps(final StreamSegmentRecord segment) {
         return segment.getKeyStart() > keyStart && segment.getKeyStart() < keyEnd;
     }
 
+    /**
+     * Method to check if this segment overlaps with given range.
+     * @param keyStart key start
+     * @param keyEnd key end
+     * @return true if they overlap, false otherwise
+     */
     public boolean overlaps(final double keyStart, final double keyEnd) {
         return keyEnd > this.keyStart && keyStart < this.keyEnd;
     }
 
-    public static boolean overlaps(final AbstractMap.SimpleEntry<Double, Double> first,
-                                   final AbstractMap.SimpleEntry<Double, Double> second) {
+    /**
+     * Method to check if two  segment overlaps.
+     * @param first first segment
+     * @param second second segment
+     * @return true if they overlap, false otherwise
+     */
+    public static boolean overlaps(final Map.Entry<Double, Double> first,
+                                   final Map.Entry<Double, Double> second) {
         return second.getValue() > first.getKey() && second.getKey() < first.getValue();
     }
 

@@ -9,12 +9,14 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.CollectionHelpers;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -23,8 +25,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 
 @Slf4j
 @Builder
@@ -36,35 +39,96 @@ public class RetentionSet {
     public static final RetentionSetSerializer SERIALIZER = new RetentionSetSerializer();
 
     @Getter
-    private final List<RetentionSetRecord> retentionRecords;
+    private final List<StreamCutReferenceRecord> retentionRecords;
 
-    RetentionSet(List<RetentionSetRecord> retentionSetRecords) {
-        this.retentionRecords = ImmutableList.copyOf(retentionSetRecords);
+    RetentionSet(List<StreamCutReferenceRecord> streamCutReferenceRecords) {
+        this.retentionRecords = ImmutableList.copyOf(streamCutReferenceRecords);
     }
 
-    public static RetentionSet addStreamCutIfLatest(RetentionSet record, RetentionStreamCutRecord cut) {
-        List<RetentionSetRecord> list = Lists.newArrayList(record.retentionRecords);
-
+    /**
+     * This method adds a reference to retentionStreamCutRecord in the retentionSet.  
+     * @param retentionSet record
+     * @param cut stream cut for which the reference has to be added. 
+     * @return updated retentionSet
+     */
+    public static RetentionSet addReferenceToStreamCutIfLatest(RetentionSet retentionSet, RetentionStreamCutRecord cut) {
         // add only if cut.recordingTime is newer than any previous cut
-        if (list.stream().noneMatch(x -> x.getRecordingTime() >= cut.getRecordingTime())) {
-            list.add(new RetentionSetRecord(cut.getRecordingTime(), cut.getRecordingSize()));
+        List<StreamCutReferenceRecord> retentionRecords = retentionSet.retentionRecords;
+        if (retentionRecords.isEmpty() || retentionRecords.get(retentionRecords.size() - 1).getRecordingTime() < cut.getRecordingTime()) {
+            List<StreamCutReferenceRecord> list = Lists.newArrayList(retentionRecords);
+
+            list.add(new StreamCutReferenceRecord(cut.getRecordingTime(), cut.getRecordingSize()));
+            return new RetentionSet(list);
+        }
+        return retentionSet;
+    }
+
+    /**
+     * Find retention record on or before the given time.
+     * @param time time
+     * @return reference record which is greatest lower bound for given time. It returns null if no such record exists in the set.
+     */
+    public StreamCutReferenceRecord findStreamCutReferenceForTime(long time) {
+        int beforeIndex = getGreatestLowerBound(this, time, StreamCutReferenceRecord::getRecordingTime);
+        if (beforeIndex < 0) {
+            return null;
         }
 
-        return new RetentionSet(list);
+        return retentionRecords.get(beforeIndex);
     }
 
-    public List<RetentionSetRecord> retentionRecordsBefore(RetentionSetRecord record) {
-        return retentionRecords.stream().filter(x -> x.getRecordingTime() < record.getRecordingTime())
-                .collect(Collectors.toList());
+    /**
+     * Find retention record on or before the given size.
+     * @param size size
+     * @return reference record which is greatest lower bound for given size. It returns null if no such record exists in the set.
+     */
+    public StreamCutReferenceRecord findStreamCutReferenceForSize(long size) {
+        int beforeIndex = getGreatestLowerBound(this, size, StreamCutReferenceRecord::getRecordingSize);
+        if (beforeIndex < 0) {
+            return null;
+        }
+
+        return retentionRecords.get(beforeIndex);
     }
 
-    public static RetentionSet removeStreamCutBefore(RetentionSet set, RetentionSetRecord record) {
+    /**
+     * Get a list of all retention reference stream cut records on or before (inclusive) the given record.
+     * @param record reference record
+     * @return list of reference records before given reference record.
+     */
+    public List<StreamCutReferenceRecord> retentionRecordsBefore(StreamCutReferenceRecord record) {
+        Preconditions.checkNotNull(record);
+        int beforeIndex = getGreatestLowerBound(this, record.getRecordingTime(), StreamCutReferenceRecord::getRecordingTime);
+        
+        return retentionRecords.subList(0, beforeIndex + 1);
+    }
+
+    /**
+     * Creates a new retention set object by removing all records on or before given record. 
+     * @param set retention set to update
+     * @param record reference record
+     * @return updated retention set record after removing all elements before given reference record.
+     */
+    public static RetentionSet removeStreamCutBefore(RetentionSet set, StreamCutReferenceRecord record) {
+        Preconditions.checkNotNull(record);
         // remove all stream cuts with recordingTime before supplied cut
-        return new RetentionSet(set.retentionRecords.stream().filter(x -> x.getRecordingTime() > record.getRecordingTime())
-                .collect(Collectors.toList()));
+        int beforeIndex = getGreatestLowerBound(set, record.getRecordingTime(), StreamCutReferenceRecord::getRecordingTime);
+        if (beforeIndex < 0) {
+            return set;            
+        }
+        
+        if (beforeIndex + 1 == set.retentionRecords.size()) {
+            return new RetentionSet(Collections.emptyList());
+        }
+        
+        return new RetentionSet(set.retentionRecords.subList(beforeIndex + 1, set.retentionRecords.size()));
     }
 
-    public RetentionSetRecord getLatest() {
+    private static int getGreatestLowerBound(RetentionSet set, long value, Function<StreamCutReferenceRecord, Long> func) {
+        return CollectionHelpers.findGreatestLowerBound(set.retentionRecords, x -> Long.compare(value, func.apply(x)));
+    }
+
+    public StreamCutReferenceRecord getLatest() {
         if (retentionRecords.isEmpty()) {
             return null;
         }
@@ -98,12 +162,12 @@ public class RetentionSet {
 
         private void read00(RevisionDataInput revisionDataInput, RetentionSet.RetentionSetBuilder retentionRecordBuilder)
                 throws IOException {
-            retentionRecordBuilder.retentionRecords(revisionDataInput.readCollection(RetentionSetRecord.SERIALIZER::deserialize,
+            retentionRecordBuilder.retentionRecords(revisionDataInput.readCollection(StreamCutReferenceRecord.SERIALIZER::deserialize,
                     ArrayList::new));
         }
 
         private void write00(RetentionSet retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeCollection(retentionRecord.getRetentionRecords(), RetentionSetRecord.SERIALIZER::serialize);
+            revisionDataOutput.writeCollection(retentionRecord.getRetentionRecords(), StreamCutReferenceRecord.SERIALIZER::serialize);
         }
 
         @Override

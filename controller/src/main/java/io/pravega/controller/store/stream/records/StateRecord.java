@@ -27,6 +27,9 @@ import java.io.IOException;
 @Builder
 @Slf4j
 @AllArgsConstructor
+/**
+ * A serializable class that encapsulates a Stream's State. 
+ */
 public class StateRecord {
     public static final StateRecordSerializer SERIALIZER = new StateRecordSerializer();
 

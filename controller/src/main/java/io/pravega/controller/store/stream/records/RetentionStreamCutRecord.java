@@ -54,8 +54,8 @@ public class RetentionStreamCutRecord {
         this.streamCut = ImmutableMap.copyOf(streamCut);
     }
 
-    public RetentionSetRecord getRetentionRecord() {
-        return new RetentionSetRecord(recordingTime, recordingSize);
+    public StreamCutReferenceRecord getRetentionRecord() {
+        return new StreamCutReferenceRecord(recordingTime, recordingSize);
     }
 
     public static class RetentionStreamCutRecordBuilder implements ObjectBuilder<RetentionStreamCutRecord> {
@@ -73,7 +73,7 @@ public class RetentionStreamCutRecord {
     }
 
     private static class RetentionStreamCutRecordSerializer
-            extends VersionedSerializer.WithBuilder<RetentionStreamCutRecord, RetentionStreamCutRecord.RetentionStreamCutRecordBuilder> {
+            extends VersionedSerializer.WithBuilder<RetentionStreamCutRecord, RetentionStreamCutRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -84,7 +84,7 @@ public class RetentionStreamCutRecord {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, RetentionStreamCutRecord.RetentionStreamCutRecordBuilder streamCutRecordBuilder)
+        private void read00(RevisionDataInput revisionDataInput, RetentionStreamCutRecordBuilder streamCutRecordBuilder)
                 throws IOException {
             streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
                                   .recordingSize(revisionDataInput.readLong())
@@ -98,7 +98,7 @@ public class RetentionStreamCutRecord {
         }
 
         @Override
-        protected RetentionStreamCutRecord.RetentionStreamCutRecordBuilder newBuilder() {
+        protected RetentionStreamCutRecordBuilder newBuilder() {
             return RetentionStreamCutRecord.builder();
         }
     }

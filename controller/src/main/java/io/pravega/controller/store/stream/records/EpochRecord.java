@@ -14,6 +14,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
@@ -23,7 +24,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -33,28 +37,25 @@ import java.util.stream.Collectors;
 public class EpochRecord {
     public static final EpochRecordSerializer SERIALIZER = new EpochRecordSerializer();
 
-    @Getter
     private final int epoch;
     /**
-     * The reference epoch is the original epoch that this current epoch duplicates.
-     * If referenceEpoch is same as epoch, then this is a clean creation of epoch rather than a duplicate.
-     * If we are creating a duplicate of an epoch that was already a duplicate, we set the reference to the parent.
-     * This ensures that instead of having a chain of duplicates we have a tree of depth one where all duplicates
-     * are children of original epoch as common parent.
+     * Reference epoch is either the same as epoch or the epoch that originated a chain of duplicates 
+     * that includes this epoch. If we look at it as a graph, then it is a tree of depth one, where 
+     * the root is the original epoch and the children are duplicates.
      */
-    @Getter
     private final int referenceEpoch;
-    @Getter
     private final List<StreamSegmentRecord> segments;
-    @Getter
     private final long creationTime;
-
+    @Getter(AccessLevel.PRIVATE)
+    private final Map<Long, StreamSegmentRecord> segmentMap = new HashMap<>();
+    
     @Builder
     EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
         this.segments = ImmutableList.copyOf(segments);
         this.creationTime = creationTime;
+        this.segmentMap.putAll(segments.stream().collect(Collectors.toMap(StreamSegmentRecord::segmentId, x -> x)));
     }
 
     @Builder
@@ -76,9 +77,17 @@ public class EpochRecord {
         InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(inputStream);
     }
+    
+    public Set<Long> getSegmentIds() {
+        return segmentMap.keySet();
+    }
 
-    public List<Long> getSegmentIds() {
-        return segments.stream().map(StreamSegmentRecord::segmentId).collect(Collectors.toList());
+    public StreamSegmentRecord getSegment(long segmentId) {
+        return segmentMap.get(segmentId);
+    }
+    
+    public boolean containsSegment(long segmentId) {
+        return segmentMap.containsKey(segmentId);
     }
 
     public static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
