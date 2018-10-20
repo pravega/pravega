@@ -145,8 +145,8 @@ public class TruncationRecord {
             streamTruncationRecordBuilder
                     .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
                     .span(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt))
-                    .deletedSegments(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readLong)))
-                    .toDelete(ImmutableSet.copyOf(revisionDataInput.readCollection(DataInput::readLong)))
+                    .deletedSegments(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
+                    .toDelete(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
                     .updating(revisionDataInput.readBoolean());
         }
 
