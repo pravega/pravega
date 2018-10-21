@@ -32,27 +32,28 @@ public class RequestTrackerTest {
      */
     @Test
     public void testRequestTagLifecycle() {
+        RequestTracker requestTracker = new RequestTracker();
         final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
         final long requestId = 123;
 
         // Track the request and assert that it has been correctly cached.
-        RequestTracker.getInstance().trackRequest(requestDescriptor, requestId);
-        Assert.assertEquals(new RequestTag(requestDescriptor, requestId), RequestTracker.getInstance().getRequestTagFor(requestDescriptor));
-        Assert.assertEquals(requestId, RequestTracker.getInstance().getRequestIdFor(requestDescriptor));
+        requestTracker.trackRequest(requestDescriptor, requestId);
+        Assert.assertEquals(new RequestTag(requestDescriptor, requestId), requestTracker.getRequestTagFor(requestDescriptor));
+        Assert.assertEquals(requestId, requestTracker.getRequestIdFor(requestDescriptor));
 
         // Delete the request tag, the associated request id should be retrieved.
-        Assert.assertEquals(requestId, RequestTracker.getInstance().untrackRequest(requestDescriptor));
+        Assert.assertEquals(requestId, requestTracker.untrackRequest(requestDescriptor));
 
         // Delete a non-existing key, so a default value is retrieved.
-        Assert.assertEquals(Long.MIN_VALUE, RequestTracker.getInstance().untrackRequest(requestDescriptor));
+        Assert.assertEquals(RequestTag.NON_EXISTENT_ID, requestTracker.untrackRequest(requestDescriptor));
 
         // Check that null arguments are not accepted and appropriate exceptions are thrown.
         AssertExtensions.assertThrows(NullPointerException.class,
-                () -> RequestTracker.getInstance().trackRequest(new RequestTag(null, requestId)));
+                () -> requestTracker.trackRequest(new RequestTag(null, requestId)));
         AssertExtensions.assertThrows(NullPointerException.class,
-                () -> RequestTracker.getInstance().untrackRequest(new RequestTag(null, requestId)));
+                () -> requestTracker.untrackRequest(new RequestTag(null, requestId)));
         String nullDescriptor = null;
-        AssertExtensions.assertThrows(NullPointerException.class, () -> RequestTracker.getInstance().getRequestIdFor(nullDescriptor));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> requestTracker.getRequestIdFor(nullDescriptor));
     }
 
     /**
@@ -66,20 +67,21 @@ public class RequestTrackerTest {
      */
     @Test
     public void testPolicyForRequestsWithSameDescriptor() {
+        RequestTracker requestTracker = new RequestTracker();
         final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
 
         // Log multiple request ids associated with the same request descriptor and assert that the first one is retrieved.
         for (int i = 0; i < 10; i++) {
-            RequestTracker.getInstance().trackRequest(requestDescriptor, i);
-            Assert.assertEquals(0, RequestTracker.getInstance().getRequestIdFor(requestDescriptor));
+            requestTracker.trackRequest(requestDescriptor, i);
+            Assert.assertEquals(0, requestTracker.getRequestIdFor(requestDescriptor));
         }
 
         // When untracking requests ids from the descriptor, the most recent ones should be removed first.
         for (int i = 9; i >= 0; i--) {
-            Assert.assertEquals(i, RequestTracker.getInstance().untrackRequest(requestDescriptor));
+            Assert.assertEquals(i, requestTracker.untrackRequest(requestDescriptor));
         }
 
         // Getting a non-existing key, so a default value is retrieved.
-        Assert.assertEquals(Long.MIN_VALUE, RequestTracker.getInstance().getRequestIdFor(requestDescriptor));
+        Assert.assertEquals(RequestTag.NON_EXISTENT_ID, requestTracker.getRequestIdFor(requestDescriptor));
     }
 }

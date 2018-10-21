@@ -13,10 +13,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -28,23 +30,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class RequestTracker {
 
-    private static final RequestTracker INSTANCE = new RequestTracker();
     private static final String INTER_FIELD_DELIMITER = "-";
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int EVICTION_PERIOD_MINUTES = 10;
 
+    private final Object lock = new Object();
+    @GuardedBy("lock")
     private final Cache<String, List<Long>> ongoingRequests;
 
-    private RequestTracker() {
+    public RequestTracker() {
         // Clean request tags after a certain amount of time.
         ongoingRequests = CacheBuilder.newBuilder()
                                       .maximumSize(MAX_CACHE_SIZE)
                                       .expireAfterWrite(EVICTION_PERIOD_MINUTES, TimeUnit.MINUTES)
                                       .build();
-    }
-
-    public static RequestTracker getInstance() {
-        return INSTANCE;
     }
 
     /**
@@ -70,16 +69,21 @@ public final class RequestTracker {
 
     public RequestTag getRequestTagFor(String requestDescriptor) {
         Preconditions.checkNotNull(requestDescriptor, "Attempting to get a null request descriptor.");
-        List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
-        if (requestIds == null) {
-            log.debug("Attempting to get a non-existing tag: {}.", requestDescriptor);
-            return new RequestTag(requestDescriptor, RequestTag.NON_EXISTENT_ID);
-        } else if (requestIds.size() > 1) {
-            log.debug("{} request ids associated with same descriptor: {}. Propagating only first one: {}.",
-                    requestIds, requestDescriptor, requestIds.get(0));
+        long requestId;
+        List<Long> descriptorIds;
+
+        synchronized (lock) {
+            descriptorIds = ongoingRequests.getIfPresent(requestDescriptor);
+            requestId = (descriptorIds == null || descriptorIds.size() == 0) ? RequestTag.NON_EXISTENT_ID : descriptorIds.get(0);
+            if (descriptorIds == null) {
+                log.debug("Attempting to get a non-existing tag: {}.", requestDescriptor);
+            } else if (descriptorIds.size() > 1) {
+                log.debug("{} request ids associated with same descriptor: {}. Propagating only first one: {}.",
+                        descriptorIds, requestDescriptor, requestId);
+            }
         }
 
-        return new RequestTag(requestDescriptor, requestIds.get(0));
+        return new RequestTag(requestDescriptor, requestId);
     }
 
     /**
@@ -106,15 +110,19 @@ public final class RequestTracker {
         trackRequest(requestTag.getRequestDescriptor(), requestTag.getRequestId());
     }
 
-    public synchronized void trackRequest(String requestDescriptor, long requestId) {
+    public void trackRequest(String requestDescriptor, long requestId) {
         Preconditions.checkNotNull(requestDescriptor, "Attempting to track a null request descriptor.");
-        List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
-        if (requestIds == null) {
-            requestIds = new ArrayList<>();
+
+        synchronized (lock) {
+            List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
+            if (requestIds == null) {
+                requestIds = Collections.synchronizedList(new ArrayList<>());
+            }
+
+            requestIds.add(requestId);
+            ongoingRequests.put(requestDescriptor, requestIds);
         }
 
-        requestIds.add(requestId);
-        ongoingRequests.put(requestDescriptor, requestIds);
         log.debug("Tracking request {} with id {}.", requestDescriptor, requestId);
     }
 
@@ -130,23 +138,27 @@ public final class RequestTracker {
         return untrackRequest(requestTag.getRequestDescriptor());
     }
 
-    public synchronized long untrackRequest(String requestDescriptor) {
+    public long untrackRequest(String requestDescriptor) {
         Preconditions.checkNotNull(requestDescriptor, "Attempting to untrack a null request descriptor.");
-        List<Long> requestIds = ongoingRequests.getIfPresent(requestDescriptor);
-        if (requestIds == null) {
-            log.debug("Attempting to untrack a non-existing key: {}.", requestDescriptor);
-            return RequestTag.NON_EXISTENT_ID;
-        }
-
         long removedRequestId;
-        if (requestIds.size() > 1) {
-            removedRequestId = requestIds.remove(requestIds.size() - 1);
-            log.debug("{} concurrent requests with same descriptor: {}. Untracking the last of them {}.", requestIds,
-                    requestDescriptor, removedRequestId);
-            ongoingRequests.put(requestDescriptor, requestIds);
-        } else {
-            ongoingRequests.invalidate(requestDescriptor);
-            removedRequestId = requestIds.get(0);
+        List<Long> requestIds;
+
+        synchronized (lock) {
+            requestIds = ongoingRequests.getIfPresent(requestDescriptor);
+            if (requestIds == null) {
+                log.debug("Attempting to untrack a non-existing key: {}.", requestDescriptor);
+                return RequestTag.NON_EXISTENT_ID;
+            }
+
+            if (requestIds.size() > 1) {
+                removedRequestId = requestIds.remove(requestIds.size() - 1);
+                log.debug("{} concurrent requests with same descriptor: {}. Untracking the last of them {}.", requestIds,
+                        requestDescriptor, removedRequestId);
+                ongoingRequests.put(requestDescriptor, requestIds);
+            } else {
+                ongoingRequests.invalidate(requestDescriptor);
+                removedRequestId = requestIds.get(0);
+            }
         }
 
         log.debug("Untracking request {} with id {}.", requestDescriptor, requestIds);
@@ -162,13 +174,13 @@ public final class RequestTracker {
      * @param requestInfo Alternative descriptor to identify the call in the case there is no descriptor in headers.
      * @return Request tag formed either from request headers or from arguments given.
      */
-    public static RequestTag initializeAndTrackRequestTag(long requestId, String...requestInfo) {
-        RequestTag requestTag = RequestTracker.getInstance().getRequestTagFor(requestInfo);
+    public RequestTag initializeAndTrackRequestTag(long requestId, String...requestInfo) {
+        RequestTag requestTag = getRequestTagFor(requestInfo);
         if (!requestTag.isTracked()) {
             log.debug("Tags not found for this request: requestId={}, descriptor={}. Create request tag at this point.",
                     requestId, RequestTracker.buildRequestDescriptor(requestInfo));
             requestTag = new RequestTag(RequestTracker.buildRequestDescriptor(requestInfo), requestId);
-            RequestTracker.getInstance().trackRequest(requestTag);
+            trackRequest(requestTag);
         }
 
         return requestTag;

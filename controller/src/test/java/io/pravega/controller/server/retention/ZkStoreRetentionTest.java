@@ -16,6 +16,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
@@ -113,6 +114,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
 
     @Test(timeout = 10000)
     public void testOwnershipOfExistingBucket() throws Exception {
+        RequestTracker requestTracker = new RequestTracker();
         TestingServer zkServer2 = new TestingServerStarter().start();
         zkServer2.start();
         CuratorFramework zkClient2 = CuratorFrameworkFactory.newClient(zkServer2.getConnectString(), 10000, 1000,
@@ -132,7 +134,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory,
-                AuthHelper.getDisabledAuthHelper());
+                AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         String scope = "scope1";
         String streamName = "stream1";

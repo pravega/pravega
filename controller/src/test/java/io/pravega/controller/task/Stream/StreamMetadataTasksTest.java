@@ -22,6 +22,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
@@ -124,6 +125,8 @@ public class StreamMetadataTasksTest {
     private StreamRequestHandler streamRequestHandler;
     private ConnectionFactoryImpl connectionFactory;
 
+    private RequestTracker requestTracker = new RequestTracker();
+
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -140,9 +143,8 @@ public class StreamMetadataTasksTest {
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore,
-                taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key")));
+        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key"), requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory,

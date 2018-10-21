@@ -10,7 +10,6 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.OperationContext;
@@ -65,21 +64,19 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         String stream = event.getStream();
         int epoch = event.getEpoch();
         UUID txId = event.getTxid();
-        long requestId = event.getRequestId();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
-        LoggerHelpers.debugLogWithTag(log, requestId, "Aborting transaction {} on stream {}/{}",
-                event.getTxid(), event.getScope(), event.getStream());
+        log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         return Futures.toVoid(streamMetadataStore.getActiveSegmentIds(event.getScope(), event.getStream(), epoch, context, executor)
-                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId, requestId))
+                .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))
                 .whenComplete((result, error) -> {
                     if (error != null) {
-                        LoggerHelpers.errorLogWithTag(log, requestId, "Failed aborting transaction {} on stream {}/{}",
-                                event.getTxid(), event.getScope(), event.getStream());
+                        log.error("Failed aborting transaction {} on stream {}/{}", event.getTxid(),
+                                event.getScope(), event.getStream());
                     } else {
-                        LoggerHelpers.debugLogWithTag(log, requestId, "Successfully aborted transaction {} on stream {}/{}",
-                                event.getTxid(), event.getScope(), event.getStream());
+                        log.debug("Successfully aborted transaction {} on stream {}/{}", event.getTxid(),
+                                event.getScope(), event.getStream());
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }

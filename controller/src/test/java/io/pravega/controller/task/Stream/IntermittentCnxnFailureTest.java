@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -70,6 +71,7 @@ public class IntermittentCnxnFailureTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private SegmentHelper segmentHelperMock;
+    private RequestTracker requestTracker = new RequestTracker();
 
     @Before
     public void setup() throws Exception {
@@ -90,9 +92,8 @@ public class IntermittentCnxnFailureTest {
                 anyString(), anyString(), anyInt(), any());
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());

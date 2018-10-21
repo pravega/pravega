@@ -69,6 +69,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
     private final AuthHelper authHelper;
+    private final RequestTracker requestTracker;
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
 
@@ -83,7 +84,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createStream",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "createStream called for stream {}/{}.",
@@ -96,7 +97,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "updateStream",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "updateStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "updateStream called for stream {}/{}.",
@@ -108,7 +109,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void truncateStream(Controller.StreamCut request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "truncateStream",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "truncateStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "truncateStream called for stream {}/{}.",
@@ -121,7 +122,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void sealStream(StreamInfo request, StreamObserver<UpdateStreamStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "sealStream",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "sealStream",
                 request.getScope(), request.getStream());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "sealStream called for stream {}/{}.",
@@ -133,7 +134,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void deleteStream(StreamInfo request, StreamObserver<DeleteStreamStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "deleteStream",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "deleteStream",
                 request.getScope(), request.getStream());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "deleteStream called for stream {}/{}.",
@@ -270,7 +271,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createTransaction(CreateTxnRequest request, StreamObserver<Controller.CreateTxnResponse> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createTransaction",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createTransaction",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "createTransaction called for stream {}/{}.",
@@ -290,7 +291,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void commitTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "commitTransaction",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "commitTransaction",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId().toString());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "commitTransaction called for stream {}/{}, txnId={}.",
@@ -305,7 +306,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void abortTransaction(TxnRequest request, StreamObserver<TxnStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "abortTransaction",
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "abortTransaction",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), request.getTxnId().toString());
 
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "abortTransaction called for stream {}/{}, txnId={}.",
@@ -345,7 +346,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createScope", request.getScope());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "createScope", request.getScope());
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "createScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createScope(request.getScope()),
@@ -354,7 +355,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
-        RequestTag requestTag = RequestTracker.initializeAndTrackRequestTag(System.nanoTime(), "deleteScope", request.getScope());
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(System.nanoTime(), "deleteScope", request.getScope());
         LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
@@ -413,7 +414,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {
         if (requestTag != null) {
-            LoggerHelpers.infoLogWithTag(log, RequestTracker.getInstance().untrackRequest(requestTag.getRequestDescriptor()),
+            LoggerHelpers.debugLogWithTag(log, requestTracker.untrackRequest(requestTag.getRequestDescriptor()),
                     "Untracking request: {}.", requestTag.getRequestDescriptor());
         }
     }

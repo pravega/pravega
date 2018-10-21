@@ -194,8 +194,8 @@ public class AutoScaleTask {
      * @param newRanges new ranges for segments to create
      * @return CompletableFuture
      */
-    private CompletableFuture<Void> postScaleRequest(final AutoScaleEvent request, final ArrayList<Long> segments,
-                                                     final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+    private CompletableFuture<Void> postScaleRequest(final AutoScaleEvent request, final List<Long> segments,
+                                                     final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                      final long requestId) {
         ScaleOpEvent event = new ScaleOpEvent(request.getScope(),
                 request.getStream(),

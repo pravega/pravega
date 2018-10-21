@@ -163,6 +163,7 @@ project ('shared:metrics') {
 project('shared:controller-api') {
     dependencies {
         compile project(':common')
+        testCompile project(':test:testcommon')
     }
 }
 

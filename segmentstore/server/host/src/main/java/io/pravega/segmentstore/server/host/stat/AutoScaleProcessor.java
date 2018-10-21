@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Supplier;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
@@ -23,6 +24,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -59,6 +61,8 @@ public class AutoScaleProcessor {
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
     private final ScheduledExecutorService maintenanceExecutor;
+    private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
+
 
     AutoScaleProcessor(AutoScalerConfig configuration,
                        ScheduledExecutorService maintenanceExecutor) {
@@ -151,13 +155,13 @@ public class AutoScaleProcessor {
             }
 
             long timestamp = System.currentTimeMillis();
-
+            long requestId = requestIdGenerator.get();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
                 LoggerHelpers.infoLogWithTag(log, timestamp, "sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
-                        AutoScaleEvent.UP, timestamp, numOfSplits, false, timestamp);
+                        AutoScaleEvent.UP, timestamp, numOfSplits, false, requestId);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -174,12 +178,13 @@ public class AutoScaleProcessor {
             }
 
             long timestamp = System.currentTimeMillis();
+            long requestId = requestIdGenerator.get();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
                 LoggerHelpers.infoLogWithTag(log, timestamp, "sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
-                        AutoScaleEvent.DOWN, timestamp, 0, silent, timestamp);
+                        AutoScaleEvent.DOWN, timestamp, 0, silent, requestId);
                 writeRequest(event).thenAccept(x -> {
                     if (!silent) {
                         // mute only scale downs

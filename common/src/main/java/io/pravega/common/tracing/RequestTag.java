@@ -17,7 +17,7 @@ import lombok.Data;
 @Data
 public class RequestTag {
 
-    public final static long NON_EXISTENT_ID = Long.MIN_VALUE;
+    public final static long NON_EXISTENT_ID = 0L;
 
     /**
      * The request descriptor is the key to access the client-generated requestId.

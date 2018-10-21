@@ -20,6 +20,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
@@ -139,6 +140,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             String hostName = getHostName();
             Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
+            // Create a RequestTracker instance to trace client requests end-to-end.
+            RequestTracker requestTracker = new RequestTracker();
+
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
                 monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
@@ -161,7 +165,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper);
+                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
@@ -225,7 +229,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
-                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get());
+                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get(), requestTracker);
                 grpcServer.startAsync();
                 log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();

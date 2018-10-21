@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -84,6 +85,8 @@ public class ControllerServiceWithZKStreamTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
 
+    private RequestTracker requestTracker = new RequestTracker();
+
     @Before
     public void setup() {
         try {
@@ -104,7 +107,7 @@ public class ControllerServiceWithZKStreamTest {
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),

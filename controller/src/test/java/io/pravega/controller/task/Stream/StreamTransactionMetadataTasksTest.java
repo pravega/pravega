@@ -20,6 +20,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -122,6 +123,8 @@ public class StreamTransactionMetadataTasksTest {
     private StreamTransactionMetadataTasks txnTasks;
     private ConnectionFactory connectionFactory;
 
+    private RequestTracker requestTracker = new RequestTracker();
+
     private static class SequenceAnswer<T> implements Answer<T> {
 
         private Iterator<T> resultIterator;
@@ -159,7 +162,7 @@ public class StreamTransactionMetadataTasksTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  AuthHelper.getDisabledAuthHelper());
+                executor, "host", connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
     }
 
     @After

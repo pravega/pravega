@@ -23,6 +23,7 @@ import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -105,25 +106,27 @@ public class StreamMetadataTasks extends TaskBase {
 
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final AuthHelper authHelper;
+    private final RequestTracker requestTracker;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-                               final ConnectionFactory connectionFactory, AuthHelper authHelper) {
+                               final ConnectionFactory connectionFactory, AuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
-                connectionFactory, authHelper);
+                connectionFactory, authHelper, requestTracker);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
-                                ConnectionFactory connectionFactory, AuthHelper authHelper) {
+                                ConnectionFactory connectionFactory, AuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
         this.authHelper = authHelper;
+        this.requestTracker = requestTracker;
         this.setReady();
     }
 
@@ -162,7 +165,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<UpdateStreamStatus.Status> updateStream(String scope, String stream, StreamConfiguration newConfig,
                                                                      OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("updateStream", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("updateStream", scope, stream);
 
         // 1. get configuration
         return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
@@ -324,7 +327,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                                        final Map<Long, Long> streamCut,
                                                                        final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("truncateStream", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("truncateStream", scope, stream);
 
         // 1. get stream cut
         return startTruncation(scope, stream, streamCut, context, requestId)
@@ -382,7 +385,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<UpdateStreamStatus.Status> sealStream(String scope, String stream, OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("sealStream", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("sealStream", scope, stream);
 
         // 1. post event for seal.
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
@@ -427,7 +430,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<DeleteStreamStatus.Status> deleteStream(final String scope, final String stream,
                                                                      final OperationContext contextOpt) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("deleteStream", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("deleteStream", scope, stream);
 
         return streamMetadataStore.getState(scope, stream, false, context, executor)
                 .thenCompose(state -> {
@@ -474,7 +477,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, scaleTimestamp);
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
+        final long requestId = requestTracker.getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
 
         return writeEvent(event)
                 .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
@@ -585,7 +588,7 @@ public class StreamMetadataTasks extends TaskBase {
 
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("createStream", scope, stream);
+        final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
                     LoggerHelpers.infoLogWithTag(log, requestId, "{}/{} created in metadata store", scope, stream);
@@ -656,6 +659,11 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
+                                                     String controllerToken) {
+        return notifyNewSegments(scope, stream, segmentIds, context, controllerToken, RequestTag.NON_EXISTENT_ID);
+    }
+
+    public CompletableFuture<Void> notifyNewSegments(String scope, String stream, List<Long> segmentIds, OperationContext context,
                                                      String controllerToken, long requestId) {
         return withRetries(() -> streamMetadataStore.getConfiguration(scope, stream, context, executor), executor)
                 .thenCompose(configuration -> notifyNewSegments(scope, stream, configuration, segmentIds, controllerToken, requestId));
@@ -668,6 +676,12 @@ public class StreamMetadataTasks extends TaskBase {
                 .parallel()
                 .map(segment -> notifyNewSegment(scope, stream, segment, configuration.getScalingPolicy(), controllerToken, requestId))
                 .collect(Collectors.toList())));
+    }
+
+    public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
+                                                    String controllerToken) {
+        return Futures.toVoid(withRetries(() -> segmentHelper.createSegment(scope, stream, segmentId, policy,
+                hostControllerStore, this.connectionFactory, controllerToken, RequestTag.NON_EXISTENT_ID), executor));
     }
 
     public CompletableFuture<Void> notifyNewSegment(String scope, String stream, long segmentId, ScalingPolicy policy,
@@ -706,7 +720,12 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Long> sealedSegments,
-                                                        String delegationToken, long requestId) {
+                                                        String delegationToken) {
+        return notifySealedSegments(scope, stream, sealedSegments, delegationToken, RequestTag.NON_EXISTENT_ID);
+    }
+
+    public CompletableFuture<Void> notifySealedSegments(String scope, String stream, List<Long> sealedSegments,
+                                                         String delegationToken, long requestId) {
         return Futures.allOf(
                 sealedSegments
                         .stream()
@@ -781,41 +800,41 @@ public class StreamMetadataTasks extends TaskBase {
         }
     }
 
-    public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream, final List<Long> segments,
-                                                   final UUID txnId, long requestId) {
+    public CompletableFuture<Void> notifyTxnCommit(final String scope, final String stream,
+                                                   final List<Long> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnCommit(scope, stream, segment, txnId, requestId))
+                .map(segment -> notifyTxnCommit(scope, stream, segment, txnId))
                 .collect(Collectors.toList()));
     }
 
     private CompletableFuture<Controller.TxnStatus> notifyTxnCommit(final String scope, final String stream,
-                                                                    final long segmentNumber, final UUID txnId, long requestId) {
+                                                                    final long segmentNumber, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.commitTransaction(scope,
                 stream,
                 segmentNumber,
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken(), requestId), executor);
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
     }
 
-    public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream, final List<Long> segments,
-                                                  final UUID txnId, final long requestId) {
+    public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
+                                                  final List<Long> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
-                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId, requestId))
+                .map(segment -> notifyTxnAbort(scope, stream, segment, txnId))
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream, final long segmentNumber,
-                                                                   final UUID txnId, final long requestId) {
+    private CompletableFuture<Controller.TxnStatus> notifyTxnAbort(final String scope, final String stream,
+                                                                   final long segmentNumber, final UUID txnId) {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.abortTransaction(scope,
                 stream,
                 segmentNumber,
                 txnId,
                 this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken(), requestId), executor);
+                this.connectionFactory, this.retrieveDelegationToken()), executor);
     }
 
     @Override
@@ -827,7 +846,8 @@ public class StreamMetadataTasks extends TaskBase {
                 executor,
                 context,
                 connectionFactory,
-                authHelper);
+                authHelper,
+                requestTracker);
     }
 
     @Override

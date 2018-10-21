@@ -44,8 +44,8 @@ public final class RPCTracingHelpers {
         return new TaggingClientInterceptor();
     }
 
-    public static ServerInterceptor getServerInterceptor() {
-        return new TaggingServerInterceptor();
+    public static ServerInterceptor getServerInterceptor(RequestTracker requestTracker) {
+        return new TaggingServerInterceptor(requestTracker);
     }
 
     /**
@@ -89,13 +89,19 @@ public final class RPCTracingHelpers {
      */
     private static class TaggingServerInterceptor implements ServerInterceptor {
 
+        private final RequestTracker requestTracker;
+
+        public TaggingServerInterceptor(RequestTracker requestTracker) {
+            this.requestTracker = requestTracker;
+        }
+
         @Override
         public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, final Metadata headers,
                                                                      ServerCallHandler<ReqT, RespT> next) {
             // Check if this RPC has tags to track request (e.g., older clients).
             if (headers != null && headers.containsKey(DESCRIPTOR_HEADER) && headers.containsKey(ID_HEADER)) {
                 RequestTag requestTag = new RequestTag(headers.get(DESCRIPTOR_HEADER), Long.parseLong(headers.get(ID_HEADER)));
-                RequestTracker.getInstance().trackRequest(requestTag);
+                requestTracker.trackRequest(requestTag);
                 LoggerHelpers.debugLogWithTag(log, requestTag.getRequestId(), "Received tag from RPC request {}.",
                         requestTag.getRequestDescriptor());
             } else {

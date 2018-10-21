@@ -122,7 +122,7 @@ public class SegmentHelperTest {
     public void commitTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
-                new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+                new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -135,7 +135,7 @@ public class SegmentHelperTest {
     public void abortTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, new UUID(0, 0L),
-                new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+                new MockHostControllerStore(), factory, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),

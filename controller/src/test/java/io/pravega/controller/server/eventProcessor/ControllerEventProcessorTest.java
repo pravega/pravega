@@ -15,6 +15,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -80,6 +81,7 @@ public class ControllerEventProcessorTest {
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
     private CuratorFramework zkClient;
+    private RequestTracker requestTracker = new RequestTracker();
 
     @Before
     public void setUp() throws Exception {
@@ -96,7 +98,7 @@ public class ControllerEventProcessorTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper());
+                segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
                 executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
@@ -133,7 +135,7 @@ public class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch(), Long.MIN_VALUE)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 
@@ -149,14 +151,14 @@ public class ControllerEventProcessorTest {
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
 
-        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1, Long.MIN_VALUE))));
-        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1, Long.MIN_VALUE))));
-        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1))));
+        Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch))));
     }
 
     @Test(timeout = 10000)
@@ -174,12 +176,12 @@ public class ControllerEventProcessorTest {
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
 
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1, Long.MIN_VALUE)),
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1, Long.MIN_VALUE)),
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList1) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
@@ -188,7 +190,7 @@ public class ControllerEventProcessorTest {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
         }
 
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList2) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
@@ -209,7 +211,7 @@ public class ControllerEventProcessorTest {
 
         // set some processor name so that the processing gets postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, "test", null, executor).join();
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE)),
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStore.deleteWaitingRequestConditionally(SCOPE, STREAM, "test1", null, executor).join();
@@ -220,13 +222,13 @@ public class ControllerEventProcessorTest {
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
         streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
 
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE)),
+        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
         // verify that we are able to process if the waiting processor name is same as ours.
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch, Long.MIN_VALUE)).join();
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
 
         // verify that waiting processor is cleaned up.
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
@@ -279,7 +281,7 @@ public class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
         AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, executor);
-        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId(), Long.MIN_VALUE)).join();
+        abortRequestHandler.processEvent(new AbortEvent(SCOPE, STREAM, txnData.getEpoch(), txnData.getId())).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTED);
     }
 

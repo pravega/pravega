@@ -10,12 +10,14 @@
 package io.pravega.controller.server.retention;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Supplier;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.RandomFactory;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -46,6 +48,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
     private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
+    private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
     StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
                            StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor) {
@@ -127,7 +130,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
-        long requestId = System.nanoTime();
+        long requestId = requestIdGenerator.get();
         LoggerHelpers.debugLogWithTag(log, requestId, "Periodic background processing for retention called for stream {}/{}",
                 stream.getScope(), stream.getStreamName());
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)

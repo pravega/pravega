@@ -15,9 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -257,10 +255,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final UUID txId,
                                                  final Integer version,
                                                  final OperationContext contextOpt) {
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("abortTransaction", scope, stream, txId.toString());
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context, requestId),
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
                     RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
@@ -276,10 +273,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
-        final long requestId = RequestTracker.getInstance().getRequestIdFor("commitTransaction", scope, stream, txId.toString());
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context, requestId),
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
                     RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
@@ -548,8 +544,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                              final boolean commit,
                                              final UUID txnId,
                                              final Integer version,
-                                             final OperationContext ctx,
-                                             final long requestId) {
+                                             final OperationContext ctx) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
         Optional<Integer> versionOpt = Optional.ofNullable(version);
 
@@ -562,11 +557,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
         addIndex.whenComplete((v, e) -> {
             if (e != null) {
-                LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, already present/newly added to host-txn index of host={}",
-                        txnId, hostId);
+                log.debug("Txn={}, already present/newly added to host-txn index of host={}", txnId, hostId);
             } else {
-                LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, added txn to host-txn index of host={}",
-                        txnId, hostId);
+                log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
             }
         });
 
@@ -575,10 +568,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, ctx, executor), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
-                        LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, failed sealing txn", txnId);
+                        log.debug("Txn={}, failed sealing txn", txnId);
                     } else {
-                        LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, sealed successfully, commit={}",
-                                txnId, commit);
+                        log.debug("Txn={}, sealed successfully, commit={}", txnId, commit);
                     }
                 });
 
@@ -587,9 +579,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             TxnStatus status = pair.getKey();
             switch (status) {
                 case COMMITTING:
-                    return writeCommitEvent(scope, stream, pair.getValue(), txnId, status, requestId);
+                    return writeCommitEvent(scope, stream, pair.getValue(), txnId, status);
                 case ABORTING:
-                    return writeAbortEvent(scope, stream, pair.getValue(), txnId, status, requestId);
+                    return writeAbortEvent(scope, stream, pair.getValue(), txnId, status);
                 case ABORTED:
                 case COMMITTED:
                     return CompletableFuture.completedFuture(status);
@@ -603,14 +595,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, executor).thenComposeAsync(status -> {
             // Step 4. Remove txn from timeoutService, and from the index.
             timeoutService.removeTxn(scope, stream, txnId);
-            LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, removed from timeout service", txnId);
+            log.debug("Txn={}, removed from timeout service", txnId);
             return streamMetadataStore.removeTxnFromIndex(host, resource, true).whenComplete((v, e) -> {
                 if (e != null) {
-                    LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, failed removing txn from host-txn index of host={}",
-                            txnId, hostId);
+                    log.debug("Txn={}, failed removing txn from host-txn index of host={}", txnId, hostId);
                 } else {
-                    LoggerHelpers.debugLogWithTag(log, requestId, "Txn={}, removed txn from host-txn index of host={}",
-                            txnId, hostId);
+                    log.debug("Txn={}, removed txn from host-txn index of host={}", txnId, hostId);
                 }
             }).thenApply(x -> status);
         }, executor);
@@ -620,16 +610,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
     }
 
-    CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status, long requestId) {
+    CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch, requestId);
+        CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
                 key, event, txnId, status), executor);
     }
 
-    CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status, long requestId) {
+    CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         String key = txnId.toString();
-        AbortEvent event = new AbortEvent(scope, stream, epoch, txnId, requestId);
+        AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
         return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter, abortStreamName,
                 key, event, txnId, status), executor);
     }

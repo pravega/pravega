@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -58,6 +59,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
+    private RequestTracker requestTracker;
 
     @Override
     public void setup() throws Exception {
@@ -66,14 +68,15 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        requestTracker = new RequestTracker();
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host", connectionFactory,   AuthHelper.getDisabledAuthHelper());
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory,  AuthHelper.getDisabledAuthHelper());
+                executorService, "host", connectionFactory,   AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelper,
+                executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
@@ -91,7 +94,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      new SegmentHelper(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), true);
+                                      new SegmentHelper(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true);
     }
 
     @Override

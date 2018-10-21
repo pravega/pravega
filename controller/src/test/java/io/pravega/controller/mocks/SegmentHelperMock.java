@@ -43,10 +43,10 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), any(), any(), anyLong());
@@ -79,10 +79,10 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), any(), any(), anyLong());
