@@ -266,7 +266,7 @@ public class ControllerEventProcessorTest {
     }
 
     @Test(timeout = 10000)
-    public void testAbortEventcProcessor() {
+    public void testAbortEventProcessor() {
         UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
                 null, executor).join();

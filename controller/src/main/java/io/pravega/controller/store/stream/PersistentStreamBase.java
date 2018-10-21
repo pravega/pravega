@@ -95,7 +95,7 @@ public abstract class PersistentStreamBase implements Stream {
      * Create a new task of type Create.
      * If create task already exists, use that and bring it to completion
      * If no task exists, fall through all create steps. They are all idempotent
-     * <p>
+     * 
      * Create Steps:
      * 1. Create new store configuration
      * 2. Create new segment table.
@@ -737,24 +737,8 @@ public abstract class PersistentStreamBase implements Stream {
 
                             // idempotent check
                             if (lastRecord.getEpoch() > activeEpoch) {
-                                boolean idempotent = lastRecord.isPartial() && lastRecord.getSegments().containsAll(createdSegments);
-                                if (idempotent) {
-                                    HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyIndex.getData(),
-                                            historyTable.getData()).get();
-
-                                    idempotent = previous.getSegments().stream().noneMatch(createdSegments::contains);
-                                }
-
-                                if (idempotent) {
-                                    log.debug("{}/{} scale op for epoch {} - history record already added", scope, name, activeEpoch);
-                                    return CompletableFuture.completedFuture(null);
-                                } else {
-                                    // we should never reach here! As the inconsistent epoch transition should
-                                    // have been rejected in submitScale itself.
-                                    // As a failsafe we will still call validate nevertheless.
-                                    log.warn("{}/{} scale op for epoch {}. Scale already completed.", scope, name, activeEpoch);
-                                    throw new EpochTransitionOperationExceptions.InputInvalidException();
-                                }
+                                log.debug("{}/{} scale op for epoch {} - history record already added", scope, name, activeEpoch);
+                                return CompletableFuture.completedFuture(null);
                             }
 
                             final List<Long> newActiveSegments = getNewActiveSegments(createdSegments, segmentsToSeal, lastRecord);

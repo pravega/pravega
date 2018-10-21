@@ -206,11 +206,14 @@ interface Stream {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition();
 
     /**
-     * Called to start metadata updates to stream store wrt new scale event.
+     * Called to start metadata updates to stream store with respect to new scale request. This method should only update
+     * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
+     * In case of rolling transactions, this record may become invalid and can be discarded during the startScale phase
+     * of scale workflow. 
      *
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
-     * @return sequence of newly created segments
+     * @return Future which when completed will encapsulate the epoch transition record with its version. 
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final List<Long> sealedSegments,
                                                                             final List<SimpleEntry<Double, Double>> newRanges,
@@ -222,45 +225,73 @@ interface Stream {
      * For manual scale this method will migrate the epoch transaction. For auto scale, it will discard any
      * inconsistent record and reset the state.
      *
+     * Note: the state management is outside the purview of this method and should be done explicitly by the caller. 
+     * 
      * @param isManualScale  flag to indicate that the processing is being performed for manual scale
      * @param record previous versioned record
      * @param state  previous versioned state
      * @return future Future which when completed contains updated epoch transition record with version or exception otherwise.
+     * @throws IllegalStateException if epoch transition is inconsistent. 
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final boolean isManualScale,
                                                                            final VersionedMetadata<EpochTransitionRecord> record,
                                                                            final VersionedMetadata<State> state);
 
     /**
-     * Called after epochTransition entry is created. Implementation of this method should create new segments that are
-     * specified in epochTransition in stream metadata tables.
+     * Called after we have successfully verified epoch transition record and started the scale workflow. 
+     * Implementation of this method should create new segments that are specified in epochTransition in stream metadata records.
      *
-     * @param record
-     * @return Future, which when completed will indicate that new segments are created in the metadata store or wouldl
+     * @param record epoch transition record
+     * @return Future, which when completed will indicate that new segments are created in the metadata store or would
      * have failed with appropriate exception.
      */
     CompletableFuture<Void> scaleCreateNewSegments(VersionedMetadata<EpochTransitionRecord> record);
 
     /**
-     * Called after new segment creation is complete.
+     * This method is called after new segment creation is complete in segment store. The store should update its metadata 
+     * such that it can return successors for segmentsToSeal if required. This should require store to create new epoch
+     * record corresponding to these new segments in idempotent fashion. 
+     * 
      * @param record  existing versioned record
+     * @return Future, which when completed will indicate successful and idempotent update of metadata corresponding to
+     * new segments information created in the store. 
      */
     CompletableFuture<Void> scaleNewSegmentsCreated(VersionedMetadata<EpochTransitionRecord> record);
 
+
     /**
-     * Called after new segment creation is complete.
-     * @param record  existing versioned record
+     * Called after sealing old segments is complete in segment store. 
+     * The implementation of this method should update epoch metadata for the given scale input in an idempotent fashion
+     * such that active epoch at least reflects the new epoch updated by this method's call. 
+     *
+     * @param sealedSegmentSizes sealed segments with absolute sizes
+     * @param record existing epoch transition record
+     * @return Future, which when completed will indicate successful and idempotent metadata update corresponding to
+     * sealing of old segments in the store. 
+     */
+    CompletableFuture<Void> scaleOldSegmentsSealed(Map<Long, Long> sealedSegmentSizes, VersionedMetadata<EpochTransitionRecord> record);
+
+    /**
+     * Called at the end of scale workflow to let the store know to complete the scale. This should reset the epoch transition
+     * record to signal completion of scale workflow. 
+     * Note: the state management is outside the purview of this method and should be done explicitly by the caller. 
+     * 
+     * @param record  existing versioned record.
+     * @return A future which when completed indicates the completion current scale workflow.                 
      */
     CompletableFuture<Void> completeScale(VersionedMetadata<EpochTransitionRecord> record);
 
     /**
-     * Called after sealing old segments is complete.
-     *
-     * @param sealedSegmentSizes sealed segments with absolute sizes
-     * @param record
+     * Api to indicate to store to start rolling transaction. 
+     * The store attempts to update CommittingTransactionsRecord with details about rolling transaction information, 
+     * specifically updating active epoch in the aforesaid record. 
+     * 
+     * @param activeEpoch active epoch
+     * @param txnEpoch epoch for transactions that are being committed. 
+     * @param existing versioned committing transactions record that has to be updated
+     * @return A future which when completed will capture updated versioned committing transactions record that represents 
+     * an ongoing rolling transaction.
      */
-    CompletableFuture<Void> scaleOldSegmentsSealed(Map<Long, Long> sealedSegmentSizes, VersionedMetadata<EpochTransitionRecord> record);
-
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(int activeEpoch, int txnEpoch,
                                                                                        VersionedMetadata<CommittingTransactionsRecord> existing);
 
@@ -280,7 +311,7 @@ interface Stream {
 
     /**
      * This is the final step of rolling transaction and is called after old segments are sealed in segment store.
-     * This should complete the epoch transition in the metadata store.
+     * Post completion of this step, the active epoch should be updated to reflect end of this rolling transaction. 
      *
      * @param sealedActiveEpochSegments sealed segments from active epoch with size at the time of sealing.
      * @return CompletableFuture which upon successful completion will indicate that rolling transaction is complete.

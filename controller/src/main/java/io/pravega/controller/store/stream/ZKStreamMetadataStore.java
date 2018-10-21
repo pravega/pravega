@@ -172,7 +172,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     Version parseVersionData(byte[] data) {
-        return Version.IntVersion.parse(data);
+        return Version.IntVersion.fromBytes(data);
     }
 
     @VisibleForTesting

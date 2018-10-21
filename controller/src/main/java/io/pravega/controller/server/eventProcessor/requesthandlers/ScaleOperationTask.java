@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -26,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 
 /**
  * Request handler for performing scale operations received from requeststream.
@@ -88,32 +88,33 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context, String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
-        // create epoch transition node (metadatastore.submitScale)
-        // Note: if we crash before deleting epoch transition, then in rerun (retry) it will be rendered inconsistent
-        // and deleted in submitScale method.
-        // if we crash before setting state to active, in rerun (retry) we will find epoch transition to be empty and
+        // Note: There are two interesting cases for retry of partially completed workflow that are interesting:
+        // if we crash before resetting epoch transition (complete scale step), then in rerun ETR will be rendered inconsistent
+        // and deleted in startScale method.
+        // if we crash before resetting state to active, in rerun (retry) we will find epoch transition to be empty and
         // hence reset the state here before attempting to start scale in idempotent fashion.
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
             .thenCompose(state -> streamMetadataStore.getEpochTransition(scope, stream, context, executor)
                     .thenCompose(record -> {
+                        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> future = CompletableFuture.completedFuture(record);
                         if (record.getObject().equals(EpochTransitionRecord.EMPTY)) {
-                            CompletableFuture<VersionedMetadata<State>> future = state.getObject().equals(State.SCALING) ?
-                                    streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                            state, context, executor) : CompletableFuture.completedFuture(state);
-
-                            return future.thenCompose(updatedState -> {
+                            if (state.getObject().equals(State.SCALING)) {
+                                return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                        state, context, executor));
+                            } else {
                                 if (isManualScale) {
                                     throw new TaskExceptions.StartException("Scale Stream not started yet.");
                                 } else {
-                                    return streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(), scaleInput.getNewRanges(),
-                                            scaleInput.getScaleTime(), context, executor)
-                                            .thenApply(updatedRecord -> new ImmutablePair<>(updatedRecord, updatedState));
+                                    future = streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
+                                            scaleInput.getNewRanges(), scaleInput.getScaleTime(), context, executor);
                                 }
-                            });
-                        } else {
-                            return CompletableFuture.completedFuture(new ImmutablePair<>(record, state));
-                        }
-                    }).thenCompose(pair -> processScale(scope, stream, isManualScale, delegationToken, pair.getLeft(), pair.getRight(), context)));
+                            }
+                        } 
+                        
+                        return future
+                                .thenCompose(versionedMetadata -> processScale(scope, stream, isManualScale, delegationToken,
+                                        versionedMetadata, state, context));
+                    }));
     }
 
     private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale, String delegationToken,

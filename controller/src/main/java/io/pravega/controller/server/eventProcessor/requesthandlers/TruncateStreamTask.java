@@ -63,12 +63,12 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                 .thenCompose(versionedState -> streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                         .thenCompose(versionedMetadata -> {
                             if (!versionedMetadata.getObject().isUpdating()) {
-                                CompletableFuture<VersionedMetadata<State>> resetStateFuture = versionedState.getObject().equals(State.TRUNCATING) ?
-                                        streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                                versionedState, context, executor) : CompletableFuture.completedFuture(null);
-                                return resetStateFuture.thenApply(x -> {
+                                if (versionedState.getObject().equals(State.TRUNCATING)) {
+                                    return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                            versionedState, context, executor));
+                                } else {
                                     throw new TaskExceptions.StartException("Truncate Stream not started yet.");
-                                });
+                                }
                             } else {
                                 return processTruncate(scope, stream, versionedMetadata, versionedState, context);
                             }

@@ -56,13 +56,12 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                 .thenCompose(versionedState -> streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                         .thenCompose(versionedMetadata -> {
                             if (!versionedMetadata.getObject().isUpdating()) {
-                                CompletableFuture<VersionedMetadata<State>> future = versionedState.getObject().equals(State.UPDATING) ?
-                                     streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                            versionedState, context, executor) : CompletableFuture.completedFuture(null);
-
-                                return future.thenApply(x -> {
+                                if (versionedState.getObject().equals(State.UPDATING)) {
+                                    return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                            versionedState, context, executor));
+                                } else {
                                     throw new TaskExceptions.StartException("Update Stream not started yet.");
-                                });
+                                }
                             } else {
                                 return processUpdate(scope, stream, versionedMetadata, versionedState, context);
                             }

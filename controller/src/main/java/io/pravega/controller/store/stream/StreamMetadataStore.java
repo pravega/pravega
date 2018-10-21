@@ -442,7 +442,10 @@ public interface StreamMetadataStore {
                                                                                    ScheduledExecutorService executor);
 
     /**
-     * Scales in or out the currently set of active segments of a stream.
+     * Called to start metadata updates to stream store with respect to new scale request. This method should only update
+     * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
+     * In case of rolling transactions, this record may become invalid and can be discarded during the startScale phase
+     * of scale workflow. 
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -484,14 +487,16 @@ public interface StreamMetadataStore {
                                        final Executor executor);
 
     /**
-     * Method to create new segments in stream metadata.
+     * Called after we have successfully verified epoch transition record and started the scale workflow. 
+     * Implementation of this method should create new segments that are specified in epochTransition in stream metadata records.
      *
      * @param scope          stream scope
      * @param name           stream name.
      * @param record         versioned record
      * @param context        operation context
      * @param executor       callers executor
-     * @return future
+     * @return Future, which when completed will indicate that new segments are created in the metadata store or would
+     * have failed with appropriate exception.
      */
     CompletableFuture<Void> scaleCreateNewSegments(final String scope,
                                                    final String name,
@@ -500,7 +505,9 @@ public interface StreamMetadataStore {
                                                    final Executor executor);
 
     /**
-     * Called after new segments are created in SSS.
+     * This method is called after new segment creation is complete in segment store. The store should update its metadata 
+     * such that it can return successors for segmentsToSeal if required. This should require store to create new epoch
+     * record corresponding to these new segments in idempotent fashion. 
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -517,7 +524,9 @@ public interface StreamMetadataStore {
                                                     final Executor executor);
 
     /**
-     * Called after old segments are sealed in segment store.
+     * Called after sealing old segments is complete in segment store. 
+     * The implementation of this method should update epoch metadata for the given scale input in an idempotent fashion
+     * such that active epoch at least reflects the new epoch updated by this method's call. 
      *
      * @param scope          stream scope
      * @param name           stream name.
@@ -525,7 +534,8 @@ public interface StreamMetadataStore {
      * @param record         versioned record
      * @param context        operation context
      * @param executor       callers executor
-     * @return future
+     * @return Future, which when completed will indicate successful and idempotent metadata update corresponding to
+     * sealing of old segments in the store. 
      */
     CompletableFuture<Void> scaleSegmentsSealed(final String scope, final String name,
                                                 final Map<Long, Long> sealedSegmentSizes,
@@ -534,20 +544,37 @@ public interface StreamMetadataStore {
                                                 final Executor executor);
 
     /**
-     * Called after old segments are sealed in segment store.
+     * Called at the end of scale workflow to let the store know to complete the scale. This should reset the epoch transition
+     * record to signal completion of scale workflow. 
+     * Note: the state management is outside the purview of this method and should be done explicitly by the caller. 
      *
      * @param scope          stream scope
      * @param name           stream name.
      * @param record         versioned record
      * @param context        operation context
      * @param executor       callers executor
-     * @return future
+     * @return A future which when completed indicates the completion current scale workflow.                 
      */
     CompletableFuture<Void> completeScale(final String scope, final String name,
                                           final VersionedMetadata<EpochTransitionRecord> record,
                                           final OperationContext context,
                                           final Executor executor);
 
+    /**
+     * Api to indicate to store to start rolling transaction. 
+     * The store attempts to update CommittingTransactionsRecord with details about rolling transaction information, 
+     * specifically updating active epoch in the aforesaid record. 
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param activeEpoch active epoch
+     * @param txnEpoch epoch for transactions that are being committed. 
+     * @param existing versioned committing transactions record that has to be updated
+     * @param context operation context
+     * @param executor executor
+     * @return A future which when completed will capture updated versioned committing transactions record that represents 
+     * an ongoing rolling transaction.
+     */
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
                                        int txnEpoch, int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
                                        OperationContext context, ScheduledExecutorService executor);
@@ -979,7 +1006,8 @@ public interface StreamMetadataStore {
 
     /**
      * Method to create committing transaction record in the store for a given stream.
-     * Note: this will not throw data exists exception if the committing transaction node already exists.
+     * This method may throw data exists exception if the committing transaction node already exists and the epoch in 
+     * the request does not match the epoch present in the record. 
      *
      * @param scope scope name
      * @param stream stream name

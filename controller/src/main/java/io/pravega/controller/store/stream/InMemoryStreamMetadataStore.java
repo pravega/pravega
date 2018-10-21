@@ -94,7 +94,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     Version parseVersionData(byte[] data) {
-        return Version.IntVersion.parse(data);
+        return Version.IntVersion.fromBytes(data);
     }
 
     @Override

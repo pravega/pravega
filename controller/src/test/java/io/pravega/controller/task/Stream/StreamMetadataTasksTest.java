@@ -67,6 +67,7 @@ import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -283,6 +284,7 @@ public class StreamMetadataTasksTest {
 
         streamStorePartialMock.updateState(SCOPE, stream1, State.UPDATING, null, executor).join();
         UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1);
+        assertTrue(Futures.await(updateStreamTask.execute(event)));
         AssertExtensions.assertThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
@@ -397,6 +399,7 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.updateState(SCOPE, "test", State.TRUNCATING, null, executor).join();
 
         TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test");
+        assertTrue(Futures.await(truncateStreamTask.execute(event)));
         AssertExtensions.assertThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
 
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
@@ -1035,9 +1038,7 @@ public class StreamMetadataTasksTest {
         assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(1, 1) && x.getValue().getKey() == 0.0 && x.getValue().getValue() == 0.5));
         assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(2, 1) && x.getValue().getKey() == 0.5 && x.getValue().getValue() == 1.0));
     }
-
-    // TODO: shivesh add more tests here
-
+    
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)
