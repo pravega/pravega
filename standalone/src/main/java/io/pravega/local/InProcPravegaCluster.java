@@ -10,6 +10,7 @@
 package io.pravega.local;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.auth.ZKTLSUtils;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -115,7 +116,11 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String passwd;
     private String certFile;
     private String keyFile;
+    private String jksTrustFile;
     private String passwdFile;
+    private boolean secureZK;
+    private String keyPasswordFile;
+    private String jksKeyFile;
 
     public static final class InProcPravegaClusterBuilder {
         public InProcPravegaCluster build() {
@@ -139,7 +144,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    enableRestServer, userName, passwd, certFile, keyFile, passwdFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
         }
     }
 
@@ -190,7 +195,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        zkService = new ZooKeeperServiceRunner(zkPort);
+        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, jksKeyFile, keyPasswordFile, jksTrustFile);
         zkService.initialize();
         zkService.start();
     }
@@ -205,6 +210,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .connectionTimeoutMs(5000)
                 .sessionTimeoutMs(5000)
                 .retryPolicy(rp);
+        if (secureZK) {
+            ZKTLSUtils.setSecureZKClientProperties(jksTrustFile, "1111_aaaa");
+        }
+
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
@@ -250,6 +259,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                        .with(ServiceConfig.SECURE_ZK, this.secureZK)
+                        .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, jksTrustFile)
+                        .with(ServiceConfig.ZK_TRUST_STORE_PASSWORD_PATH, keyPasswordFile)
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
@@ -302,6 +314,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .initialSleepInterval(2000)
                 .maxRetries(1)
                 .sessionTimeoutMs(10 * 1000)
+                .secureConnectionToZooKeeper(this.secureZK)
+                .trustStorePath(jksTrustFile)
+                .trustStorePasswordPath(keyPasswordFile)
                 .build();
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
@@ -338,6 +353,9 @@ public class InProcPravegaCluster implements AutoCloseable {
             restServerConfig = RESTServerConfigImpl.builder()
                     .host("0.0.0.0")
                     .port(this.restServerPort)
+                    .tlsEnabled(this.enableTls)
+                    .keyFilePath(this.jksKeyFile)
+                    .keyFilePasswordPath(this.keyPasswordFile)
                     .build();
         }
 

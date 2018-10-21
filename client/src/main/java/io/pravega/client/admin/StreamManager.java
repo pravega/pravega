@@ -9,6 +9,7 @@
  */
 package io.pravega.client.admin;
 
+import com.google.common.annotations.Beta;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.StreamConfiguration;
@@ -112,7 +113,18 @@ public interface StreamManager extends AutoCloseable {
      * @return True if scope is deleted
      */
     boolean deleteScope(String scopeName);
-    
+
+    /**
+     * Get information about a given Stream, {@link StreamInfo}.
+     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+     *
+     * @param scopeName The scope of the stream.
+     * @param streamName The stream name.
+     * @return stream information.
+     */
+    @Beta
+    StreamInfo getStreamInfo(String scopeName, String streamName);
+
     /**
      * Closes the stream manager.
      * @see java.lang.AutoCloseable#close()
