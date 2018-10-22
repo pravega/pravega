@@ -893,20 +893,9 @@ public class ReaderGroupState implements Revisioned {
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         @Getter
         private final String checkpointId;
-        @Getter
-        private final boolean isSilent;
 
         CreateCheckpoint() {
-            this(false);
-        }
-
-        CreateCheckpoint(boolean isSilent) {
-            this(UUID.randomUUID().toString(), isSilent);
-        }
-
-        CreateCheckpoint(String checkpointId) {
-            this.isSilent = false;
-            this.checkpointId = checkpointId;
+            this(UUID.randomUUID().toString());
         }
         
         /**
@@ -914,7 +903,7 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments(), isSilent);
+            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments());
         }
 
         private static class CreateCheckpointBuilder implements ObjectBuilder<CreateCheckpoint> {
@@ -940,12 +929,10 @@ public class ReaderGroupState implements Revisioned {
 
             private void read00(RevisionDataInput in, CreateCheckpointBuilder builder) throws IOException {
                 builder.checkpointId(in.readUTF());
-                builder.isSilent(in.readBoolean());
             }
 
             private void write00(CreateCheckpoint object, RevisionDataOutput out) throws IOException {
                 out.writeUTF(object.checkpointId);
-                out.writeBoolean(object.isSilent);
             }
         }
     }

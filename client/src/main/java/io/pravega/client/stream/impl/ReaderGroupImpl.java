@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -68,7 +67,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 @Data
 public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
-    public static final String SILENT = "_SILENT_";
+    static final String SILENT = "_SILENT_";
     private final String scope;
     private final String groupName;
     private final Controller controller;
@@ -125,7 +124,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                         maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
                 return false;
             } else {
-                updates.add(new CreateCheckpoint(checkpointName, false));
+                updates.add(new CreateCheckpoint(checkpointName));
                 return true;
             }
 
@@ -135,6 +134,18 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             return Futures.failedFuture(new MaxNumberOfCheckpointsExceededException(rejectMessage));
         }
 
+        return waitForCheckpointComplete(checkpointName, backgroundExecutor)
+                .thenApply(v -> completeCheckpoint(checkpointName));
+    }
+
+    /**
+     * Periodically check the state synchronizer if the given Checkpoint is complete.
+     * @param checkpointName Checkpoint name.
+     * @param backgroundExecutor Executor on which the asynchronous task will run.
+     * @return A CompletableFuture will be complete once the Checkpoint is complete.
+     */
+    private CompletableFuture<Void> waitForCheckpointComplete(String checkpointName,
+                                                              ScheduledExecutorService backgroundExecutor) {
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
         return Futures.loop(checkpointPending::get, () -> {
@@ -146,8 +157,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
-        }, backgroundExecutor)
-                      .thenApply(v -> completeCheckpoint(checkpointName));
+        }, backgroundExecutor);
     }
 
     @SneakyThrows(CheckpointFailedException.class)
@@ -312,33 +322,26 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor) {
-        String checkpointId = getCheckpointName(true);
+        String checkpointId = generateSilientCheckpointId();
         log.debug("Fetching the current StreamCut using id {}", checkpointId);
-        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId, true));
-        AtomicBoolean fetchStreamCutPending = new AtomicBoolean(true);
+        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId));
 
-        return Futures.loop(fetchStreamCutPending::get, () -> {
-            return Futures.delayedTask(() -> {
-                synchronizer.fetchUpdates();
-                fetchStreamCutPending.set(!synchronizer.getState().isCheckpointComplete(checkpointId));
-                if (fetchStreamCutPending.get()) {
-                    log.debug("Waiting on fetch StreamCut with id {}, currentState is: {}", checkpointId, synchronizer.getState());
-                }
-                return null;
-            }, Duration.ofMillis(500), backgroundExecutor);
-        }, backgroundExecutor)
-                      .thenApply(v -> completeChkPointAndFetchStreamCut(checkpointId));
+        return waitForCheckpointComplete(checkpointId, backgroundExecutor)
+                      .thenApply(v -> completeCheckpointAndFetchStreamCut(checkpointId));
     }
 
-    private String getCheckpointName(boolean isSilent) {
+    /**
+     * Generate an internal Checkpoint Id. It is appended with a suffix {@link ReaderGroupImpl#SILENT} which ensures
+     * that the readers do not generate an event where {@link io.pravega.client.stream.EventRead#isCheckpoint()} is true.
+     */
+    private String generateSilientCheckpointId() {
         byte[] randomBytes = new byte[32];
         ThreadLocalRandom.current().nextBytes(randomBytes);
-        String checkPoint = Base64.getEncoder().encodeToString(randomBytes);
-        return isSilent ? checkPoint + SILENT : checkPoint;
+        return Base64.getEncoder().encodeToString(randomBytes) + SILENT;
     }
 
     @SneakyThrows(CheckpointFailedException.class)
-    private Map<Stream, StreamCut> completeChkPointAndFetchStreamCut(String checkPointId) {
+    private Map<Stream, StreamCut> completeCheckpointAndFetchStreamCut(String checkPointId) {
         ReaderGroupState state = synchronizer.getState();
         Optional<Map<Stream, StreamCut>> cuts = state.getStreamCutsForCompletedCheckpoint(checkPointId);
         synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkPointId));
