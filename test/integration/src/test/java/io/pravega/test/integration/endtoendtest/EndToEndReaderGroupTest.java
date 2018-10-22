@@ -166,7 +166,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
     }
 
     @Test(timeout = 30000)
-    public void getCurrentStreamCutTest() throws Exception {
+    public void testGenerateStreamCuts() throws Exception {
         final Stream stream = Stream.of(SCOPE, STREAM);
         final String group = "group";
 
@@ -202,7 +202,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         readAndVerify(reader, 1);
         @Cleanup("shutdown")
         InlineExecutor backgroundExecutor = new InlineExecutor();
-        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.getCurrentStreamCut(backgroundExecutor);
+        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.generateStreamCuts(backgroundExecutor);
         // The reader group state will be updated after 1 second.
         TimeUnit.SECONDS.sleep(1);
         EventRead<String> data = reader.readNextEvent(15000);

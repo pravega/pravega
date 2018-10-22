@@ -117,7 +117,7 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
             results.add(event);
         }
 
-        //Verify if we have recieved the events according to the event ids provided.
+        //Verify if we have received the events according to the event ids provided.
         Arrays.stream(eventIds).forEach(i -> assertTrue(results.contains(getEventData.apply(i))));
     }
 

@@ -186,7 +186,7 @@ public class ReaderGroupImplTest {
                                                                                                                             createStreamCut("s1", 2))));
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.getCurrentStreamCut(executor);
+        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.generateStreamCuts(executor);
         assertEquals(createStreamCut("s1", 2), result.join().get(createStream("s1")));
     }
 
@@ -197,8 +197,8 @@ public class ReaderGroupImplTest {
         when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.empty()); //mock empty.
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
-        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.getCurrentStreamCut(executor);
-        assertThrows("CheckpointFailedException is expected", () -> readerGroup.getCurrentStreamCut(executor),
+        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.generateStreamCuts(executor);
+        assertThrows("CheckpointFailedException is expected", () -> readerGroup.generateStreamCuts(executor),
                      t -> t instanceof CheckpointFailedException);
     }
 

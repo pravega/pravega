@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -55,20 +56,20 @@ public class CheckpointState {
      */
     private final Map<String, Map<Segment, Long>> checkpointPositions;
     /**
-     * Maps CheckpointId to silent attribute.
+     * list of Checkpoint that are silent.
      */
-    private final Map<String, Boolean> checkPointSilentAttribute;
+    private final Set<String> silentCheckpoints;
 
     private Map<Segment, Long> lastCheckpointPosition;
 
 
     public CheckpointState() {
-        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, new HashMap<>());
+        this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null, new HashSet<>());
     }
     
     @Builder
     private CheckpointState(List<String> checkpoints, Map<String, List<String>> uncheckpointedHosts,
-            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition, Map<String, Boolean> silentAttribute) {
+            Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition, Set<String> silentCheckpoints) {
         Preconditions.checkNotNull(checkpoints);
         Preconditions.checkNotNull(uncheckpointedHosts);
         Preconditions.checkNotNull(checkpointPositions);
@@ -76,7 +77,7 @@ public class CheckpointState {
         this.uncheckpointedHosts = uncheckpointedHosts;
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
-        this.checkPointSilentAttribute = silentAttribute;
+        this.silentCheckpoints = silentCheckpoints;
     }
 
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
@@ -90,7 +91,10 @@ public class CheckpointState {
             }
             checkpointPositions.put(checkpointId, new HashMap<>(knownPositions));
             checkpoints.add(checkpointId);
-            checkPointSilentAttribute.put(checkpointId, isSilent);
+            HashSet<String> s = new HashSet<>();
+            if (isSilent) {
+                silentCheckpoints.add(checkpointId);
+            }
         }
     }
     
@@ -127,7 +131,7 @@ public class CheckpointState {
             positions.putAll(position);
             if (readers.isEmpty()) {
                 uncheckpointedHosts.remove(checkpointId);
-                checkPointSilentAttribute.remove(checkpointId);
+                silentCheckpoints.remove(checkpointId);
                 //checkpoint operation completed for all readers, update the last checkpoint position.
                 lastCheckpointPosition = checkpointPositions.get(checkpointId);
             }
@@ -139,7 +143,7 @@ public class CheckpointState {
     }
 
     boolean isCheckpointSilent(String checkpointId) {
-        return checkPointSilentAttribute.get(checkpointId);
+        return silentCheckpoints.contains(checkpointId);
     }
     
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
@@ -170,7 +174,7 @@ public class CheckpointState {
                 }
                 uncheckpointedHosts.remove(cp);
                 checkpointPositions.remove(cp);
-                checkPointSilentAttribute.remove(cp);
+                silentCheckpoints.remove(cp);
                 iterator.remove();
             }
         }
@@ -186,8 +190,8 @@ public class CheckpointState {
         Map<String, Map<Segment, Long>> cpps = new HashMap<>();
         checkpointPositions.forEach((cp, pos) -> cpps.put(cp, new HashMap<>(pos)));
         Map<Segment, Long> lcp = lastCheckpointPosition == null ? null : new HashMap<>(lastCheckpointPosition);
-        Map<String, Boolean> cpSilentFlags = new HashMap<>(checkPointSilentAttribute);
-        return new CheckpointState(cps, ucph, cpps, lcp, cpSilentFlags);
+        Set<String> cpSilentCheckpoints = new HashMap<>(silentCheckpoints);
+        return new CheckpointState(cps, ucph, cpps, lcp, cpSilentCheckpoints);
     }
     
     @Override
@@ -220,10 +224,10 @@ public class CheckpointState {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(1, this::write01, this::read01);
         }
         
-        private void read00(RevisionDataInput input, CheckpointStateBuilder builder) throws IOException {
+        private void read01(RevisionDataInput input, CheckpointStateBuilder builder) throws IOException {
             ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
             ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
             ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
@@ -231,10 +235,10 @@ public class CheckpointState {
             builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
             builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
             builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
-            builder.silentAttribute(input.readMap(stringDeserializer, RevisionDataInput::readBoolean));
+            builder.silentCheckpoints(input.readCollection(stringDeserializer, HashSet::new));
         }
 
-        private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
+        private void write01(CheckpointState object, RevisionDataOutput output) throws IOException {
             ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
             ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
             ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
@@ -242,7 +246,7 @@ public class CheckpointState {
             output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
             output.writeMap(object.checkpointPositions, stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
             output.writeMap(object.lastCheckpointPosition, segmentSerializer, longSerializer);
-            output.writeMap(object.checkPointSilentAttribute, stringSerializer, DataOutput::writeBoolean);
+            output.writeCollection(object.silentCheckpoints, stringSerializer);
         }
     }
 

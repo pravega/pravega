@@ -368,7 +368,7 @@ public class CheckpointTest {
         clock.addAndGet(CLOCK_ADVANCE_INTERVAL);
         @Cleanup("shutdown")
         final InlineExecutor backgroundExecutor = new InlineExecutor();
-        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.getCurrentStreamCut(backgroundExecutor);
+        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.generateStreamCuts(backgroundExecutor);
         assertFalse(sc.isDone());
 
         read = reader.readNextEvent(60000);

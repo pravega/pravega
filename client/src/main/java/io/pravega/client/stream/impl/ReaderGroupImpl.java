@@ -41,6 +41,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -51,6 +52,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -66,6 +68,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 @Data
 public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
+    public static final String SILENT = "_SILENT_";
     private final String scope;
     private final String groupName;
     private final Controller controller;
@@ -308,23 +311,30 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
-    public CompletableFuture<Map<Stream, StreamCut>> getCurrentStreamCut(ScheduledExecutorService backgroundExecutor) {
-        String internalChkPointId = UUID.randomUUID().toString();
-        log.debug("Fetching the current StreamCut using id {}", internalChkPointId);
-        synchronizer.updateStateUnconditionally(new CreateCheckpoint(internalChkPointId, true));
+    public CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor) {
+        String checkpointId = getCheckpointName(true);
+        log.debug("Fetching the current StreamCut using id {}", checkpointId);
+        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId, true));
         AtomicBoolean fetchStreamCutPending = new AtomicBoolean(true);
 
         return Futures.loop(fetchStreamCutPending::get, () -> {
             return Futures.delayedTask(() -> {
                 synchronizer.fetchUpdates();
-                fetchStreamCutPending.set(!synchronizer.getState().isCheckpointComplete(internalChkPointId));
+                fetchStreamCutPending.set(!synchronizer.getState().isCheckpointComplete(checkpointId));
                 if (fetchStreamCutPending.get()) {
-                    log.debug("Waiting on fetch StreamCut with id {}, currentState is: {}", internalChkPointId, synchronizer.getState());
+                    log.debug("Waiting on fetch StreamCut with id {}, currentState is: {}", checkpointId, synchronizer.getState());
                 }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
         }, backgroundExecutor)
-                      .thenApply(v -> completeChkPointAndFetchStreamCut(internalChkPointId));
+                      .thenApply(v -> completeChkPointAndFetchStreamCut(checkpointId));
+    }
+
+    private String getCheckpointName(boolean isSilent) {
+        byte[] randomBytes = new byte[32];
+        ThreadLocalRandom.current().nextBytes(randomBytes);
+        String checkPoint = Base64.getEncoder().encodeToString(randomBytes);
+        return isSilent ? checkPoint + SILENT : checkPoint;
     }
 
     @SneakyThrows(CheckpointFailedException.class)
