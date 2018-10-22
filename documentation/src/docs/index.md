@@ -65,7 +65,7 @@ Please open an issue in [Github Issues](https://github.com/pravega/pravega/issue
 
 Become one of the **contributors!** We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-We describe how to contribute to Pravega [here](contributing.md)! You can see the [Roadmap](roadmap.md) document for more information.
+Please check the [Contributions Guidelines](contributing.md) to quickly understand on how to contribute to Pravega?. You can see the [Roadmap](roadmap.md) document for more information.
 
 ## About
 
