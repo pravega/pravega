@@ -381,6 +381,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
+                        logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
                             log.error("Controller api failed with error: ", ex);
@@ -396,11 +397,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                     });
         } catch (Exception e) {
             log.error("Controller api failed with authenticator error");
+            logAndUntrackRequestTag(requestTag);
             streamObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Authentication failed")
                     .asRuntimeException());
-        } finally {
-            logAndUntrackRequestTag(requestTag);
         }
     }
 
