@@ -133,8 +133,8 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory,
-                AuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, hostStore, taskMetadataStore,
+                segmentHelper, executor2, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         String scope = "scope1";
         String streamName = "stream1";
@@ -144,7 +144,8 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
         String streamName2 = "stream2";
         streamMetadataStore2.addUpdateStreamForAutoStreamCut(scope2, streamName2, RetentionPolicy.builder().build(), null, executor2).join();
 
-        StreamCutService service2 = new StreamCutService(1, hostId, streamMetadataStore2, streamMetadataTasks2, executor2);
+        StreamCutService service2 = new StreamCutService(1, hostId, streamMetadataStore2, streamMetadataTasks2,
+                executor2, requestTracker);
         service2.startAsync();
         service2.awaitRunning();
 

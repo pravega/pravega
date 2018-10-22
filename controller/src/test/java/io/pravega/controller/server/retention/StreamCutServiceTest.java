@@ -68,7 +68,7 @@ public abstract class StreamCutServiceTest {
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory,
                AuthHelper.getDisabledAuthHelper(), requestTracker);
-        service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor);
+        service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         service.startAsync();
         service.awaitRunning();
     }

@@ -170,7 +170,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
 
-            streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, retentionExecutor);
+            streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks,
+                    retentionExecutor, requestTracker);
             log.info("starting auto retention service asynchronously");
             streamCutService.startAsync();
             streamCutService.awaitRunning();

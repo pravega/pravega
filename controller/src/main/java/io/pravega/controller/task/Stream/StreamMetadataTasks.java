@@ -217,16 +217,17 @@ public class StreamMetadataTasks extends TaskBase {
      * @return future.
      */
     public CompletableFuture<Void> retention(final String scope, final String stream, final RetentionPolicy policy,
-                                    final long recordingTime, final OperationContext contextOpt, final String delegationToken) {
+                                             final long recordingTime, final OperationContext contextOpt, final String delegationToken) {
         Preconditions.checkNotNull(policy);
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
+        final long requestId = requestTracker.getRequestIdFor("truncateStream", scope, stream);
 
         return streamMetadataStore.getStreamCutsFromRetentionSet(scope, stream, context, executor)
                 .thenCompose(retentionSet -> {
                     StreamCutRecord latestCut = retentionSet.stream()
                             .max(Comparator.comparingLong(StreamCutRecord::getRecordingTime)).orElse(null);
                     return checkGenerateStreamCut(scope, stream, context, latestCut, recordingTime, delegationToken)
-                            .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime));
+                            .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime, requestId));
                 })
                 .thenAccept(x -> DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(RETENTION_FREQUENCY, scope, stream), 1));
 
@@ -247,9 +248,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Void> truncate(String scope, String stream, RetentionPolicy policy, OperationContext context,
-                                             List<StreamCutRecord> retentionSet, StreamCutRecord newRecord, long recordingTime) {
+                                             List<StreamCutRecord> retentionSet, StreamCutRecord newRecord, long recordingTime,
+                                             long requestId) {
         return findTruncationRecord(policy, retentionSet, newRecord, recordingTime)
-                .map(record -> startTruncation(scope, stream, record.getStreamCut(), context, recordingTime)
+                .map(record -> startTruncation(scope, stream, record.getStreamCut(), context, requestId)
                         .thenCompose(started -> {
                             if (started) {
                                 return streamMetadataStore.deleteStreamCutBefore(scope, stream, record, context, executor);
@@ -260,7 +262,7 @@ public class StreamMetadataTasks extends TaskBase {
                         .exceptionally(e -> {
                             if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
                                 // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                LoggerHelpers.debugLogWithTag(log, recordingTime, "Cannot truncate at given " +
+                                LoggerHelpers.debugLogWithTag(log, requestId, "Cannot truncate at given " +
                                         "streamCut because it intersects with existing truncation point");
                                 return null;
                             } else {

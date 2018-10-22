@@ -18,6 +18,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -48,10 +49,11 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     private final LinkedBlockingQueue<BucketChangeListener.StreamNotification> notifications;
     private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
+    private final RequestTracker requestTracker;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore,
-                           StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor) {
+    StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore, StreamMetadataTasks streamMetadataTasks,
+                           ScheduledExecutorService executor, RequestTracker requestTracker) {
         this.bucketId = bucketId;
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
@@ -60,6 +62,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
         this.notifications = new LinkedBlockingQueue<>();
         this.retentionFutureMap = new ConcurrentHashMap<>();
         this.latch = new CompletableFuture<>();
+        this.requestTracker = requestTracker;
     }
 
     @Override
@@ -130,12 +133,17 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
     private CompletableFuture<Void> performRetention(StreamImpl stream) {
         OperationContext context = streamMetadataStore.createContext(stream.getScope(), stream.getStreamName());
+
+        // Track the new request for this automatic truncation.
         long requestId = requestIdGenerator.get();
+        requestTracker.trackRequest(RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
+                stream.getStreamName()), requestId);
         LoggerHelpers.debugLogWithTag(log, requestId, "Periodic background processing for retention called for stream {}/{}",
                 stream.getScope(), stream.getStreamName());
+
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                 .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
-                        config.getRetentionPolicy(), requestId, context,
+                        config.getRetentionPolicy(), System.currentTimeMillis(), context,
                         this.streamMetadataTasks.retrieveDelegationToken()))
                 .exceptionally(e -> {
                     LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown while performing auto retention for stream {} ", stream, e);

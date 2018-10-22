@@ -145,7 +145,7 @@ public final class RequestTracker {
 
         synchronized (lock) {
             requestIds = ongoingRequests.getIfPresent(requestDescriptor);
-            if (requestIds == null) {
+            if (requestIds == null || requestIds.size() == 0) {
                 log.debug("Attempting to untrack a non-existing key: {}.", requestDescriptor);
                 return RequestTag.NON_EXISTENT_ID;
             }
