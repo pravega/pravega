@@ -391,7 +391,7 @@ public class RequestHandlersTest {
                 break;
         }
     }
-    
+
     // concurrent update stream
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
@@ -408,12 +408,12 @@ public class RequestHandlersTest {
 
         UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, executor);
         UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, executor);
-        
+
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
-        
+
         streamStore1.startUpdateConfiguration(scope, stream, config, null, executor).join();
-        
+
         UpdateStreamEvent event = new UpdateStreamEvent(scope, stream);
 
         doAnswer(x -> {
@@ -428,16 +428,16 @@ public class RequestHandlersTest {
         requestHandler2.execute(event).join();
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first update job should fail", () -> future1, 
+        AssertExtensions.assertThrows("first update job should fail", () -> future1,
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
-    
+
         // validate rolling txn done
         VersionedMetadata<StreamConfigurationRecord> versioned = streamStore1.getConfigurationRecord(scope, stream, null, executor).join();
         assertFalse(versioned.getObject().isUpdating());
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue().intValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
-    
+
     // concurrent truncate stream
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
@@ -452,15 +452,15 @@ public class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
 
-        TruncateStreamTask requestHandler1 = new TruncateStreamTask (streamMetadataTasks, streamStore1Spied, executor);
-        TruncateStreamTask requestHandler2 = new TruncateStreamTask (streamMetadataTasks, streamStore2, executor);
+        TruncateStreamTask requestHandler1 = new TruncateStreamTask(streamMetadataTasks, streamStore1Spied, executor);
+        TruncateStreamTask requestHandler2 = new TruncateStreamTask(streamMetadataTasks, streamStore2, executor);
 
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
 
         Map<Long, Long> map = new HashMap<>();
         map.put(0L, 100L);
-        
+
         streamStore1.startTruncation(scope, stream, map, null, executor).join();
 
         TruncateStreamEvent event = new TruncateStreamEvent(scope, stream);
