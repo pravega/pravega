@@ -9,11 +9,13 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -35,9 +37,12 @@ import org.junit.Before;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertTrue;
 
@@ -57,8 +62,20 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     protected final Serializer<String> serializer = new JavaSerializer<>();
     final Random random = new Random();
     final Supplier<String> randomKeyGenerator = () -> String.valueOf(random.nextInt());
+    //Map with has a mapping of routing key to its corresponding key.
+    final Map<String, String> keyReverseMap = ImmutableMap.<String, String>builder().put("0.1", "14")
+                                                                                    .put("0.2", "11")
+                                                                                    .put("0.3", "2")
+                                                                                    .put("0.4", "1")
+                                                                                    .put("0.5", "10")
+                                                                                    .put("0.6", "3")
+                                                                                    .put("0.7", "5")
+                                                                                    .put("0.8", "7")
+                                                                                    .put("0.9", "6")
+                                                                                    .put("1.0", "4")
+                                                                                    .build();
+    final Function<String, String> keyGenerator = routingKey -> keyReverseMap.getOrDefault(routingKey, "0.1");
     final Function<Integer, String> getEventData = eventNumber -> String.valueOf(eventNumber) + ":constant data"; //event
-
 
     @Before
     public void setUp() throws Exception {
@@ -122,6 +139,14 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     }
 
     protected Segment getSegment(int segmentNumber, int epoch) {
-        return new Segment(SCOPE, STREAM, StreamSegmentNameUtils.computeSegmentId(0, 0));
+        return new Segment(SCOPE, STREAM, StreamSegmentNameUtils.computeSegmentId(segmentNumber, epoch));
+    }
+
+    protected void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
+        Stream stream = Stream.of(SCOPE, streamName);
+        Controller controller = controllerWrapper.getController();
+        List<Long> currentSegments = controller.getCurrentSegments(SCOPE, streamName).join().getSegments()
+                                               .stream().map(Segment::getSegmentId).collect(Collectors.toList());
+        assertTrue(controller.scaleStream(stream, currentSegments, keyRanges, executorService()).getFuture().get());
     }
 }

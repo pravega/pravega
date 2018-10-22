@@ -39,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -216,6 +217,95 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertEquals("StreamCut pointing ot offset 30L expected", new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
     }
 
+    @Test(timeout = 40000)
+    public void testGenerateStreamCutsWithScaling() throws Exception {
+        final Stream stream = Stream.of(SCOPE, STREAM);
+        final String group = "group";
+
+        createScope(SCOPE);
+        createStream(SCOPE, STREAM, ScalingPolicy.fixed(2));
+
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
+                                                                           EventWriterConfig.builder().build());
+        //Prep the stream with data.
+        //1.Write 2 events with event size of 30 to Segment 0.
+        writer.writeEvent(keyGenerator.apply("0.1"), getEventData.apply(0)).join();
+        writer.writeEvent(keyGenerator.apply("0.1"), getEventData.apply(0)).join();
+        //2. Write 2 events with event size of 30 to Segment 1.
+        writer.writeEvent(keyGenerator.apply("0.9"), getEventData.apply(1)).join();
+        writer.writeEvent(keyGenerator.apply("0.9"), getEventData.apply(1)).join();
+
+        //3. Manually scale stream. Split Segment 0 to Segment 2, Segment 3
+        Map<Double, Double> newKeyRanges = new HashMap<>();
+        newKeyRanges.put(0.0, 0.25);
+        newKeyRanges.put(0.25, 0.5);
+        newKeyRanges.put(0.5, 1.0);
+        scaleStream(STREAM, newKeyRanges);
+
+        //4. Write events to segment 2
+        writer.writeEvent(keyGenerator.apply("0.1"), getEventData.apply(2));
+        //5. Write events to segment 3
+        writer.writeEvent(keyGenerator.apply("0.3"), getEventData.apply(3));
+        //6. Write events to Segment 1.
+        writer.writeEvent(keyGenerator.apply("0.9"), getEventData.apply(1));
+
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        groupManager.createReaderGroup(group, ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
+                .stream(stream)
+                .build());
+
+        ReaderGroup readerGroup = groupManager.getReaderGroup(group);
+
+        //7. Create two readers and read 1 event from both the readers
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("reader1", group, serializer,
+                                                                      ReaderConfig.builder().build());
+
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("reader2", group, serializer,
+                                                                       ReaderConfig.builder().build());
+
+        //8. Read 1 event from both the readers.
+        String reader1Event = reader1.readNextEvent(15000).getEvent();
+        String reader2Event = reader2.readNextEvent(15000).getEvent();
+
+        //9. Read all events from segment 0.
+        if (reader1Event.equalsIgnoreCase(getEventData.apply(0))) {
+           assertEquals(getEventData.apply(0), reader1.readNextEvent(15000).getEvent());
+           readAndVerify(reader1, 2, 3);
+        } else {
+           assertEquals(getEventData.apply(0), reader2.readNextEvent(15000).getEvent());
+           readAndVerify(reader2, 2, 3);
+        }
+
+        //10. Generate StreamCuts
+        @Cleanup("shutdown")
+        InlineExecutor backgroundExecutor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.generateStreamCuts(backgroundExecutor);
+        // The reader group state will be updated after 1 second.
+        TimeUnit.SECONDS.sleep(1);
+
+        //11. Fetch the next events from the reader. Before the reader returns the next events both the readers update its current position.
+        EventRead<String> data = reader2.readNextEvent(5000);
+        data = reader1.readNextEvent(15000);
+
+        //10 Validate the StreamCut generated.
+        assertTrue(Futures.await(sc)); // wait until the streamCut is obtained.
+        //expected segment 0 offset is 30L.
+        Map<Segment, Long> expectedOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(getSegment(1, 0), 30L) // 1 event read from segment 1
+                .put(getSegment(2, 1), 30L) // 1 event read from segment 2 and 3.
+                .put(getSegment(3, 1), 30L)
+                .build();
+        Map<Stream, StreamCut> scMap = sc.join();
+        assertEquals("StreamCut for a single stream expected", 1, scMap.size());
+        assertEquals(new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
+    }
 
     private StreamConfiguration getStreamConfig(String scope, String streamName) {
         return StreamConfiguration.builder()
