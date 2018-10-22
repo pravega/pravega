@@ -546,17 +546,13 @@ public class ScaleRequestHandlerTest {
         // now complete wait latch.
         wait.complete(null);
         
-        if (!expectFailureOnSecondJob) {
-            AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
-            verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
-            verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewSegments"))).scaleCreateNewSegments(anyString(), anyString(), any(), any(), any());
-            verify(streamStore1Spied, times(invocationCount.get("scaleNewSegmentsCreated"))).scaleNewSegmentsCreated(anyString(), anyString(), any(), any(), any());
-            verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
-            verify(streamStore1Spied, times(invocationCount.get("completeScale"))).completeScale(anyString(), anyString(), any(), any(), any());
-            verify(streamStore1Spied, times(invocationCount.get("updateVersionedState"))).updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
-        } else {
-            AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
-        }
+        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewSegments"))).scaleCreateNewSegments(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleNewSegmentsCreated"))).scaleNewSegmentsCreated(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("completeScale"))).completeScale(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("updateVersionedState"))).updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
         
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
@@ -679,7 +675,7 @@ public class ScaleRequestHandlerTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
     }
 
-    // 3. scale 1 intermixed with scale 2 
+    // concurrent run of scale 1 intermixed with scale 2 
     private void concurrentDistinctScaleRun(String stream, String func, boolean isManual,
                                     Predicate<Throwable> firstExceptionPredicate,
                                     Map<String, Integer> invocationCount) {

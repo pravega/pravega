@@ -128,12 +128,12 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                           final int txnEpoch,
                                                           final OperationContext context) {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
-                .thenCompose(state -> {
+                .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
 
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
                             streamMetadataStore.startCommitTransactions(scope, stream, txnEpoch, context, executor)
-                            .thenCompose(versionedMetadata -> {
+                            .thenComposeAsync(versionedMetadata -> {
                                 if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from a previous execution
@@ -174,14 +174,14 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                 }
                                             }));
                                 }
-                            });
+                            }, executor);
 
                     // once all commits are done, reset the committing txn record.
                     // reset state to ACTIVE if it was COMMITTING_TXN
                     return Futures.toVoid(commitFuture
                             .thenCompose(versionedMetadata -> streamMetadataStore.completeCommitTransactions(scope, stream, versionedMetadata, context, executor))
                             .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context)));
-                });
+                }, executor);
     }
 
     private CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollTransactions(String scope, String stream, HistoryRecord txnEpoch, HistoryRecord activeEpoch,
