@@ -21,6 +21,8 @@ import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -32,6 +34,8 @@ import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.tables.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -39,6 +43,8 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.TruncateStreamEvent;
+import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -62,6 +68,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -150,12 +157,12 @@ public class RequestHandlersTest {
         map.put("startCommitTransactions", 1);
         map.put("completeCommitTransactions", 1);
         map.put("updateVersionedState", 1);
-        concurrentTxnCommit("stream1", "startCommitTransactions", false,
+        concurrentTxnCommit("commit1", "startCommitTransactions", false,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map, 3);
 
         map.put("startCommitTransactions", 1);
         map.put("completeCommitTransactions", 1);
-        concurrentTxnCommit("stream5", "completeCommitTransactions", true,
+        concurrentTxnCommit("commit2", "completeCommitTransactions", true,
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map, 2);
     }
 
@@ -196,7 +203,7 @@ public class RequestHandlersTest {
 
         CommitEvent commitOnEpoch1 = new CommitEvent(scope, stream, 1);
 
-        setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
+        setMockCommitTxnLatch(streamStore1, streamStore1Spied, func, signal, wait);
 
         CompletableFuture<Void> future1 = requestHandler1.execute(commitOnEpoch1);
 
@@ -293,12 +300,9 @@ public class RequestHandlersTest {
         CompletableFuture<Void> signal = new CompletableFuture<>();
 
         // test rolling transaction
-
-        wait = new CompletableFuture<>();
-        signal = new CompletableFuture<>();
         CommitEvent commitOnEpoch0 = new CommitEvent(scope, stream, 0);
 
-        setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
+        setMockCommitTxnLatch(streamStore1, streamStore1Spied, func, signal, wait);
 
         // start rolling txn
         // stall rolling transaction in different stages
@@ -331,8 +335,8 @@ public class RequestHandlersTest {
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
 
-    private void setMockLatch(StreamMetadataStore store, StreamMetadataStore spied,
-                              String func, CompletableFuture<Void> signal, CompletableFuture<Void> waitOn) {
+    private void setMockCommitTxnLatch(StreamMetadataStore store, StreamMetadataStore spied,
+                                       String func, CompletableFuture<Void> signal, CompletableFuture<Void> waitOn) {
         switch (func) {
             case "startCommitTransactions":
                 doAnswer(x -> {
@@ -386,5 +390,100 @@ public class RequestHandlersTest {
             default:
                 break;
         }
+    }
+    
+    // concurrent update stream
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 300000)
+    public void concurrentUpdateStream() {
+        String stream = "update";
+        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore1.updateState(scope, stream, State.ACTIVE, null, executor).join();
+
+        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+
+        UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, executor);
+        UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, executor);
+        
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+        
+        streamStore1.startUpdateConfiguration(scope, stream, config, null, executor).join();
+        
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream);
+
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore1.completeUpdateConfiguration(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStore1Spied).completeUpdateConfiguration(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future1 = requestHandler1.execute(event);
+        signal.join();
+        requestHandler2.execute(event).join();
+        wait.complete(null);
+
+        AssertExtensions.assertThrows("first update job should fail", () -> future1, 
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
+    
+        // validate rolling txn done
+        VersionedMetadata<StreamConfigurationRecord> versioned = streamStore1.getConfigurationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+    }
+    
+    // concurrent truncate stream
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 300000)
+    public void concurrentTruncateStream() {
+        String stream = "update";
+        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore1.updateState(scope, stream, State.ACTIVE, null, executor).join();
+
+        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+
+        TruncateStreamTask requestHandler1 = new TruncateStreamTask (streamMetadataTasks, streamStore1Spied, executor);
+        TruncateStreamTask requestHandler2 = new TruncateStreamTask (streamMetadataTasks, streamStore2, executor);
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        Map<Long, Long> map = new HashMap<>();
+        map.put(0L, 100L);
+        
+        streamStore1.startTruncation(scope, stream, map, null, executor).join();
+
+        TruncateStreamEvent event = new TruncateStreamEvent(scope, stream);
+
+        doAnswer(x -> {
+            signal.complete(null);
+            wait.join();
+            return streamStore1.completeTruncation(x.getArgument(0), x.getArgument(1),
+                    x.getArgument(2), x.getArgument(3), x.getArgument(4));
+        }).when(streamStore1Spied).completeTruncation(anyString(), anyString(), any(), any(), any());
+
+        CompletableFuture<Void> future1 = requestHandler1.execute(event);
+        signal.join();
+        requestHandler2.execute(event).join();
+        wait.complete(null);
+
+        AssertExtensions.assertThrows("first truncate job should fail", () -> future1,
+                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
+
+        // validate rolling txn done
+        VersionedMetadata<StreamTruncationRecord> versioned = streamStore1.getTruncationRecord(scope, stream, null, executor).join();
+        assertFalse(versioned.getObject().isUpdating());
+        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
 }
