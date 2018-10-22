@@ -16,7 +16,7 @@ application.
 ## Running Pravega is Simple
 
 
-**Verify the following prerequisite**:
+**Verify the following prerequisite**
 
 ```
 Java 8
@@ -59,7 +59,7 @@ Download and run the "Hello World" Pravega sample reader and writer applications
 dependencies will be pulled from maven central.
 
 **Note:** The samples can also use a locally compiled version of Pravega. For more information,
-please see the [README](../../../README.md)note on maven publishing.
+please see the [README](../../../README.md) note on maven publishing.
 
 **Download the Pravega-Samples git repo**
 
