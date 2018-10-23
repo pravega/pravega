@@ -29,8 +29,8 @@ class AttributeCalculator {
     @VisibleForTesting
     static final int MAX_NODE_ID = (1 << 30) - 1; // First 2 bits are ignored.
     @VisibleForTesting
-    static final long ONE_BIT_MASK = 0x7FFF_FFFF_FFFF_FFFFL; // Preserve lower 127 bits.
-    private static final long TWO_BIT_MASK = 0x3FFF_FFFF_FFFF_FFFFL; // Preserve lower 126 bits.
+    static final long ONE_BIT_MASK = 0x7FFF_FFFF_FFFF_FFFFL; // Preserve lower 63 bits (of the 64 MSB of ID).
+    private static final long TWO_BIT_MASK = 0x3FFF_FFFF_FFFF_FFFFL; // Preserve lower 62 bits (of the 64 MSB of ID).
     private static final long PRIMARY_HASH_SET = 0x8000_0000_0000_0000L; // First bit is 1.
     private static final long SECONDARY_HASH_SET = 0x4000_0000_0000_0000L; // First 2 bits are 01.
     private static final long INDEX_NODE_SET = 0x8000_0000_0000_0000L; // First bit is 1.
@@ -66,7 +66,7 @@ class AttributeCalculator {
 
     /**
      * Generates a 16-byte UUID that encodes the given Secondary Hash and Node Id.
-     * Format: 01{SecondaryHash}{NodeId}
+     * Format: 01{NodeId}{SecondaryHash}
      * - MSB is 01 followed by the last 30 bits of NodeId, then the first 32 bits of the given Secondary Hash.
      * - LSB is the remaining 64 bits of the given Secondary Hash.
      *

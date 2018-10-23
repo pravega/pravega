@@ -582,8 +582,8 @@ public final class Futures {
     //region Loops
 
     /**
-     * Executes a loop using CompletableFutures over the given Iterable, without invoking join()/get() on any of them or
-     * exclusively hogging a thread.
+     * Executes a loop using CompletableFutures over the given Iterable, processing each item in order, without overlap,
+     * using the given Executor for task execution.
      *
      * @param iterable An Iterable instance to loop over.
      * @param loopBody A Function that, when applied to an element in the given iterable, returns a CompletableFuture which
