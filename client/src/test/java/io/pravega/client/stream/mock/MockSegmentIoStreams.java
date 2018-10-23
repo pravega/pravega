@@ -127,14 +127,18 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    @Synchronized
     public void write(PendingEvent event) {
-        ByteBuffer data = event.getData().nioBuffer();
-        write(data);
-        CompletableFuture<Void> ackFuture = event.getAckFuture();
+        CompletableFuture<Void> ackFuture = doWrite(event);
         if (ackFuture != null) {            
             ackFuture.complete(null);
         }
+    }
+
+    @Synchronized
+    private CompletableFuture<Void> doWrite(PendingEvent event) {
+        ByteBuffer data = event.getData().nioBuffer();
+        write(data);
+        return event.getAckFuture();
     }
     
     @Override
@@ -233,6 +237,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
 
     @Override
     public void sealSegment() {
-        //Noting to do
+        //Nothing to do
     }
 }

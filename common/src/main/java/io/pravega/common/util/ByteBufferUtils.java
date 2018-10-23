@@ -38,10 +38,10 @@ public class ByteBufferUtils {
      */
     public static int copy(ByteBuffer from, ByteBuffer to) {
         int toCopy = Math.min(from.remaining(), to.remaining());
-        int origionalFromLimit = from.limit();
+        int originalFromLimit = from.limit();
         from.limit(from.position() + toCopy);
         to.put(from);
-        from.limit(origionalFromLimit);
+        from.limit(originalFromLimit);
         return toCopy;
     }
     
