@@ -9,18 +9,24 @@
  */
 package io.pravega.segmentstore.server.host;
 
-import io.pravega.common.ConfigSetup;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * This class loads a specific storage implementation dynamically. It uses the `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
+ * for this purpose.
+ * The custom storage implementation is required to implement {@link StorageFactoryCreator} interface.
+ *
+ */
 @Slf4j
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
-        ServiceLoader<StorageFactoryFactory> loader = ServiceLoader.load(StorageFactoryFactory.class);
-        for (StorageFactoryFactory factory : loader) {
+        ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
+        for (StorageFactoryCreator factory : loader) {
             log.info("Loading {}, trying {}", storageImplementation, factory.getName());
             if (factory.getName().equals(storageImplementation)) {
                 return factory.createFactory(setup, executor);

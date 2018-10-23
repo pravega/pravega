@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ConfigSetup;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;

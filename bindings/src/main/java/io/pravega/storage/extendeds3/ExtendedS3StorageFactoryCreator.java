@@ -9,12 +9,12 @@
  */
 package io.pravega.storage.extendeds3;
 
-import io.pravega.common.ConfigSetup;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class ExtendedS3StorageFactoryFactory implements StorageFactoryFactory {
+public class ExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
     @Override
     public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
         return new ExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), executor);

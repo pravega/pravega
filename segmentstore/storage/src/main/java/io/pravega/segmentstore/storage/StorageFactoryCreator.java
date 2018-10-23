@@ -9,10 +9,13 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.ConfigSetup;
 import java.util.concurrent.ScheduledExecutorService;
 
-public interface StorageFactoryFactory {
+/**
+ * Storage binding implementations are supposed to inherit this interface.
+ * The bindings are loaded using `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
+ */
+public interface StorageFactoryCreator {
     /**
      * API to create a storage factory with given configuration.
      * @param setup     Configuration for the factory.

@@ -7,22 +7,22 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.storage.filesystem;
+package io.pravega.storage.hdfs;
 
-import io.pravega.common.ConfigSetup;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class FileSystemStorageFactoryFactory implements StorageFactoryFactory {
+public class HDFSStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
     public String getName() {
-        return "FILESYSTEM";
+        return "HDFS";
     }
 
     @Override
     public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
-        return new FileSystemStorageFactory(setup.getConfig(FileSystemStorageConfig::builder), executor);
+        return new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), executor);
     }
 }

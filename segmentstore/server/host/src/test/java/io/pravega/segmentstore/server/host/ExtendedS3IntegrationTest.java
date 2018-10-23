@@ -12,13 +12,13 @@ package io.pravega.segmentstore.server.host;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
-import io.pravega.common.ConfigSetup;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -84,7 +84,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
      * with the local file system for the purposes of testing. Ideally, however, we should mock the extended
      * S3 service rather than implement the storage functionality directly in the adapter.
      */
-    private class LocalExtendedS3StorageFactoryFactory implements StorageFactoryFactory {
+    private class LocalExtendedS3StorageFactoryCreator implements StorageFactoryCreator {
 
         @Override
         public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {

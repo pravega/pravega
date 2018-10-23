@@ -9,12 +9,12 @@
  */
 package io.pravega.segmentstore.storage.mocks;
 
-import io.pravega.common.ConfigSetup;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.StorageFactoryFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class InMemoryStorageFactoryFactory implements StorageFactoryFactory {
+public class InMemoryStorageFactoryCreator implements StorageFactoryCreator {
 
     @Override
     public StorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {

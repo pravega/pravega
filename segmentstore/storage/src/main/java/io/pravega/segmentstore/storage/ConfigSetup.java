@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common;
+package io.pravega.segmentstore.storage;
 
 import io.pravega.common.util.ConfigBuilder;
 import java.util.function.Supplier;

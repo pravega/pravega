@@ -11,4 +11,4 @@
 # Service loader definition file to load the factory. See https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html
 # for more reference.
 
-io.pravega.segmentstore.storage.mocks.InMemoryStorageFactoryFactory
+io.pravega.segmentstore.storage.mocks.InMemoryStorageFactoryCreator
