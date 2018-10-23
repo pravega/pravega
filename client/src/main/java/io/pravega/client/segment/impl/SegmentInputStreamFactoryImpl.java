@@ -12,13 +12,9 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @VisibleForTesting
 @RequiredArgsConstructor
 public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory {
@@ -47,11 +43,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
-        try {
-            Exceptions.handleInterrupted(() -> async.getConnection().get());
-        } catch (ExecutionException e) {
-            log.warn("Initial connection attempt failure. Suppressing.", e);
-        }
+        async.getConnection();
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
 
@@ -69,11 +61,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
-        try {
-            Exceptions.handleInterrupted(() -> async.getConnection().get());
-        } catch (ExecutionException e) {
-            log.warn("Initial connection attempt failure. Suppressing.", e);
-        }
+        async.getConnection();
         return new SegmentInputStreamImpl(async, 0);
     }
 }
