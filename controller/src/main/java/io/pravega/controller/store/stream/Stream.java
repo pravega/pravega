@@ -287,12 +287,11 @@ interface Stream {
      * specifically updating active epoch in the aforesaid record. 
      * 
      * @param activeEpoch active epoch
-     * @param txnEpoch epoch for transactions that are being committed. 
      * @param existing versioned committing transactions record that has to be updated
      * @return A future which when completed will capture updated versioned committing transactions record that represents 
      * an ongoing rolling transaction.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(int activeEpoch, int txnEpoch,
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(int activeEpoch, 
                                                                                        VersionedMetadata<CommittingTransactionsRecord> existing);
 
     /**

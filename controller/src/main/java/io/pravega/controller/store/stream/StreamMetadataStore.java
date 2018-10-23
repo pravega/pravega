@@ -568,7 +568,6 @@ public interface StreamMetadataStore {
      * @param scope scope
      * @param stream stream
      * @param activeEpoch active epoch
-     * @param txnEpoch epoch for transactions that are being committed. 
      * @param existing versioned committing transactions record that has to be updated
      * @param context operation context
      * @param executor executor
@@ -576,7 +575,7 @@ public interface StreamMetadataStore {
      * an ongoing rolling transaction.
      */
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
-                                       int txnEpoch, int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
+                                       int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
                                        OperationContext context, ScheduledExecutorService executor);
 
     /**

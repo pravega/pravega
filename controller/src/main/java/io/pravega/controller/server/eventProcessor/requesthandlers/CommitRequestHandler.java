@@ -189,7 +189,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
         if (!existing.getObject().isRollingTransactions()) {
             future = future.thenCompose(
-                    x -> streamMetadataStore.startRollingTxn(scope, stream, txnEpoch.getEpoch(), activeEpoch.getEpoch(),
+                    x -> streamMetadataStore.startRollingTxn(scope, stream, activeEpoch.getEpoch(),
                             existing, context, executor));
         }
 

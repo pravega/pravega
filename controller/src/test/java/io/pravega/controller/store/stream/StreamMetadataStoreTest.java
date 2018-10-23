@@ -716,6 +716,7 @@ public abstract class StreamMetadataStoreTest {
 
         VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, tx01.getEpoch(), null, executor).join();
         store.updateState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+        record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         record = store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         record = store.completeRollingTxn(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor).join();
@@ -771,6 +772,7 @@ public abstract class StreamMetadataStoreTest {
 
         record = store.startCommitTransactions(scope, stream, tx01.getEpoch(), null, executor).join();
         store.updateState(scope, stream, State.COMMITTING_TXN, null, executor).get();
+        record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         record = store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         record = store.completeRollingTxn(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor).join();
@@ -827,6 +829,7 @@ public abstract class StreamMetadataStoreTest {
         HistoryRecord activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
         VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, tx1.getEpoch(), null, executor).join();
         store.updateState(scope, stream, State.COMMITTING_TXN, null, executor).join();
+        record = store.startRollingTxn(scope, stream, activeEpoch.getEpoch(), record, null, executor).join();
         record = store.rollingTxnCreateDuplicateEpochs(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         record = store.completeRollingTxn(scope, stream, Collections.emptyMap(), System.currentTimeMillis(), record, null, executor).join();
         store.completeCommitTransactions(scope, stream, record, null, executor).join();

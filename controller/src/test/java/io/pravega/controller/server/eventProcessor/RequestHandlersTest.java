@@ -315,7 +315,7 @@ public class RequestHandlersTest {
             AssertExtensions.assertThrows("first commit should fail", () -> future1Rolling, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                     .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
-            verify(streamStore1Spied, times(invocationCount.get("startRollingTxn"))).startRollingTxn(anyString(), anyString(), anyInt(), anyInt(), any(), any(), any());
+            verify(streamStore1Spied, times(invocationCount.get("startRollingTxn"))).startRollingTxn(anyString(), anyString(), anyInt(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("rollingTxnCreateDuplicateEpochs")))
                     .rollingTxnCreateDuplicateEpochs(anyString(), anyString(), any(), anyLong(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeRollingTxn")))
@@ -359,8 +359,8 @@ public class RequestHandlersTest {
                     signal.complete(null);
                     waitOn.join();
                     return store.startRollingTxn(x.getArgument(0), x.getArgument(1),
-                            x.getArgument(2), x.getArgument(3), x.getArgument(4), x.getArgument(5), x.getArgument(6));
-                }).when(spied).startRollingTxn(anyString(), anyString(), anyInt(), anyInt(), any(), any(), any());
+                            x.getArgument(2), x.getArgument(3), x.getArgument(4), x.getArgument(5));
+                }).when(spied).startRollingTxn(anyString(), anyString(), anyInt(), any(), any(), any());
                 break;
             case "rollingTxnCreateDuplicateEpochs":
                 doAnswer(x -> {

@@ -843,10 +843,9 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(int transactionEpoch, int activeEpoch,
-                                                                                          VersionedMetadata<CommittingTransactionsRecord> existing) {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(int activeEpoch,
+                                                                  VersionedMetadata<CommittingTransactionsRecord> existing) {
         CommittingTransactionsRecord record = existing.getObject();
-        assert record.getEpoch() == transactionEpoch;
         if (activeEpoch == record.getActiveEpoch()) {
             return CompletableFuture.completedFuture(existing);
         } else {
@@ -859,6 +858,7 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollingTxnCreateDuplicateEpochs(
             Map<Long, Long> sealedTxnEpochSegments, long time, VersionedMetadata<CommittingTransactionsRecord> record) {
+        Preconditions.checkArgument(record.getObject().isRollingTransactions());
         return checkState(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING))
         .thenCompose(v -> addSealedSegmentsToRecord(sealedTxnEpochSegments)
                 .thenCompose(x -> getActiveEpoch(true))
