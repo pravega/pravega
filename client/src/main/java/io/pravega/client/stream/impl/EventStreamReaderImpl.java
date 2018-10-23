@@ -193,7 +193,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                final EventSegmentReader in = inputStreamFactory.createEventInputStreamForSegment(newSegment.getKey(),
+                final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(newSegment.getKey(),
                         groupState.getEndOffsetForSegment(newSegment.getKey()));
                 in.setOffset(newSegment.getValue());
                 readers.add(in);
@@ -263,7 +263,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         Preconditions.checkNotNull(pointer);
         // Create SegmentInputStream
         @Cleanup
-        EventSegmentReader inputStream = inputStreamFactory.createEventInputStreamForSegment(pointer.asImpl().getSegment(),
+        EventSegmentReader inputStream = inputStreamFactory.createEventReaderForSegment(pointer.asImpl().getSegment(),
                                                                                         pointer.asImpl().getEventLength());
         inputStream.setOffset(pointer.asImpl().getEventStartOffset());
         // Read event

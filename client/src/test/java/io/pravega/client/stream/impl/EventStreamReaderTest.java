@@ -102,7 +102,7 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
 
         SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
-        Mockito.when(inputStreamFactory.createEventInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
         //Mock Orderer
         Orderer orderer = Mockito.mock(Orderer.class);
         Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
@@ -143,7 +143,7 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
 
         SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
-        Mockito.when(inputStreamFactory.createEventInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
         //Mock Orderer
         Orderer orderer = Mockito.mock(Orderer.class);
         Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
@@ -398,7 +398,7 @@ public class EventStreamReaderTest {
         EventSegmentReader segmentInputStream = Mockito.mock(EventSegmentReader.class);
         Mockito.when(segmentMetadataClientFactory.createSegmentMetadataClient(any(Segment.class), any())).thenReturn(metadataClient);
         Mockito.when(segmentInputStream.getSegmentId()).thenReturn(segment);
-        Mockito.when(segInputStreamFactory.createEventInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream);
+        Mockito.when(segInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream);
         // Ensure segmentInputStream.read() returns SegmentTruncatedException.
         Mockito.when(segmentInputStream.read(anyLong())).thenThrow(SegmentTruncatedException.class);
         // Ensure SegmentInfo returns NoSuchSegmentException.

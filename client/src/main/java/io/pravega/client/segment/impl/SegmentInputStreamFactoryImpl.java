@@ -23,17 +23,17 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     private final ConnectionFactory cf;
 
     @Override
-    public EventSegmentReader createEventInputStreamForSegment(Segment segment) {
-        return createEventInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentReader createEventReaderForSegment(Segment segment) {
+        return createEventReaderForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public EventSegmentReader createEventInputStreamForSegment(Segment segment, long endOffset) {
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
         return getEventSegmentReader(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public EventSegmentReader createEventInputStreamForSegment(Segment segment, int bufferSize) {
+    public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
         return getEventSegmentReader(segment, Long.MAX_VALUE, bufferSize);
     }
 

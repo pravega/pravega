@@ -159,7 +159,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
-        EventSegmentReader in = inFactory.createEventInputStreamForSegment(segment);
+        EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
         // Segment sealed is not expected for Revisioned Stream Client.
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);

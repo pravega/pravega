@@ -199,7 +199,7 @@ public class ReadTest {
         out.flush();
 
         @Cleanup("close")
-        EventSegmentReader in = segmentConsumerClient.createEventInputStreamForSegment(segment);
+        EventSegmentReader in = segmentConsumerClient.createEventReaderForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString.getBytes()), result);
 
@@ -240,7 +240,7 @@ public class ReadTest {
         assertTrue(out.write(ByteBuffer.wrap(testString), 0));
 
         @Cleanup("close")
-        EventSegmentReader in = segmentConsumerClient.createEventInputStreamForSegment(segment);
+        EventSegmentReader in = segmentConsumerClient.createEventReaderForSegment(segment);
         ByteBuffer result = in.read();
         assertEquals(ByteBuffer.wrap(testString), result);
         assertNull(in.read(100));
