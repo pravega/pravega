@@ -11,7 +11,7 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
-import io.pravega.client.segment.impl.EventSegmentInputStream;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -45,7 +45,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     private final Segment segment;
     @GuardedBy("lock")
-    private final EventSegmentInputStream in;
+    private final EventSegmentReader in;
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     @GuardedBy("lock")

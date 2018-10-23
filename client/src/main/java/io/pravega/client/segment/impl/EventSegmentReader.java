@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
  * read call on this instance left off. (Parallel calls to read data will be serialized)
  * Get offset can be used to store a location to revert back to that position in the future.
  */
-public interface EventSegmentInputStream extends AutoCloseable {
+public interface EventSegmentReader extends AutoCloseable {
     
     Segment getSegmentId();
     

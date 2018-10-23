@@ -27,21 +27,21 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
     private final ConnectionFactory cf;
 
     @Override
-    public EventSegmentInputStream createEventInputStreamForSegment(Segment segment) {
+    public EventSegmentReader createEventInputStreamForSegment(Segment segment) {
         return createEventInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public EventSegmentInputStream createEventInputStreamForSegment(Segment segment, long endOffset) {
-        return getEventSegmentInputStream(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentReader createEventInputStreamForSegment(Segment segment, long endOffset) {
+        return getEventSegmentReader(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public EventSegmentInputStream createEventInputStreamForSegment(Segment segment, int bufferSize) {
-        return getEventSegmentInputStream(segment, Long.MAX_VALUE, bufferSize);
+    public EventSegmentReader createEventInputStreamForSegment(Segment segment, int bufferSize) {
+        return getEventSegmentReader(segment, Long.MAX_VALUE, bufferSize);
     }
 
-    private EventSegmentInputStream getEventSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
+    private EventSegmentReader getEventSegmentReader(Segment segment, long endOffset, int bufferSize) {
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
@@ -52,18 +52,18 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
         } catch (ExecutionException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return getEventSegmentInputStream(async, 0, endOffset, bufferSize);
+        return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
 
     @VisibleForTesting
-    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async, long startOffset,
+    static EventSegmentReaderImpl getEventSegmentReader(AsyncSegmentInputStream async, long startOffset,
                                                                   long endOffset, int bufferSize) {
-        return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset, endOffset, bufferSize));
+        return new EventSegmentReaderImpl(new SegmentInputStreamImpl(async, startOffset, endOffset, bufferSize));
     }
 
     @VisibleForTesting
-    static EventSegmentInputStreamImpl getEventSegmentInputStream(AsyncSegmentInputStream async, long startOffset) {
-        return new EventSegmentInputStreamImpl(new SegmentInputStreamImpl(async, startOffset));
+    static EventSegmentReaderImpl getEventSegmentReader(AsyncSegmentInputStream async, long startOffset) {
+        return new EventSegmentReaderImpl(new SegmentInputStreamImpl(async, startOffset));
     }
 
     @Override

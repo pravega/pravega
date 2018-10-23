@@ -38,9 +38,9 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
-     * @return New instance of EventSegmentInputStream for reading.
+     * @return New instance of EventSegmentReader for reading.
      */
-    EventSegmentInputStream createEventInputStreamForSegment(Segment segment);
+    EventSegmentReader createEventInputStreamForSegment(Segment segment);
 
     /**
      * Open an existing segment for reading up to the provided end offset. This operation will fail if the segment
@@ -50,7 +50,7 @@ public interface SegmentInputStreamFactory {
      * @param endOffset The offset up to which the segment can be read.
      * @return New instance of the SegmentInputStream for reading.
      */
-    EventSegmentInputStream createEventInputStreamForSegment(Segment segment, long endOffset);
+    EventSegmentReader createEventInputStreamForSegment(Segment segment, long endOffset);
 
     /**
      * Opens an existing segment for reading. This operation will fail if the
@@ -67,5 +67,5 @@ public interface SegmentInputStreamFactory {
      * @param bufferSize Size of the input stream read buffer.
      * @return A segment input stream.
      */
-    EventSegmentInputStream createEventInputStreamForSegment(Segment segment, int bufferSize);
+    EventSegmentReader createEventInputStreamForSegment(Segment segment, int bufferSize);
 }

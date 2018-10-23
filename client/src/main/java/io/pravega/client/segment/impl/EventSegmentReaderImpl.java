@@ -26,13 +26,13 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ToString
-class EventSegmentInputStreamImpl implements EventSegmentInputStream {
+class EventSegmentReaderImpl implements EventSegmentReader {
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
     private final SegmentInputStream in;
 
-    EventSegmentInputStreamImpl(SegmentInputStream input) {
+    EventSegmentReaderImpl(SegmentInputStream input) {
         Preconditions.checkNotNull(input);
         this.in = input;
     }
@@ -50,7 +50,7 @@ class EventSegmentInputStreamImpl implements EventSegmentInputStream {
     }
 
     /**
-     * @see EventSegmentInputStream#read()
+     * @see EventSegmentReader#read()
      */
     @Override
     @Synchronized
