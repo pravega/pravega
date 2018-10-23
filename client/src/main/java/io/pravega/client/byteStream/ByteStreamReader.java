@@ -34,13 +34,11 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
 
     /**
      * Seeks to the provided offset (It can be anywhere in the segment). Future read calls will read
-     * from this offset. This makes a synchronous RPC to the server to validate the offset
-     * provided.
+     * from this offset. Future reads will proceed from this offset.
      * 
      * @param offset The offset to seek to.
-     * @throws InvalidOffsetException If the offset provided does not exist in the segment.
      */
-    public abstract void seekToOffset(long offset) throws InvalidOffsetException;
+    public abstract void seekToOffset(long offset);
 
     /**
      * Returns the number of bytes that can be read without blocking. If the number returned is > 0

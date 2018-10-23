@@ -15,12 +15,15 @@ import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.stream.impl.PendingEvent;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class ByteStreamWriterImpl extends ByteStreamWriter {
     
+    @NonNull
     private final SegmentOutputStream out;
+    @NonNull
     private final SegmentMetadataClient meta;
 
     @Override

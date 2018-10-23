@@ -13,75 +13,81 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
 
+/**
+ * This class buffers individual calls to {@link #write(int)} so that we don't make a separate RPC per byte.
+ * It attempts to do this in a Lazy way, not allocating buffer space unless it is needed. 
+ */
 @RequiredArgsConstructor
 public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
 
     @VisibleForTesting
     public static final int BUFFER_SIZE = 4096;
+    @NonNull
     private final ByteStreamWriterImpl out;
 
-    @GuardedBy("this") //The ref is not guarded but the buffer inside the ref is.
-    private final AtomicReference<ByteBuffer> buffer = new AtomicReference<>(null);
-
+    @GuardedBy("$lock")
+    private ByteBuffer buffer = null;
+    
     @Override
+    @Synchronized
     public void write(int b) throws IOException {
-        synchronized (this) {
-            ByteBuffer localBuffer = buffer.get();
-            if (localBuffer == null) {
-                localBuffer = ByteBuffer.allocate(BUFFER_SIZE);
-                buffer.set(localBuffer);
+            if (buffer == null) {
+                buffer = ByteBuffer.allocate(BUFFER_SIZE);
             }
-            localBuffer.put((byte) b);
-            if (!localBuffer.hasRemaining()) {
-                flushBuffer();
+            buffer.put((byte) b);
+            if (!buffer.hasRemaining()) {
+                commitBuffer();
             }
-        }
     }
 
     @Override
+    @Synchronized
     public void write(ByteBuffer src) throws IOException {
-        flushBuffer();
+        commitBuffer();
         out.write(src);
     }
 
     @Override
+    @Synchronized
     public void write(byte[] b, int off, int len) throws IOException {
-        flushBuffer();
+        commitBuffer();
         out.write(b, off, len);
     }
 
-    private void flushBuffer() throws IOException {
-        if (buffer.get() != null) {
-            synchronized (this) {
-                ByteBuffer toWrite = buffer.getAndSet(null);
-                toWrite.flip();
-                if (toWrite.hasRemaining()) {
-                    out.write(toWrite);
-                }
+    private void commitBuffer() throws IOException {
+        if (buffer != null) {
+            buffer.flip();
+            if (buffer.hasRemaining()) {
+                out.write(buffer);
+                buffer = null;
             }
         }
     }
 
     
     @Override
+    @Synchronized
     public void close() throws IOException {
-        flushBuffer();
+        commitBuffer();
         out.close();
     }
 
     @Override
+    @Synchronized
     public void flush() throws IOException {
-        flushBuffer();
+        commitBuffer();
         out.flush();
     }
 
     @Override
+    @Synchronized
     public void closeAndSeal() throws IOException {
-        flushBuffer();
+        commitBuffer();
         out.closeAndSeal();
     }
 

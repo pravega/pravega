@@ -18,15 +18,20 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.concurrent.Futures;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class ByteStreamClientImpl implements ByteStreamClient {
-
+    @NonNull
     private final String scope;
+    @NonNull
     private final Controller controller;
+    @NonNull
     private final SegmentInputStreamFactory inputStreamFactory;
+    @NonNull
     private final SegmentOutputStreamFactory outputStreamFactory;
+    @NonNull
     private final SegmentMetadataClientFactory metaStreamFactory;
 
     @Override

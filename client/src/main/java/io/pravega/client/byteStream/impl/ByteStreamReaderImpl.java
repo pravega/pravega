@@ -10,7 +10,6 @@
 package io.pravega.client.byteStream.impl;
 
 import io.pravega.client.byteStream.ByteStreamReader;
-import io.pravega.client.byteStream.InvalidOffsetException;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -19,6 +18,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 
@@ -26,7 +26,9 @@ import lombok.ToString;
 @ToString
 public class ByteStreamReaderImpl extends ByteStreamReader {
 
+    @NonNull
     private final SegmentInputStream input;
+    @NonNull
     private final SegmentMetadataClient meta;
     private final AtomicBoolean closed = new AtomicBoolean(false); 
 
@@ -41,7 +43,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     }
 
     @Override
-    public void seekToOffset(long offset) throws InvalidOffsetException {
+    public void seekToOffset(long offset) {
         Exceptions.checkNotClosed(closed.get(), this);
         input.setOffset(offset);
     }
