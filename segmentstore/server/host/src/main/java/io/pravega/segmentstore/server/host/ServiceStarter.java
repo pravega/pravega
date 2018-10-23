@@ -10,6 +10,8 @@
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.auth.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
@@ -34,11 +36,17 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
+import static org.apache.zookeeper.client.ZKClientConfig.SECURE_CLIENT;
+import static org.apache.zookeeper.client.ZKClientConfig.ZOOKEEPER_CLIENT_CNXN_SOCKET;
+import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_LOCATION;
+import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
+
 /**
  * Starts the Pravega Service.
  */
 @Slf4j
 public final class ServiceStarter {
+    private static final long MAX_FILE_LENGTH = 4 * 1024 * 1024;
     //region Members
 
     private final ServiceBuilderConfig builderConfig;
@@ -130,6 +138,9 @@ public final class ServiceStarter {
                 segmentStatsFactory.close();
             }
 
+            if (this.serviceConfig.isSecureZK()) {
+                ZKTLSUtils.unsetSecureZKClientProperties();
+            }
             this.closed = true;
         }
     }
@@ -169,6 +180,12 @@ public final class ServiceStarter {
     }
 
     private CuratorFramework createZKClient() {
+        if (this.serviceConfig.isSecureZK()) {
+            System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
+            System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty(SSL_TRUSTSTORE_LOCATION, this.serviceConfig.getZkTrustStore());
+            System.setProperty(SSL_TRUSTSTORE_PASSWD, JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+        }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())

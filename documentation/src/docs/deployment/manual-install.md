@@ -39,11 +39,11 @@ Pravega requires **Bookkeeper 4.4.0+**. At least 3 Bookkeeper servers are recomm
 This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.4.0-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.4.0//bookkeeper-server-4.4.0-bin.tar.gz).
 
 For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/r4.4.0/bookkeeperStarted.html).
-Some specific Pravega instructions are shown below. All sets assuming being run from the `bookkeeper-server-4.4.0` directory.
+Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.4.0` directory.
 
 #### Bookkeeper Configuration
 
-The following configuration options should be changed in the `conf/bk_server.conf` file.
+In the file `conf/bk_server.conf`, the following configuration options should be implemented:
 
 ```
 # Comma separated list of <zp-ip>:<port> for all ZK servers
@@ -59,42 +59,44 @@ zkLedgersRootPath=/pravega/bookkeeper/ledgers
 
 ### Initializing Zookeeper paths
 
-The following paths need to be created in Zookeeper. From the `zookeeper-3.5.1-alpha` directory on the Zookeeper servers run:
+The following paths need to be created in Zookeeper. Open the `zookeeper-3.5.1-alpha` directory on the Zookeeper servers and run the following paths:
 
 ```
 bin/zkCli.sh -server $ZK_URL create /pravega
 bin/zkCli.sh -server $ZK_URL create /pravega/bookkeeper
 ```
-Replace `<$ZK_URL>` with the IP address of the Zookeeper nodes
+Replace `<$ZK_URL>` with the IP address of the Zookeeper nodes.
 
 ### Running Bookkeeper
 
-Before starting the bookie, it needs to be formatted:
+The bookie needs the following formatting before starting it:
 
 ```
 bin/bookkeeper shell metaformat -nonInteractive
 ```
 
-Start the bookie:
+Start the bookie as mentioned below:
 
 ```
 bin/bookkeeper bookie
 ```
+### Running Bookkeeper with encryption enabled
+Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](https://bookkeeper.apache.org/docs/latest/security/tls/).
 
 ---
 # Installing Pravega
 
-For non-production systems, you can use the containers provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
+For non-production systems, the containers can be used that are provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
-There are two key components of Pravega that need to be run:
-- Controller - Control plane for Pravega. Installation requires at least one controller. Two or more are recommended for HA.
-- Segment Store - Storage node for Pravega. Installation requires at least one segment store.
+The following two key components of Pravega needs to be run:
+- Controller: The Control plane for Pravega. Installation requires at least one controller. \(Two or more are recommended for HA\).
+- Segment Store: The Storage node for Pravega. Installation requires at least one segment store.
 
-Before you start, you need to download the latest Pravega release. You can find the latest Pravega release on the [github releases page](https://github.com/pravega/pravega/releases).
+Before we start, the latest Pravega release needs to be downloaded from the [github releases page](https://github.com/pravega/pravega/releases).
 
 ## Recommendations
 
-If you are getting started with a simple 3 node cluster, you may want to layout your services like this:
+_For a simple 3 node cluster, the following table depicts on layout of the services:_
 
 |                       | Node 1 | Node 2 | Node 3 |
 | --------------------- | ------ | ------ | ------ |
@@ -105,22 +107,22 @@ If you are getting started with a simple 3 node cluster, you may want to layout 
 
 ## All Nodes
 
-On each node extract the distribution package to your desired directory:
+On each node, extract the distribution package to the desired directory as follows:
 
 ```
 tar xfvz pravega-0.1.0.tgz
 cd pravega-0.1.0
 ```
 
-## Installing the Controller
+## Installation of the Controller
 
-The controller can simply be run using the following command. Replace `<zk-ip>` with the IP address of the Zookeeper nodes
+The controller can be run by using the following command. Replace `<zk-ip>` with the IP address of the Zookeeper nodes in the following command:
 
 ```
 ZK_URL=<zk-ip>:2181 bin/pravega-controller
 ```
 
-Alternatively, instead of specifying this on startup each time, you can edit the `conf/controller.conf` file and change the zk url there:
+Instead specifying the `<zk-ip>` on every startup, we can edit the `conf/controller.conf` file and change the zk url as follows:
 
 ```
     zk {
@@ -129,15 +131,16 @@ Alternatively, instead of specifying this on startup each time, you can edit the
     }
 ```
 
-Then you can run the controller with:
+Then run the controller with the following command:
 
 ```
 bin/pravega-controller
 ```
 
-## Installing the Segment Store
+## Installation of the Segment Store
 
-Edit the `conf/config.properties` file. The following properies need to be changed. Replace `<zk-ip>`, `<controller-ip>` and `<hdfs-ip>` with the IPs of the respective services:
+In the file `conf/config.properties`, make the following changes as mentioned:
+Replace `<zk-ip>`, `<controller-ip>` and `<hdfs-ip>` with the IPs of the respective services.
 
 ```
 pravegaservice.zkURL=<zk-ip>:2181
@@ -148,8 +151,11 @@ autoScale.controllerUri=tcp://<controller-ip>:9090
 hdfs.hdfsUrl=<hdfs-ip>:8020
 ```
 
-Once the configuration changes have been made you can start the segment store with:
+After making the configuration changes, the segment store can be run using the following command:
 
 ```
 bin/pravega-segmentstore
 ```
+## Running Pravega Controller and Segment Store with security enabled
+Here are the details for configurations for [Pravega controller](../security/pravega-security-configurations.md#pravega-controller) and [Pravega Segment store](../security/pravega-security-configurations.md#pravega-segment-store).
+These parameters can be changed to represent required security configurations.
