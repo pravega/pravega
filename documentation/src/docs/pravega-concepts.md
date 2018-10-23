@@ -11,102 +11,77 @@ You may obtain a copy of the License at
 
 Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.
 
-This page is an overview of the key concepts in Pravega.
- See [Terminology](terminology.md) for a concise definition for many
-Pravega concepts.
+An overview of the key concepts of Pravega is discussed. Please, see [Terminology](terminology.md) for a concise definition of key terms of Pravega concepts.
 
 ## Streams
 
-Pravega organizes data into Streams.  A Stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  A Pravega Stream is
-similar to but more flexible than a "topic" in popular message-oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/). 
+Pravega organizes data into **Streams**.  A stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency.  A Pravega stream is
+similar to but more flexible than a "topic" in popular message-oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/).
 
-Pravega Streams are based on an append-only log data structure. By using
-append-only logs, Pravega can rapidly ingest data into durable storage,
-and support a large variety of application use cases such as stream processing using frameworks like [Flink](https://flink.apache.org), publish/subscribe
-messaging, NoSQL databases such as a Time Series
-Database (TSDB), workflow engines, event-oriented applications and many other
-kinds of applications. 
+Pravega streams are based on an append-only log data structure. By using the
+append-only logs, Pravega rapidly ingest data into durable storage. It supports a large variety of application use cases as follows:
 
-When a developer creates a Stream in Pravega, s/he gives the Stream a meaningful
-name such as "IoTSensorData" or "WebApplicationLog20170330".  The
-Stream's name helps other developers understand the kind of data that is stored
-in the Stream.  It is also worth noting that Pravega Stream names are organized
-within a Scope.  A Scope is a string and should convey some sort of meaning to
-developers such as "FactoryMachines" or "HRWebsitelogs".  A Scope acts as a
-namespace for Stream names – all Stream names are unique within a Scope.
- Therefore a Stream is uniquely identified by the combination of its Stream name
-and Scope.  Scope can be used to segregate names by tenant (in a multi tenant
-environment), by department in an organization, by geographic location or any
-other categorization the developer chooses.
+- Supports stream processing by using frameworks like [Flink](https://flink.apache.org).
+- Publish/subscribe messaging.
+- NoSQL databases like Time Series.
+- Database (TSDB).
+- Workflow engines.
+- Event-oriented applications, etc., 
 
-A Stream is unbounded in size – Pravega itself does not impose any limits on how
-many Events can be in a Stream or how many total bytes are stored in a Stream.
-Pravega’s design horizontally scales from few machines to a whole datacenter’s capacity.
+In Pravega, during the creation of the stream the developers assigns a meaningful
+name to the stream like "IoTSensorData" or "WebApplicationLog20170330" to provide
+more information on the type of data stored in the stream. The Pravega stream names are organized
+within a **Scope**.  A Scope is a string containing meaningful informations like "FactoryMachines" or "HRWebsitelogs" to aid in better understanding for the developers. A scope acts as a
+namespace for stream names, all stream names are unique within a scope.
+ A stream is uniquely identified by its combination of the **stream name**
+and **scope**. Scope can be used to classify names by tenant (in a multi tenant
+environment) or by department in an organization or by geographic location or any
+other categorization desired by the developer.
 
-To deal with a potentially large amount of data within a Stream, Pravega Streams
-are divided into Stream Segments.  A Stream Segment is a shard, or partition of
-the data within a Stream.  We go into a lot more detail on Stream Segments a bit
-later in this document.  Stream Segments are an important concept, but we need
-to introduce a few more things before we can dive into Stream Segments.
+A stream is unbounded in size. Pravega does not impose any limits on the occurrence of number of events in the stream or on the number of total bytes that are stored in a stream.
+Pravega’s design architecture scales up horizontally from few machines into a datacenter.
 
-Applications, such as a Java program reading from an IoT sensor, write data to
-the tail (front) of the Stream.  Applications, such as a [Flink](https://flink.apache.org) analytics job,
-can read from any point in the Stream. Lots of applications can read and write
-the same Stream in parallel.  Elastic, scalable support for a large volume of
-Streams, data and applications is at the heart of Pravega's design.  We will
-get into more details about how applications read and write Streams a bit later
-in this document when we detail Readers and Writers.
+Pravega streams are divided into **Stream Segments**, to handle the large volume of data within a stream. A stream segment is a shared, or partition of the data within a stream. For more information, please see [Stream Segments](#stream-segments) section.
+
+The data from the IoT sensor is extracted or read by a variety of applications (_e.g.,_ Java applications) and write the read or fetched data to the tail (front) of the stream. Applications, such as a [Flink](https://flink.apache.org), can read from any point in the stream. Many applications can read and write the same stream in parallel. Elasticity, scalability, support for large volume of
+streams, data and applications are the highlights of the Pravega's design. More information on reads and writes in the streams will be discussed in the [Readers and Writers](#writer) section.
 
 ## Events
 
-Pravega's client API allows applications to read and write data in Pravega in terms of an Event.  An Event is a
-set of bytes within a Stream.  An Event could be as simple as a small
-number of bytes containing a temperature reading from an IoT sensor composed of
-a timestamp, a metric identifier and a value.  An Event could be web log data
-associated with a user click on a website.  Events can be anything you can
-represent as a set of bytes.  Applications make sense of Events using
-standard Java serializers and deserializers, allowing them to read and write
-objects in Pravega using similar techniques to reading and writing objects from
+Pravega's client API allows applications to read and write data in Pravega using **Event**.  An Event is a set of bytes within a stream. Events are represented as a set of bytes. For _e.g.,_ an event could be as simple as a small number of bytes containing a temperature reading from an IoT sensor composed of
+a timestamp, a metric identifier and a value or an event could be web log data
+associated with a user click on a website. Applications make sense of events using
+standard Java _serializers_ and _deserializers_, allowing them to read and write
+objects in Pravega similar to reading and writing objects from
 files.
 
-Every Event has a Routing Key.  A Routing Key allows Pravega
-and application developers to reason about which Events are related.   A Routing
-Key is just a string that developers use to group similar Events together. A
-Routing Key is often derived from data naturally occurring in the Event,
-something like "customer-id" or "machine-id", but it could also be some
-artificial String. A
-Routing Key could be something like a date (to group Events together by
-time) or perhaps a Routing Key could be a IoT sensor id (to group Events by
-machine).  A Routing Key is important to defining the precise read and write
-semantics that Pravega guarantees, we will get into that detail a bit later,
-after we have introduced a few more key concepts.
+Every event has a **Routing Key**. A Routing Key is a string used by developers to group similar events. A routing key is often derived from data naturally occurring in the event,
+like "customer-id" or "machine-id" or a declared/user-defined string. For _e.g.,_ routing key could be a date (to group Events together by time) or it could be a IoT sensor id (to group Events by
+machine).
 
-## Writers, Readers, ReaderGroups
+A routing key is important in defining the read and write semantics that Pravega guarantees.
+
+## Writers, Readers, ReaderGroups <a name= "writer"></a>
 
 ![Reader Client](img/producer.consumer.client.new.png)
 
 Pravega provides a client library, written in Java, that implements a convenient
-API for Writer and Reader applications to use.  The Pravega Java Client Library
-encapsulates the wire protocol used to communicate between Pravega clients and
+API for writer and reader applications.  The Pravega Java Client Library
+encapsulates the wire protocol used for communication between Pravega clients and
 Pravega.
 
-A Writer is an application that creates Events and writes them into a Stream.
-All data is written by appending to the tail (front) of a Stream.
+A **Writer** is an application that creates events and writes them into a stream.
+All data is written by appending to the tail (front) of a stream.
 
-A Reader is an application that reads Events from a Stream.  Readers can read
-from any point in the Stream.  Many Readers will be reading Events from the tail
-of the Stream.  These Events will be delivered to Readers as quickly as possible.  Some Readers will read
-from earlier parts of the Stream (called catch-up reads).  The application
-developer has control over where in the Stream the Reader starts reading.
- Pravega has the concept of a Position, that represents where in a Stream a
-Reader is currently located.  The Position object can be used as a recovery
-mechanism – applications that persist the last Position a Reader has
-successfully processed can use that information to initialize a replacement
-Reader to pickup where a failed Reader left off.  Using this pattern of
-persisting Position objects, applications can be built that guarantee exactly
-once Event processing in the face of Reader failure.
+A **Reader** is an application that reads events from a stream.  Readers can read
+from any point in the stream.  Many readers will be reading events from the tail
+of the Stream. The tail reads correspond to reading bytes that have been recently written. and will be delivered to readers immediately. Some readers will read from earlier parts or stored history of the stream (called catch-up reads or history reads). The application developer has control over the reader's start position in the stream.
 
-Readers are organized into ReaderGroups.  A ReaderGroup is a named collection of
+Pravega has the concept of a **Position**, that represents where in a stream a
+reader is currently located. The position object can be used as a recovery
+mechanism by replacing the failed reader by a new reader by restoring the last saved successful read position. Using this pattern of persisting position objects, applications can be built guaranteeing exactly once event processing by handling the reader failure.
+
+Readers are organized into **Reader Groups**.  A ReaderGroup is a named collection of
 Readers that together, in parallel, read Events from a given Stream. When a
 Reader is created through the Pravega data plane API, the developer includes the
 name of the ReaderGroup it is part of.  We guarantee that each Event published
@@ -281,7 +256,7 @@ state.  Once a Checkpoint has been completed, the application can use the
 Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
 state represented by the Checkpoint.
 
-For more details on working with ReaderGroups, 
+For more details on working with ReaderGroups,
 see [ReaderGroup Basics](basic-reader-and-writer.md#readergroup-basics).
 
 
@@ -378,7 +353,7 @@ The following figure depicts the components deployed by Pravega:
 Pravega is deployed as a distributed system – a cluster of servers and storage
 coordinated to run Pravega called a "Pravega cluster".  
 
-Pravega presents a software-defined storage (SDS) architecture formed by Controller instances 
+Pravega presents a software-defined storage (SDS) architecture formed by Controller instances
 (control plane) and Pravega Servers (data plane).The set of Pravega Servers is known collectively as the Segment Store. 
 
 The set of Controller instances make up the control plane of Pravega, providing
