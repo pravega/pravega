@@ -32,7 +32,7 @@ public class RequestTrackerTest {
      */
     @Test
     public void testRequestTagLifecycle() {
-        RequestTracker requestTracker = new RequestTracker();
+        RequestTracker requestTracker = new RequestTracker(true);
         final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
         final long requestId = 123;
 
@@ -67,7 +67,7 @@ public class RequestTrackerTest {
      */
     @Test
     public void testPolicyForRequestsWithSameDescriptor() {
-        RequestTracker requestTracker = new RequestTracker();
+        RequestTracker requestTracker = new RequestTracker(true);
         final String requestDescriptor = RequestTracker.buildRequestDescriptor("createStream", "scope", "stream");
 
         // Log multiple request ids associated with the same request descriptor and assert that the first one is retrieved.

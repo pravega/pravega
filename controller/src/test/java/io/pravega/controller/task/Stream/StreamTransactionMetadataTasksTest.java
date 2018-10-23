@@ -123,7 +123,7 @@ public class StreamTransactionMetadataTasksTest {
     private StreamTransactionMetadataTasks txnTasks;
     private ConnectionFactory connectionFactory;
 
-    private RequestTracker requestTracker = new RequestTracker();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     private static class SequenceAnswer<T> implements Answer<T> {
 

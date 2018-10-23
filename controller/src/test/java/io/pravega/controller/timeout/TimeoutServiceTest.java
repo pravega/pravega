@@ -80,7 +80,7 @@ public class TimeoutServiceTest {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final StoreClient storeClient;
-    private final RequestTracker requestTracker = new RequestTracker();
+    private final RequestTracker requestTracker = new RequestTracker(true);
 
     public TimeoutServiceTest() throws Exception {
 

@@ -51,7 +51,7 @@ public abstract class StreamCutServiceTest {
     StreamMetadataTasks streamMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
     private String hostId;
-    private RequestTracker requestTracker = new RequestTracker();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {

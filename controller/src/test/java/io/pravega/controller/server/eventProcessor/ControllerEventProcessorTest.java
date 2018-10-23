@@ -81,7 +81,7 @@ public class ControllerEventProcessorTest {
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
     private CuratorFramework zkClient;
-    private RequestTracker requestTracker = new RequestTracker();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setUp() throws Exception {

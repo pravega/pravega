@@ -114,7 +114,7 @@ public class ZkStoreRetentionTest extends StreamCutServiceTest {
 
     @Test(timeout = 10000)
     public void testOwnershipOfExistingBucket() throws Exception {
-        RequestTracker requestTracker = new RequestTracker();
+        RequestTracker requestTracker = new RequestTracker(true);
         TestingServer zkServer2 = new TestingServerStarter().start();
         zkServer2.start();
         CuratorFramework zkClient2 = CuratorFrameworkFactory.newClient(zkServer2.getConnectString(), 10000, 1000,

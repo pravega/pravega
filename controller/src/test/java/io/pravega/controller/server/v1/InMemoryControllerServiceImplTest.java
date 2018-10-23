@@ -68,7 +68,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        requestTracker = new RequestTracker();
+        requestTracker = new RequestTracker(true);
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))

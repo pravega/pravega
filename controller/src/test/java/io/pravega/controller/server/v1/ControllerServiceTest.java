@@ -76,7 +76,7 @@ public class ControllerServiceTest {
     private long startTs;
     private long scaleTs;
 
-    private RequestTracker requestTracker = new RequestTracker();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     public ControllerServiceTest() throws Exception {
         zkServer = new TestingServerStarter().start();

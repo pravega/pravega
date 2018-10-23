@@ -94,7 +94,7 @@ public class TaskTest {
     private final SegmentHelper segmentHelperMock;
     private final CuratorFramework cli;
     private ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated;
-    private final RequestTracker requestTracker = new RequestTracker();
+    private final RequestTracker requestTracker = new RequestTracker(true);
 
     public TaskTest() throws Exception {
         zkServer = new TestingServerStarter().start();

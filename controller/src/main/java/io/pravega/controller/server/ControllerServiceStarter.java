@@ -141,7 +141,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
             // Create a RequestTracker instance to trace client requests end-to-end.
-            RequestTracker requestTracker = new RequestTracker();
+            RequestTracker requestTracker = new RequestTracker(serviceConfig.getGRPCServerConfig().get().isRequestTracingEnabled());
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.

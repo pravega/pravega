@@ -9,6 +9,7 @@
  */
 package io.pravega.common;
 
+import io.pravega.common.tracing.RequestTag;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -122,7 +123,11 @@ public final class LoggerHelpers {
      * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
      */
     public static void debugLogWithTag(Logger log, long requestId, String message, Object... args) {
-        log.debug("[requestId={}] ".concat(message), requestId, args);
+        if (requestId != RequestTag.NON_EXISTENT_ID) {
+            log.debug(String.format("[requestId=%d] %s", requestId, message), args);
+        } else {
+            log.debug(message, args);
+        }
     }
 
     /**
@@ -136,7 +141,11 @@ public final class LoggerHelpers {
      * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
      */
     public static void infoLogWithTag(Logger log, long requestId, String message, Object... args) {
-        log.info("[requestId={}] ".concat(message), requestId, args);
+        if (requestId != RequestTag.NON_EXISTENT_ID) {
+            log.info(String.format("[requestId=%d] %s", requestId, message), args);
+        } else {
+            log.info(message, args);
+        }
     }
 
     /**
@@ -150,7 +159,11 @@ public final class LoggerHelpers {
      * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
      */
     public static void warnLogWithTag(Logger log, long requestId, String message, Object... args) {
-        log.warn("[requestId={}] ".concat(message), requestId, args);
+        if (requestId != RequestTag.NON_EXISTENT_ID) {
+            log.warn(String.format("[requestId=%d] %s", requestId, message), args);
+        } else {
+            log.warn(message, args);
+        }
     }
 
     /**
@@ -164,6 +177,10 @@ public final class LoggerHelpers {
      * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
      */
     public static void errorLogWithTag(Logger log, long requestId, String message, Object... args) {
-        log.error("[requestId={}] ".concat(message), requestId, args);
+        if (requestId != RequestTag.NON_EXISTENT_ID) {
+            log.error(String.format("[requestId=%d] %s", requestId, message), args);
+        } else {
+            log.error(message, args);
+        }
     }
 }

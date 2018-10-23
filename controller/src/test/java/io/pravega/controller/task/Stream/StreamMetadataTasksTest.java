@@ -125,7 +125,7 @@ public class StreamMetadataTasksTest {
     private StreamRequestHandler streamRequestHandler;
     private ConnectionFactoryImpl connectionFactory;
 
-    private RequestTracker requestTracker = new RequestTracker();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {

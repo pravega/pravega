@@ -78,7 +78,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         final HostControllerStore hostStore;
         final TaskMetadataStore taskMetadataStore;
         final SegmentHelper segmentHelper;
-        final RequestTracker requestTracker = new RequestTracker();
+        final RequestTracker requestTracker = new RequestTracker(true);
 
         zkServer = new TestingServerStarter().start();
         zkServer.start();

@@ -85,7 +85,7 @@ public class ControllerServiceWithZKStreamTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
 
-    private RequestTracker requestTracker = new RequestTracker();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() {
