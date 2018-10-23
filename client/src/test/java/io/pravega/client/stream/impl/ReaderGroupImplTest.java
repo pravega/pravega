@@ -179,7 +179,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test(timeout = 10000)
-    public void getCurrentStreamCut() {
+    public void generateStreamCutSuccess() {
         when(synchronizer.getState()).thenReturn(state);
         when(state.isCheckpointComplete(any(String.class))).thenReturn(false).thenReturn(true);
         when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.of(ImmutableMap.of(createStream("s1"),
@@ -191,7 +191,7 @@ public class ReaderGroupImplTest {
     }
 
     @Test(timeout = 10000)
-    public void getCurrentStreamCutError() {
+    public void generateStreamCutsError() {
         when(synchronizer.getState()).thenReturn(state);
         when(state.isCheckpointComplete(any(String.class))).thenReturn(true);
         when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.empty()); //mock empty.

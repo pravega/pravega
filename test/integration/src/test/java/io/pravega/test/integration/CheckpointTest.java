@@ -317,7 +317,7 @@ public class CheckpointTest {
     }
 
     @Test(timeout = 20000)
-    public void testGetCurrentStreamCuts() throws Exception {
+    public void testGenerateStreamCuts() throws Exception {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerName = "reader";
