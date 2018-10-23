@@ -165,76 +165,54 @@ at time _"now"_, only stream _Segments 3_, _6_ and _4_ are active and the entire
 
 ### Stream Segments and ReaderGroups
 
-Stream Segments are important to understanding the way Reader Groups work.
+Stream segments play a major role in understanding the way reader groups work.
 
 ![Stream Segment](img/segment.readergroup.png) 
 
-Pravega assigns each Reader in a ReaderGroup zero or more Stream Segments to
-read from.  Pravega tries to balance out the number of Stream Segments each
-Reader is assigned.  In the figure above, Reader B1 reads from 2 Stream Segments
-while each of the other Readers in the Reader Group have only 1 Stream Segment
-to read from.  Pravega makes sure that each Stream Segment is read by exactly
-one Reader in any ReaderGroup configured to read from that Stream. As Readers
-are added to the ReaderGroup, or Readers crash and are removed from the
-ReaderGroup, Pravega reassigns Stream Segments so that Stream Segments are
-balanced amongst the Readers.
+Pravega assigns _zero_ or more stream segments to each reader in a reader group. Pravega tries to balances the number of stream segments assigned to each reader. In the figure above, _Reader B1_ reads from two stream segments (*Segment 0* and *Segment 3*), while the other reader group (*Reader B2*, *Reader B3*) have only only one stream segment to read from. Pravega makes sure that each stream segment is read exactly by one reader in any reader group configured with that stream. Irrespective of  readers being added to the reader group or removed from the reader group due to crash, Pravega reassigns stream segments to maintain balance amongst the readers.
 
-The number of Stream Segments in a Stream determines the upper bound of
-parallelism of readers within a ReaderGroup – the more Stream Segments, the more
-separate, parallel sets of Readers we can have consuming the Stream. In the
-above figure, Stream1 has 4 Stream Segments.  That means that the largest
-effective Reader Group would contain 4 Readers.  Reader Group named "B" in the
-above figure is not quite optimal.  If one more Reader was added to the
-ReaderGroup, each Reader would have 1 Stream Segment to process, maximizing read
-parallelism.  However, the number of Readers in the ReaderGroup increases beyond
-4, at least one of the Readers will not be assigned a Stream Segment.
+The number of stream segments in a stream determines the upper bound of
+parallelism of readers within a reader group. If there are more stream segments, different reader groups and many parallel sets of readers can effectively consume the stream. In the
+above figure, _Stream 1_ has four stream segments. The largest effective reader group would contain four readers. _Reader group B_ in the above figure is not quite optimal. If one more reader was added to the reader group, each reader would have one stream segment to process, and maximizes the read
+parallelism. But, if the number of readers in the reader group increases beyond four, there arises a possibility that at least one of the readers will have unassigned stream segment.
 
-If Stream1 in the figure above experienced a Scale-Down event, reducing the
-number of Stream Segments to 3, then Reader Group B as depicted would have an
-ideal number of Readers.
 
-With the AutoScaling feature, Pravega developers don't have to configure their
-Streams with a fixed, pre-determined number of Stream Segments – Pravega can
-dynamically determine the right number.  With this feature, Pravega Streams can
-grow and shrink to match the behavior of the data input.  The size of any Stream
-is limited only by the total storage capacity made available to the Pravega
-cluster; if you need bigger streams, simply add more storage to your cluster.
+If _Stream 1_ in the figure above experienced a **Scale-Down** event, by reducing the
+number of stream segments to three, then the _Reader group B_  will have an
+ideal number of readers.
 
-Applications can react to changes
-in the number of Segments in a Stream, adjusting the number of Readers within a
-ReaderGroup, to maintain optimal read parallelism if resources allow.  This is
-useful, for example in a Flink application, to allow Flink to increase or
-decrease the number of task instances that are processing a Stream in parallel,
-as scale events occur over time.
+The number of stream segments can be varied dynamically by using the Pravega's auto scaling feature as we discussed in the [Auto Scaling](#auto-scaling) section. The size of any stream is determined by the storage capacity of the Pravega cluster. More streams can be obtained by increasing the storage of the Pravega cluster.
+
+Applications can react to changes in the number of segments in a stream by adjusting the number of readers within a reader group, to maintain optimal read parallelism. Flink application is the best example for this scenario as it allows Flink to increase or decrease the number of task instances that are processing a stream in parallel.
 
 ### Ordering Guarantees
 
-A stream comprises a set of segments that can change over time. Segments that overlap in their area of keyspace have a defined order.
+A stream comprises a set of segments that can change over time. Segments that overlap in their area of key space have a defined order.
 
-An event written to a stream is written to a single segment and it is totally ordered with respect to the events of that segment. The existance and position of an event within a segment is strongly consistent.
+An event written to a stream is written to a single segment, and is ordered with respect to the events of that segment. The existence and position of an event within a segment maintains consistency.
 
-Readers can be assigned multiple parallel segments (from different parts of keyspace). A reader reading from multiple segments will interleave the events of the segments, but the order of events per segment respects the one of the segment. Specifically, if s is a segment, events e~1 and e~2 of s are such that e~1 precedes e~2, and a reader reads both e~1 and e~2, then the reader will read e~1 before e~2.
+Readers can be assigned multiple parallel segments (from different parts of key space). A reader reading from multiple segments will interleave the events of the segments, but the order of events per segment is retained. Specifically, if _s_ is a segment, and _s_ contains two events _i.e., _s = {_e~1_,_e~2}_ where _e~1_ precedes _e~2_. Thus when a reader tries to read both the events (_e~1_ and _e~2_) the read order is guaranteed by assuring that, the reader is allowed to read _e~1_ before _e~2_.
 
 This results in the following ordering guarantees:
 
-1.  Events with the same Routing Key are consumed in the order they were written.
+1.  Events with the same routing key are consumed in the order they were written.
 
-2.  Events with different Routing Keys sent to a specific segment will always be
-    seen in the same order even if the Reader backs up and re-reads them.
+2.  Events with different routing keys are sent to a specific segment and will always be
+    read in the same order even if the reader performs backs up and re-reads.
 
-3.  If an event has been acked to its writer or has been read by a reader it is guaranteed that it will continue to exist in the same place for all subsequent reads until it is deleted.
+3.  If an event has been acknowledged to its writer or has been read by a reader it is guaranteed that it will continue to exist in the same location or position for all subsequent reads until it is deleted.
 
-4.  If there are multiple Readers reading a Stream and they all back up to any given point, they will never see any reordering with respect to that point. (It will never be the case that an event that they read before the chosen point now comes after or vice versa.)
+4.  If multiple readers are reading a stream and backs up for a while and then again when it performs re-reads, it is assured that no reordering would have happened.
 
-## ReaderGroup Checkpoints
+## Reader Group Checkpoints
 
-Pravega provides the ability for an application to initiate a Checkpoint on a
-ReaderGroup.  The idea with a Checkpoint is to create a consistent "point in
-time" persistence of the state of each Reader in the ReaderGroup, by using a
-specialized Event (a Checkpoint Event) to signal each Reader to preserve its
-state.  Once a Checkpoint has been completed, the application can use the
-Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
-state represented by the Checkpoint.
+Pravega provides the ability for an application to initiate a **Checkpoint** on a
+reader group.  The idea with a checkpoint is to create a consistent "point in
+time" persistence of the state of each reader in the reader group, by using a
+specialized event (_Checkpoint Event_) to signal each reader to preserve its
+state.  Once a checkpoint has been completed, the application can use the
+checkpoint to reset all the readers in the reader group to the known consistent
+state represented by the checkpoint.
 
 For more details on working with ReaderGroups,
 see [ReaderGroup Basics](basic-reader-and-writer.md#readergroup-basics).
