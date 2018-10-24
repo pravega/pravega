@@ -96,7 +96,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     /**
-     * @see SegmentInputStream#read()
+     * @see SegmentInputStream#read(ByteBuffer, long)
      */
     @Override
     @Synchronized

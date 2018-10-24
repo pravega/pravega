@@ -8,6 +8,7 @@
  */
 package io.pravega.client.byteStream.impl;
 
+import com.google.common.base.Preconditions;
 import io.pravega.client.byteStream.ByteStreamClient;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
@@ -17,6 +18,7 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -50,13 +52,11 @@ public class ByteStreamClientImpl implements ByteStreamClient {
 
     @Override
     public ByteStreamWriter createByteStreamWriter(String streamName) {
-        return createByteStreamWriter(new Segment(scope, streamName, 0), EventWriterConfig.builder().build());
-    }
-
-    private ByteStreamWriter createByteStreamWriter(Segment segment, EventWriterConfig config) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStreamName()),
-                                                                RuntimeException::new);
+        StreamSegments segments = Futures.getThrowingException(controller.getCurrentSegments(scope, streamName));
+        Preconditions.checkArgument(segments.getSegments().size() == 1, "Stream is configured with more than one segment");
+        Segment segment = segments.getSegments().iterator().next();
+        EventWriterConfig config = EventWriterConfig.builder().build();
+        String delegationToken = segments.getDelegationToken();
         return new BufferedByteStreamWriterImpl(new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment,
                                                                                                                           config,
                                                                                                                           delegationToken),
