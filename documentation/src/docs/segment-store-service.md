@@ -25,7 +25,7 @@ The Pravega Segment Store Service can provide the following guarantees:
 The following terminologies are used throughout the document:
 
 - **Stream Segment** or **Segment**: A contiguous sequence of bytes, similar to a file of unbounded size. This is a part of a Stream, limited both temporally and laterally (by key). The scope of Streams and mapping Stream Segments to such Streams is beyond the purpose of this document.
-- **Tier 2 Storage**or **Permanent Storage**: The final resting place of the data.
+- **Tier 2 Storage** or **Permanent Storage**: The final resting place of the data.
 - **Tier 1 Storage**: Fast append storage, used for durably buffering incoming appends before distributing to Tier 2 Storage.
 - **Cache**: A key-value local cache with no expectation of durability.
 - **Pravega Segment Store Service** or **Segment Store**: The Service that this document describes.
@@ -71,7 +71,7 @@ Segment Containers are a logical grouping of Segments, and are responsible for a
 ### Segment Container Metadata
 The Segment Container Metadata is critical to the good functioning and synchronization of its components. This metadata is shared across all components and it comes at two levels: "Container-wide Metadata" and "per-Segment Metadata". Each serves a different purpose and is described below.
 
-#### Container Metadata <a name="Container_Metadata"></a>
+#### Container Metadata
 
 Each **Segment Container** needs to keep some general-purpose metadata that affects all operations inside the container:
 
@@ -107,7 +107,7 @@ A **Log Operation** is the basic unit that is enqueued in the _Durable Log_. It 
 
 Every Log Operation has the following elements:
 
-- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#container-metadata) section.
+- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#segment-container-metadata) section.
 
 The following are the various types of Log Operations:
 
@@ -133,11 +133,11 @@ The _Durable Log_ is the central component that handles all Log Operations. All 
 2. The _Operation Processor_ picks all operations currently available in the queue (if the queue is empty, it will wait until at least one Operation is added).
 3. The _Operation Processor_ runs as a continuous loop (in a background thread), and has four main stages.
 
-  a. _Dequeue_ all outstanding Operations from the Operation Queue (described above).
+      1. _Dequeue_ all outstanding Operations from the Operation Queue (described above).
 
-  b. _Pre-process_ the Operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign Sequence Numbers, etc.)
+      2. _Pre-process_ the Operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign Sequence Numbers, etc.)
 
-  c. _Write_ the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a _Data Frame_ is complete (full or no more operations to add), the _Data Frame_ Builder sends the _Data Frame_ to the _Durable Data Log_. Note that, an Operation may span multiple _DataFrames_, but the goal is to make best use of the _Durable Data Log_ throughput capacity by making writes as large as possible considering the maximum size limit per write.
+      3. _Write_ the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a _Data Frame_ is complete (full or no more operations to add), the _Data Frame_ Builder sends the _Data Frame_ to the _Durable Data Log_. Note that, an Operation may span multiple _DataFrames_, but the goal is to make best use of the _Durable Data Log_ throughput capacity by making writes as large as possible considering the maximum size limit per write.
 
 4. When a _Data Frame_ has been durably persisted in the _Durable Data Log_, the Operation Processor post-processes all operations that were fully written so far. It adds them to in-memory structures, updates indices, etc., and completes the Futures associated with them.
 
