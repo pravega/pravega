@@ -9,6 +9,7 @@
  */
 package io.pravega.common.tracing;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -239,5 +240,15 @@ public final class RequestTracker {
         }
 
         return requestTag;
+    }
+
+    /**
+     * Returns the number of descriptors in the cache.
+     *
+     * @return Number of request descriptors in the cache.
+     */
+    @VisibleForTesting
+    public long getNumDescriptors() {
+        return ongoingRequests.size();
     }
 }

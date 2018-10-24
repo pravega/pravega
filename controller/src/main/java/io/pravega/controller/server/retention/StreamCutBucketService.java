@@ -10,7 +10,6 @@
 package io.pravega.controller.server.retention;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Supplier;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
@@ -35,6 +34,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 

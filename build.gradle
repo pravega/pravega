@@ -160,13 +160,6 @@ project ('shared:metrics') {
     }
 }
 
-project('shared:controller-api') {
-    dependencies {
-        compile project(':common')
-        testCompile project(':test:testcommon')
-    }
-}
-
 project('shared:protocol') {
     dependencies {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
@@ -429,6 +422,8 @@ project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
     dependencies {
+        compile project(':common')
+
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
@@ -440,6 +435,8 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+
+        testCompile project(':test:testcommon')
     }
 
     javadoc {
