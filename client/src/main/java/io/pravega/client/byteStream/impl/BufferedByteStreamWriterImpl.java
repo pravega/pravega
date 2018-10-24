@@ -36,13 +36,13 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     @Override
     @Synchronized
     public void write(int b) throws IOException {
-            if (buffer == null) {
-                buffer = ByteBuffer.allocate(BUFFER_SIZE);
-            }
-            buffer.put((byte) b);
-            if (!buffer.hasRemaining()) {
-                commitBuffer();
-            }
+        if (buffer == null) {
+            buffer = ByteBuffer.allocate(BUFFER_SIZE);
+        }
+        buffer.put((byte) b);
+        if (!buffer.hasRemaining()) {
+            commitBuffer();
+        }
     }
 
     @Override

@@ -396,7 +396,7 @@ public class AssertExtensions {
         try {
             unblocker.run();
         } catch (Exception e) {
-            throw new RuntimeException("Blocking call threw and exception", e);
+            throw new RuntimeException("Blocking call threw an exception", e);
         }
         try {
             isBlocked.acquire();
