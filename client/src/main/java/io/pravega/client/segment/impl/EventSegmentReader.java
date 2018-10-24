@@ -14,8 +14,8 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Defines a InputStream for a single segment.
- * Once created the offset must be provided by calling setOffset.
+ * Defines an event reader for a single segment.
+ * Once created a offset may be provided by calling setOffset if the application does not want to read from offset 0.
  * The next read will proceed from this offset. Subsequent reads will read from where the previous
  * read call on this instance left off. (Parallel calls to read data will be serialized)
  * Get offset can be used to store a location to revert back to that position in the future.
@@ -40,9 +40,9 @@ public interface EventSegmentReader extends AutoCloseable {
     public abstract long getOffset();
 
     /**
-     * Reads a single event's bytes from the segment. Buffering is performed internally to try to prevent
+     * Reads the bytes of a single event from the segment. Buffering is performed internally to try to prevent
      * blocking. If there is no event after timeout, then it returns null. EndOfSegmentException indicates the
-     * segment has ended an no more events may be read.
+     * segment has ended and there are no more events to read.
      *
      * @return A ByteBuffer containing the serialized data that was written via
      *         {@link EventStreamWriter#writeEvent(String, Object)}
@@ -56,10 +56,10 @@ public interface EventSegmentReader extends AutoCloseable {
     /**
      * Reads bytes of a single event from the segment. Buffering is performed internally to try to prevent
      * blocking. If there is no event after timeout, then it returns null. EndOfSegmentException indicates the
-     * segment has ended an no more events may be read.
+     * segment has ended and there are no more events to read.
      * 
      * A timeout can be provided that will be used to determine how long to block obtaining the first byte of
-     * an event. If this timeout elapses null is returned. Once an event has been partially read it will be
+     * an event. If this timeout elapses, then null is returned. Once an event has been partially read, it will be
      * fully read without regard to the timeout.
      *
      * @param firstByteTimeout The maximum length of time to block to get the first byte of the event.
@@ -71,7 +71,7 @@ public interface EventSegmentReader extends AutoCloseable {
     public abstract ByteBuffer read(long firstByteTimeout) throws EndOfSegmentException, SegmentTruncatedException;
     
     /**
-     * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read()} calls from blocking.
+     * Issues a request to asynchronously fill up the buffer. The goal is to prevent future {@link #read()} calls from blocking.
      * Calling this multiple times is harmless.
      * 
      * @return A future that completes when the request to fill the buffer has returned.
@@ -79,8 +79,8 @@ public interface EventSegmentReader extends AutoCloseable {
     public abstract CompletableFuture<Void> fillBuffer();
     
     /**
-     * Closes this InputStream. No further methods may be called after close.
-     * This will free any resources associated with the InputStream.
+     * Closes this reader. No further methods may be called after close.
+     * This will free any resources associated with the reader.
      */
     @Override
     public abstract void close();

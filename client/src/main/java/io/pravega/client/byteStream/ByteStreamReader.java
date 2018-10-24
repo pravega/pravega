@@ -65,10 +65,10 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract int read() throws IOException;
 
     /**
-     * See {@link InputStream#read(byte[])}. This is equivalent to calling
-     * {@code read(b, 0, b.length) }
+     * This is equivalent to calling {@code read(b, 0, b.length) }
      * 
      * Will only block if {@link #available()} is 0.
+     * {@see InputStream#read(byte[]))}. 
      */
     @Override
     public abstract int read(byte[] b) throws IOException;
