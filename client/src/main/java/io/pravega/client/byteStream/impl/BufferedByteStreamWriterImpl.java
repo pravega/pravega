@@ -11,6 +11,8 @@ package io.pravega.client.byteStream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.common.util.ByteBufferUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import javax.annotation.concurrent.GuardedBy;
@@ -49,14 +51,20 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
     @Synchronized
     public void write(ByteBuffer src) throws IOException {
         commitBuffer();
-        out.write(src);
+        int position = src.position();
+        while (src.hasRemaining()) {
+            int length = Math.min(PendingEvent.MAX_WRITE_SIZE, src.remaining());
+            ByteBuffer slice = ByteBufferUtils.slice(src, position, length);
+            out.write(slice);
+            position += length;
+            src.position(position);
+        }
     }
 
     @Override
     @Synchronized
     public void write(byte[] b, int off, int len) throws IOException {
-        commitBuffer();
-        out.write(b, off, len);
+        write(ByteBuffer.wrap(b, off, len));
     }
 
     private void commitBuffer() throws IOException {
@@ -68,7 +76,6 @@ public class BufferedByteStreamWriterImpl extends ByteStreamWriter {
             }
         }
     }
-
     
     @Override
     @Synchronized

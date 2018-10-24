@@ -21,6 +21,8 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.PendingEvent;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -131,6 +133,48 @@ public class ByteStreamTest {
             assertEquals(5, reader.read(readBuffer, 5, 5));
             assertArrayEquals(payload, readBuffer);
             assertEquals(-1, reader.read());
+            assertEquals(-1, reader.read(readBuffer));
+        }
+    }
+    
+    @Test(timeout = 30000)
+    public void readLargeWrite() throws IOException {
+        String scope = "ByteStreamTest";
+        String stream = "ReadWriteTest";
+
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+            // create a scope
+            Boolean createScopeStatus = streamManager.createScope(scope);
+            log.info("Create scope status {}", createScopeStatus);
+            // create a stream
+            Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
+            log.info("Create stream status {}", createStreamStatus);
+        }
+
+        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+                ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory)) {
+            ByteStreamClient client = clientFactory.createByteStreamClient();
+
+            byte[] payload = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 2];
+            Arrays.fill(payload, (byte) 7);
+            byte[] readBuffer = new byte[PendingEvent.MAX_WRITE_SIZE];
+            Arrays.fill(readBuffer, (byte) 0);
+
+            ByteStreamWriter writer = client.createByteStreamWriter(stream);
+            ByteStreamReader reader = client.createByteStreamReader(stream);
+            writer.write(payload);
+            writer.closeAndSeal();
+            assertEquals(PendingEvent.MAX_WRITE_SIZE, StreamHelpers.readAll(reader, readBuffer, 0, readBuffer.length));
+            assertEquals(7, readBuffer[readBuffer.length - 1]);
+            Arrays.fill(readBuffer, (byte) 0);
+            assertEquals(PendingEvent.MAX_WRITE_SIZE, StreamHelpers.readAll(reader, readBuffer, 0, readBuffer.length));
+            assertEquals(7, readBuffer[readBuffer.length - 1]);
+            Arrays.fill(readBuffer, (byte) 0);
+            assertEquals(2, reader.read(readBuffer));
+            assertEquals(7, readBuffer[0]);
+            assertEquals(7, readBuffer[1]);
+            assertEquals(0, readBuffer[2]);
             assertEquals(-1, reader.read(readBuffer));
         }
     }

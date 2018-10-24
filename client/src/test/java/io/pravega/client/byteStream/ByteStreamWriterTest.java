@@ -11,13 +11,17 @@ package io.pravega.client.byteStream;
 
 import io.pravega.client.ClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import lombok.Cleanup;
 import org.junit.Test;
 
@@ -35,7 +39,12 @@ public class ByteStreamWriterTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
@@ -61,7 +70,12 @@ public class ByteStreamWriterTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
@@ -78,6 +92,41 @@ public class ByteStreamWriterTest {
         assertEquals(numBytes, writer.fetchOffset());
     }
     
+    @Test(timeout = 5000)
+    public void testLargeWrite() throws Exception {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
+                                                            streamFactory, streamFactory, streamFactory);
+
+        ByteStreamClient client = clientFactory.createByteStreamClient();
+        @Cleanup
+        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        byte[] value = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 10];
+        Arrays.fill(value, (byte) 1);
+        writer.write(value);
+        writer.flush();
+        assertEquals(value.length, writer.fetchOffset());
+        Arrays.fill(value, (byte) 2);
+        writer.write(value);
+        Arrays.fill(value, (byte) 3);
+        writer.write(value);
+        writer.flush();
+        assertEquals(value.length * 3, writer.fetchOffset());
+    }
+    
+    
     @Test
     public void testCloseAndSeal() throws IOException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
@@ -85,7 +134,12 @@ public class ByteStreamWriterTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
