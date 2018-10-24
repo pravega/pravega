@@ -26,6 +26,11 @@ import lombok.ToString;
 @ToString
 public class ByteStreamReaderImpl extends ByteStreamReader {
 
+    /**
+     * Input is threadsafe but calls that update offset are guarded by a lock on input itself
+     * because {@link #skip(long)} needs to return the number of bytes actually skipped which
+     * requires two operations on input to be atomic.
+     */
     @NonNull
     private final SegmentInputStream input;
     @NonNull
@@ -45,7 +50,9 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     @Override
     public void seekToOffset(long offset) {
         Exceptions.checkNotClosed(closed.get(), this);
-        input.setOffset(offset);
+        synchronized (input) {            
+            input.setOffset(offset);
+        }
     }
 
     @Override
@@ -70,7 +77,9 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     public int read(ByteBuffer dst) throws IOException {
         Exceptions.checkNotClosed(closed.get(), this);
         try {
-            return input.read(dst, Long.MAX_VALUE);
+            synchronized (input) {                
+                return input.read(dst, Long.MAX_VALUE);
+            }
         } catch (EndOfSegmentException e) {
             return -1;
         }
@@ -81,7 +90,10 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
         Exceptions.checkNotClosed(closed.get(), this);
         ByteBuffer buffer = ByteBuffer.allocate(1);
         try {
-            int read = input.read(buffer, Long.MAX_VALUE);
+            int read;
+            synchronized (input) {                
+                read = input.read(buffer, Long.MAX_VALUE);
+            }
             if (read > 0) {
                 buffer.flip();
                 return buffer.get() & 0xFF;
@@ -106,12 +118,13 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
     @Override
     public long skip(long toSkip) {
         Exceptions.checkNotClosed(closed.get(), this);
-        //TODO: Threadsafety...
-        long offset = input.getOffset();
         long endOffset = fetchTailOffset();
-        long newOffset = Math.min(offset+toSkip, endOffset);
-        input.setOffset(newOffset);
-        return newOffset - offset;
+        synchronized (input) {
+            long offset = input.getOffset();
+            long newOffset = Math.min(offset+toSkip, endOffset);
+            input.setOffset(newOffset);
+            return newOffset - offset;
+        }
     }
 
     @Override
