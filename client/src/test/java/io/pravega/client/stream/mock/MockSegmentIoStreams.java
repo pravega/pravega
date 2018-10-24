@@ -134,13 +134,6 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         }
     }
 
-    @Synchronized
-    private CompletableFuture<Void> doWrite(PendingEvent event) {
-        ByteBuffer data = event.getData().nioBuffer();
-        write(data);
-        return event.getAckFuture();
-    }
-    
     @Override
     @Synchronized
     public boolean write(ByteBuffer data, long expectedOffset) {
@@ -156,6 +149,13 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
         dataWritten.put(writeOffset, data.slice());
         eventsWritten++;
         writeOffset += data.remaining();
+    }
+    
+    @Synchronized
+    private CompletableFuture<Void> doWrite(PendingEvent event) {
+        ByteBuffer data = event.getData().nioBuffer();
+        write(data);
+        return event.getAckFuture();
     }
     
     @Override

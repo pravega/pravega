@@ -47,7 +47,7 @@ public class ByteStreamTest {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
-    
+
     @Before
     public void setup() throws Exception {
         final int controllerPort = TestUtils.getAvailableListenPort();
@@ -67,8 +67,8 @@ public class ByteStreamTest {
         this.server.startListening();
 
         // 3. Start Pravega Controller service
-        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                controllerPort, serviceHost, servicePort, containerCount);
+        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false, controllerPort,
+                                                       serviceHost, servicePort, containerCount);
         this.controllerWrapper.awaitRunning();
         this.controller = controllerWrapper.getController();
     }
@@ -88,33 +88,32 @@ public class ByteStreamTest {
             this.zkTestServer = null;
         }
     }
-    
-    
+
     @Test(timeout = 30000)
     public void readWriteTest() throws IOException {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
-        
+
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
         try (StreamManager streamManager = new StreamManagerImpl(controller)) {
-            //create a scope
+            // create a scope
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
-            //create a stream
+            // create a stream
             Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
             log.info("Create stream status {}", createStreamStatus);
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory)) {
+                ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory)) {
             ByteStreamClient client = clientFactory.createByteStreamClient();
-            
+
             byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             byte[] readBuffer = new byte[10];
-            
+
             ByteStreamWriter writer = client.createByteStreamWriter(stream);
             ByteStreamReader reader = client.createByteStreamReader(stream);
-            
+
             AssertExtensions.assertBlocks(() -> reader.read(readBuffer), () -> writer.write(payload));
             assertArrayEquals(payload, readBuffer);
             Arrays.fill(readBuffer, (byte) 0);
@@ -124,7 +123,7 @@ public class ByteStreamTest {
             writer.closeAndSeal();
             assertEquals(10, reader.read(readBuffer));
             assertArrayEquals(payload, readBuffer);
-            for (int i=0;i<10;i++) {
+            for (int i = 0; i < 10; i++) {
                 assertEquals(i, reader.read());
             }
             Arrays.fill(readBuffer, (byte) -1);
