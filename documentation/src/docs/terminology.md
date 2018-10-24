@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Terminology
 
-Here is a glossary of terms related to Pravega:
+The glossary of terms related to Pravega is given below:
 
 | **Term**                        | **Definition**                                                                                                                                            |
 |---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
