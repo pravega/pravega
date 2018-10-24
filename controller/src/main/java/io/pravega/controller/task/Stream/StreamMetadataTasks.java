@@ -21,10 +21,10 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -78,8 +78,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
+import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
@@ -92,8 +92,9 @@ import static io.pravega.shared.MetricsNames.nameFromStream;
  * Any update to the task method signature should be avoided, since it can cause problems during upgrade.
  * Instead, a new overloaded method may be created with the same task annotation name but a new version.
  */
-@Slf4j
 public class StreamMetadataTasks extends TaskBase {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
@@ -181,13 +182,13 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(x -> checkDone(() -> isUpdated(scope, stream, newConfig, context))
                                         .thenApply(y -> UpdateStreamStatus.Status.SUCCESS));
                     } else {
-                        LoggerHelpers.warnLogWithTag(log, requestId, "Another update in progress for {}/{}",
+                        log.warn(requestId, "Another update in progress for {}/{}",
                                 scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 })
                 .exceptionally(ex -> {
-                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown in trying to update stream configuration {}",
+                    log.warn(requestId, "Exception thrown in trying to update stream configuration {}",
                             ex.getMessage());
                     return handleUpdateStreamError(ex, requestId);
                 });
@@ -262,7 +263,7 @@ public class StreamMetadataTasks extends TaskBase {
                         .exceptionally(e -> {
                             if (Exceptions.unwrap(e) instanceof IllegalArgumentException) {
                                 // This is ignorable exception. Throwing this will cause unnecessary retries and exceptions logged.
-                                LoggerHelpers.debugLogWithTag(log, requestId, "Cannot truncate at given " +
+                                log.debug(requestId, "Cannot truncate at given " +
                                         "streamCut because it intersects with existing truncation point");
                                 return null;
                             } else {
@@ -339,12 +340,12 @@ public class StreamMetadataTasks extends TaskBase {
                         return checkDone(() -> isTruncated(scope, stream, streamCut, context))
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
-                        LoggerHelpers.warnLogWithTag(log, requestId, "Unable to start truncation for {}/{}", scope, stream);
+                        log.warn(requestId, "Unable to start truncation for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(UpdateStreamStatus.Status.FAILURE);
                     }
                 })
                 .exceptionally(ex -> {
-                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown in trying to update stream configuration {}", ex);
+                    log.warn(requestId, "Exception thrown in trying to update stream configuration {}", ex);
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -362,11 +363,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
                                 .thenApply(x -> {
-                                    LoggerHelpers.debugLogWithTag(log, requestId, "Started truncation request for stream {}/{}", scope, stream);
+                                    log.debug(requestId, "Started truncation request for stream {}/{}", scope, stream);
                                     return true;
                                 });
                     } else {
-                        LoggerHelpers.warnLogWithTag(log, requestId, "Another truncation in progress for {}/{}", scope, stream);
+                        log.warn(requestId, "Another truncation in progress for {}/{}", scope, stream);
                         return CompletableFuture.completedFuture(false);
                     }
                 });
@@ -411,7 +412,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown in trying to notify sealed segments {}", ex.getMessage());
+                    log.warn(requestId, "Exception thrown in trying to notify sealed segments {}", ex.getMessage());
                     return handleUpdateStreamError(ex, requestId);
                 });
     }
@@ -452,7 +453,7 @@ public class StreamMetadataTasks extends TaskBase {
                     }
                 })
                 .exceptionally(ex -> {
-                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown while deleting stream {}", ex.getMessage());
+                    log.warn(requestId, "Exception thrown while deleting stream {}", ex.getMessage());
                     return handleDeleteStreamError(ex, requestId);
                 });
     }
@@ -492,11 +493,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.PRECONDITION_FAILED);
                                 } else {
-                                    LoggerHelpers.warnLogWithTag(log, requestId, "Scale for stream {}/{} failed with exception {}", scope, stream, cause);
+                                    log.warn(requestId, "Scale for stream {}/{} failed with exception {}", scope, stream, cause);
                                     response.setStatus(ScaleResponse.ScaleStreamStatus.FAILURE);
                                 }
                             } else {
-                                LoggerHelpers.infoLogWithTag(log, requestId, "scale for stream {}/{} started successfully", scope, stream);
+                                log.info(requestId, "scale for stream {}/{} started successfully", scope, stream);
                                 response.setStatus(ScaleResponse.ScaleStreamStatus.STARTED);
                                 response.addAllSegments(
                                         startScaleResponse.getNewSegmentsWithRange().entrySet()
@@ -593,7 +594,7 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
         return this.streamMetadataStore.createStream(scope, stream, config, timestamp, null, executor)
                 .thenComposeAsync(response -> {
-                    LoggerHelpers.infoLogWithTag(log, requestId, "{}/{} created in metadata store", scope, stream);
+                    log.info(requestId, "{}/{} created in metadata store", scope, stream);
                     CreateStreamStatus.Status status = translate(response.getStatus());
                     // only if its a new stream or an already existing non-active stream then we will create
                     // segments and change the state of the stream to active.
@@ -633,7 +634,7 @@ public class StreamMetadataTasks extends TaskBase {
                         if (cause instanceof StoreException.DataNotFoundException) {
                             return CreateStreamStatus.Status.SCOPE_NOT_FOUND;
                         } else {
-                            LoggerHelpers.warnLogWithTag(log, requestId, "Create stream failed due to ", ex);
+                            log.warn(requestId, "Create stream failed due to ", ex);
                             return CreateStreamStatus.Status.FAILURE;
                         }
                     } else {
@@ -787,7 +788,7 @@ public class StreamMetadataTasks extends TaskBase {
         if (cause instanceof StoreException.DataNotFoundException) {
             return UpdateStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
-            LoggerHelpers.warnLogWithTag(log, requestId, "Update stream failed due to ", cause);
+            log.warn(requestId, "Update stream failed due to ", cause);
             return UpdateStreamStatus.Status.FAILURE;
         }
     }
@@ -797,7 +798,7 @@ public class StreamMetadataTasks extends TaskBase {
         if (cause instanceof StoreException.DataNotFoundException) {
             return DeleteStreamStatus.Status.STREAM_NOT_FOUND;
         } else {
-            LoggerHelpers.warnLogWithTag(log, requestId, "Delete stream failed.", ex);
+            log.warn(requestId, "Delete stream failed.", ex);
             return DeleteStreamStatus.Status.FAILURE;
         }
     }

@@ -15,10 +15,10 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -58,14 +58,15 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 /**
  * gRPC Service API implementation for the Controller.
  */
-@Slf4j
 @AllArgsConstructor
 public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServiceImplBase {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerServiceImpl.class));
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
@@ -90,7 +91,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "createStream called for stream {}/{}.",
+        log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope()
                         + "/" + request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -103,7 +104,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "updateStream called for stream {}/{}.",
+        log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -115,7 +116,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "truncateStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
 
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "truncateStream called for stream {}/{}.",
+        log.info(requestTag.getRequestId(), "truncateStream called for stream {}/{}.",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -128,7 +129,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "sealStream",
                 request.getScope(), request.getStream());
 
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "sealStream called for stream {}/{}.",
+        log.info(requestTag.getRequestId(), "sealStream called for stream {}/{}.",
                 request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -140,7 +141,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteStream",
                 request.getScope(), request.getStream());
 
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "deleteStream called for stream {}/{}.",
+        log.info(requestTag.getRequestId(), "deleteStream called for stream {}/{}.",
                 request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope() + "/" +
                         request.getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -215,7 +216,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "scaleStream",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream(), String.valueOf(request.getScaleTimestamp()));
 
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "scale called for stream {}/{}.",
+        log.info(requestTag.getRequestId(), "scale called for stream {}/{}.",
                 request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
@@ -344,7 +345,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void createScope(ScopeInfo request, StreamObserver<CreateScopeStatus> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createScope", request.getScope());
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "createScope called for scope {}.", request.getScope());
+        log.info(requestTag.getRequestId(), "createScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createScope(request.getScope()),
                 responseObserver, requestTag);
@@ -353,7 +354,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteScope", request.getScope());
-        LoggerHelpers.infoLogWithTag(log, requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());
+        log.info(requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
                 responseObserver, requestTag);
@@ -411,7 +412,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {
         if (requestTag != null) {
-            LoggerHelpers.debugLogWithTag(log, requestTracker.untrackRequest(requestTag.getRequestDescriptor()),
+            log.debug(requestTracker.untrackRequest(requestTag.getRequestDescriptor()),
                     "Untracking request: {}.", requestTag.getRequestDescriptor());
         }
     }

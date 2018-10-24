@@ -17,6 +17,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -82,8 +83,8 @@ import java.util.concurrent.CancellationException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import org.slf4j.LoggerFactory;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
@@ -106,12 +107,12 @@ import static java.lang.Math.min;
 /**
  * A Processor for all non-append operations on the Pravega SegmentStore Service.
  */
-@Slf4j
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
 
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
@@ -187,7 +188,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
         if (!tokenVerifier.verifyToken(segment, delegationToken, READ)) {
-            LoggerHelpers.warnLogWithTag(log, requestId, "Delegation token verification failed.");
+            log.warn(requestId, "Delegation token verification failed.");
             handleException(requestId, segment, operation, new AuthenticationException("Token verification failed"));
             return false;
         }
@@ -404,7 +405,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
        }
 
-       LoggerHelpers.infoLogWithTag(log, createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
+       log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
        segmentStore.createStreamSegment(createStreamSegment.getSegment(), attributes, TIMEOUT)
                 .thenAccept(v -> {
                     this.createStreamSegment.reportSuccessEvent(timer.getElapsed());
@@ -431,7 +432,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        LoggerHelpers.infoLogWithTag(log, mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
+        log.info(mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
                     .thenAccept(txnProp -> {
                         recordStatForTransaction(txnProp, mergeSegments.getTarget());
@@ -439,7 +440,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
-                            LoggerHelpers.infoLogWithTag(log, mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
+                            log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
                                     mergeSegments.getSource());
                             connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
                             return null;
@@ -458,7 +459,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        LoggerHelpers.infoLogWithTag(log, sealSegment.getRequestId(), "Sealing segment {} ", sealSegment);
+        log.info(sealSegment.getRequestId(), "Sealing segment {} ", sealSegment);
         segmentStore.sealStreamSegment(segment, TIMEOUT)
                 .thenAccept(size -> connection.send(new SegmentSealed(sealSegment.getRequestId(), segment)))
                 .whenComplete((r, e) -> {
@@ -484,7 +485,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         long offset = truncateSegment.getTruncationOffset();
-        LoggerHelpers.infoLogWithTag(log, truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
+        log.info(truncateSegment.getRequestId(), "Truncating segment {} at offset {}.",
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
@@ -500,7 +501,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        LoggerHelpers.infoLogWithTag(log, deleteSegment.getRequestId(), "Deleting segment {} ", deleteSegment);
+        log.info(deleteSegment.getRequestId(), "Deleting segment {} ", deleteSegment);
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
@@ -523,7 +524,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, (long) updateSegmentPolicy.getScaleType()),
                 new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, updateSegmentPolicy.getTargetRate()));
 
-        LoggerHelpers.infoLogWithTag(log, updateSegmentPolicy.getRequestId(), "Updating segment policy {} ", updateSegmentPolicy);
+        log.info(updateSegmentPolicy.getRequestId(), "Updating segment policy {} ", updateSegmentPolicy);
         segmentStore.updateAttributes(updateSegmentPolicy.getSegment(), attributes, TIMEOUT)
                 .thenRun(() ->
                         connection.send(new SegmentPolicyUpdated(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment())))
@@ -544,7 +545,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private Void handleException(long requestId, String segment, String operation, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
-            LoggerHelpers.errorLogWithTag(log, requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, exception);
+            log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, exception);
             throw exception;
         }
 
@@ -552,42 +553,42 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         String clientReplyStackTrace = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(u) : EMPTY_STACK_TRACE;
 
         if (u instanceof StreamSegmentExistsException) {
-            LoggerHelpers.infoLogWithTag(log, requestId, "Segment '{}' already exists and cannot perform operation '{}'.",
+            log.info(requestId, "Segment '{}' already exists and cannot perform operation '{}'.",
                     segment, operation);
             connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
-            LoggerHelpers.warnLogWithTag(log, requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
+            log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
                     segment, operation);
             connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentSealedException) {
-            LoggerHelpers.infoLogWithTag(log, requestId, "Segment '{}' is sealed and cannot perform operation '{}'.",
+            log.info(requestId, "Segment '{}' is sealed and cannot perform operation '{}'.",
                     segment, operation);
             connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
-            LoggerHelpers.warnLogWithTag(log, requestId, "Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').",
+            log.warn(requestId, "Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').",
                     segment, containerId, operation);
             connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if ( u instanceof ReadCancellationException) {
-            LoggerHelpers.infoLogWithTag(log, requestId, "Closing connection {} while reading segment {} due to CancellationException.",
+            log.info(requestId, "Closing connection {} while reading segment {} due to CancellationException.",
                     connection, segment);
             connection.send(new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER));
         } else if (u instanceof CancellationException) {
-            LoggerHelpers.infoLogWithTag(log, requestId, "Closing connection {} while performing {} due to {}.",
+            log.info(requestId, "Closing connection {} while performing {} due to {}.",
                     connection, operation, u.getMessage());
             connection.close();
         } else if (u instanceof AuthenticationException) {
-            LoggerHelpers.warnLogWithTag(log, requestId, "Authentication error during '{}'.", operation);
+            log.warn(requestId, "Authentication error during '{}'.", operation);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
-            LoggerHelpers.warnLogWithTag(log, requestId, "Unsupported Operation '{}'.", operation, u);
+            log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             connection.send(new OperationUnsupported(requestId, operation, clientReplyStackTrace));
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
             connection.send(new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(), clientReplyStackTrace));
         } else {
-            LoggerHelpers.errorLogWithTag(log, requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+            log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
             throw new IllegalStateException("Unknown exception.", u);
         }

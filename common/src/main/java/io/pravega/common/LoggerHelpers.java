@@ -9,7 +9,6 @@
  */
 package io.pravega.common;
 
-import io.pravega.common.tracing.RequestTag;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -109,78 +108,6 @@ public final class LoggerHelpers {
             log.trace("LEAVE {}::{}@{} (elapsed={}us).", context, method, traceEnterId, ELAPSED_MICRO.apply(traceEnterId));
         } else {
             log.trace("LEAVE {}::{}@{} {} (elapsed={}us).", context, method, traceEnterId, args, ELAPSED_MICRO.apply(traceEnterId));
-        }
-    }
-
-    /**
-     * Writes a debug-level log line on the provided logger consisting of a header tag (e.g., requestId) and the message
-     * passed (plus the arguments). Note that the message may include formatting anchors to be filled by subsequent
-     * arguments.
-     *
-     * @param log           The Logger to log to.
-     * @param requestId     Tag used as header for the log line.
-     * @param message       Message to log including formatting anchors.
-     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
-     */
-    public static void debugLogWithTag(Logger log, long requestId, String message, Object... args) {
-        if (requestId != RequestTag.NON_EXISTENT_ID) {
-            log.debug(String.format("[requestId=%d] %s", requestId, message), args);
-        } else {
-            log.debug(message, args);
-        }
-    }
-
-    /**
-     * Writes a info-level log line on the provided logger consisting of a header tag (e.g., requestId) and the message
-     * passed (plus the arguments). Note that the message may include formatting anchors to be filled by subsequent
-     * arguments.
-     *
-     * @param log           The Logger to log to.
-     * @param requestId     Tag used as header for the log line.
-     * @param message       Message to log including formatting anchors.
-     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
-     */
-    public static void infoLogWithTag(Logger log, long requestId, String message, Object... args) {
-        if (requestId != RequestTag.NON_EXISTENT_ID) {
-            log.info(String.format("[requestId=%d] %s", requestId, message), args);
-        } else {
-            log.info(message, args);
-        }
-    }
-
-    /**
-     * Writes a warn-level log line on the provided logger consisting of a header tag (e.g., requestId) and the message
-     * passed (plus the arguments). Note that the message may include formatting anchors to be filled by subsequent
-     * arguments.
-     *
-     * @param log           The Logger to log to.
-     * @param requestId     Tag used as header for the log line.
-     * @param message       Message to log including formatting anchors.
-     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
-     */
-    public static void warnLogWithTag(Logger log, long requestId, String message, Object... args) {
-        if (requestId != RequestTag.NON_EXISTENT_ID) {
-            log.warn(String.format("[requestId=%d] %s", requestId, message), args);
-        } else {
-            log.warn(message, args);
-        }
-    }
-
-    /**
-     * Writes an error-level log line on the provided logger consisting of a header tag (e.g., requestId) and the
-     * message passed (plus the arguments). Note that the message may include formatting anchors to be filled by
-     * subsequent arguments.
-     *
-     * @param log           The Logger to log to.
-     * @param requestId     Tag used as header for the log line.
-     * @param message       Message to log including formatting anchors.
-     * @param args          Additional arguments to log expected to fill in the message's formatting anchors.
-     */
-    public static void errorLogWithTag(Logger log, long requestId, String message, Object... args) {
-        if (requestId != RequestTag.NON_EXISTENT_ID) {
-            log.error(String.format("[requestId=%d] %s", requestId, message), args);
-        } else {
-            log.error(message, args);
         }
     }
 }

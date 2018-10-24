@@ -14,10 +14,10 @@ import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -36,10 +36,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
-@Slf4j
 public class StreamCutBucketService extends AbstractService implements BucketChangeListener {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamCutBucketService.class));
 
     private final int bucketId;
     private final StreamMetadataStore streamMetadataStore;
@@ -138,7 +139,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
         long requestId = requestIdGenerator.get();
         requestTracker.trackRequest(RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
                 stream.getStreamName()), requestId);
-        LoggerHelpers.debugLogWithTag(log, requestId, "Periodic background processing for retention called for stream {}/{}",
+        log.debug(requestId, "Periodic background processing for retention called for stream {}/{}",
                 stream.getScope(), stream.getStreamName());
 
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
@@ -146,11 +147,11 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                         config.getRetentionPolicy(), System.currentTimeMillis(), context,
                         this.streamMetadataTasks.retrieveDelegationToken()))
                 .exceptionally(e -> {
-                    LoggerHelpers.warnLogWithTag(log, requestId, "Exception thrown while performing auto retention for stream {} ", stream, e);
+                    log.warn(requestId, "Exception thrown while performing auto retention for stream {} ", stream, e);
                     throw new CompletionException(e);
                 }), RetryHelper.UNCONDITIONAL_PREDICATE, 5, executor)
                 .exceptionally(e -> {
-                    LoggerHelpers.warnLogWithTag(log, requestId, "Unable to perform retention for stream {}. " +
+                    log.warn(requestId, "Unable to perform retention for stream {}. " +
                             "Ignoring, retention will be attempted in next cycle.", stream, e);
                     return null;
                 });

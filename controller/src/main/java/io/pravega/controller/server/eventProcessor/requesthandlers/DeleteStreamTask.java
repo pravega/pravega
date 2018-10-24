@@ -10,8 +10,8 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
@@ -26,13 +26,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-@Slf4j
 public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(DeleteStreamTask.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -59,7 +60,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.isSealed(scope, stream, context, executor)
                 .thenComposeAsync(sealed -> {
                     if (!sealed) {
-                        LoggerHelpers.warnLogWithTag(log, requestId, "{}/{} stream not sealed", scope, stream);
+                        log.warn(requestId, "{}/{} stream not sealed", scope, stream);
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
                     return notifyAndDelete(context, scope, stream, requestId);
@@ -68,14 +69,14 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                     if (e instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
-                    LoggerHelpers.errorLogWithTag(log, requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
+                    log.error(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
 
                     throw new CompletionException(e);
                 });
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {
-        LoggerHelpers.infoLogWithTag(log, requestId, "{}/{} deleting segments", scope, stream);
+        log.info(requestId, "{}/{} deleting segments", scope, stream);
         return streamMetadataStore.getScaleMetadata(scope, stream, context, executor)
                 .thenComposeAsync(scaleMetadata -> {
                     Set<Long> toDelete = new HashSet<>();

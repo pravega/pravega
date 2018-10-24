@@ -16,9 +16,9 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -34,16 +34,17 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
-@Slf4j
 public class SegmentHelper {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
 
@@ -72,32 +73,32 @@ public class SegmentHelper {
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
-                LoggerHelpers.warnLogWithTag(log, requestId, "CreateSegment {} Connection dropped", qualifiedStreamSegmentName);
+                log.warn(requestId, "CreateSegment {} Connection dropped", qualifiedStreamSegmentName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                LoggerHelpers.warnLogWithTag(log, requestId, "CreateSegment {} wrong host", qualifiedStreamSegmentName);
+                log.warn(requestId, "CreateSegment {} wrong host", qualifiedStreamSegmentName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "CreateSegment {} segmentAlreadyExists", qualifiedStreamSegmentName);
+                log.info(requestId, "CreateSegment {} segmentAlreadyExists", qualifiedStreamSegmentName);
                 result.complete(true);
             }
 
             @Override
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "CreateSegment {} SegmentCreated", qualifiedStreamSegmentName);
+                log.info(requestId, "CreateSegment {} SegmentCreated", qualifiedStreamSegmentName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                LoggerHelpers.errorLogWithTag(log, requestId, "CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
+                log.error(requestId, "CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
                 result.completeExceptionally(error);
             }
 
@@ -135,32 +136,32 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                LoggerHelpers.warnLogWithTag(log, requestId, "truncateSegment {} Connection dropped", qualifiedName);
+                log.warn(requestId, "truncateSegment {} Connection dropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                LoggerHelpers.warnLogWithTag(log, requestId, "truncateSegment {} Wrong host", qualifiedName);
+                log.warn(requestId, "truncateSegment {} Wrong host", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "truncateSegment {} SegmentTruncated", qualifiedName);
+                log.info(requestId, "truncateSegment {} SegmentTruncated", qualifiedName);
                 result.complete(true);
             }
             
             @Override
             public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "truncateSegment {} SegmentIsTruncated", qualifiedName);
+                log.info(requestId, "truncateSegment {} SegmentIsTruncated", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                LoggerHelpers.errorLogWithTag(log, requestId, "truncateSegment {} error", qualifiedName, error);
+                log.error(requestId, "truncateSegment {} error", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -194,32 +195,32 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                LoggerHelpers.warnLogWithTag(log, requestId, "deleteSegment {} Connection dropped", qualifiedName);
+                log.warn(requestId, "deleteSegment {} Connection dropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                LoggerHelpers.warnLogWithTag(log, requestId, "deleteSegment {} wrong host", qualifiedName);
+                log.warn(requestId, "deleteSegment {} wrong host", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "deleteSegment {} NoSuchSegment", qualifiedName);
+                log.info(requestId, "deleteSegment {} NoSuchSegment", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "deleteSegment {} SegmentDeleted", qualifiedName);
+                log.info(requestId, "deleteSegment {} SegmentDeleted", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                LoggerHelpers.errorLogWithTag(log, requestId, "deleteSegment {} failed", qualifiedName, error);
+                log.error(requestId, "deleteSegment {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -271,33 +272,33 @@ public class SegmentHelper {
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
-                LoggerHelpers.warnLogWithTag(log, requestId, "sealSegment {} connectionDropped", qualifiedName);
+                log.warn(requestId, "sealSegment {} connectionDropped", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                LoggerHelpers.warnLogWithTag(log, requestId, "sealSegment {} wrongHost", qualifiedName);
+                log.warn(requestId, "sealSegment {} wrongHost", qualifiedName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "sealSegment {} segmentSealed", qualifiedName);
+                log.info(requestId, "sealSegment {} segmentSealed", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "sealSegment {} SegmentIsSealed", qualifiedName);
+                log.info(requestId, "sealSegment {} SegmentIsSealed", qualifiedName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                LoggerHelpers.errorLogWithTag(log, requestId, "sealSegment {} failed", qualifiedName, error);
+                log.error(requestId, "sealSegment {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
@@ -516,25 +517,25 @@ public class SegmentHelper {
 
             @Override
             public void connectionDropped() {
-                LoggerHelpers.warnLogWithTag(log, requestId, "updatePolicy {} connectionDropped", qualifiedName);
+                log.warn(requestId, "updatePolicy {} connectionDropped", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                LoggerHelpers.warnLogWithTag(log, requestId, "updatePolicy {} wrongHost", qualifiedName);
+                log.warn(requestId, "updatePolicy {} wrongHost", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated policyUpdated) {
-                LoggerHelpers.infoLogWithTag(log, requestId, "updatePolicy {} SegmentPolicyUpdated", qualifiedName);
+                log.info(requestId, "updatePolicy {} SegmentPolicyUpdated", qualifiedName);
                 result.complete(null);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                LoggerHelpers.errorLogWithTag(log, requestId, "updatePolicy {} failed", qualifiedName, error);
+                log.error(requestId, "updatePolicy {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
             }
 
