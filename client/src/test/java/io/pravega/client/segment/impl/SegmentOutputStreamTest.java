@@ -556,11 +556,11 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             output.close();
         }, () -> {            
             cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
+            inOrder.verify(connection).send(new WireCommands.KeepAlive());
+            inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
+            inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
             cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0));
         });
-        inOrder.verify(connection).send(new WireCommands.KeepAlive());
-        inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
-        inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
         inOrder.verify(connection).close();
         assertEquals(true, acked.isDone());
         inOrder.verifyNoMoreInteractions();
