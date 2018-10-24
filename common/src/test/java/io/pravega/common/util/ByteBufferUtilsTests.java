@@ -22,6 +22,8 @@ public class ByteBufferUtilsTests {
         ByteBuffer b = ByteBuffer.wrap(new byte[] { 10, 11 });
         int num = ByteBufferUtils.copy(a, b);
         assertEquals(2, num);
+        assertEquals(2, b.position());
+        b.position(0);
         assertEquals(1, b.get());
         assertEquals(2, b.get());
         assertEquals(2, a.position());
@@ -30,9 +32,10 @@ public class ByteBufferUtilsTests {
         b = ByteBuffer.wrap(new byte[] { 10, 11 });
         num = ByteBufferUtils.copy(b, a);
         assertEquals(2, num);
-        assertEquals(0, a.position());
-        assertEquals(2, a.limit());
+        assertEquals(2, a.position());
+        assertEquals(4, a.limit());
         assertEquals(2, b.position());
+        a.position(0);
         assertEquals(10, a.get());
         assertEquals(11, a.get());
     }
