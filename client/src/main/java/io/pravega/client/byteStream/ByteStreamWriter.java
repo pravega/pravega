@@ -90,13 +90,6 @@ public abstract class ByteStreamWriter extends OutputStream {
     public abstract void closeAndSeal() throws IOException;
 
     /**
-     * Similar to {@link #flush()} but does not block the calling thread, and instead returns a
-     * future that will be completed when the flush is done.
-     */
-    //TODO:
-    //public abstract CompletableFuture<Void> flushAsync();
-
-    /**
      * This makes a synchronous RPC call to the server to obtain the total number of bytes written
      * to the segment in its history. This is the sum total of the bytes written in all calls to
      * {@link #write(byte[])} that have been flushed. It does not include data that was passed to
