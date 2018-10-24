@@ -124,20 +124,20 @@ interface Stream {
     CompletableFuture<VersionedMetadata<State>> getVersionedState();
 
     /**
+     * Update the state of the stream.
+     *
+     * @return boolean indicating whether the state of stream is updated.
+     */
+    CompletableFuture<Boolean> updateState(final State state);
+
+    /**
      * Api to update versioned state as a CAS operation.
      *
      * @param state desired state
      * @return Future which when completed contains the updated state and version if successful or exception otherwise.
      */
     CompletableFuture<VersionedMetadata<State>> updateVersionedState(final VersionedMetadata<State> state, final State newState);
-
-    /**
-     * Update the state of the stream.
-     *
-     * @return boolean indicating whether the state of stream is updated.
-     */
-    CompletableFuture<Void> updateState(final State state);
-
+    
     /**
      * Get the state of the stream.
      *
@@ -211,13 +211,16 @@ interface Stream {
      * In case of rolling transactions, this record may become invalid and can be discarded during the startScale phase
      * of scale workflow. 
      *
+     * @param sealedSegments segments to seal
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
+     * @param record existing epoch transition record
      * @return Future which when completed will encapsulate the epoch transition record with its version. 
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final List<Long> sealedSegments,
                                                                             final List<SimpleEntry<Double, Double>> newRanges,
-                                                                            final long scaleTimestamp);
+                                                                            final long scaleTimestamp,
+                                                                            final VersionedMetadata<EpochTransitionRecord> record);
 
     /**
      * Method to start a new scale. This method will check if epoch transition record is consistent or if
@@ -305,7 +308,7 @@ interface Stream {
      *
      * @return CompletableFuture which upon completion will indicate that we have successfully created new epoch entries.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollingTxnCreateDuplicateEpochs(Map<Long, Long> sealedTxnEpochSegments,
+    CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(Map<Long, Long> sealedTxnEpochSegments,
                                                            long time, VersionedMetadata<CommittingTransactionsRecord> existing);
 
     /**
@@ -315,8 +318,8 @@ interface Stream {
      * @param sealedActiveEpochSegments sealed segments from active epoch with size at the time of sealing.
      * @return CompletableFuture which upon successful completion will indicate that rolling transaction is complete.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> completeRollingTxn(Map<Long, Long> sealedActiveEpochSegments, long time,
-                                                                                          VersionedMetadata<CommittingTransactionsRecord> existing);
+    CompletableFuture<Void> completeRollingTxn(Map<Long, Long> sealedActiveEpochSegments, long time,
+                                               VersionedMetadata<CommittingTransactionsRecord> existing);
 
     /**
      * Sets cold marker which is valid till the specified time stamp.

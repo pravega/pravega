@@ -178,9 +178,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
 
                     // once all commits are done, reset the committing txn record.
                     // reset state to ACTIVE if it was COMMITTING_TXN
-                    return Futures.toVoid(commitFuture
+                    return commitFuture
                             .thenCompose(versionedMetadata -> streamMetadataStore.completeCommitTransactions(scope, stream, versionedMetadata, context, executor))
-                            .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context)));
+                            .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context));
                 }, executor);
     }
 
@@ -197,12 +197,13 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
             if (activeEpoch.getEpoch() > record.getObject().getActiveEpoch()) {
                 return CompletableFuture.completedFuture(record);
             } else {
-                return runRollingTxn(scope, stream, txnEpoch, activeEpoch, record, context);
+                return runRollingTxn(scope, stream, txnEpoch, activeEpoch, record, context)
+                        .thenApply(v -> record);
             }
         });
     }
 
-    private CompletionStage<VersionedMetadata<CommittingTransactionsRecord>> runRollingTxn(String scope, String stream, HistoryRecord txnEpoch,
+    private CompletionStage<Void> runRollingTxn(String scope, String stream, HistoryRecord txnEpoch,
                             HistoryRecord activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context) {
         String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
@@ -223,13 +224,13 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     return streamMetadataStore.rollingTxnCreateDuplicateEpochs(scope, stream, sealedSegmentsMap,
                             timestamp, existing, context, executor);
                 })
-                .thenCompose(versionedMetadata -> streamMetadataTasks.notifySealedSegments(scope, stream, activeEpoch.getSegments(),
+                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, activeEpoch.getSegments(),
                         delegationToken)
                         .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, activeEpoch.getSegments(),
                                 delegationToken))
                         .thenCompose(sealedSegmentsMap -> {
                             log.debug("Rolling transaction, sealed active epoch {} for stream {}/{}", activeEpoch, scope, stream);
-                            return streamMetadataStore.completeRollingTxn(scope, stream, sealedSegmentsMap, timestamp, versionedMetadata,
+                            return streamMetadataStore.completeRollingTxn(scope, stream, sealedSegmentsMap, timestamp, existing,
                                     context, executor);
                         }));
     }

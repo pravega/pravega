@@ -10,7 +10,6 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -56,7 +55,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -185,19 +183,16 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Void> completeTruncation(VersionedMetadata<StreamTruncationRecord> record) {
-        return checkState(state -> state.equals(State.TRUNCATING))
-            .thenCompose(v -> {
-                    Preconditions.checkNotNull(record);
-                    StreamTruncationRecord current = record.getObject();
-                    if (current.isUpdating()) {
-                        StreamTruncationRecord completedProp = StreamTruncationRecord.complete(current);
+        Preconditions.checkNotNull(record);
+        StreamTruncationRecord current = record.getObject();
+        if (current.isUpdating()) {
+            StreamTruncationRecord completedProp = StreamTruncationRecord.complete(current);
 
-                        return setTruncationData(new Data(completedProp.toByteArray(), record.getVersion()));
-                    } else {
-                        // idempotent
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
+            return setTruncationData(new Data(completedProp.toByteArray(), record.getVersion()));
+        } else {
+            // idempotent
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     @Override
@@ -236,15 +231,12 @@ public abstract class PersistentStreamBase implements Stream {
      */
     @Override
     public CompletableFuture<Void> completeUpdateConfiguration(VersionedMetadata<StreamConfigurationRecord> existing) {
-        return checkState(state -> state.equals(State.UPDATING))
-                .thenCompose(v -> {
-                    StreamConfigurationRecord current = existing.getObject();
-                    Preconditions.checkNotNull(current);
-                    Preconditions.checkArgument(current.isUpdating());
-                    StreamConfigurationRecord newProperty = StreamConfigurationRecord.complete(current.getStreamConfiguration());
-                    log.debug("Completing update configuration for stream {}/{}", scope, name);
-                    return setConfigurationData(new Data(newProperty.toByteArray(), existing.getVersion()));
-                });
+        StreamConfigurationRecord current = existing.getObject();
+        Preconditions.checkNotNull(current);
+        Preconditions.checkArgument(current.isUpdating());
+        StreamConfigurationRecord newProperty = StreamConfigurationRecord.complete(current.getStreamConfiguration());
+        log.debug("Completing update configuration for stream {}/{}", scope, name);
+        return setConfigurationData(new Data(newProperty.toByteArray(), existing.getVersion()));
     }
 
     /**
@@ -264,17 +256,12 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<State>> getVersionedState() {
-        return getStateData(true)
-                .thenApply(x -> new VersionedMetadata<>(StateRecord.parse(x.getData()).getState(), x.getVersion()));
-    }
-
-    @Override
-    public CompletableFuture<Void> updateState(final State state) {
+    public CompletableFuture<Boolean> updateState(final State state) {
         return getStateData(true)
                 .thenCompose(currState -> {
                     if (State.isTransitionAllowed(StateRecord.parse(currState.getData()).getState(), state)) {
-                        return Futures.toVoid(setStateData(new Data(StateRecord.builder().state(state).build().toByteArray(), currState.getVersion())));
+                        return setStateData(new Data(StateRecord.builder().state(state).build().toByteArray(), currState.getVersion()))
+                                .thenApply(x -> true);
                     } else {
                         return Futures.failedFuture(StoreException.create(
                                 StoreException.Type.OPERATION_NOT_ALLOWED,
@@ -283,6 +270,12 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
+    @Override
+    public CompletableFuture<VersionedMetadata<State>> getVersionedState() {
+        return getStateData(true)
+                .thenApply(x -> new VersionedMetadata<>(StateRecord.parse(x.getData()).getState(), x.getVersion()));
+    }
+    
     @Override
     public CompletableFuture<VersionedMetadata<State>> updateVersionedState(final VersionedMetadata<State> previous, final State newState) {
         if (State.isTransitionAllowed(previous.getObject(), newState)) {
@@ -490,61 +483,75 @@ public abstract class PersistentStreamBase implements Stream {
      * @param segmentsToSeal segments that will be sealed at the end of this scale operation.
      * @param newRanges      key ranges of new segments to be created
      * @param scaleTimestamp scaling timestamp
+     * @param existing       existing epoch transition record
      * @return : list of newly created segments with current epoch
      */
     @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final List<Long> segmentsToSeal,
                                                                                    final List<SimpleEntry<Double, Double>> newRanges,
-                                                                                   final long scaleTimestamp) {
-        return verifyNotSealed().thenCompose(v -> getHistoryIndexFromStore()
-                .thenCompose(historyIndex -> getHistoryTableFromStore()
-                        .thenCompose(historyTable -> getSegmentIndexFromStore()
-                                .thenCompose(segmentIndex -> getSegmentTableFromStore()
-                                        .thenCompose(segmentTable -> {
-                                            if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentIndex.getData(),
-                                                    segmentTable.getData())) {
-                                                log.error("scale input invalid {} {}", segmentsToSeal, newRanges);
-                                                throw new EpochTransitionOperationExceptions.InputInvalidException();
-                                            }
+                                                                                   final long scaleTimestamp,
+                                                                                   final VersionedMetadata<EpochTransitionRecord> existing) {
+        return verifyNotSealed().thenCompose(v -> {
+            if (existing == null) {
+                return getEpochTransition();
+            } else {
+                return CompletableFuture.completedFuture(existing);
+            }
+        }).thenCompose(record -> {
+            if (!record.getObject().equals(EpochTransitionRecord.EMPTY)) {
+                // verify that its the same as the supplied input (--> segments to be sealed
+                // and new ranges are identical). else throw scale conflict exception
+                if (!verifyRecordMatchesInput(segmentsToSeal, newRanges, record.getObject())) {
+                    log.debug("scale conflict, another scale operation is ongoing");
+                    throw new EpochTransitionOperationExceptions.ConflictException();
+                }
+                return CompletableFuture.completedFuture(record);
+            }
 
-                                            return submitScale(segmentsToSeal, newRanges, scaleTimestamp, historyIndex,
-                                                    historyTable, segmentIndex, segmentTable);
-                                        })))));
+            return getHistoryIndexFromStore()
+                    .thenCompose(historyIndex -> getHistoryTableFromStore()
+                            .thenCompose(historyTable -> getSegmentIndexFromStore()
+                                    .thenCompose(segmentIndex -> getSegmentTableFromStore()
+                                            .thenCompose(segmentTable -> {
+                                                if (!TableHelper.isScaleInputValid(segmentsToSeal, newRanges, segmentIndex.getData(),
+                                                        segmentTable.getData())) {
+                                                    log.error("scale input invalid {} {}", segmentsToSeal, newRanges);
+                                                    throw new EpochTransitionOperationExceptions.InputInvalidException();
+                                                }
+
+                                                return submitScale(segmentsToSeal, newRanges, scaleTimestamp, record,
+                                                        historyIndex, historyTable, segmentIndex, segmentTable);
+                                            }))));
+        });
     }
 
-    private CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(List<Long> segmentsToSeal, List<SimpleEntry<Double, Double>> newRanges,
-                                                                                    long scaleTimestamp, Data historyIndex,
-                                                                                    Data historyTable, Data segmentIndex, Data segmentTable) {
-        return getEpochTransition()
-                .thenCompose(record -> {
-                    if (!record.getObject().equals(EpochTransitionRecord.EMPTY)) {
-                        // verify that its the same as the supplied input (--> segments to be sealed
-                        // and new ranges are identical). else throw scale conflict exception
-                        if (!verifyRecordMatchesInput(segmentsToSeal, newRanges, record.getObject())) {
-                            log.debug("scale conflict, another scale operation is ongoing");
-                            throw new EpochTransitionOperationExceptions.ConflictException();
-                        }
-                        return CompletableFuture.completedFuture(record);
-                    } else {
-                        // check input is valid and satisfies preconditions
-                        if (!TableHelper.canScaleFor(segmentsToSeal, historyIndex.getData(), historyTable.getData())) {
-                            // invalid input, log and ignore
+    private CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(List<Long> segmentsToSeal, 
+                                                                                    List<SimpleEntry<Double, Double>> newRanges,
+                                                                                    long scaleTimestamp, 
+                                                                                    VersionedMetadata<EpochTransitionRecord> record, 
+                                                                                    Data historyIndex, Data historyTable, 
+                                                                                    Data segmentIndex, Data segmentTable) {
+            // check input is valid and satisfies preconditions
+            if (!TableHelper.canScaleFor(segmentsToSeal, historyIndex.getData(), historyTable.getData())) {
+                // invalid input, log and ignore
+                Data updated = new Data(EpochTransitionRecord.EMPTY.toByteArray(), record.getVersion());
+                return updateEpochTransitionNode(updated)
+                        .thenApply(x -> {
                             log.warn("scale precondition failed {}", segmentsToSeal);
                             throw new EpochTransitionOperationExceptions.PreConditionFailureException();
-                        }
+                        });
+            }
+            
+            EpochTransitionRecord epochTransition = TableHelper.computeEpochTransition(
+                    historyIndex.getData(), historyTable.getData(), segmentIndex.getData(),
+                    segmentTable.getData(), segmentsToSeal, newRanges, scaleTimestamp);
 
-                        EpochTransitionRecord epochTransition = TableHelper.computeEpochTransition(
-                                historyIndex.getData(), historyTable.getData(), segmentIndex.getData(),
-                                segmentTable.getData(), segmentsToSeal, newRanges, scaleTimestamp);
-
-                        return updateEpochTransitionNode(new Data(epochTransition.toByteArray(), record.getVersion()))
-                                .thenApply(version -> {
-                                    log.info("scale for stream {}/{} accepted. Segments to seal = {}", scope, name,
-                                            epochTransition.getSegmentsToSeal());
-                                    return new VersionedMetadata<>(epochTransition, version);
-                                });
-                    }
-                });
+            return updateEpochTransitionNode(new Data(epochTransition.toByteArray(), record.getVersion()))
+                    .thenApply(version -> {
+                        log.info("scale for stream {}/{} accepted. Segments to seal = {}", scope, name,
+                                epochTransition.getSegmentsToSeal());
+                        return new VersionedMetadata<>(epochTransition, version);
+                    });
     }
 
     private boolean verifyRecordMatchesInput(List<Long> segmentsToSeal, List<SimpleEntry<Double, Double>> newRanges, EpochTransitionRecord record) {
@@ -552,7 +559,7 @@ public abstract class PersistentStreamBase implements Stream {
                 record.getNewSegmentsWithRange().values().stream()
                         .anyMatch(y -> y.getKey().equals(x.getKey())
                                 && y.getValue().equals(x.getValue())));
-        boolean segmentsToSealMatch = record.getSegmentsToSeal().stream().allMatch(segmentsToSeal::contains);
+        boolean segmentsToSealMatch = segmentsToSeal.containsAll(record.getSegmentsToSeal());
 
         return newRangeMatch && segmentsToSealMatch;
     }
@@ -707,13 +714,13 @@ public abstract class PersistentStreamBase implements Stream {
      * Segments created with pravega, update the history table with this fact so they are available as successors
      * 3. Add entry into the history table.
      *
+     * @param record epoch transition record
+     *               
      * @return Future which when complete will have the history record updated in store.
-     * @param record
      */
     @Override
     public CompletableFuture<Void> scaleNewSegmentsCreated(VersionedMetadata<EpochTransitionRecord> record) {
-        return checkState(state -> state.equals(State.SCALING))
-                .thenCompose(x -> addPartialHistoryRecordAndIndex(record.getObject()));
+        return addPartialHistoryRecordAndIndex(record.getObject());
     }
 
     /**
@@ -779,15 +786,12 @@ public abstract class PersistentStreamBase implements Stream {
      */
     @Override
     public CompletableFuture<Void> scaleOldSegmentsSealed(Map<Long, Long> sealedSegmentSizes, VersionedMetadata<EpochTransitionRecord> record) {
-        return checkState(state -> state.equals(State.SCALING))
-                .thenCompose(v -> Futures.toVoid(clearMarkers(record.getObject().getSegmentsToSeal())
+        return Futures.toVoid(clearMarkers(record.getObject().getSegmentsToSeal())
                                     .thenCompose(x -> {
                                         EpochTransitionRecord epochTransition = record.getObject();
-                                        ImmutableSet<Long> newSegments = epochTransition.getNewSegmentsWithRange().keySet();
-                                        return completePartialRecordInHistory(sealedSegmentSizes, epochTransition.getActiveEpoch(), epochTransition.getTime(),
-                                                lastRecord -> lastRecord.getSegments().stream().noneMatch(sealedSegmentSizes::containsKey) &&
-                                                        newSegments.stream().allMatch(r -> lastRecord.getSegments().contains(r)));
-                                    })));
+                                        return completePartialRecordInHistory(sealedSegmentSizes, epochTransition.getActiveEpoch(), 
+                                                epochTransition.getNewEpoch(), epochTransition.getTime());
+                                    }));
     }
 
     @Override
@@ -796,7 +800,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private CompletableFuture<Void> completePartialRecordInHistory(final Map<Long, Long> sealedSegments, final int activeEpoch,
-                                                                   final long time, final Predicate<HistoryRecord> idempotentCheck) {
+                                                                   final int newEpoch, final long time) {
         return getHistoryIndexFromStore()
                 .thenCompose(historyIndex -> getHistoryTableFromStore()
                         .thenCompose(historyTable -> {
@@ -806,16 +810,11 @@ public abstract class PersistentStreamBase implements Stream {
                             final HistoryRecord lastRecord = lastRecordOpt.get();
 
                             // idempotent check
-                            if (!lastRecord.isPartial()) {
-                                if (idempotentCheck.test(lastRecord)) {
-                                    log.debug("{}/{} epoch transition already completed for epoch {}.", scope, name, activeEpoch);
+                            if (lastRecord.getEpoch() > newEpoch || (!lastRecord.isPartial() && lastRecord.getEpoch() == newEpoch)) {
+                                log.debug("{}/{} epoch transition already completed for epoch {}.", scope, name, activeEpoch);
 
-                                    return CompletableFuture.completedFuture(null);
-                                } else {
-                                    log.debug("{}/{} epoch transition completion attempt invalid for epoch {}.", scope, name, activeEpoch);
-                                    throw new EpochTransitionOperationExceptions.ConditionInvalidException();
-                                }
-                            }
+                                return CompletableFuture.completedFuture(null);
+                            } 
 
                             long timestamp = Math.max(System.currentTimeMillis(), time);
                             final HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyIndex.getData(),
@@ -856,45 +855,28 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollingTxnCreateDuplicateEpochs(
+    public CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(
             Map<Long, Long> sealedTxnEpochSegments, long time, VersionedMetadata<CommittingTransactionsRecord> record) {
         Preconditions.checkArgument(record.getObject().isRollingTransactions());
-        return checkState(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING))
-        .thenCompose(v -> addSealedSegmentsToRecord(sealedTxnEpochSegments)
+        return addSealedSegmentsToRecord(sealedTxnEpochSegments)
                 .thenCompose(x -> getActiveEpoch(true))
-                .thenCompose(activeEpoch -> rollingTxnAddNewDuplicateEpochs(record.getObject().getEpoch(), time)))
-                .thenApply(x -> record);
+                .thenCompose(activeEpoch -> rollingTxnAddNewDuplicateEpochs(record.getObject().getEpoch(), 
+                        record.getObject().getActiveEpoch(), time));
     }
 
-    private CompletableFuture<Void> rollingTxnAddNewDuplicateEpochs(final int transactionEpoch, final long time) {
+    private CompletableFuture<Void> rollingTxnAddNewDuplicateEpochs(final int transactionEpoch, final int activeEpoch, final long time) {
         return getHistoryIndexFromStore()
                 .thenCompose(historyIndex -> getHistoryTableFromStore()
                         .thenCompose(historyTable -> {
-                            final int activeEpoch = TableHelper.getActiveEpoch(historyIndex.getData(), historyTable.getData()).getEpoch();
                             final HistoryRecord lastRecord = HistoryRecord.readLatestRecord(historyIndex.getData(), historyTable.getData(),
                                     false).get();
                             int newEpoch = activeEpoch + 2;
 
                             // idempotent check
                             if (lastRecord.getEpoch() > activeEpoch) {
-                                boolean idempotent = lastRecord.isPartial() && lastRecord.getEpoch() == newEpoch &&
-                                        lastRecord.getReferenceEpoch() == activeEpoch;
-
-                                if (idempotent) {
-                                    HistoryRecord previous = HistoryRecord.fetchPrevious(lastRecord, historyIndex.getData(),
-                                            historyTable.getData()).get();
-                                    idempotent &= previous.getReferenceEpoch() == transactionEpoch;
-                                }
-
-                                if (idempotent) {
-                                    log.debug("{}/{} rolling transaction for epoch {} - history record already added", scope, name,
-                                            transactionEpoch);
-                                    return CompletableFuture.completedFuture(null);
-                                } else {
-                                    // we should never reach here!!
-                                    log.warn("{}/{} rolling txn for epoch {} is inconsistent.", scope, name, transactionEpoch);
-                                    throw new EpochTransitionOperationExceptions.InputInvalidException();
-                                }
+                                log.debug("{}/{} rolling transaction for epoch {} - history record already added", scope, name,
+                                        transactionEpoch);
+                                return CompletableFuture.completedFuture(null);
                             }
 
                             final Pair<byte[], byte[]> updatedIndexAndTable = TableHelper.insertDuplicateRecordsInHistoryTable(historyIndex.getData(),
@@ -917,19 +899,14 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> completeRollingTxn(Map<Long, Long> sealedActiveEpochSegments,
-                                                                    long time, VersionedMetadata<CommittingTransactionsRecord> existing) {
-        Predicate<HistoryRecord> idempotent = input -> {
-            Set<Integer> set1 = input.getSegments().stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet());
-            Set<Integer> set2 = sealedActiveEpochSegments.keySet().stream().map(StreamSegmentNameUtils::getSegmentNumber).collect(Collectors.toSet());
-            return input.getEpoch() == existing.getObject().getActiveEpoch() + 2 && set1.equals(set2);
-        };
+    public CompletableFuture<Void> completeRollingTxn(Map<Long, Long> sealedActiveEpochSegments,
+                                                                    long time, VersionedMetadata<CommittingTransactionsRecord> record) {
+        Preconditions.checkArgument(record.getObject().isRollingTransactions());
 
-        return checkState(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING))
-                .thenCompose(v -> addSealedSegmentsToRecord(sealedActiveEpochSegments)
+        return addSealedSegmentsToRecord(sealedActiveEpochSegments)
                 .thenCompose(x -> clearMarkers(sealedActiveEpochSegments.keySet()))
-                .thenCompose(x -> completePartialRecordInHistory(sealedActiveEpochSegments, existing.getObject().getActiveEpoch(), time, idempotent)))
-                .thenApply(x -> existing);
+                .thenCompose(x -> completePartialRecordInHistory(sealedActiveEpochSegments, record.getObject().getActiveEpoch(), 
+                        record.getObject().getActiveEpoch() + 2, time));
     }
 
     private CompletableFuture<VersionedMetadata<State>> resetStateConditionally(VersionedMetadata<State> currState, State state) {
@@ -1104,8 +1081,7 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) {
         int epoch = getTransactionEpoch(txId);
-        return checkState(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING))
-                .thenCompose(v -> checkTransactionStatus(txId))
+        return checkTransactionStatus(txId)
                 .thenApply(x -> {
                     switch (x) {
                         // Only sealed transactions can be committed
@@ -1393,16 +1369,6 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<Integer> getStartingSegmentNumber() {
         return getSegmentIndex().thenApply(segmentIndex -> TableHelper.getStartingSegmentNumber(segmentIndex.getData()));
-    }
-
-    private CompletableFuture<Void> checkState(Predicate<State> predicate) {
-        return getState(true)
-                .thenAccept(currState -> {
-                    if (!predicate.test(currState)) {
-                        throw StoreException.create(StoreException.Type.ILLEGAL_STATE,
-                                "Stream: " + getName() + " Current State: " + currState.name());
-                    }
-                });
     }
 
     private CompletableFuture<Void> verifyLegalState() {

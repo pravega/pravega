@@ -103,9 +103,9 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return Future of boolean if state update succeeded.
      */
-    CompletableFuture<Void> updateState(String scope, String name,
-                                           State state, OperationContext context,
-                                           Executor executor);
+    CompletableFuture<Boolean> setState(String scope, String name,
+                                        State state, OperationContext context,
+                                        Executor executor);
 
     /**
      * Api to get the state for stream from metadata.
@@ -440,7 +440,7 @@ public interface StreamMetadataStore {
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition(String scope, String stream,
                                                                                    OperationContext context,
                                                                                    ScheduledExecutorService executor);
-
+    
     /**
      * Called to start metadata updates to stream store with respect to new scale request. This method should only update
      * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
@@ -452,6 +452,7 @@ public interface StreamMetadataStore {
      * @param newRanges      new key ranges to be added to the stream which maps to a new segment per range in the stream
      * @param sealedSegments segments to be sealed
      * @param scaleTimestamp timestamp at which scale was requested
+     * @param record         optionally supply existing epoch transition record. if null is supplied, it will be fetched from the store. 
      * @param context        operation context
      * @param executor       callers executor
      * @return the list of newly created segments
@@ -460,6 +461,7 @@ public interface StreamMetadataStore {
                                                                             final List<Long> sealedSegments,
                                                                             final List<SimpleEntry<Double, Double>> newRanges,
                                                                             final long scaleTimestamp,
+                                                                            final VersionedMetadata<EpochTransitionRecord> record, 
                                                                             final OperationContext context,
                                                                             final Executor executor);
 
@@ -593,7 +595,7 @@ public interface StreamMetadataStore {
      * @param executor       callers executor
      * @return CompletableFuture which upon completion will indicate that we have successfully created new epoch entries.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollingTxnCreateDuplicateEpochs(final String scope,
+    CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(final String scope,
                                            final String name, Map<Long, Long> sealedTxnEpochSegments,
                                            final long time, final VersionedMetadata<CommittingTransactionsRecord> record,
                                            final OperationContext context, final Executor executor);
@@ -611,7 +613,7 @@ public interface StreamMetadataStore {
      * @param executor       callers executor
      * @return CompletableFuture which upon successful completion will indicate that rolling transaction is complete.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> completeRollingTxn(final String scope, final String name,
+    CompletableFuture<Void> completeRollingTxn(final String scope, final String name,
                                                                     final Map<Long, Long> sealedActiveEpochSegments, final long time,
                                                                     final VersionedMetadata<CommittingTransactionsRecord> record,
                                                                     final OperationContext context, final Executor executor);

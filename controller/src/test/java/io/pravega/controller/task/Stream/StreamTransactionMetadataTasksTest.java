@@ -506,7 +506,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create stream and scope
         streamStoreMock.createScope(SCOPE).join();
         streamStoreMock.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis(), null, executor).join();
-        streamStoreMock.updateState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
+        streamStoreMock.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
         // mock streamMetadataStore.generateTxnId should throw excecption first time.
         // Note: it should be retried.

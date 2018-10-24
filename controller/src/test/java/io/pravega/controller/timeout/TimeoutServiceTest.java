@@ -126,7 +126,7 @@ public class TimeoutServiceTest {
                 .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
         streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)
-                .thenCompose(x -> streamStore.updateState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
+                   .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
     }
 
     @After

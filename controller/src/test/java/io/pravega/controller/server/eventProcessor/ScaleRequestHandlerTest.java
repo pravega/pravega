@@ -355,7 +355,7 @@ public class ScaleRequestHandlerTest {
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
         streamStore.submitScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-        System.currentTimeMillis(), null, executor).join();
+        System.currentTimeMillis(), null, null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
@@ -412,7 +412,7 @@ public class ScaleRequestHandlerTest {
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
         streamStore.submitScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-        System.currentTimeMillis(), null, executor).join();
+        System.currentTimeMillis(), null, null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
@@ -450,17 +450,17 @@ public class ScaleRequestHandlerTest {
 
         map.put("scaleCreateNewSegments", 1);
         map.put("scaleNewSegmentsCreated", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
         concurrentIdenticalScaleRun("stream2", "scaleCreateNewSegments", true,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
         concurrentIdenticalScaleRun("stream3", "scaleNewSegmentsCreated", true,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
-        map.put("scaleSegmentsSealed", 1);
         concurrentIdenticalScaleRun("stream4", "scaleSegmentsSealed", true,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
-        map.put("completeScale", 1);
         concurrentIdenticalScaleRun("stream5", "completeScale", true,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, true,
                 e -> Exceptions.unwrap(e) instanceof IllegalStateException, map);
@@ -483,20 +483,20 @@ public class ScaleRequestHandlerTest {
         map.put("startScale", 1);
         map.put("scaleCreateNewSegments", 1);
         map.put("scaleNewSegmentsCreated", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
         concurrentIdenticalScaleRun("autostream1", "startScale", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
         concurrentIdenticalScaleRun("autostream2", "scaleCreateNewSegments", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
         concurrentIdenticalScaleRun("autostream3", "scaleNewSegmentsCreated", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
-        map.put("scaleSegmentsSealed", 1);
         concurrentIdenticalScaleRun("autostream4", "scaleSegmentsSealed", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, false, e -> false, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
 
-        map.put("completeScale", 1);
         concurrentIdenticalScaleRun("autostream5", "completeScale", false,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, 
                 e -> false, map);
@@ -512,7 +512,7 @@ public class ScaleRequestHandlerTest {
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
-        streamStore1.updateState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
         
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
@@ -521,7 +521,7 @@ public class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis());
         if (isManual) {
             streamStore1.submitScale(scope, stream, Lists.newArrayList(0L),
-                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, executor).join();
+                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
         
         StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
@@ -633,15 +633,16 @@ public class ScaleRequestHandlerTest {
 
         map.put("scaleCreateNewSegments", 1);
         map.put("scaleNewSegmentsCreated", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
         concurrentDistinctScaleRun("stream2", "scaleCreateNewSegments", true,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
 
         concurrentDistinctScaleRun("stream3", "scaleNewSegmentsCreated", true,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
 
-        map.put("scaleSegmentsSealed", 1);
         concurrentDistinctScaleRun("stream4", "scaleSegmentsSealed", true,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
     }
 
     @SuppressWarnings("unchecked")
@@ -664,19 +665,20 @@ public class ScaleRequestHandlerTest {
 
         map.put("scaleCreateNewSegments", 1);
         map.put("scaleNewSegmentsCreated", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
         concurrentDistinctScaleRun("autostream2", "scaleCreateNewSegments", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
 
         concurrentDistinctScaleRun("autostream3", "scaleNewSegmentsCreated", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
 
-        map.put("scaleSegmentsSealed", 1);
         concurrentDistinctScaleRun("autostream4", "scaleSegmentsSealed", false,
-                e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException, map);
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
     }
 
     // concurrent run of scale 1 intermixed with scale 2 
-    private void concurrentDistinctScaleRun(String stream, String func, boolean isManual,
+    private void concurrentDistinctScaleRun(String stream, String funcToWaitOn, boolean isManual,
                                     Predicate<Throwable> firstExceptionPredicate,
                                     Map<String, Integer> invocationCount) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
@@ -684,7 +686,7 @@ public class ScaleRequestHandlerTest {
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
-        streamStore1.updateState(scope, stream, State.ACTIVE, null, executor).join();
+        streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
 
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
@@ -693,7 +695,7 @@ public class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis());
         if (isManual) {
             streamStore1.submitScale(scope, stream, Lists.newArrayList(0L),
-                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, executor).join();
+                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
 
         StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
@@ -701,9 +703,8 @@ public class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
         ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
 
-        setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
+        setMockLatch(streamStore1, streamStore1Spied, funcToWaitOn, signal, wait);
 
-        // the processing will stall at start scale
         CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
         signal.join();
 
@@ -715,7 +716,7 @@ public class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis());
         if (isManual) {
             streamStore1.submitScale(scope, stream, Lists.newArrayList(one),
-                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, executor).join();
+                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
 
         scaleRequestHandler2.execute(event2).join();

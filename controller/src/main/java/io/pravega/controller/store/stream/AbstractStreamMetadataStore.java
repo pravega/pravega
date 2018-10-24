@@ -185,9 +185,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> updateState(final String scope, final String name,
-                                                  final State state, final OperationContext context,
-                                                  final Executor executor) {
+    public CompletableFuture<Boolean> setState(final String scope, final String name,
+                                               final State state, final OperationContext context,
+                                               final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateState(state), executor);
     }
 
@@ -429,9 +429,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                                    final List<Long> sealedSegments,
                                                                                    final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
                                                                                    final long scaleTimestamp,
+                                                                                   final VersionedMetadata<EpochTransitionRecord> record,
                                                                                    final OperationContext context,
                                                                                    final Executor executor) {
-        return withCompletion(getStream(scope, name, context).submitScale(sealedSegments, newRanges, scaleTimestamp), executor);
+        return withCompletion(getStream(scope, name, context).submitScale(sealedSegments, newRanges, scaleTimestamp, record), executor);
     }
 
     @Override
@@ -507,14 +508,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollingTxnCreateDuplicateEpochs(String scope, String name,
+    public CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(String scope, String name,
                         Map<Long, Long> sealedTxnEpochSegments, long time, VersionedMetadata<CommittingTransactionsRecord> record,
                         OperationContext context, Executor executor) {
         return withCompletion(getStream(scope, name, context).rollingTxnCreateDuplicateEpochs(sealedTxnEpochSegments, time, record), executor);
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
+    public CompletableFuture<Void> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
                                                   long time, VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
         return withCompletion(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, time, record), executor);
     }
