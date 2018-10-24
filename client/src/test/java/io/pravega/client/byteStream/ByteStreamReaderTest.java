@@ -10,6 +10,8 @@
 package io.pravega.client.byteStream;
 
 import io.pravega.client.ClientFactory;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -33,7 +35,12 @@ public class ByteStreamReaderTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
@@ -70,7 +77,12 @@ public class ByteStreamReaderTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());      
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,
@@ -95,7 +107,12 @@ public class ByteStreamReaderTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
-
+        controller.createScope(SCOPE);
+        controller.createStream(StreamConfiguration.builder()
+                                .scope(SCOPE)
+                                .streamName(STREAM)
+                                .scalingPolicy(ScalingPolicy.fixed(1))
+                                .build());      
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory,

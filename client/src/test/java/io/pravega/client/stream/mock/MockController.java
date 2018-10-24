@@ -110,9 +110,6 @@ public class MockController implements Controller {
 
         createdStreams.put(stream, streamConfig);
         createdScopes.get(streamConfig.getScope()).add(stream);
-        for (Segment segment : getSegmentsForStream(stream)) {
-            createSegment(segment.getScopedName(), new PravegaNodeUri(endpoint, port));
-        }
         return CompletableFuture.completedFuture(true);
     }
     
