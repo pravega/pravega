@@ -34,6 +34,7 @@ import static org.junit.Assert.assertFalse;
 public class RPCTracingHelpersTest {
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testInterceptors() {
         String requestDescriptor = "createStream-myScope-myStream";
         long requestId = 1234L;

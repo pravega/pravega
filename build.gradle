@@ -435,8 +435,6 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
-
-        testCompile project(':test:testcommon')
     }
 
     javadoc {
