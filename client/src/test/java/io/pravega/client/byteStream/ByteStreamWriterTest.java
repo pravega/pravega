@@ -123,7 +123,7 @@ public class ByteStreamWriterTest {
         Arrays.fill(value, (byte) 3);
         writer.write(value);
         writer.flush();
-        assertEquals(value.length * 3, writer.fetchOffset());
+        assertEquals(value.length * 3L, writer.fetchOffset());
     }
     
     
