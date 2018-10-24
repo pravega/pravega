@@ -371,7 +371,7 @@ public class AssertExtensions {
      * @return The result of the blockingFunction.
      * @param <ResultT> The result of the blockingFunction.
      */
-    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, Runnable unblocker) {
+    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, RunnableWithException unblocker) throws RuntimeException {
         final AtomicReference<ResultT> result = new AtomicReference<>(null);
         final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
@@ -393,7 +393,11 @@ public class AssertExtensions {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-        unblocker.run();
+        try {
+            unblocker.run();
+        } catch (Exception e) {
+            throw new RuntimeException("Blocking call threw and exception", e);
+        }
         try {
             isBlocked.acquire();
             t.join();
