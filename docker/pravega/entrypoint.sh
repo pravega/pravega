@@ -9,7 +9,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
-set -e
+set -eo pipefail
 
 dir=$( cd "$( dirname "$0" )" && pwd )
 # Adds a system property if the value is not empty

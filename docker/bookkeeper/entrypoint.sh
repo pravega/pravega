@@ -9,7 +9,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
-set -e
+set -eo pipefail
 
 ZK_HOME=/opt/zookeeper
 BK_HOME=/opt/bookkeeper
@@ -63,14 +63,14 @@ echo "wait for zookeeper"
 until ${ZK_HOME}/bin/zkCli.sh -server $ZK_URL ls /; do sleep 2; done
 
 echo "create the zk root"
-${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}
-${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}
-${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}
+# Silence exit codes with "|| :" as the commands can safely fail with a "Node already exists" error
+${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH} || :
+${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME} || :
+${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME} || :
 
 echo "format the bookie"
-# format bookie
-BOOKIE_CONF=${BK_HOME}/conf/bk_server.conf ${BK_HOME}/bin/bookkeeper shell metaformat -nonInteractive
+# Silence exit codes with "|| :" as the command can safely fail if another instance has already formatted the bookie
+BOOKIE_CONF=${BK_HOME}/conf/bk_server.conf ${BK_HOME}/bin/bookkeeper shell metaformat -nonInteractive || :
 
 echo "start a new bookie"
-# start bookie,
 SERVICE_PORT=$PORT0 ${BK_HOME}/bin/bookkeeper bookie --conf ${BK_HOME}/conf/bk_server.conf

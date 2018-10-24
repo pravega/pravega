@@ -12,6 +12,7 @@ FROM openjdk:8-jre-alpine
 RUN apk add --update \
     rpcbind \
     nfs-utils \
+    libc6-compat \
     python \
   && rm -rf /var/cache/apk/*
 
