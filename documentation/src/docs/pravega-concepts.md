@@ -126,8 +126,8 @@ rate of data written to the stream is constant, there will be no change in the n
 - At time **_t1_**, the system noted an increase in the ingestion rate and splits **_Segment 1_** into two parts. This process is referred as **Scale-up** event.
 
 - Before **_t1_**, events with a routing key that hashes to the upper part of the key
-space (i.e., values ranging from 200-399) would be placed in **_Segment 1_** and those that hash into the
-lower part of the key space (i.e., values ranging from 0-199) would be placed in **_Segment 0_**.
+space (i.e., values ranging from **200-399**) would be placed in **_Segment 1_** and those that hash into the
+lower part of the key space (i.e., values ranging from **0-199**) would be placed in **_Segment 0_**.
 
 - After **_t1_**, **_Segment 1_** is split into **_Segment 2_** and **_Segment 3_**. The **_Segment 1_** is sealed and stops accepting writes.  At this point in time, Events with routing key **_300_** and _above_ are written to **_Segment 3_** and those between **_200_** and **_299_** would be written into **_Segment 2_**.
 
@@ -146,11 +146,11 @@ determines, how a stream handles the varying changes in its load? In the present
 
 1.  **Fixed**:  The number of stream segments does not vary with load.
 
-2.  **Size-based**:  A target rate is set,to decide on increasing or decreasing the number of stream segments. If the number of bytes of data per second written to the stream increases beyond the threshold or target rate, the number of stream segments is
-    increased else if it falls below the target rate then the number of stream
+2.  **Size-based**:  A target rate is set, to decide on increasing or decreasing the number of stream segments. If the number of bytes of data per second written to the stream increases beyond the threshold or target rate, the number of stream segments is
+    increased otherwise, if it falls below the target rate then the number of stream
     segments are reduced.
 
-3.  **Event-based**:  It is similar to the size-based scaling policy, but it uses number of events instead bytes.
+3.  **Event-based**:  It is similar to the size-based scaling policy, but it uses number of events instead of bytes.
 
 ### Events, Stream Segments and AutoScaling
 
@@ -161,7 +161,7 @@ As it was mentioned in the earlier part of the section, that an event is written
 
 It is also worth emphasizing that events are written only on the active stream
 segments. Segments that are sealed do not accept writes. In the figure above,
-at time _"now"_, only stream _Segments 3_, _6_ and _4_ are active and the entire key space is covered between those three stream segments.  
+at time **_now_**, only stream **_Segments 3_**, **_6_** and **_4_** are active and the entire key space is covered between those three stream segments.  
 
 ### Stream Segments and ReaderGroups
 
@@ -169,16 +169,16 @@ Stream segments play a major role in understanding the way reader groups work.
 
 ![Stream Segment](img/segment.readergroup.png) 
 
-Pravega assigns _zero_ or more stream segments to each reader in a reader group. Pravega tries to balances the number of stream segments assigned to each reader. In the figure above, _Reader B1_ reads from two stream segments (*Segment 0* and *Segment 3*), while the other reader group (*Reader B2*, *Reader B3*) have only only one stream segment to read from. Pravega makes sure that each stream segment is read exactly by one reader in any reader group configured with that stream. Irrespective of  readers being added to the reader group or removed from the reader group due to crash, Pravega reassigns stream segments to maintain balance amongst the readers.
+Pravega assigns _zero_ or more stream segments to each reader in a reader group. Pravega tries to balances the number of stream segments assigned to each reader. In the figure above, **_Reader B1_** reads from two stream segments (**_Segment 0_** and **_Segment 3_**), while the other reader group (**_Reader B2_**, **_Reader B3_**) have only only one stream segment to read from. Pravega makes sure that each stream segment is read exactly by one reader in any reader group configured with that stream. Irrespective of  readers being added to the reader group or removed from the reader group due to crash, Pravega reassigns stream segments to maintain balance amongst the readers.
 
 The number of stream segments in a stream determines the upper bound of
 parallelism of readers within a reader group. If there are more stream segments, different reader groups and many parallel sets of readers can effectively consume the stream. In the
-above figure, _Stream 1_ has four stream segments. The largest effective reader group would contain four readers. _Reader group B_ in the above figure is not quite optimal. If one more reader was added to the reader group, each reader would have one stream segment to process, and maximizes the read
+above figure, **_Stream 1_** has four stream segments. The largest effective reader group would contain four readers. **_Reader group B_** in the above figure is not quite optimal. If one more reader was added to the reader group, each reader would have one stream segment to process, and maximizes the read
 parallelism. But, if the number of readers in the reader group increases beyond four, there arises a possibility that at least one of the readers will have unassigned stream segment.
 
 
-If _Stream 1_ in the figure above experienced a **Scale-Down** event, by reducing the
-number of stream segments to three, then the _Reader group B_  will have an
+If **_Stream 1_** in the figure above experienced a **Scale-Down** event, by reducing the
+number of stream segments to three, then the **_Reader group B_**  will have an
 ideal number of readers.
 
 The number of stream segments can be varied dynamically by using the Pravega's auto scaling feature as we discussed in the [Auto Scaling](#auto-scaling) section. The size of any stream is determined by the storage capacity of the Pravega cluster. More streams can be obtained by increasing the storage of the Pravega cluster.
