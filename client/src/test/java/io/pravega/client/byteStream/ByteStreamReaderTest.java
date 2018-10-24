@@ -109,10 +109,10 @@ public class ByteStreamReaderTest {
         for (int i = 0; i < 5; i++) {
             writer.write(new byte[] { (byte) i });
         }
-        reader.skip(1);
+        assertEquals(1, reader.skip(1));
         assertEquals(1, reader.getOffset());
         byte[] read = new byte[2];
-        reader.read(read);
+        assertEquals(2, reader.read(read));
         assertEquals(3, reader.getOffset());
         assertArrayEquals(new byte[] { 1, 2 }, read);
         long skipped = reader.skip(10);
