@@ -771,8 +771,6 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, tx14.getEpoch());
 
         store.sealTransaction(scope, stream, tx14.getId(), true, Optional.of(tx14.getVersion()), null, executor).get();
-        AssertExtensions.assertThrows("ongoing scale, no commit should be allowed", store.commitTransaction(scope, stream, tx14.getId(), null, executor),
-            e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
 
         // verify that new txns can be created and are created on original epoch
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
