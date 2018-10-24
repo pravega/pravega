@@ -42,7 +42,7 @@ other categorization desired by the developer.
 A stream is unbounded in size. Pravega does not impose any limits on the occurrence of number of events in the stream or on the number of total bytes that are stored in a stream.
 Pravega’s design architecture scales up horizontally from few machines into a datacenter.
 
-Pravega streams are divided into **Stream Segments**, to handle the large volume of data within a stream. A stream segment is a shared, or partition of the data within a stream. For more information, please see [Stream Segments](#stream-segments) section.
+Pravega streams are divided into **Stream Segments**, to handle the large volume of data within a stream. A stream segment is a shard, or partition of the data within a stream. For more information, please see [Stream Segments](#stream-segments) section.
 
 The data from the IoT sensor is extracted or read by a variety of applications (_e.g.,_ Java applications) and writes the read or fetched data to the tail (front) of the stream. Applications, such as a [Flink](https://flink.apache.org), can read from any point in the stream. Many applications can read and write the same stream in parallel. Elasticity, scalability, support for large volume of
 stream data and applications are the highlights of Pravega's design. More information on read and write operations in the streams will be discussed in the [Readers and Writers](#writer) section.
@@ -96,7 +96,7 @@ Writer](basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer)
 
 ## Stream Segments
 
-A stream is decomposed into a set of segments generally referred as **Stream Segments**; a stream segment is a shared or partition of a stream.
+A stream is decomposed into a set of segments generally referred as **Stream Segments**; a stream segment is a shard or partition of a stream.
 
 ![Stream Segment](img/stream.segment.png) 
 
