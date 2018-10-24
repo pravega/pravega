@@ -16,7 +16,7 @@ An overview of the key concepts of Pravega is discussed. Please, see [Terminol
 ## Streams
 
 Pravega organizes data into **Streams**.  A stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency.  A Pravega stream is
-similar to but more flexible than a "topic" in popular message-oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/).
+similar to but more flexible than a "topic" in popular message oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/).
 
 Pravega streams are based on an append-only log data structure. By using the
 append-only logs, Pravega rapidly ingest data into durable storage. It supports a large variety of application use cases as follows:
@@ -31,7 +31,7 @@ append-only logs, Pravega rapidly ingest data into durable storage. It supports 
 In Pravega, during the creation of the stream the developers assigns a meaningful
 name to the stream like "IoTSensorData" or "WebApplicationLog20170330" to provide
 more information on the type of data stored in the stream. The Pravega stream names are organized
-within a **Scope**.  A Scope is a string containing meaningful informations like "FactoryMachines" or "HRWebsitelogs" to aid in better understanding for the developers. A scope acts as a
+within a **Scope**.  A scope is a string containing meaningful informations like "FactoryMachines" or "HRWebsitelogs" to aid in better understanding for the developers. A scope acts as a
 namespace for stream names, all stream names are unique within a scope.
 
 A stream is uniquely identified by its combination of the **stream name**
@@ -44,20 +44,20 @@ Pravega’s design architecture scales up horizontally from few machines into a 
 
 Pravega streams are divided into **Stream Segments**, to handle the large volume of data within a stream. A stream segment is a shared, or partition of the data within a stream. For more information, please see [Stream Segments](#stream-segments) section.
 
-The data from the IoT sensor is extracted or read by a variety of applications (_e.g.,_ Java applications) and write the read or fetched data to the tail (front) of the stream. Applications, such as a [Flink](https://flink.apache.org), can read from any point in the stream. Many applications can read and write the same stream in parallel. Elasticity, scalability, support for large volume of
-streams, data and applications are the highlights of the Pravega's design. More information on reads and writes in the streams will be discussed in the [Readers and Writers](#writer) section.
+The data from the IoT sensor is extracted or read by a variety of applications (_e.g.,_ Java applications) and writes the read or fetched data to the tail (front) of the stream. Applications, such as a [Flink](https://flink.apache.org), can read from any point in the stream. Many applications can read and write the same stream in parallel. Elasticity, scalability, support for large volume of
+stream data and applications are the highlights of Pravega's design. More information on read and write operations in the streams will be discussed in the [Readers and Writers](#writer) section.
 
 ## Events
 
-Pravega's client API allows applications to read and write data in Pravega using **Event**.  An event is a set of bytes within a stream. Events are represented as a set of bytes. For _e.g.,_ an event could be as simple as a small number of bytes containing a temperature reading from an IoT sensor composed of
+Pravega's client API allows applications to read and write data in Pravega using **Events**.  An event is represented as a set of bytes within a stream. For example, an event could be as simple as a small number of bytes containing a temperature reading from an IoT sensor composed of
 a timestamp, a metric identifier and a value or an event could be web log data
 associated with a user click on a website. Applications make sense of events using
-standard Java _serializers_ and _deserializers_, allowing them to read and write
+standard Java **Serializers** and **Deserializers**, allowing them to read and write
 objects in Pravega similar to reading and writing objects from
 files.
 
 Every event has a **Routing Key**. A routing key is a string used by developers to group similar events. A routing key is often derived from data naturally occurring in the event,
-like "customer-id" or "machine-id" or a declared/user-defined string. For _e.g.,_ routing key could be a date (to group Events together by time) or it could be a IoT sensor id (to group Events by
+like "customer-id" or "machine-id" or a declared/user-defined string. For example, a routing key could be a date (to group Events together by time) or it could be a IoT sensor id (to group Events by
 machine). A routing key is important in defining the read and write semantics that Pravega guarantees.
 
 ## Writers, Readers, ReaderGroups <a name= "writer"></a>
@@ -65,54 +65,54 @@ machine). A routing key is important in defining the read and write semantics th
 ![Reader Client](img/producer.consumer.client.new.png)
 
 Pravega provides a client library, written in Java, that implements a convenient
-API for writer and reader applications.  The Pravega Java Client Library
+API for writer and reader applications.  The Pravega Java client library
 encapsulates the wire protocol used for communication between Pravega clients and
 Pravega.
 
-A **Writer** is an application that creates events and writes them into a stream.
+- **Writer:** An application that creates events and writes them into a stream.
 All data is written by appending to the tail (front) of a stream.
 
-A **Reader** is an application that reads events from a stream.  Readers can read
+- **Reader:** An application that reads events from a stream.  Readers can read
 from any point in the stream.  Many readers will be reading events from the tail
-of the Stream. The tail reads correspond to reading bytes that have been recently written. and will be delivered to readers immediately. Some readers will read from earlier parts or stored history of the stream (called catch-up reads or history reads). The application developer has control over the reader's start position in the stream.
+of the Stream. The tail reads correspond to reading bytes that have been recently written and will be delivered to readers immediately. Some readers will read from earlier parts or history of the stream (called **catch-up reads** or **history reads**). The application developer has control over the reader's start position in the stream.
 
-Pravega has the concept of a **Position**, that represents where in a stream a
+- **Position:** A concept in Pravega, that represents where in a stream a
 reader is currently located. The position object can be used as a recovery
 mechanism by replacing the failed reader by a new reader by restoring the last saved successful read position. Using this pattern of persisting position objects, applications can be built guaranteeing exactly once event processing by handling the reader failure.
 
-Readers are organized into **Reader Groups**.  A reader group is a named collection of
+- **Reader Groups:** Readers are organized into reader groups. A reader group is a named collection of
 readers, which together performs parallel read events in a given stream. When a
 reader is created through the Pravega data plane API, the developer includes the
 name of the reader group associated with it. Pravega guarantees that each event published
-to a stream is sent to exactly one reader within the reader group.  There could
-be one or more reader in the reader group. There could be many different reader groups simultaneously reading from any given stream.
+to a stream is sent to exactly one reader within the reader group. There could
+be one or more reader in the reader group and there could be many different reader groups simultaneously reading from any given stream.
 
-A reader group can be considered as a "composite reader" or a "distributed
+A reader group can be considered as a "composite reader" or "distributed
 reader", that allows a distributed application to read and process stream data
-in parallel. A large amount of stream data can be consumed by a coordinated fleet of readers in a reader group.  For _e.g.,_  a collection of Flink tasks, processing stream data in parallel is a good example for reader group usage.
+in parallel. A large amount of stream data can be consumed by a coordinated fleet of readers in a reader group.  For example, a collection of Flink tasks processing stream data in parallel using reader group.
 
-For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
+For more details on the basics of working with Pravega readers and writers, please see [Working with Pravega: Basic Reader and
 Writer](basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer).
 
 ## Stream Segments
 
-A stream is decomposed into a set of segments generally referred as **Stream Segments**; a stream segment is a shared or partition of a Stream.
+A stream is decomposed into a set of segments generally referred as **Stream Segments**; a stream segment is a shared or partition of a stream.
 
 ![Stream Segment](img/stream.segment.png) 
 
 ### Event in a Stream Segment
 
-The stream segments are container for events within the stream. When an
+The stream segments acts as containers for events within the stream. When an
 event is written into a stream, it is stored in one of the stream segments based
 on the event's routing key. Pravega uses consistent hashing to assign events to
 stream segments. Event routing keys are hashed to form a "key space". The key
 space is then divided into a number of partitions, corresponding to the number
-of stream segments. Consistent hashing determines in assigning the segment to an event.
+of stream segments. Consistent hashing determines the allotment of the specific segment to an event.
 
 
 ### Auto Scaling
 
-Varying the number of stream segments over time is referred as Auto Scaling. The number of stream segments in a stream can *grow* and *shrink* over time based on the variation in the I/O
+Varying the number of stream segments over time is referred as **Auto Scaling**. The number of stream segments in a stream can *grow* and *shrink* over time based on the variation in the I/O
 load on the stream.
 
 Consider the following figure that shows the relationship between routing keys
@@ -120,25 +120,25 @@ and time.
 
 ![Stream Segment](img/segment.split.merge.overtime.new.png) 
 
-- A stream starts at time _t0_ with a configurable number of segments.  If the
+- A stream starts at time **_t0_** with a configurable number of segments.  If the
 rate of data written to the stream is constant, there will be no change in the number of segments. 
 
-- At time _t1_, the system noted an increase in the ingestion rate and splits _Segment 1_ into two parts. This process is referred as **Scale-up** event.
+- At time **_t1_**, the system noted an increase in the ingestion rate and splits **_Segment 1_** into two parts. This process is referred as **Scale-up** event.
 
-- Before _t1_, events with a routing key that hashes to the upper part of the key
-space (i.e., values ranging from 200-399) would be placed in _Segment 1_ and those that hash into the
-lower part of the key space (i.e., values ranging from 0-199) would be placed in _Segment 0_.
+- Before **_t1_**, events with a routing key that hashes to the upper part of the key
+space (i.e., values ranging from 200-399) would be placed in **_Segment 1_** and those that hash into the
+lower part of the key space (i.e., values ranging from 0-199) would be placed in **_Segment 0_**.
 
-- After _t1_, _Segment 1_ is split into _Segment 2_ and _Segment 3_. _Segment 1_ is sealed and stops accepting writes.  At this point in time, Events with routing key _300_ and _above_ are written to _Segment 3_ and those between _200_ and _299_ would be written into _Segment 2_.
+- After **_t1_**, **_Segment 1_** is split into **_Segment 2_** and **_Segment 3_**. The **_Segment 1_** is sealed and stops accepting writes.  At this point in time, Events with routing key **_300_** and _above_ are written to **_Segment 3_** and those between **_200_** and **_299_** would be written into **_Segment 2_**.
 
-- _Segment 0_ continues accepting the same range of events as before _t1_.  
+- **_Segment 0_** continues accepting the same range of events as before **_t1_**.  
 
-- Another scale-up event occurs at time _t2_, as _Segment 0_’s range of routing
-key is split into _Segment 5_ and _Segment 4_. Also at this time, _Segment 0_ is sealed
+- Another scale-up event occurs at time **_t2_**, as **_Segment 0_**’s range of routing
+key is split into **_Segment 5_** and **_Segment 4_**. Also at this time, **_Segment 0_** is sealed
 and allows no further writes.
 
 - Segments covering a contiguous range of the key space can also be merged. At
-time _t3_, _Segment 2_’s range and _Segment 5_’s range are merged to _Segment 6_ to
+time **_t3_**, **_Segment 2_**’s range and **_Segment 5_**’s range are merged to **_Segment 6_** to
 accommodate a decrease in the load on the stream.
 
 When a stream is created, it is configured with a **Scaling Policy** that
