@@ -98,14 +98,15 @@ public class ByteStreamTest {
         String stream = "ReadWriteTest";
 
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
-            // create a scope
-            Boolean createScopeStatus = streamManager.createScope(scope);
-            log.info("Create scope status {}", createScopeStatus);
-            // create a stream
-            Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
-            log.info("Create stream status {}", createStreamStatus);
-        }
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller);
+        // create a scope
+        Boolean createScopeStatus = streamManager.createScope(scope);
+        log.info("Create scope status {}", createScopeStatus);
+        // create a stream
+        Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
+        log.info("Create stream status {}", createStreamStatus);
+
 
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -146,15 +147,15 @@ public class ByteStreamTest {
         String stream = "ReadWriteTest";
 
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
-            // create a scope
-            Boolean createScopeStatus = streamManager.createScope(scope);
-            log.info("Create scope status {}", createScopeStatus);
-            // create a stream
-            Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
-            log.info("Create stream status {}", createStreamStatus);
-        }
-
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller);
+        // create a scope
+        Boolean createScopeStatus = streamManager.createScope(scope);
+        log.info("Create scope status {}", createScopeStatus);
+        // create a stream
+        Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
+        log.info("Create stream status {}", createStreamStatus);
+   
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
