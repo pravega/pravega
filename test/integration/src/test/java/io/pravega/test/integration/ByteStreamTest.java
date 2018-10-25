@@ -99,7 +99,7 @@ public class ByteStreamTest {
 
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -147,7 +147,7 @@ public class ByteStreamTest {
 
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);
@@ -191,7 +191,7 @@ public class ByteStreamTest {
 
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
         Boolean createScopeStatus = streamManager.createScope(scope);
         log.info("Create scope status {}", createScopeStatus);

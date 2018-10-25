@@ -141,7 +141,7 @@ public class MetricsTest {
 
     @Test
     public void metricsTimeBasedCacheEvictionTest() throws InterruptedException, ExecutionException {
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+        try (StreamManager streamManager = new StreamManagerImpl(controller, null)) {
             boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
 

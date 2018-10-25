@@ -158,7 +158,7 @@ public class ControllerStreamMetadataTest {
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        StreamManager streamManager = new StreamManagerImpl(controller, null);
 
         // Create and delete scope
         assertTrue(streamManager.createScope(SCOPE));

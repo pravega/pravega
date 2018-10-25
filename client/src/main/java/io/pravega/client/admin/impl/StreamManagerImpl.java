@@ -41,7 +41,8 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @VisibleForTesting
-    public StreamManagerImpl(Controller controller) {
+    public StreamManagerImpl(Controller controller, @SuppressWarnings("unused") Void nothing) {
+        // Nothing is passed to work around a bug in the compiler where it will confuse this constructor with the one above.
         this.executor = null;
         this.controller = controller;
     }

@@ -131,7 +131,7 @@ public class ReadWriteTest {
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
         stopReadFlag = new AtomicBoolean(false);
 
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+        try (StreamManager streamManager = new StreamManagerImpl(controller, null)) {
             //create a scope
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
