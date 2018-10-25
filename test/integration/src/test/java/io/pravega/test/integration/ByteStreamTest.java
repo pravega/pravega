@@ -33,6 +33,7 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
 import java.util.Arrays;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -106,37 +107,39 @@ public class ByteStreamTest {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-                ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory)) {
-            ByteStreamClient client = clientFactory.createByteStreamClient();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        ByteStreamClient client = clientFactory.createByteStreamClient();
 
-            byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-            byte[] readBuffer = new byte[10];
+        byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        byte[] readBuffer = new byte[10];
 
-            ByteStreamWriter writer = client.createByteStreamWriter(stream);
-            ByteStreamReader reader = client.createByteStreamReader(stream);
+        ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        ByteStreamReader reader = client.createByteStreamReader(stream);
 
-            AssertExtensions.assertBlocks(() -> reader.read(readBuffer), () -> writer.write(payload));
-            assertArrayEquals(payload, readBuffer);
-            Arrays.fill(readBuffer, (byte) 0);
-            writer.write(payload);
-            writer.write(payload);
-            writer.write(payload);
-            writer.closeAndSeal();
-            assertEquals(10, reader.read(readBuffer));
-            assertArrayEquals(payload, readBuffer);
-            for (int i = 0; i < 10; i++) {
-                assertEquals(i, reader.read());
-            }
-            Arrays.fill(readBuffer, (byte) -1);
-            assertEquals(5, reader.read(readBuffer, 0, 5));
-            assertEquals(5, reader.read(readBuffer, 5, 5));
-            assertArrayEquals(payload, readBuffer);
-            assertEquals(-1, reader.read());
-            assertEquals(-1, reader.read(readBuffer));
+        AssertExtensions.assertBlocks(() -> reader.read(readBuffer), () -> writer.write(payload));
+        assertArrayEquals(payload, readBuffer);
+        Arrays.fill(readBuffer, (byte) 0);
+        writer.write(payload);
+        writer.write(payload);
+        writer.write(payload);
+        writer.closeAndSeal();
+        assertEquals(10, reader.read(readBuffer));
+        assertArrayEquals(payload, readBuffer);
+        for (int i = 0; i < 10; i++) {
+            assertEquals(i, reader.read());
         }
+        Arrays.fill(readBuffer, (byte) -1);
+        assertEquals(5, reader.read(readBuffer, 0, 5));
+        assertEquals(5, reader.read(readBuffer, 5, 5));
+        assertArrayEquals(payload, readBuffer);
+        assertEquals(-1, reader.read());
+        assertEquals(-1, reader.read(readBuffer));
+
     }
-    
+
     @Test(timeout = 30000)
     public void readLargeWrite() throws IOException {
         String scope = "ByteStreamTest";
@@ -152,31 +155,33 @@ public class ByteStreamTest {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-                ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory)) {
-            ByteStreamClient client = clientFactory.createByteStreamClient();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        ByteStreamClient client = clientFactory.createByteStreamClient();
 
-            byte[] payload = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 2];
-            Arrays.fill(payload, (byte) 7);
-            byte[] readBuffer = new byte[PendingEvent.MAX_WRITE_SIZE];
-            Arrays.fill(readBuffer, (byte) 0);
+        byte[] payload = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 2];
+        Arrays.fill(payload, (byte) 7);
+        byte[] readBuffer = new byte[PendingEvent.MAX_WRITE_SIZE];
+        Arrays.fill(readBuffer, (byte) 0);
 
-            ByteStreamWriter writer = client.createByteStreamWriter(stream);
-            ByteStreamReader reader = client.createByteStreamReader(stream);
-            writer.write(payload);
-            writer.closeAndSeal();
-            assertEquals(PendingEvent.MAX_WRITE_SIZE, StreamHelpers.readAll(reader, readBuffer, 0, readBuffer.length));
-            assertEquals(7, readBuffer[readBuffer.length - 1]);
-            Arrays.fill(readBuffer, (byte) 0);
-            assertEquals(PendingEvent.MAX_WRITE_SIZE, StreamHelpers.readAll(reader, readBuffer, 0, readBuffer.length));
-            assertEquals(7, readBuffer[readBuffer.length - 1]);
-            Arrays.fill(readBuffer, (byte) 0);
-            assertEquals(2, reader.read(readBuffer));
-            assertEquals(7, readBuffer[0]);
-            assertEquals(7, readBuffer[1]);
-            assertEquals(0, readBuffer[2]);
-            assertEquals(-1, reader.read(readBuffer));
-        }
+        ByteStreamWriter writer = client.createByteStreamWriter(stream);
+        ByteStreamReader reader = client.createByteStreamReader(stream);
+        writer.write(payload);
+        writer.closeAndSeal();
+        assertEquals(PendingEvent.MAX_WRITE_SIZE, StreamHelpers.readAll(reader, readBuffer, 0, readBuffer.length));
+        assertEquals(7, readBuffer[readBuffer.length - 1]);
+        Arrays.fill(readBuffer, (byte) 0);
+        assertEquals(PendingEvent.MAX_WRITE_SIZE, StreamHelpers.readAll(reader, readBuffer, 0, readBuffer.length));
+        assertEquals(7, readBuffer[readBuffer.length - 1]);
+        Arrays.fill(readBuffer, (byte) 0);
+        assertEquals(2, reader.read(readBuffer));
+        assertEquals(7, readBuffer[0]);
+        assertEquals(7, readBuffer[1]);
+        assertEquals(0, readBuffer[2]);
+        assertEquals(-1, reader.read(readBuffer));
+
     }
     
 }
