@@ -110,6 +110,9 @@ public class MockController implements Controller {
 
         createdStreams.put(stream, streamConfig);
         createdScopes.get(streamConfig.getScope()).add(stream);
+        for (Segment segment : getSegmentsForStream(stream)) {
+            createSegment(segment.getScopedName());
+        }
         return CompletableFuture.completedFuture(true);
     }
     
@@ -167,14 +170,14 @@ public class MockController implements Controller {
             return CompletableFuture.completedFuture(false);
         }
         for (Segment segment : getSegmentsForStream(stream)) {
-            deleteSegment(segment.getScopedName(), new PravegaNodeUri(endpoint, port));
+            deleteSegment(segment.getScopedName());
         }
         createdStreams.remove(stream);
         createdScopes.get(scope).remove(stream);
         return CompletableFuture.completedFuture(true);
     }
 
-    private boolean createSegment(String name, PravegaNodeUri uri) {
+    private boolean createSegment(String name) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -213,7 +216,7 @@ public class MockController implements Controller {
         return getAndHandleExceptions(result, RuntimeException::new);
     }
     
-    private boolean deleteSegment(String name, PravegaNodeUri uri) {
+    private boolean deleteSegment(String name) {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 

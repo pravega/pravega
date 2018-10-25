@@ -78,13 +78,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
-
-        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .build()),
-                RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.createStream(config), RuntimeException::new);
     }
 
     @Override
@@ -97,12 +91,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .build();
         }
 
-        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .build()),
-                RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.updateStream(config), RuntimeException::new);
     }
 
     @Override
@@ -114,11 +103,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                  .scope(scope)
-                                                                                  .streamName(streamName)
-                                                                                  .scalingPolicy(config.getScalingPolicy())
-                                                                                  .build()),
+        Futures.getAndHandleExceptions(controller.createStream(config),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
