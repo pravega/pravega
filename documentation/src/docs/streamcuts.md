@@ -91,4 +91,4 @@ fetch segments which reside between the given `startStreamCut` and `endStreamCut
 It must be noted that passing ```StreamCut.UNBOUNDED``` to `startStreamCut` and `endStreamCut` will result in using the current head of stream and the current tail of the stream, respectively.
 
 
-We have provided a simple yet illustrative example of using StreamCut [here](https://github.com/pravega/pravega-samples/tree/v0.3.2/pravega-client-examples/src/main/java/io/pravega/example/streamcuts).
+We have provided a simple yet illustrative example of using StreamCut [here](https://github.com/pravega/pravega-samples/tree/v0.4.0/pravega-client-examples/src/main/java/io/pravega/example/streamcuts).
