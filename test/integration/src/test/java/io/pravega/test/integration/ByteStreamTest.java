@@ -183,7 +183,6 @@ public class ByteStreamTest {
         assertEquals(-1, reader.read(readBuffer));
     }
     
-    
     @Test(timeout = 30000)
     public void testBlockingRead() throws IOException {
         String scope = "ByteStreamTest";
