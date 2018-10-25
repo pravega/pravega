@@ -30,6 +30,7 @@ import java.util.AbstractMap;
 @AllArgsConstructor
 public class EpochTransitionRecord {
     public static final EpochTransitionRecordSerializer SERIALIZER = new EpochTransitionRecordSerializer();
+    public static final EpochTransitionRecord EMPTY = new EpochTransitionRecord(Integer.MIN_VALUE, Long.MIN_VALUE, ImmutableSet.of(), ImmutableMap.of());
 
     /**
      * Active epoch at the time of requested transition.

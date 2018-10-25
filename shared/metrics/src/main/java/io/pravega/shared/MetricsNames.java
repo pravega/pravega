@@ -47,7 +47,7 @@ public final class MetricsNames {
 
     // Cache (RocksDB) stats
     public static final String CACHE_INSERT_LATENCY = "segmentstore.cache.insert_latency_ms";
-    public static final String CACHE_GET_LATENCY = "segment.store.cache.get_latency_ms";
+    public static final String CACHE_GET_LATENCY = "segmentstore.cache.get_latency_ms";
     public static final String CACHE_TOTAL_SIZE_BYTES = "segmentstore.cache.size_bytes";
     public static final String CACHE_GENERATION_SPREAD = "segmentstore.cache.gen";
 
