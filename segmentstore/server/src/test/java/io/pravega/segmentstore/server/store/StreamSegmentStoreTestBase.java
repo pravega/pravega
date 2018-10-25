@@ -738,7 +738,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // 1. Deletion status
             SegmentProperties sp = null;
             try {
-                sp = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                sp = baseStore.getStreamSegmentInfo(segmentName, true, TIMEOUT).join();
             } catch (Exception ex) {
                 if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
