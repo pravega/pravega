@@ -229,8 +229,18 @@ project('segmentstore:storage:impl') {
 
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
 
+        compile project(':common')
+        compile project(':segmentstore:storage')
+        compile project(':shared:metrics')
+        testCompile project(':test:testcommon')
+        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+    }
+}
+
+project ('bindings') {
+    dependencies {
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
-        compile group: 'org.apache.hadoop', name: 'hadoop-common', version:hadoopVersion, withoutLogger
+        compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
 
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
@@ -246,7 +256,7 @@ project('segmentstore:storage:impl') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
-        testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
 }
 
@@ -283,6 +293,7 @@ project('segmentstore:server:host') {
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
+        compile project(':bindings')
         compile project(':segmentstore:server')
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
@@ -290,6 +301,7 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
+        testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
         compile 'io.jsonwebtoken:jjwt:0.9.0'
     }
@@ -552,6 +564,7 @@ project('standalone') {
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
+        compile project(':bindings')
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
