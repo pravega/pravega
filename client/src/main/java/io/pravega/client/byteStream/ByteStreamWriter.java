@@ -95,6 +95,6 @@ public abstract class ByteStreamWriter extends OutputStream {
      * {@link #write(byte[])} that have been flushed. It does not include data that was passed to
      * {@link #write(byte[])} but which has not yet been persisted.
      */
-    public abstract long fetchOffset();
+    public abstract long fetchTailOffset();
     
 }

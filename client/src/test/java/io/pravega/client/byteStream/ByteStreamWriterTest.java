@@ -56,11 +56,11 @@ public class ByteStreamWriterTest {
         byte[] value = new byte[] { 1, 2, 3, 4, 5 };
         writer.write(value);
         writer.flush();
-        assertEquals(value.length, writer.fetchOffset());
+        assertEquals(value.length, writer.fetchTailOffset());
         writer.write(value);
         writer.write(value);
         writer.flush();
-        assertEquals(value.length * 3, writer.fetchOffset());
+        assertEquals(value.length * 3, writer.fetchTailOffset());
     }
     
     @Test(timeout = 5000)
@@ -89,7 +89,7 @@ public class ByteStreamWriterTest {
             writer.write(i);
         }
         writer.flush();
-        assertEquals(numBytes, writer.fetchOffset());
+        assertEquals(numBytes, writer.fetchTailOffset());
     }
     
     @Test(timeout = 5000)
@@ -117,13 +117,13 @@ public class ByteStreamWriterTest {
         Arrays.fill(value, (byte) 1);
         writer.write(value);
         writer.flush();
-        assertEquals(value.length, writer.fetchOffset());
+        assertEquals(value.length, writer.fetchTailOffset());
         Arrays.fill(value, (byte) 2);
         writer.write(value);
         Arrays.fill(value, (byte) 3);
         writer.write(value);
         writer.flush();
-        assertEquals(value.length * 3L, writer.fetchOffset());
+        assertEquals(value.length * 3L, writer.fetchTailOffset());
     }
     
     
@@ -151,6 +151,6 @@ public class ByteStreamWriterTest {
         ByteBuffer toWrite = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4 });
         writer.write(toWrite);
         writer.closeAndSeal();
-        assertEquals(5, writer.fetchOffset());
+        assertEquals(5, writer.fetchTailOffset());
     }
 }
