@@ -58,7 +58,7 @@ Pravega can be installed locally or in a distributed environment. The installati
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the [Slack](https://pravega-io.slack.com/) if you need any help.
+Don’t hesitate to ask! Contact the developers and community on the [Slack](https://pravega-io.slack.com/) or email at security@pravega.io if you need any help.
 Please open an issue in [Github Issues](https://github.com/pravega/pravega/issues) if you find a bug.
 
 ## Contributing
