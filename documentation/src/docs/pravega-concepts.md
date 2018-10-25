@@ -1,4 +1,4 @@
-<!--
+Transactions<!--
 Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,7 +11,7 @@ You may obtain a copy of the License at
 
 Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.
 
-An overview of the key concepts of Pravega is discussed. Please, see [Terminology](terminology.md) for a concise definition of key terms of Pravega concepts.
+Next, we overview the key concepts in Pravega, for a concise definition of key terms of Pravega concepts, please see [Terminology](terminology.md) .
 
 ## Streams
 
@@ -19,77 +19,66 @@ Pravega organizes data into **Streams**.  A Stream is a durable, elastic, appen
 similar to but more flexible than a "topic" in popular message oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/).
 
 Pravega Streams are based on an append-only log data structure. By using the
-append-only logs, Pravega rapidly ingest data into durable storage. It supports a large variety of application use cases as follows:
+append-only logs, Pravega rapidly ingests data into durable storage. It supports a large variety of application use cases:
 
-- Supports Stream processing by using frameworks like [Flink](https://flink.apache.org).
+- Stream processing with frameworks like [Flink](https://flink.apache.org).
 - Publish/subscribe messaging.
-- NoSQL databases like Time Series.
-- Database (TSDB).
+- NoSQL databases like Time Series Database (TSDB).
 - Workflow engines.
-- Event-oriented applications, etc., 
+- Event-oriented applications, etc. 
 
-In Pravega, during the creation of the Stream the developers assigns a meaningful
-name to the Stream like "IoTSensorData" or "WebApplicationLog20170330" to provide
-more information on the type of data stored in the Stream. The Pravega Stream names are organized
-within a **Scope**.  A scope is a string containing meaningful informations like "FactoryMachines" or "HRWebsitelogs" to aid in better understanding for the developers. A scope acts as a
-namespace for Stream names, all Stream names are unique within a scope.
+When a developer creates a Stream in Pravega, s/he gives the Stream a meaningful name such as "IoTSensorData" or "WebApplicationLog20170330" to inform about the type of data it stores. A Scope acts as a namespace for Stream names; all Stream names are unique within their Scope. Therefore, a Stream is uniquely identified by its combination of its name and Scope. Developers can also define meaningful Scope names, such as "FactoryMachines" or "HRWebsitelogs", to effectively organize collections of Streams. For example, Scopes can be used to classify Streams by tenant (in a multi tenant environment), by department in an organization or by geographic location.
 
-A Stream is uniquely identified by its combination of the **Stream name**
-and **scope**. Scope can be used to classify names by tenant (in a multi tenant
-environment) or by department in an organization or by geographic location or any
-other categorization desired by the developer.
-
-A Stream is unbounded in size. Pravega does not impose any limits on the occurrence of number of Events in the Stream or on the number of total bytes that are stored in a Stream.
-Pravega’s design architecture scales up horizontally from few machines into a datacenter.
+A Stream is unbounded in size – Pravega itself does not impose any limits on how many Events can be in a Stream or how many total bytes are stored in a Stream. Pravega’s design horizontally scales from few machines to a whole datacenter’s capacity.
 
 Pravega Streams are divided into **Stream Segments**, to handle the large volume of data within a Stream. A Stream Segment is a shard, or partition of the data within a Stream. For more information, please see [Stream Segments](#stream-segments) section.
 
-The data from the IoT sensor is extracted or read by a variety of applications (_e.g.,_ Java applications) and writes the read or fetched data to the tail (front) of the Stream. Applications, such as a [Flink](https://flink.apache.org), can read from any point in the Stream. Many applications can read and write the same Stream in parallel. Elasticity, scalability, support for large volume of
-Stream data and applications are the highlights of Pravega's design. More information on read and write operations in the Streams will be discussed in the [Readers and Writers](#writer) section.
+Applications, such as a Java program reading from an IoT sensor, write data to the tail (front) of the Stream.  Applications, such as a [Flink](https://flink.apache.org) or Hadoop jobs, can read from any point in the Stream. Many applications can read and write the same Stream in parallel. Elasticity, scalability, support for large volume of Stream data and applications are the highlights of Pravega's design. More information on read and write operations in the Streams will be discussed in the [Readers and Writers](#writers-readers-readergroups) section.
 
 ## Events
 
-Pravega's client API allows applications to read and write data in Pravega using **Events**.  An Event is represented as a set of bytes within a Stream. For example, an Event could be as simple as a small number of bytes containing a temperature reading from an IoT sensor composed of
-a timestamp, a metric identifier and a value or an Event could be web log data
+Pravega's client API allows applications to write and read data to/from Pravega in the form of **Event**. An Event is represented as a set of bytes within a Stream. For example, an Event could be as simple as a small number of bytes containing a temperature reading from an IoT sensor composed of
+a timestamp, a metric identifier and a value. An Event could also be a web log data
 associated with a user click on a website. Applications make sense of Events using
-standard Java **Serializers** and **Deserializers**, allowing them to read and write
-objects in Pravega similar to reading and writing objects from
+standard Java **serializers** and **deserializers**, allowing them to read and write
+objects in Pravega similarly to reading and writing objects from
 files.
 
 Every Event has a **Routing Key**. A Routing Key is a string used by developers to group similar Events. A Routing Key is often derived from data naturally occurring in the Event,
 like "customer-id" or "machine-id" or a declared/user-defined string. For example, a Routing Key could be a date (to group Events together by time) or it could be a IoT sensor id (to group Events by
 machine). A Routing Key is important in defining the read and write semantics that Pravega guarantees.
 
-## Writers, Readers, ReaderGroups <a name= "Writer"></a>
+## Writers, Readers, ReaderGroups
 
 ![Reader Client](img/producer.consumer.client.new.png)
 
-Pravega provides a Client Library, written in Java, that implements a convenient
+Pravega provides a client library, written in Java, that implements a convenient
 API for Writer and Reader applications.  The Pravega Java Client Library
-encapsulates the wire protocol used for communication between Pravega clients and
-Pravega.
+encapsulates the wire protocol used to communicate Pravega clients and
+servers.
 
 - **Writer:** An application that creates Events and writes them into a Stream.
 All data is written by appending to the tail (front) of a Stream.
 
 - **Reader:** An application that reads Events from a Stream.  Readers can read
 from any point in the Stream.  Many Readers will be reading Events from the tail
-of the Stream. The tail reads correspond to reading bytes that have been recently written and will be delivered to Readers immediately. Some Readers will read from earlier parts or history of the Stream (called **catch-up reads** or **history reads**). The application developer has control over the Reader's start position in the Stream.
+of the Stream. Tail reads corresponding to recently written Events are immediately delivered to readers.
+Some Readers will read from earlier parts or history of the Stream (called **catch-up reads**). The application developer has control over the Reader's start position in the Stream.
 
 - **Position:** A concept in Pravega, that represents where in a Stream a
 Reader is currently located. The position object can be used as a recovery
 mechanism by replacing the failed Reader by a new Reader by restoring the last saved successful read position. Using this pattern of persisting position objects, applications can be built guaranteeing exactly once Event processing by handling the Reader failure.
 
-- **Reader Groups:** Readers are organized into Reader Groups. A Reader Group is a named collection of
+- **ReaderGroups:** Readers are organized into ReaderGroups. A ReaderGroup is a named collection of
 Readers, which together performs parallel read Events in a given Stream. When a
 Reader is created through the Pravega data plane API, the developer includes the
-name of the Reader Group associated with it. Pravega guarantees that each Event published
-to a Stream is sent to exactly one Reader within the Reader Group. There could
-be one or more Reader in the Reader Group and there could be many different Reader Groups simultaneously reading from any given Stream.
+name of the ReaderGroup associated with it. Pravega guarantees that each Event published
+to a Stream is sent to exactly one Reader within the ReaderGroup. There could
+be one or more Reader in the ReaderGroup and there could be many different ReaderGroups simultaneously reading from any given Stream.
 
-A Reader Group can be considered as a "composite Reader" or "distributed
+A ReaderGroup can be considered as a "composite Reader" or "distributed
 Reader", that allows a distributed application to read and process Stream data
-in parallel. A large amount of Stream data can be consumed by a coordinated fleet of Readers in a Reader Group.  For example, a collection of Flink tasks processing Stream data in parallel using Reader Group.
+in parallel. A large amount of Stream data can be consumed by a coordinated fleet of Readers in a ReaderGroup.  For example, a collection of Flink tasks processing Stream data in parallel using ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
 Writer](basic-Reader-and-Writer.md#working-with-pravega-basic-Reader-and-Writer).
@@ -142,7 +131,7 @@ time **_t3_**, **_Segment 2_**’s range and **_Segment 5_**’s range are merge
 accommodate a decrease in the load on the Stream.
 
 When a Stream is created, it is configured with a **Scaling Policy** that
-determines, how a Stream handles the varying changes in its load? In the present scenario, Pravega has three kinds of scaling policy:
+determines, how a Stream handles the varying changes in its load? In the present scenario, Pravega has three kinds of Scaling Policy:
 
 1.  **Fixed**:  The number of Stream Segments does not vary with load.
 
@@ -165,25 +154,25 @@ at time **_now_**, only Stream **_Segments 3_**, **_6_** and **_4_** are active 
 
 ### Stream Segments and ReaderGroups
 
-Stream Segments play a major role in understanding the way Reader Groups work.
+Stream Segments play a major role in understanding the way ReaderGroups work.
 
 ![Stream Segment](img/Segment.Readergroup.png) 
 
-Pravega assigns _zero_ or more Stream Segments to each Reader in a Reader Group. Pravega tries to balances the number of Stream Segments assigned to each Reader. In the figure above, **_Reader B1_** reads from two Stream Segments (**_Segment 0_** and **_Segment 3_**), while the other Reader Group (**_Reader B2_**, **_Reader B3_**) have only only one Stream Segment to read from. Pravega makes sure that each Stream Segment is read exactly by one Reader in any Reader Group configured with that Stream. Irrespective of  Readers being added to the Reader Group or removed from the Reader Group due to crash, Pravega reassigns Stream Segments to maintain balance amongst the Readers.
+Pravega assigns _zero_ or more Stream Segments to each Reader in a ReaderGroup. Pravega tries to balances the number of Stream Segments assigned to each Reader. In the figure above, **_Reader B1_** reads from two Stream Segments (**_Segment 0_** and **_Segment 3_**), while the other ReaderGroup (**_Reader B2_**, **_Reader B3_**) have only only one Stream Segment to read from. Pravega makes sure that each Stream Segment is read exactly by one Reader in any ReaderGroup configured with that Stream. Irrespective of  Readers being added to the ReaderGroup or removed from the ReaderGroup due to crash, Pravega reassigns Stream Segments to maintain balance amongst the Readers.
 
 The number of Stream Segments in a Stream determines the upper bound of
-parallelism of Readers within a Reader Group. If there are more Stream Segments, different Reader Groups and many parallel sets of Readers can effectively consume the Stream. In the
-above figure, **_Stream 1_** has four Stream Segments. The largest effective Reader Group would contain four Readers. **_Reader Group B_** in the above figure is not quite optimal. If one more Reader was added to the Reader Group, each Reader would have one Stream Segment to process, and maximizes the read
-parallelism. But, if the number of Readers in the Reader Group increases beyond four, there arises a possibility that at least one of the Readers will have unassigned Stream Segment.
+parallelism of readers within a ReaderGroup. If there are more Stream Segments, different ReaderGroups and many parallel sets of Readers can effectively consume the Stream. In the
+above figure, **_Stream 1_** has four Stream Segments. The largest effective ReaderGroup would contain four Readers. **_ReaderGroup B_** in the above figure is not quite optimal. If one more Reader was added to the ReaderGroup, each Reader would have one Stream Segment to process, and maximizes the read
+parallelism. But, if the number of Readers in the ReaderGroup increases beyond four, there arises a possibility that at least one of the Readers will have unassigned Stream Segment.
 
 
-If **_Stream 1_** in the figure above experienced a **Scale-Down** Event, by reducing the
-number of Stream Segments to three, then the **_Reader Group B_**  will have an
+If **_Stream 1_** in the figure above experienced a **Scale-Down** event, by reducing the
+number of Stream Segments to three, then the **_ReaderGroup B_**  will have an
 ideal number of Readers.
 
 The number of Stream Segments can be varied dynamically by using the Pravega's auto scaling feature as we discussed in the [Auto Scaling](#auto-scaling) section. The size of any Stream is determined by the storage capacity of the Pravega cluster. More Streams can be obtained by increasing the storage of the Pravega cluster.
 
-Applications can react to changes in the number of Segments in a Stream by adjusting the number of Readers within a Reader Group, to maintain optimal read parallelism. Flink application is the best example for this scenario as it allows Flink to increase or decrease the number of task instances that are processing a Stream in parallel.
+Applications can react to changes in the number of Segments in a Stream by adjusting the number of Readers within a ReaderGroup, to maintain optimal read parallelism. Flink application is the best example for this scenario as it allows Flink to increase or decrease the number of task instances that are processing a Stream in parallel.
 
 ### Ordering Guarantees
 
@@ -204,17 +193,17 @@ This results in the following ordering guarantees:
 
 - If multiple Readers are reading a Stream and backs up for a while and then again when it performs re-reads, it is assured that no reordering would have happened.
 
-## Reader Group Checkpoints
+## ReaderGroup Checkpoints
 
 Pravega provides the ability for an application to initiate a **Checkpoint** on a
-Reader Group.  The idea with a checkpoint is to create a consistent "point in
-time" persistence of the state of each Reader in the Reader Group, by using a
+ReaderGroup.  The idea with a Checkpoint is to create a consistent "point in
+time" persistence of the state of each Reader in the ReaderGroup, by using a
 specialized Event (_Checkpoint Event_) to signal each Reader to preserve its
-state. Once a checkpoint has been completed, the application can use the
-checkpoint to reset all the Readers in the Reader Group to the known consistent
-state represented by the checkpoint.
+state. Once a Checkpoint has been completed, the application can use the
+Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
+state represented by the Checkpoint.
 
-For more details on working with Reader Groups, Please see [ReaderGroup Basics](basic-Reader-and-Writer.md#Readergroup-basics).
+For more details on working with ReaderGroups, Please see [ReaderGroup Basics](basic-Reader-and-Writer.md#Readergroup-basics).
 
 
 ## Transactions
@@ -225,10 +214,10 @@ useful, for example, in Flink jobs, Pravega is used as a sink.  The Flink job
 can continuously produce results for some data processing and use the transaction
 to durably accumulate the results of the processing. For example, at the end of some sort of
 time window, the Flink job can commit the transaction and therefore
-make the results of the processing available for downStream processing, or in
+make the results of the processing available for downstream processing, or in
 the case of an error, the transaction is aborted and the results disappear.
 
-A key difference between Pravega's transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the transaction are **not** visible to Readers until the transaction is committed by the Writer. A transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
+A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the transaction are **not** visible to Readers until the transaction is committed by the Writer. A transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
 transaction, the Event itself is appended to a Stream Segment of the
 transaction. 
 
@@ -241,7 +230,7 @@ Segments is automatically appended to the corresponding Segment in the Stream. 
 
 Events published into a transaction are visible to the Reader only after the transaction is committed.
 
-For more details on working with transactions, Please see [Working with Pravega:
+For more details on working with Transactions, Please see [Working with Pravega:
 Transactions](transactions.md).
 
 ## State Synchronizers
@@ -254,7 +243,7 @@ mechanism for state shared between multiple processes running in a cluster and m
 State Synchronizer could be used to maintain a single, shared copy of an
 application's configuration property across all instances of that application in
 a cloud.  State Synchronizer could also be used to store one piece of data or a
-map with thousands of different key value pairs. In Pravega, managing the state of Reader Groups and distribution of Readers throughout the network is implemented using State Synchronizer.
+map with thousands of different key value pairs. In Pravega, managing the state of ReaderGroups and distribution of Readers throughout the network is implemented using State Synchronizer.
 
 An application developer creates a State Synchronizer on a Stream similar to the creation of Writer. The State Synchronizer keeps a local copy of the shared state and allows faster access to the data in the application. State Synchronizer keeps track of all the changes happening in the shred state and responsible for performing any modification to the shared state in the Stream. Each application instance uses the State Synchronizer, to remain updated with the
 changes by pulling updates to the shared state and modifies the local copy of the
@@ -311,8 +300,8 @@ permanently destroys a large portion of a data center, but data stored in Praveg
 lost.
 
 Pravega provides a **Java Client Library**, for building client-side
-applications such as analytics applications using Flink. The Pravega Java client
-library manages the interaction between the application code and Pravega via a
+applications such as analytics applications using Flink. The Pravega Java Client
+Library manages the interaction between the application code and Pravega via a
 custom TCP wire protocol.
 
 
@@ -322,26 +311,26 @@ The concepts in Pravega are depicted in the following figure:
 
 ![State synchroner](img/putting.all.together.new.png) 
 
--   Pravega clients are **Writers** and **Readers**.  Writers write Events into a
+-   Pravega clients are Writers and Readers.  Writers write Events into a
     Stream. Readers read Events from a Stream. Readers are grouped into
-    **Reader Groups** to read from a Stream in parallel.
+    ReaderGroups to read from a Stream in parallel.
 
--   The **Controller** is a server-side component that manages the control plane of
+-   The Controller is a server-side component that manages the control plane of
     Pravega.  Streams are created, updated and listed using the Controller API.
 
--   The **Pravega Server** is a server-side component that implements reads, writes
+-   The Pravega Server is a server-side component that implements reads, writes
     and other data plane operations.
 
--   **Streams** are the fundamental storage primitive in Pravega.  Streams contain a
+-   Streams are the fundamental storage primitive in Pravega.  Streams contain a
     set of data elements called Events.  Events are appended to the “tail” of
     the Stream by Writers.  Readers can read Events from anywhere in the Stream.
 
--   A Stream is partitioned into a set of **Stream Segments**. The number of Stream
+-   A Stream is partitioned into a set of Stream Segments. The number of Stream
     Segments in a Stream can change over time.  Events are written into exactly
-    one of the Stream Segments based on **Routing Key**.  For any Reader Group reading a Stream, each Stream Segment is assigned to one Reader in that
-    Reader Group. 
+    one of the Stream Segments based on Routing Key.  For any ReaderGroup reading a Stream, each Stream Segment is assigned to one Reader in that
+    ReaderGroup. 
 
--   Each Stream Segment is stored in a combination of **Tier 1** and **Tier 2** storage. 
+-   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 storage. 
     The tail of the Segment is stored in Tier 1 providing low latency reads and
     writes. The rest of the Segment is stored in Tier 2, providing high
     throughput read access with horizontal scalability and low cost. 
@@ -350,24 +339,21 @@ The concepts in Pravega are depicted in the following figure:
 
 To deliver an efficient implementation of Streams, Pravega is based on a tiered
 storage model.  Events are persisted in low latency/high IOPS storage (Tier 1
-Storage) and higher throughput storage (Tier 2 Storage). Writers and Readers are
-oblivious to the tiered storage model from an API perspective. 
+Storage, write-ahead log) and higher throughput Tier 2 storage (e.g., file system, object store). Writers and Readers are oblivious to the tiered storage model from an API perspective. 
 
-Pravega is based on an append-only **log** data structure.  As Leigh Stewart
+In Pravega, Tier 1 is based on an append-only **Log** data structure.  As Leigh Stewart
 [observed](https://blog.twitter.com/2015/building-distributedlog-twitter-s-high-performance-replicated-log-service),
-there are really three data access mechanisms in a log:
+there are really three data access mechanisms in a Log:
 
 ![State synchroner](img/anatomy.of.log.png) 
 
 All of the write activity, and much of the read activity happens at the tail of
-the log.  Writes are appended to the log and many clients tries to read data immediately as it arrives in the log.  These two data access mechanisms are dominated
-by the need for low-latency. The low latency writes by Writers provides real time
-access to the published data by Readers. 
+the log.  Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real time access to the published data by Readers.
 
-Please note that, not all Readers read from the tail of the log, some Readers reads
+Please note that, not all Readers read from the tail of the log. Some Readers read
 by starting at some arbitrary position in the log.  These reads are known as
 **catch-up reads**.  Access to historical data traditionally was done by batch
-analytics jobs, often using HDFS and Map/Reduce.  However with new Streaming
+analytics jobs, often using HDFS and Map/Reduce.  However with new streaming
 applications, we can access historical data as well as current data by just
 accessing the log.  One approach would be to store all the historical data in
 SSDs similar to tail data operations, but that leads to an expensive task and force
