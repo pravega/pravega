@@ -32,12 +32,13 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tokenSigningKey;
     private final String tlsTrustStore;
     private final boolean replyWithStackTraceOnError;
+    private final boolean requestTracingEnabled;
 
     @Builder
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
                                 boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled,
                                 String tlsCertFile, String tlsKeyFile, String tokenSigningKey, String tlsTrustStore,
-                                boolean replyWithStackTraceOnError) {
+                                boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
         if (publishedRPCHost != null) {
@@ -58,5 +59,6 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.requestTracingEnabled = requestTracingEnabled;
     }
 }

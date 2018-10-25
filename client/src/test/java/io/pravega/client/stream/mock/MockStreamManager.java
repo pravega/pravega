@@ -12,6 +12,7 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 
@@ -66,6 +68,11 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public boolean deleteScope(String scopeName) {
         return Futures.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);
+    }
+
+    @Override
+    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        throw new NotImplementedException("getStreamInfo");
     }
 
     @Override

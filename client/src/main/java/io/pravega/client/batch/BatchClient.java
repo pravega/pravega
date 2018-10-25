@@ -33,10 +33,13 @@ public interface BatchClient {
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
+     * @deprecated
+     *   Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
      *
      * @param stream the stream.
      * @return stream information.
      */
+    @Deprecated
     CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
     /**

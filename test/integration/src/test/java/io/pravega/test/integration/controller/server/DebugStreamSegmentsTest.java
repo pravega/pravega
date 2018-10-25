@@ -1,11 +1,10 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.integration.controller.server;
 
@@ -129,11 +128,10 @@ public class DebugStreamSegmentsTest {
         final Controller controller = controllerWrapper.getController();
 
         Segment[] lastSegments = new Segment[100];
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 10; i++) {
             randomScaleUpScaleDown(clientFactoryInternal, controller);
             selector.refreshSegmentEventWriters(segment -> {
             });
-            System.err.println(selector.getSegmentForEvent("key").toString());
             for (int key = 0; key < 100; key++) {
                 Segment segment = selector.getSegmentForEvent("key-" + key);
                 if (lastSegments[key] != null) {
@@ -146,7 +144,6 @@ public class DebugStreamSegmentsTest {
                 }
                 lastSegments[key] = segment;
             }
-            Thread.sleep(100);
         }
     }
 
@@ -166,12 +163,12 @@ public class DebugStreamSegmentsTest {
             // trigger random scale up
             scaleEvent = new AutoScaleEvent(randomSegment.getScope(), randomSegment.getStreamName(),
                                             randomSegment.getSegmentId(), AutoScaleEvent.UP, System.currentTimeMillis(),
-                                            2, false);
+                                            2, false, random.nextInt());
         } else {
             // trigger random scale down.
             scaleEvent = new AutoScaleEvent(randomSegment.getScope(), randomSegment.getStreamName(),
                                             randomSegment.getSegmentId(), AutoScaleEvent.DOWN,
-                                            System.currentTimeMillis(), 2, false); // silent=false
+                                            System.currentTimeMillis(), 2, false, random.nextInt()); // silent=false
         }
         Futures.getAndHandleExceptions(requestStreamWriter.writeEvent(scaleEvent),
                                        t -> new RuntimeException("Error while writing scale event", t));

@@ -13,11 +13,14 @@ import com.google.common.base.Strings;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -39,14 +42,17 @@ public class GRPCServer extends AbstractIdleService {
      *
      * @param controllerService The controller service implementation.
      * @param serverConfig      The RPC Server config.
+     * @param requestTracker    Cache to track and access to client request identifiers.
      */
-    public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig) {
+    public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig, RequestTracker requestTracker) {
         this.objectId = "gRPCServer";
         this.config = serverConfig;
         AuthHelper authHelper = new AuthHelper(serverConfig.isAuthorizationEnabled(), serverConfig.getTokenSigningKey());
         ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
-                .addService(new ControllerServiceImpl(controllerService, authHelper, serverConfig.isReplyWithStackTraceOnError()));
+                .addService(ServerInterceptors.intercept(new ControllerServiceImpl(controllerService, authHelper, requestTracker,
+                                serverConfig.isReplyWithStackTraceOnError()),
+                        RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
             this.pravegaAuthManager = new PravegaAuthManager(serverConfig);
             this.pravegaAuthManager.registerInterceptors(builder);

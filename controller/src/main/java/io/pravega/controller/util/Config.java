@@ -60,13 +60,14 @@ public final class Config {
     private static final String TLS_TRUST_STORE = CONFIG.getString("config.controller.server.tlsTrustStore");
     private static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
     private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR = CONFIG.getBoolean("config.controller.server.replyWithStackTraceOnError");
+    private static final boolean REQUEST_TRACING_ENABLED = CONFIG.getBoolean("config.controller.server.requestTracingEnabled");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
     public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
     public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
     public static final int ZK_SESSION_TIMEOUT_MS = CONFIG.getInt("config.controller.server.zk.sessionTimeoutMS");
-
+    public static final boolean SECURE_ZK = CONFIG.getBoolean("config.controller.server.zk.secureConnectionToZooKeeper");
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
         log.info("Controller configuration:");
@@ -120,6 +121,7 @@ public final class Config {
                 .tlsKeyFile(Config.TLS_KEY_FILE)
                 .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
                 .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
+                .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
                 .build();
     }
 

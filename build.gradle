@@ -91,7 +91,7 @@ project('common') {
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        //Do NOT add any additional dependencies here.
     }
 
     javadoc {
@@ -422,6 +422,8 @@ project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
     dependencies {
+        compile project(':common')
+
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
@@ -443,6 +445,7 @@ project('shared:controller-api') {
 project('controller') {
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
+        test.resources.srcDirs += "$rootDir/config"
     }
 
     apply plugin: 'application'

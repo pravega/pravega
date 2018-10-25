@@ -110,6 +110,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .publishedRPCHost("localhost")
                 .publishedRPCPort(controllerPort)
                 .replyWithStackTraceOnError(false)
+                .requestTracingEnabled(true)
                 .build();
 
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?

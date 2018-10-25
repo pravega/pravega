@@ -46,6 +46,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -131,7 +132,8 @@ public class ReadWriteTest {
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
         stopReadFlag = new AtomicBoolean(false);
 
-        try (StreamManager streamManager = new StreamManagerImpl(controller, null)) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
             //create a scope
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
