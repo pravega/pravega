@@ -81,7 +81,7 @@ Reader", that allows a distributed application to read and process Stream data
 in parallel. A large amount of Stream data can be consumed by a coordinated fleet of Readers in a ReaderGroup.  For example, a collection of Flink tasks processing Stream data in parallel using ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
-Writer](basic-Reader-and-Writer.md#working-with-pravega-basic-reader-and-writer).
+Writer](#working-with-pravega-basic-reader-and-writer).
 
 ## Stream Segments
 
