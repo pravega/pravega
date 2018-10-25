@@ -137,8 +137,9 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
         // Track the new request for this automatic truncation.
         long requestId = requestIdGenerator.get();
-        requestTracker.trackRequest(RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
-                stream.getStreamName()), requestId);
+        String requestDescriptor = RequestTracker.buildRequestDescriptor("truncateStream", stream.getScope(),
+                stream.getStreamName());
+        requestTracker.trackRequest(requestDescriptor, requestId);
         log.debug(requestId, "Periodic background processing for retention called for stream {}/{}",
                 stream.getScope(), stream.getStreamName());
 
@@ -154,7 +155,7 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
                     log.warn(requestId, "Unable to perform retention for stream {}. " +
                             "Ignoring, retention will be attempted in next cycle.", stream, e);
                     return null;
-                });
+                }).thenRun(() -> requestTracker.untrackRequest(requestDescriptor));
     }
 
     @Override
