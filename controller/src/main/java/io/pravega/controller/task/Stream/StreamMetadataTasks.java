@@ -479,8 +479,8 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Long> segmentsToSeal,
                                                         List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
-        ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, scaleTimestamp);
         final long requestId = requestTracker.getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
+        ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, requestId);
 
         return writeEvent(event)
                 .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
