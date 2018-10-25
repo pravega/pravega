@@ -63,7 +63,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
             success = true;
             return result;
         } finally {
-            LoggerHelpers.traceLeave(log, "read", traceId, getSegmentId(), originalOffset, timeout);
+            LoggerHelpers.traceLeave(log, "read", traceId, getSegmentId(), originalOffset, timeout, success);
             if (!success) {
                 in.setOffset(originalOffset);
             }
