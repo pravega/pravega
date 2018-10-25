@@ -422,6 +422,8 @@ project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
     dependencies {
+        compile project(':common')
+
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion

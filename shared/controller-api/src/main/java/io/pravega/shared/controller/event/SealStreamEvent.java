@@ -18,6 +18,7 @@ public class SealStreamEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
+    private final long requestId;
 
     @Override
     public String getKey() {

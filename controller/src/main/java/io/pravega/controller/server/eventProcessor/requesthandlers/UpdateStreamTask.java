@@ -50,6 +50,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
         String scope = request.getScope();
         String stream = request.getStream();
+        long requestId = request.getRequestId();
 
         return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
                 .thenCompose(configProperty -> {
@@ -60,13 +61,13 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                     throw new TaskExceptions.StartException("Update Stream not started yet.");
                                 });
                     } else {
-                        return processUpdate(scope, stream, configProperty, context);
+                        return processUpdate(scope, stream, configProperty, context, requestId);
                     }
                 });
     }
 
     private CompletableFuture<Void> processUpdate(String scope, String stream, StreamConfigurationRecord configProperty,
-                                                  OperationContext context) {
+                                                  OperationContext context, long requestId) {
         return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.UPDATING, context, executor)
                 .thenCompose(x -> {
                     if (configProperty.getStreamConfiguration().getRetentionPolicy() != null) {
@@ -76,15 +77,16 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                         return streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context, executor);
                     }
                 })
-                .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration()))
+                .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
                 .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, context, executor))
                 .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
     }
 
-    private CompletableFuture<Boolean> notifyPolicyUpdate(OperationContext context, String scope, String stream, StreamConfiguration newConfig) {
+    private CompletableFuture<Boolean> notifyPolicyUpdate(OperationContext context, String scope, String stream,
+                                                          StreamConfiguration newConfig, long requestId) {
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
-                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments, newConfig.getScalingPolicy(),
-                        this.streamMetadataTasks.retrieveDelegationToken()))
+                .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments,
+                        newConfig.getScalingPolicy(), this.streamMetadataTasks.retrieveDelegationToken(), requestId))
                 .handle((res, ex) -> {
                     if (ex == null) {
                         return true;
