@@ -158,7 +158,7 @@ public class AutoScaleProcessor {
             long timestamp = System.currentTimeMillis();
             long requestId = requestIdGenerator.get();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info(timestamp, "sending request for scale up for {}", streamSegmentName);
+                log.info(requestId, "sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
@@ -181,7 +181,7 @@ public class AutoScaleProcessor {
             long timestamp = System.currentTimeMillis();
             long requestId = requestIdGenerator.get();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info(timestamp, "sending request for scale down for {}", streamSegmentName);
+                log.info(requestId, "sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),

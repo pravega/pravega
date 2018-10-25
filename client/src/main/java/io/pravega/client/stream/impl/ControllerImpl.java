@@ -559,7 +559,7 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
         final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "deleteStream", scope, streamName);
+        long traceId = LoggerHelpers.traceEnter(log, "deleteStream", scope, streamName, requestId);
 
         final CompletableFuture<DeleteStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<DeleteStreamStatus> callback = new RPCAsyncCallback<>(requestId, "deleteStream");
