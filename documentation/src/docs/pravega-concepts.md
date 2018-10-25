@@ -81,7 +81,7 @@ Reader", that allows a distributed application to read and process Stream data
 in parallel. A large amount of Stream data can be consumed by a coordinated fleet of Readers in a ReaderGroup.  For example, a collection of Flink tasks processing Stream data in parallel using ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
-Writer](#working-with-pravega-basic-reader-and-writer).
+Writer](basic-reader-and-writer/#working-with-pravega-basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer).
 
 ## Stream Segments
 
@@ -203,7 +203,7 @@ state. Once a Checkpoint has been completed, the application can use the
 Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
 state represented by the Checkpoint.
 
-For more details on working with ReaderGroups, Please see [ReaderGroup Basics](basic-Reader-and-Writer.md#readergroup-basics).
+For more details on working with ReaderGroups, Please see [ReaderGroup Basics](basic-reader-and-Writer.md#readergroup-basics).
 
 
 ## Transactions
