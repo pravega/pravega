@@ -39,21 +39,18 @@ This launches all the components of Pravega on your local machine.
 **Note:** This is for testing/demo purposes only, **do not** use this mode of deployment
 in Production!
 
-More options to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
+More options and additional ways to run Pravega can be found in [Running Pravega](deployment/deployment.md) guide.
 
 ```
 $ cd pravega-<version>
 $ bin/pravega-standalone
 ```
 
-By using the above commands, Pravega should be up and running immediately.
-
-More options and additional ways to run Pravega can be found in [Running Pravega](deployment/deployment.md).
+The command above runs Pravega locally for development and testing purposes. It does not persist in the storage tiers like we do with a real deployment of Pravega and as such you shouldn't expect it to recover from crashes, and further, not rely on it for production use. For production use, we strongly encourage a full deployment of Pravega.
 
 ## Running a sample Pravega Application
 
-It is very simple to run a sample Pravega Application. Pravega maintains a separate github repository for sample applications.  It is located at:
-[Pravega Samples](https://github.com/pravega/pravega-samples)
+We have developed a few samples to introduce the developer to coding with Pravega here: [Pravega Samples](https://github.com/pravega/pravega-samples).
 
 Download and run the "Hello World" Pravega sample reader and writer applications. Pravega
 dependencies will be pulled from maven central.
@@ -88,7 +85,7 @@ _Example HelloWorldWriter output_
 Writing message: 'hello world' with routing-key: 'helloRoutingKey' to stream 'examples / helloStream'
 ...
 ```
-See the [README](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the standalone-examples for more details
+See the [README](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) file in the standalone-examples for more details
     on running the HelloWorldWriter with different parameters.
 
 **Run the sample "HelloWorldReader"**
@@ -108,5 +105,5 @@ No more events from examples/helloStream
 ...
 ```
 
-See the [README](https://github.com/pravega/pravega-samples/blob/v0.3.2/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
+See the [README](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) file in the pravega-client-examples for more details on running the
     HelloWorldReader application.
