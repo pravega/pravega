@@ -81,13 +81,13 @@ Reader", that allows a distributed application to read and process Stream data
 in parallel. A large amount of Stream data can be consumed by a coordinated fleet of Readers in a ReaderGroup.  For example, a collection of Flink tasks processing Stream data in parallel using ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
-Writer](basic-Reader-and-Writer.md#working-with-pravega-basic-Reader-and-Writer).
+Writer](basic-Reader-and-Writer.md#working-with-pravega-basic-reader-and-writer).
 
 ## Stream Segments
 
 A Stream is decomposed into a set of Segments generally referred as **Stream Segments**; a Stream Segment is a shard or partition of a Stream.
 
-![Stream Segment](img/Stream.Segment.png) 
+![Stream Segment](img/stream.segment.png) 
 
 ### Event in a Stream Segment
 
@@ -107,7 +107,7 @@ load on the Stream.
 Consider the following figure that shows the relationship between Routing Keys
 and time.
 
-![Stream Segment](img/Segment.split.merge.overtime.new.png) 
+![Stream Segment](img/segment.split.merge.overtime.new.png) 
 
 - A Stream starts at time **_t0_** with a configurable number of Segments.  If the
 rate of data written to the Stream is constant, there will be no change in the number of Segments. 
@@ -146,7 +146,7 @@ determines, how a Stream handles the varying changes in its load? In the present
 
 As it was mentioned in the earlier part of the section, that an Event is written into one of the Stream Segments. By considering auto scaling, Stream Segments performs bucketing of Events based on Routing Key and time. It is obvious that, at any given time, Events published to a Stream with a given value of Routing Key will appear in the same Stream Segment.
 
-![Stream Segment](img/rk.Segment.new.png) 
+![Stream Segment](img/rk.segment.new.png) 
 
 It is also worth emphasizing that Events are written only on the active Stream
 Segments. Segments that are sealed do not accept writes. In the figure above,
@@ -156,7 +156,7 @@ at time **_now_**, only Stream **_Segments 3_**, **_6_** and **_4_** are active 
 
 Stream Segments play a major role in understanding the way ReaderGroups work.
 
-![Stream Segment](img/Segment.Readergroup.png) 
+![Stream Segment](img/segment.readergroup.png) 
 
 Pravega assigns _zero_ or more Stream Segments to each Reader in a ReaderGroup. Pravega tries to balances the number of Stream Segments assigned to each Reader. In the figure above, **_Reader B1_** reads from two Stream Segments (**_Segment 0_** and **_Segment 3_**), while the other ReaderGroup (**_Reader B2_**, **_Reader B3_**) have only only one Stream Segment to read from. Pravega makes sure that each Stream Segment is read exactly by one Reader in any ReaderGroup configured with that Stream. Irrespective of  Readers being added to the ReaderGroup or removed from the ReaderGroup due to crash, Pravega reassigns Stream Segments to maintain balance amongst the Readers.
 
@@ -203,7 +203,7 @@ state. Once a Checkpoint has been completed, the application can use the
 Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
 state represented by the Checkpoint.
 
-For more details on working with ReaderGroups, Please see [ReaderGroup Basics](basic-Reader-and-Writer.md#Readergroup-basics).
+For more details on working with ReaderGroups, Please see [ReaderGroup Basics](basic-Reader-and-Writer.md#readergroup-basics).
 
 
 ## Transactions
@@ -217,7 +217,7 @@ time window, the Flink job can commit the transaction and therefore
 make the results of the processing available for downstream processing, or in
 the case of an error, the transaction is aborted and the results disappear.
 
-A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the transaction are **not** visible to Readers until the transaction is committed by the Writer. A transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
+A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the transaction are _not_ visible to Readers until the transaction is committed by the Writer. A transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
 transaction, the Event itself is appended to a Stream Segment of the
 transaction. 
 
@@ -264,7 +264,7 @@ State Synchronizer](state-synchronizer.md).
 
 ## Architecture
 
-The following figure depicts the components deployed by Pravega:
+The following figure depicts the components deployed by Pravega
 
 ![pravega high level architecture](img/pravega.arch.new.png)
 
