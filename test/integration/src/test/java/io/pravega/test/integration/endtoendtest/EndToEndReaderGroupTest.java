@@ -17,6 +17,7 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -215,6 +216,77 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
         assertEquals("StreamCut for a single stream expected", 1, scMap.size());
         assertEquals("StreamCut pointing ot offset 30L expected", new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
+    }
+
+    @Test(timeout = 30000)
+    public void testReaderOfflineWithSilentCheckpoint() throws Exception {
+        final Stream stream = Stream.of(SCOPE, STREAM);
+        final String group = "group";
+
+        @Cleanup("shutdown")
+        InlineExecutor backgroundExecutor = new InlineExecutor();
+
+        createScope(SCOPE);
+        createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
+
+        @Cleanup
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
+                                                                           EventWriterConfig.builder().build());
+        //Prep the stream with data.
+        //1.Write events with event size of 30
+        writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(1)).join();
+        writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(2)).join();
+        writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(3)).join();
+        writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
+
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        groupManager.createReaderGroup(group, ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
+                .stream(stream)
+                .build());
+
+        ReaderGroup readerGroup = groupManager.getReaderGroup(group);
+
+        //Create a reader
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", group, serializer,
+                                                                      ReaderConfig.builder().build());
+
+        //2. Read an event.
+        readAndVerify(reader, 1);
+
+        //3. Trigger a checkpoint and verify it is completed.
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("chk1", backgroundExecutor);
+        // The reader group state will be updated after 1 second.
+        TimeUnit.SECONDS.sleep(1);
+        EventRead<String> data = reader.readNextEvent(15000);
+        assertTrue(data.isCheckpoint());
+        readAndVerify(reader, 2);
+        assertTrue("Checkpointing should complete successfully", Futures.await(checkpoint));
+
+        //4. GenerateStreamCuts and validate the offset of stream cut.
+        CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.generateStreamCuts(backgroundExecutor);
+        // The reader group state will be updated after 1 second.
+        TimeUnit.SECONDS.sleep(1);
+        data = reader.readNextEvent(15000);
+        assertTrue("StreamCut generation should complete successfully", Futures.await(sc));
+        //expected segment 0 offset is 60L, since 2 events are read.
+        Map<Segment, Long> expectedOffsetMap = ImmutableMap.of(getSegment(0, 0), 60L);
+        Map<Stream, StreamCut> scMap = sc.join();
+        assertEquals("StreamCut for a single stream expected", 1, scMap.size());
+        assertEquals("StreamCut pointing ot offset 30L expected", new StreamCutImpl(stream, expectedOffsetMap),
+                     scMap.get(stream));
+
+        //5. Invoke readerOffline with last position as null. The newer readers should start reading
+        //from the last checkpointed position
+        readerGroup.readerOffline("readerId", null);
+        @Cleanup
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId", group, serializer,
+                                                                       ReaderConfig.builder().build());
+        readAndVerify(reader1, 2);
     }
 
     @Test(timeout = 40000)

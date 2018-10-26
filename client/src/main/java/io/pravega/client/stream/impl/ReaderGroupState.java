@@ -845,11 +845,18 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
-
-            // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
-            final Map<Segment, Long> readerPositions = state.assignedSegments.get(readerId);
-            for (Entry<Segment, Long> entry : positions.entrySet()) {
-                readerPositions.replace(entry.getKey(), entry.getValue());
+            /*
+             * Update the assignedSegments only for normal Checkpoints. This should not be updated
+             * for silent Checkpoints as it would cause a different offset to be used when the reader goes
+             * offline. The current contract is that last checkpointed offset or the provided position will
+             * be used when {@link io.pravega.client.stream.ReaderGroup#readerOffline(String, Position)} is invoked.
+             */
+            if (!state.checkpointState.isCheckpointSilent(checkpointId)) {
+                // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
+                final Map<Segment, Long> readerPositions = state.assignedSegments.get(readerId);
+                for (Entry<Segment, Long> entry : positions.entrySet()) {
+                    readerPositions.replace(entry.getKey(), entry.getValue());
+                }
             }
         }
         
