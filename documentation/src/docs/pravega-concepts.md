@@ -168,7 +168,7 @@ If **_Stream 1_** in the figure above experienced a **Scale-Down** event, by red
 number of Stream Segments to three, then the **_ReaderGroup B_**  will have an
 ideal number of Readers.
 
-The number of Stream Segments can be varied dynamically by using the Pravega's auto scaling feature as we discussed in the [Auto Scaling](#auto-scaling) section. The size of any Stream is determined by the storage capacity of the Pravega cluster. More Streams can be obtained by increasing the storage of the Pravega cluster.
+The number of Stream Segments can be varied dynamically by using the Pravega's auto scaling feature as we discussed in the [Auto Scaling](#elastic-streams-auto-scaling) section. The size of any Stream is determined by the storage capacity of the Pravega cluster. More Streams can be obtained by increasing the storage of the Pravega cluster.
 
 Applications can react to changes in the number of Segments in a Stream by adjusting the number of Readers within a ReaderGroup, to maintain optimal read parallelism. Flink application is the best example for this scenario as it allows Flink to increase or decrease the number of task instances that are processing a Stream in parallel.
 
