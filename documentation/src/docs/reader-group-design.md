@@ -9,8 +9,6 @@ You may obtain a copy of the License at
 -->
 # Reader Groups Design
 
-_To be updated to reflect recent implementation details (05/07/2017)_
-
 ## Motivation
 A set of Readers can be grouped together in order that the set of Events in a Stream can be read in parallel. This grouping of Readers is called a Reader Group. Pravega guarantees that each Event in the Stream is read by exactly one Reader in the Reader Group.
 
@@ -52,8 +50,9 @@ The external APIs to manage Reader Groups could be added to the `StreamManager` 
 When a Reader Group is created, it creates a [State Synchronizer](state-synchronizer-design.md) shared by the Readers. To join a Reader Group, Readers would just specify it in their configuration:
 
 ```
-    ReaderConfig cc = new ReaderConfig(props);
-    Reader<T> Reader = a_stream.createReader("my_Reader_id", "my_Reader_group", cc);
+ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME, serializer, readerConfig);
+
 ```
 The Readers, while joining the group access the information stored on the state to determine which segments to read from. Once when they shut down, they update the state so that other Readers can take over their segments.
 
@@ -79,11 +78,15 @@ There are no races between multiple Readers coming online concurrently because o
 
 There is no ambiguity as to who the owner is, because it is stored in the shared state. There is no risk of a segment being ignored because every Reader can see the available segments by looking at the shared state and claim them.
 
-## Reader going offline.
-1. When a Reader dies, the `ReaderOffline()` method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state.
-1. Other Readers will see this when they update their local state.
+## Reader going offline
+1. When a Reader dies, the `ReaderOffline()` method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state `readerOffline(readerId, position) api`.
+
+1. Other Readers will see this `position` object when they update their local state.
+1. If the `position` is sent as "null" then the last checkpointed position of the Reader is used by the newer Readers when they take ownership of the segment(s) that were read by the older/offline reader.
 1. Any Reader can decide to take over one or more of the segments owned by the old Reader from where it left off by recording their intention to do so in the state object.
 1. Once the state has been updated by the new Reader, it is considered the owner of the segment and can read from it.
+
+
 
 ## What happens if a Reader does not keep up to date?
 A Reader with out-of-date state can read from their existing segments without interference. The only disadvantage to this is that they will not shed load to another Reader should one become available. However, because they have to write to the shared state to start reading from any segment which they don't already own, they must fetch up-to-date information before moving on to a new segment.
