@@ -7,17 +7,17 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-<span id="Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
+<span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
 ========================================================================================================================
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
     - [Stream Management](#stream-management)
-    - [Cluster Management](#controllerAsContainerMapper)
-* [System Diagram](#systemDiagram)
+    - [Cluster Management](#cluster-management)
+* [System Diagram](#system-diagram)
 * [Components](#components)
-    - [Service Endpoints](#serviceEndpoints)
-    - [Controller Service](#controllerService)
-    - [Stream Metadata Store](#streamStore)
+    - [Service Endpoints](#service-endpoints)
+    - [Controller Service](#controller-service)
+    - [Stream Metadata Store](#stream-metadata-store)
         - [Stream Metadata](#streamSegmentMetadata)
         - [Stream Store Caching    ](#streamStoreCaching)
     - [Stream Buckets    ](#streamBuckets)
@@ -120,8 +120,8 @@ controller also performs roles of Policy Manager for policies like
 retention and scale.
 
   2. **Policy Management**: Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the stream. Presently we
-have two policies that users can define, namely [Scaling Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
-[Retention Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
+have two policies that users can define, namely [**Scaling** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
+[**Retention** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
 Scaling policy describes if and under what circumstances a stream should automatically scale its number of segments.
 Retention policy describes a policy about how much data to retain within a stream.
 
@@ -134,48 +134,45 @@ Upon creating transactions, controller also tracks transaction timeouts
 and aborts transactions whose timeouts have elapsed. Details of
 transaction management can be found later in the document.
 
-### Cluster Management <a name="controllerAsContainerMapper"></a>
+### Cluster Management
 
 The controller is responsible for managing segment store cluster. Controller manages
 life cycle of segment store nodes as they are added to/removed from the
 cluster and performs redistribution of segment containers across
 available segment store nodes.
 
-System diagram <a name="systemDiagram"></a>
---------------
+## System Diagram
 
 The following diagram shows the main components of a controller process.
 We discuss the elements of the diagram in detail next.
 
  ![controller system_diagram](img/ControllerSystemDiagram.png)
 
-<p align="center">
-  <i>Controller Process Diagram</i></p>
+Controller Process Diagram
 
 
-Components <a name="components"></a>
-----------
+# Components
 
-### Service Endpoints <a name="serviceEndpoints"></a>
+### Service Endpoints
 
-There are two ports exposed by controller: client-controller APIs and
-administration APIs. The client controller communication is implemented as `RPC` which
+There are two ports exposed by controller: **Client-controller APIs** and
+**Administration APIs**. The client controller communication is implemented as `RPC` which
 exposes APIs to perform all stream related control plane operations.
 Apart from this controller also exposes an administrative API set
 implemented as `REST`.
 
 Each endpoint performs appropriate call to the *Controller Service backend subsystem*
-which has the actual implementation for various create, read, update and
-delete (**CRUD**) operations on entities owned and managed by controller.
+which has the actual implementation for various operations like create, read, update and
+delete (CRUD) on entities owned and managed by controller.
 
-##### gRPC  
+## gRPC  
+
 Client Controller communication endpoint is implemented as a [gRPC](https://grpc.io/)
-interface. The complete list of APIs can be found
-[here](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto).
+interface. Please check the complete list of [APIs](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto).
 This exposes APIs used by Pravega clients (readers, writers and stream
 manager) and enables stream management. Requests enabled by this API
 include creating, modifying, and deleting streams.
-The underlying `gRPC` framework provides both synchronous and asynchronous programming models.
+The underlying `gRPC` framework provides both _synchronous_ and _asynchronous_ programming models.
 We use the asynchronous model in our client controller interactions so that the client thread does not block on the response from the server.  
 To be able to append to and read data from streams, writers and readers
 query controller to get active segment sets, successor and predecessor
@@ -183,39 +180,38 @@ segments while working with a stream. For transactions, the client uses
 specific API calls to request controller to create and commit
 transactions.
 
-##### REST  
+## REST  
 For administration, the controller implements and exposes a `REST`
 interface. This includes API calls for stream management as well as
 other administration API primarily dealing with creation and deletion of
-scopes. We use swagger to describe our `REST` APIs. The swagger yaml file
-can be found
-[here](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger).
+scopes. We use swagger to describe our `REST` APIs. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger) file.
 
-### Controller Service<a name="controllerService"></a>
+### Controller Service
 
 This is the backend layer behind the controller endpoints (`gRPC` and
 `REST`). All the business logic required to serve controller API calls are
 implemented here. This layer contains handles to all other subsystems like the various store implementations
 (stream store, host store and checkpoint store) and background processing frameworks (task framework, event processor framework).
-Stores are interfaces that provide access to various types of metadata managed by Controller. Background
+Stores are interfaces that provide access to various types of metadata managed by controller. Background
 processing frameworks are used to perform asynchronous processing that typically implement workflows involving metadata updates
 and requests to segment store.
 
-### Stream Metadata Store<a name="streamStore"></a>
+### Stream Metadata Store
 
-A stream is dynamically-changing sequence of segments, where regions of
-the routing key space map to open segments. As the set of segments of a
-stream changes, so does the mapping of the routing key space to segment.
+A stream is dynamically changing sequence of segments, where regions of
+the Routing Key space map to open segments. As the set of segments of a
+stream changes, so does the mapping of the Routing Key space to segment.
 
-A set of segments is consistent if 1) union of key space regions mapping
-to segments in the set covers the entire key space; and 2) There is no
-overlap between key space regions. For example, suppose a set *S* =
-{*S*<sub>1</sub>, *S*<sub>2</sub>, *S*<sub>3</sub>}, such that:
--   Region \[0, 0.3) maps to segment *S*<sub>1</sub>
--   Region \[0.3, 0.6) maps to segment *S*<sub>2</sub>
--   Region \[0.6, 1.0) maps to segment *S*<sub>3</sub>
+A set of segments is consistent if, union of key space regions mapping
+to segments in the set covers the entire key space and no
+overlap between key space regions.
 
-*S* is a consistent segment set.  
+For example, suppose a set **S** = {**S**<sub>**1**</sub>, **S**<sub>2</sub>, **S**<sub>**3**</sub>}, such that:
+
+   -   Region \[0, 0.3) maps to segment **S**<sub>**1**</sub>
+   -   Region \[0.3, 0.6) maps to segment **S**<sub>**2**</sub>
+   -   Region \[0.6, 1.0) maps to segment **S**<sub>**3**</sub>
+**S** is a consistent segment set.  
 
 A stream goes through transformations as it scales over time. A stream
 starts with an initial set of segments that is determined by the stream
