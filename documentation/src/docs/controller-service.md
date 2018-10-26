@@ -622,7 +622,7 @@ Request Processing Flow
 Create stream is implemented as a task on **Task Framework**. Create stream
 workflow first creates initial stream metadata with stream state set to
 *Creating*. Following this, it identifies segment containers that should
-own and create segments for this stream and calls `createStream()`
+own and create segments for this stream and calls create segment
 concurrently. Once all create segments complete, the create stream task
 completes thus moving the stream to *Active* state. All failures are
 retried few times with exponential backoffs. However, if it is unable to
@@ -632,7 +632,7 @@ complete any step, the stream is left dangling in *Creating* state.
 
 Update stream is implemented as a task on serialized sequest
 handler or concurrent event processor framework. Update stream is invoked
-by an explicit API call `updateStream()` into Controller. It first posts an _Update
+by an explicit API call into Controller. It first posts an _Update
 Request_ event into request stream. Following that it tries to create a
 temporary update property. If it fails to create the temporary update
 property, the request is failed and the caller is notified of the
@@ -652,7 +652,7 @@ policy. Now the state is reset to *Active*.
 
 ### Scale Stream
 
-Scale can be invoked either by explicit API call `scaleStream()` (referred to as manual
+Scale can be invoked either by explicit API call (referred to as manual
 scale) or performed automatically based on scale policy (referred to as
 auto-scale). We first write the event followed by updating the segment
 table by creating new entries for desired segments to be created. This
@@ -684,7 +684,7 @@ to *Active*.
 ### Truncate Stream
 
 Truncate follows similar mechanism to update and has a temporary
-stream property for truncation that is used to supply input for `truncateStream()`. Once truncate workflow identifies that it can proceed, it first
+stream property for truncation that is used to supply input for truncate stream. Once truncate workflow identifies that it can proceed, it first
 sets the state to *Truncating*. Truncate workflow then looks at the
 requested StreamCut, and checks if it is greater than or equal to the
 existing truncation point, only then is it a valid input for truncation
@@ -698,7 +698,7 @@ truncation point and deleted segments.  The state is reset to *Active*.
 
 ### Seal Stream
 
-Seal stream can be requested via an explicit API call `sealStream()` into Controller.
+Seal stream can be requested via an explicit API call into Controller.
 It first posts a seal-stream event into request stream followed by
 attempts to set the state of stream to *Sealing*. If the event is picked
 and does not find the stream to be in desired state, it postpones the
@@ -709,7 +709,7 @@ is marked as *Sealed* in the stream metadata.
 
 ### Delete Stream
 
-Delete stream can be requested via an explicit API call `deleteStream()` into Controller.
+Delete stream can be requested via an explicit API call into Controller.
 The request first verifies if the stream is in *Sealed* state. Only sealed
 streams can be deleted and an event to this effect is posted in request
 stream. When the event is picked for processing, it verifies the stream
