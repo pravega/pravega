@@ -233,7 +233,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     }
 
     private Map<Stream, StreamCut> generateStreamCuts(final ReaderGroup readerGroup) {
-        log.info("Generate StreamCuts {}");
+        log.info("Generate StreamCuts");
         String readerId = "streamCut";
         CompletableFuture<Map<io.pravega.client.stream.Stream, StreamCut>> streamCuts = null;
 
@@ -242,11 +242,13 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
                                                                             new JavaSerializer<Integer>(), readerConfig)) {
 
             streamCuts = readerGroup.generateStreamCuts(executor); //create checkpoint
+
             Exceptions.handleInterrupted(() -> TimeUnit.MILLISECONDS.sleep(GROUP_REFRESH_TIME_MILLIS)); // sleep for group refresh.
             //read the next event, this causes the reader to update its latest offset.
-            EventRead<Integer> event = reader.readNextEvent(100);
+            EventRead<Integer> event = reader.readNextEvent(READ_TIMEOUT);
             assertTrue("No events expected as all events are read", (event.getEvent() == null) && (!event.isCheckpoint()));
-            assertTrue("Stream cut generation should be completed", Futures.isSuccessful(streamCuts));
+            Futures.exceptionListener(streamCuts, t -> log.error("StreamCut generation failed", t));
+            assertTrue("Stream cut generation should be completed", Futures.await(streamCuts));
         } catch (ReinitializationRequiredException e) {
             log.error("Exception while reading event using readerId: {}", readerId, e);
             fail("Reinitialization Exception is not expected");
