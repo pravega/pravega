@@ -15,7 +15,7 @@ Next, we overview the key concepts in Pravega, for a concise definition of key t
 
 ## Streams
 
-Pravega organizes data into **Streams**.  A Stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency.  A Pravega Stream is
+Pravega organizes data into Streams. A Stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency.  A Pravega Stream is
 similar to but more flexible than a "topic" in popular message oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/).
 
 Pravega Streams are based on an append-only log data structure. By using the
@@ -29,9 +29,9 @@ append-only logs, Pravega rapidly ingests data into durable storage. It supports
 
 When a developer creates a Stream in Pravega, s/he gives the Stream a meaningful name such as "IoTSensorData" or "WebApplicationLog20170330" to inform about the type of data it stores. A Scope acts as a namespace for Stream names; all Stream names are unique within their Scope. Therefore, a Stream is uniquely identified by its combination of its name and Scope. Developers can also define meaningful Scope names, such as "FactoryMachines" or "HRWebsitelogs", to effectively organize collections of Streams. For example, Scopes can be used to classify Streams by tenant (in a multi tenant environment), by department in an organization or by geographic location.
 
-A Stream is unbounded in size – Pravega itself does not impose any limits on how many Events can be in a Stream or how many total bytes are stored in a Stream. Pravega’s design horizontally scales from few machines to a whole datacenter’s capacity.
+A Stream is unbounded in size – Pravega itself does not impose any limits on how many [**Events**](#events) can be in a Stream or how many total bytes are stored in a Stream. Pravega’s design horizontally scales from few machines to a whole datacenter’s capacity.
 
-Pravega Streams are divided into **Stream Segments**, to handle the large volume of data within a Stream. A Stream Segment is a shard, or partition of the data within a Stream. For more information, please see [Stream Segments](#stream-segments) section.
+Pravega Streams are divided into **Stream Segments**, to handle a large volume of data within a Stream. A Stream Segment is a shard, or partition of the data within a Stream. For more information, please see [Stream Segments](#stream-segments) section.
 
 Applications, such as a Java program reading from an IoT sensor, write data to the tail (front) of the Stream.  Applications, such as a [Flink](https://flink.apache.org) or Hadoop jobs, can read from any point in the Stream. Many applications can read and write the same Stream in parallel. Elasticity, scalability, support for large volume of Stream data and applications are the highlights of Pravega's design. More information on read and write operations in the Streams will be discussed in the [Readers and Writers](#writers-readers-readergroups) section.
 
@@ -65,20 +65,19 @@ from any point in the Stream.  Many Readers will be reading Events from the tai
 of the Stream. Tail reads corresponding to recently written Events are immediately delivered to readers.
 Some Readers will read from earlier parts or history of the Stream (called **catch-up reads**). The application developer has control over the Reader's start position in the Stream.
 
-- **Position:** A concept in Pravega, that represents where in a Stream a
-Reader is currently located. The position object can be used as a recovery
+- **Position:** Abstraction that represents where in a Stream a Reader is currently located. The position object can be used as a recovery
 mechanism by replacing the failed Reader by a new Reader by restoring the last saved successful read position. Using this pattern of persisting position objects, applications can be built guaranteeing exactly once Event processing by handling the Reader failure.
 
 - **ReaderGroups:** Readers are organized into ReaderGroups. A ReaderGroup is a named collection of
-Readers, which together performs parallel read Events in a given Stream. When a
+Readers, which together perform parallel reads from a given Stream. When a
 Reader is created through the Pravega data plane API, the developer includes the
 name of the ReaderGroup associated with it. Pravega guarantees that each Event published
 to a Stream is sent to exactly one Reader within the ReaderGroup. There could
-be one or more Reader in the ReaderGroup and there could be many different ReaderGroups simultaneously reading from any given Stream.
+be one or more Readers in the ReaderGroup and there could be many different ReaderGroups simultaneously reading from any given Stream.
 
 A ReaderGroup can be considered as a "composite Reader" or "distributed
 Reader", that allows a distributed application to read and process Stream data
-in parallel. A large amount of Stream data can be consumed by a coordinated fleet of Readers in a ReaderGroup.  For example, a collection of Flink tasks processing Stream data in parallel using ReaderGroup.
+in parallel. A large amount of Stream data can be consumed by a coordinated group of Readers in a ReaderGroup.  For example, a collection of Flink tasks processing Stream data in parallel using ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers, please see [Working with Pravega: Basic Reader and
 Writer](basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer).
@@ -91,7 +90,7 @@ A Stream is decomposed into a set of Segments generally referred as **Stream Seg
 
 ### Event in a Stream Segment
 
-The Stream Segments acts as containers for Events within the Stream. When an
+The Stream Segments acts as a container for Events within the Stream. When an
 Event is written into a Stream, it is stored in one of the Stream Segments based
 on the Event's Routing Key. Pravega uses consistent hashing to assign Events to
 Stream Segments. Event Routing Keys are hashed to form a "key space". The key
@@ -99,10 +98,9 @@ space is then divided into a number of partitions, corresponding to the number
 of Stream Segments. Consistent hashing determines the allotment of the specific Segment to an Event.
 
 
-### Auto Scaling
+### Elastic Streams: Auto Scaling
 
-Varying the number of Stream Segments over time is referred as **Auto Scaling**. The number of Stream Segments in a Stream can *grow* and *shrink* over time based on the variation in the I/O
-load on the Stream.
+A unique feature of Pravega is that the number of parallel Stream Segments in a Stream can automatically **grow** and **shrink** over time based on the I/O load it receives. This feature is known as **Auto Scaling**.
 
 Consider the following figure that shows the relationship between Routing Keys
 and time.
@@ -122,8 +120,8 @@ lower part of the key space (i.e., values ranging from **0-199**) would be place
 
 - **_Segment 0_** continues accepting the same range of Events as before **_t1_**.  
 
-- Another scale-up Event occurs at time **_t2_**, as **_Segment 0_**’s range of routing
-key is split into **_Segment 5_** and **_Segment 4_**. Also at this time, **_Segment 0_** is sealed
+- Another scale-up Event occurs at time **_t2_**, as **_Segment 0_**’s range of Routing
+Key is split into **_Segment 5_** and **_Segment 4_**. Also at this time, **_Segment 0_** is sealed
 and allows no further writes.
 
 - Segments covering a contiguous range of the key space can also be merged. At
