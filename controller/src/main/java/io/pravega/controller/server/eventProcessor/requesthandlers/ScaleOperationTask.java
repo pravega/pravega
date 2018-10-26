@@ -111,7 +111,9 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             } 
 
                             if (isManualScale) {
-                                throw new TaskExceptions.StartException("Scale Stream not started yet.");
+                                future = future.thenApply(x -> {
+                                    throw new TaskExceptions.StartException("Scale Stream not started yet.");
+                                });
                             } else {
                                 future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
                                         scaleInput.getNewRanges(), scaleInput.getScaleTime(), record, context, executor));
