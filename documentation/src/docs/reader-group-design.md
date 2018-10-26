@@ -51,7 +51,7 @@ When a Reader Group is created, it creates a [State Synchronizer](state-synchron
 
 ```
 ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
-EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME, serializer, readerConfig);
+EventStreamReader< T > reader = clientFactory.createReader(readerId, READER_GROUP_NAME, serializer, readerConfig);
 
 ```
 The Readers, while joining the group access the information stored on the state to determine which segments to read from. Once when they shut down, they update the state so that other Readers can take over their segments.
