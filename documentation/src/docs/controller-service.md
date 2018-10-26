@@ -18,7 +18,7 @@ You may obtain a copy of the License at
     - [Service Endpoints](#service-endpoints)
     - [Controller Service](#Controller-service)
     - [Stream Metadata Store](#stream-metadata-store)
-        - [Stream Metadata](#stream-meta-data)
+        - [Stream Metadata](#stream-metadata)
         - [Stream Store Caching](#stream-store-caching)
     - [Stream Buckets](#stream-buckets)
     - [Controller Cluster Listener](#controller-cluster-listener)
@@ -50,10 +50,7 @@ You may obtain a copy of the License at
 The Controller service is a core component of Pravega that implements
 the control plane. It acts as the central coordinator and manager for
 various operations performed in the cluster, mainly divided into two
-categories:
-
-  - Stream management
-  - Cluster management.
+categories: **Stream Management** and **Cluster Management**.
 
 The Controller service, referred to simply as *Controller* henceforth, is
 responsible for providing the abstraction of a [Stream](pravega-concepts.md#streams), which is the
@@ -146,7 +143,7 @@ available Segment Store nodes.
 The following diagram shows the main components of a Controller process.
 We discuss the elements of the diagram in detail next.
 
- ![Controller system_diagram](img/ControllersystemDiagram.png)
+ ![Controller system_diagram](../img/ControllerSystemDiagram.png)
 
 Controller Process Diagram
 
@@ -233,7 +230,7 @@ such as [state](#stream-state) and its [policies](#stream-policy-manager) and on
 
 Various sub-components of Controller access the stored metadata for each
 stream via a well-defined
-[interface](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/Controller/store/stream/StreamMetadataStore.java).
+[interface](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java).
 We currently have two concrete implementations of the stream store
 interface: _in-memory_ and _Zookeeper_ backed stores. Both share a common
 base implementation that relies on stream objects for providing
@@ -257,8 +254,7 @@ groups to support a variety of queries against this metadata. All stream
 specific metadata is stored under a scoped/stream root node. Queries
 against this metadata include, but not limited to, querying segment sets
 that form the stream at different points in time, segment specific
-information, segment predecessors and successors. Refer to [stream
-metadata](#stream-metadata) interface for details about APIs exposed by stream metadata
+information, segment predecessors and successors. Refer to [stream metadata](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java) interface for details about APIs exposed by stream metadata
 store.
 
 ### Stream Metadata
@@ -358,7 +354,7 @@ history table to determine successors of any given segment.
  and *sealed*. Once _active_, a stream transitions between performing a
  specific operation and active until it is sealed. A transition map is
  defined in the
- [State](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/Controller/store/stream/tables/State.java)
+ [State](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/controller/store/stream/tables/State.java)
  class which allows and prohibits various state transitions.
  Stream state describes the current state of the stream. It transitions
  from _active_ to respective action based on the action being performed
@@ -515,7 +511,7 @@ indexing the work a given process is performing. So if a process fails,
 another process will sweep all outstanding work and attempt to transfer
 ownership to itself.
 
-**Note:** Upon failure of a Controller process, multiple surviving Controller processes can concurrently attempt sweeping of orphaned tasks. Each of them will index the task in their
+Note that, Upon failure of a Controller process, multiple surviving Controller processes can concurrently attempt sweeping of orphaned tasks. Each of them will index the task in their
 host-index but exactly one of them will be able to successfully acquire
 the lock on the resource and hence permission to process the task. The
 parameters for executing a task are serialized and stored under the
@@ -688,7 +684,7 @@ to *Active*.
 ### Truncate Stream
 
 Truncate follows similar mechanism to update and has a temporary
-stream property for truncation that is used to supply input for `truncateStream`. Once truncate workflow identifies that it can proceed, it first
+stream property for truncation that is used to supply input for `truncateStream()`. Once truncate workflow identifies that it can proceed, it first
 sets the state to *Truncating*. Truncate workflow then looks at the
 requested StreamCut, and checks if it is greater than or equal to the
 existing truncation point, only then is it a valid input for truncation
@@ -702,7 +698,7 @@ truncation point and deleted segments.  The state is reset to *Active*.
 
 ### Seal Stream
 
-Seal stream can be requested via an explicit API call `sealStream` into Controller.
+Seal stream can be requested via an explicit API call `sealStream()` into Controller.
 It first posts a seal-stream event into request stream followed by
 attempts to set the state of stream to *Sealing*. If the event is picked
 and does not find the stream to be in desired state, it postpones the
@@ -713,7 +709,7 @@ is marked as *Sealed* in the stream metadata.
 
 ### Delete Stream
 
-Delete stream can be requested via an explicit API call `deleteStream` into Controller.
+Delete stream can be requested via an explicit API call `deleteStream()` into Controller.
 The request first verifies if the stream is in *Sealed* state. Only sealed
 streams can be deleted and an event to this effect is posted in request
 stream. When the event is picked for processing, it verifies the stream
