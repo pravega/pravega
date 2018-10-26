@@ -7,18 +7,18 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-<span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
+<span id="Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
 ========================================================================================================================
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
-    - [Stream Management    ](#controllerAsStreamManager) 
-    - [Cluster Management    ](#controllerAsContainerMapper)
-* [System Diagram    ](#systemDiagram)
-* [Components    ](#components)
-    - [Service Endpoints    ](#serviceEndpoints)
-    - [Controller Service    ](#controllerService)
-    - [Stream Metadata Store    ](#streamStore)
-        - [Stream Metadata    ](#streamSegmentMetadata)
+    - [Stream Management](#stream-management)
+    - [Cluster Management](#controllerAsContainerMapper)
+* [System Diagram](#systemDiagram)
+* [Components](#components)
+    - [Service Endpoints](#serviceEndpoints)
+    - [Controller Service](#controllerService)
+    - [Stream Metadata Store](#streamStore)
+        - [Stream Metadata](#streamSegmentMetadata)
         - [Stream Store Caching    ](#streamStoreCaching)
     - [Stream Buckets    ](#streamBuckets)
     - [Controller Cluster Listener    ](#controllerClusterListener)
@@ -45,42 +45,43 @@ You may obtain a copy of the License at
     - [Segment Container to Host Mapping    ](#containerToHost)
 * [Resources](#resources)
 
-Introduction <a name="introduction"></a>
-------------
+# Introduction
 
 The controller service is a core component of Pravega that implements
 the control plane. It acts as the central coordinator and manager for
 various operations performed in the cluster, mainly divided into two
-categories: 1) stream management 2) cluster management.
+categories:
 
-The controller service, referred to simply as controller henceforth, is
-responsible for providing the abstraction of a [stream](pravega-concepts.md#streams), which is the
+  - Stream management
+  - Cluster management.
+
+The controller service, referred to simply as *Controller* henceforth, is
+responsible for providing the abstraction of a [Stream](pravega-concepts.md#streams), which is the
 main abstraction that Pravega exposes to applications. A stream
 comprises one or more [segments](pravega-concepts.md#stream-segments). Each segment is an append-only data
 structure that stores a sequence of bytes. A segment on its own is
 agnostic to presence of other segments and is not aware of its logical
 relationship with its peer segments. The segment store, which owns and
 manages these segments, does not have any notion of a stream. A stream
-is a logical view conceptualized by *Controller* by composing a
+is a logical view conceptualized by controller by composing a
 dynamically changing set of segments that satisfy a predefined set of
 logical invariants. The controller provides the stream abstraction and
 orchestrates all lifecycle operations on a stream while ensuring that
 the abstraction stays consistent.
 
 The controller plays a central role in the lifecycle of a stream:
-creation, modification, [scaling](pravega-concepts.md#autoscalingthenumber-of-stream-segments-can-vary-over-time), and deletion. It does these by
+_creation_, _modification_, [_scaling_](pravega-concepts.md#autoscalingthenumber-of-stream-segments-can-vary-over-time), and _deletion_. It does these by
 maintaining metadata per stream and performs requisite operations on
 segments as and when necessary. For example, as part of stream’s
 lifecycle, new segments can be created and existing segments sealed. The
 controller decides when to perform these operation such that streams
 continue to be available and consistent to the clients accessing them.
 
-Architecture <a name="architecture"></a>
-------------
+# Architecture
 
-The *Controller Service* is made up of one or more instances of
+The Controller Service is made up of one or more instances of
 stateless worker nodes. Each new controller instance can be brought up
-independently and to become part of pravega cluster it merely needs to
+independently and to become part of Pravega cluster it merely needs to
 point to the same [Apache Zookeeper](https://zookeeper.apache.org/). For high availability it is advised to have
 more than one instance of controller service per cluster.
 
@@ -95,40 +96,40 @@ background workers.
 
 The controller exposes two endpoints which can be used to interact with
 a controller service. The first port is for providing programmatic
-access for pravega clients and is implemented as an `RPC` using [gRPC](https://grpc.io/). The
+access for Pravega clients and is implemented as an `RPC` using [gRPC](https://grpc.io/). The
 other endpoint is for administrative operations and is implemented as a
 `REST` endpoint.
 
-### Stream Management <a name="controllerAsStreamManager"></a>
+### Stream Management
 
 The controller owns and manages the concept of stream and is
-responsible for maintaining metadata and lifecycle for each stream.
-Specifically, it is responsible for creating, updating, scaling,
-truncating, sealing and deleting streams.
+responsible for maintaining "metadata" and "lifecycle" for each stream.
+Specifically, it is responsible for _creating, updating, scaling,
+truncating, sealing_ and _deleting streams_.
 
-The Stream Management can be broadly divided into three categories:
+The stream management can be broadly divided into three categories:
 
 1. Stream Abstraction  
 
 A stream can be viewed as a series of dynamically changing segment sets
 where the stream transitions from one set of consistent segments to the
-next. Controller is the place for creating and managing this stream abstraction. 
-Controller decides when and how a stream transitions from one state to another and is responsible 
-for performing these transitions while keeping the state of the stream consistent and available. 
+next. Controller is the place for creating and managing this stream abstraction.
+Controller decides when and how a stream transitions from one state to another and is responsible
+for performing these transitions while keeping the state of the stream consistent and available.
 These transitions are governed user-defined policies that the
 controller enforces. Consequently, as part of stream management, the
 controller also performs roles of Policy Manager for policies like
 retention and scale.
 
-2. Automated policy Management  
+1. Automated policy Management  
 
 Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the stream. Presently we
 have two policies that users can define, namely [Scaling Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
-[Retention Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java). 
-Scaling policy describes if and under what circumstances a stream should automatically scale its number of segments. 
-Retention policy describes a policy about how much data to retain within a stream. 
+[Retention Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
+Scaling policy describes if and under what circumstances a stream should automatically scale its number of segments.
+Retention policy describes a policy about how much data to retain within a stream.
 
-3. [Transaction](pravega-concepts.md#transactions) Management  
+1. [Transaction](pravega-concepts.md#transactions) Management  
 
 Implementing transactions requires the manipulation of segments. With
 each transaction, Pravega creates a set of transaction segments, which
@@ -141,7 +142,7 @@ transaction management can be found later in the document.
 
 ### Cluster Management <a name="controllerAsContainerMapper"></a>
 
-The controller is responsible for managing segment store cluster. Controller manages 
+The controller is responsible for managing segment store cluster. Controller manages
 life cycle of segment store nodes as they are added to/removed from the
 cluster and performs redistribution of segment containers across
 available segment store nodes.
@@ -167,7 +168,7 @@ There are two ports exposed by controller: client-controller APIs and
 administration APIs. The client controller communication is implemented as `RPC` which
 exposes APIs to perform all stream related control plane operations.
 Apart from this controller also exposes an administrative API set
-implemented as `REST`. 
+implemented as `REST`.
 
 Each endpoint performs appropriate call to the *Controller Service backend subsystem*
 which has the actual implementation for various create, read, update and
@@ -180,14 +181,14 @@ interface. The complete list of APIs can be found
 This exposes APIs used by Pravega clients (readers, writers and stream
 manager) and enables stream management. Requests enabled by this API
 include creating, modifying, and deleting streams.
-The underlying `gRPC` framework provides both synchronous and asynchronous programming models. 
+The underlying `gRPC` framework provides both synchronous and asynchronous programming models.
 We use the asynchronous model in our client controller interactions so that the client thread does not block on the response from the server.  
 To be able to append to and read data from streams, writers and readers
 query controller to get active segment sets, successor and predecessor
 segments while working with a stream. For transactions, the client uses
 specific API calls to request controller to create and commit
 transactions.
- 
+
 ##### REST  
 For administration, the controller implements and exposes a `REST`
 interface. This includes API calls for stream management as well as
@@ -201,9 +202,9 @@ can be found
 This is the backend layer behind the controller endpoints (`gRPC` and
 `REST`). All the business logic required to serve controller API calls are
 implemented here. This layer contains handles to all other subsystems like the various store implementations
-(stream store, host store and checkpoint store) and background processing frameworks (task framework, event processor framework). 
+(stream store, host store and checkpoint store) and background processing frameworks (task framework, event processor framework).
 Stores are interfaces that provide access to various types of metadata managed by Controller. Background
-processing frameworks are used to perform asynchronous processing that typically implement workflows involving metadata updates 
+processing frameworks are used to perform asynchronous processing that typically implement workflows involving metadata updates
 and requests to segment store.
 
 ### Stream Metadata Store<a name="streamStore"></a>
@@ -293,10 +294,10 @@ clients to query for the next segments, the stream store exposes via the
 controller service efficient queries for finding immediate successors
 and predecessors for any arbitrary segment.  
 
-To enable serving queries like those mentioned above, we need to efficiently store a time series of these segment transitions and index them against time. 
-We store this information about the current and historical state of a stream-segments in a set of tables which are designed to optimize on aforementioned queries. 
+To enable serving queries like those mentioned above, we need to efficiently store a time series of these segment transitions and index them against time.
+We store this information about the current and historical state of a stream-segments in a set of tables which are designed to optimize on aforementioned queries.
 Apart from segment specific metadata record, the current state of stream comprises of other metadata types that are described henceforth.
- 
+
 ##### Tables  
 To efficiently store and query the segment information, we have split
 segment data into three append only tables, namely, segment-table,
@@ -341,7 +342,7 @@ history table to determine successors of any given segment.
 ##### Stream Configuration
  Znode under which stream configuration is serialized and persisted. A
  stream configuration contains stream policies that need to be
- enforced. 
+ enforced.
  Scaling policy and Retention policy are supplied by the application at
  the time of stream creation and enforced by controller by monitoring
  the rate and size of data in the stream.
@@ -403,7 +404,7 @@ Transaction Related metadata records:
  subsequently garbage collect these values periodically following any
  collection scheme we deem fit. We have not implemented any scheme at
  this point though.
- 
+
 #### Stream Store Caching<a name="streamStoreCaching"></a>
 
 Since there could be multiple concurrent requests for a given stream
@@ -737,8 +738,8 @@ segments are deleted successfully, the stream metadata corresponding to
 this stream is cleaned up.
 
 ### Stream Policy Manager<a name="streamPolicyManager"></a>
-As described earlier, there are two types of user defined policies that controller is responsible for enforcing, namely Automatic Scaling and Automatic Retention. 
-Controller is not just the store for stream policy but it actively enforces those user-defined policies for their streams. 
+As described earlier, there are two types of user defined policies that controller is responsible for enforcing, namely Automatic Scaling and Automatic Retention.
+Controller is not just the store for stream policy but it actively enforces those user-defined policies for their streams.
 
 #### Scaling infrastructure<a name="scalingInfra"></a>
 
@@ -810,26 +811,26 @@ enforced.
 
 
 Client calls into controller process to create, ping commit or abort
-transactions. Each of these requests is received on controller and handled by the Transaction Utility module which 
-implements the business logic for processing each request. 
+transactions. Each of these requests is received on controller and handled by the Transaction Utility module which
+implements the business logic for processing each request.
 
 #### Create transaction<a name="createTxn"></a>
 
 Writers interact with Controller to create new transactions. Controller Service passes the create transaction request to Transaction Utility module.
 The create transaction function in the module performs follows steps in order to create a transaction:
 
-1. Generates a unique UUID for the transaction. 
-2. It fetches current active set of segments for the stream from metadata store and its corresponding epoch identifier from the history. 
-3. It creates a new transaction record in the zookeeper using the metadata store interface. 
-4. It then requests segment store to create special transaction segments that are inherently linked to the parent active segments. 
+1. Generates a unique UUID for the transaction.
+2. It fetches current active set of segments for the stream from metadata store and its corresponding epoch identifier from the history.
+3. It creates a new transaction record in the zookeeper using the metadata store interface.
+4. It then requests segment store to create special transaction segments that are inherently linked to the parent active segments.
 
-While creating transactions, controller ensures that parent segments are not sealed as we attempt to create corresponding transaction segments. 
+While creating transactions, controller ensures that parent segments are not sealed as we attempt to create corresponding transaction segments.
 And during the lifespan of a transaction, should a scale commence, it should wait for transactions on older epoch to finish before the scale proceeds
-to seal segments from old epoch. 
+to seal segments from old epoch.
 
 #### Commit Transaction<a name="commitTxn"></a>
 
-Upon receiving request to commit a transaction, Controller Service passes the request to Transaction Utility module. 
+Upon receiving request to commit a transaction, Controller Service passes the request to Transaction Utility module.
 This module first tries to mark the transaction for commit in the transaction specific metadata record via metadata store.
 Following this, it posts a commit event in the internal Commit Stream.
 Commit transaction workflow is implemented on commit event processor and
