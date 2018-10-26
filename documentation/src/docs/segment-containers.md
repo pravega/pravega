@@ -9,10 +9,10 @@ You may obtain a copy of the License at
 -->
 # Segment Containers in a Pravega Cluster
 
-This document describes the high level design of how we are managing the lifecyle of Segment Containers in a Pravega Cluster.
+This document describes the high level design of how we are managing the lifecyle of **Segment Containers** in a Pravega Cluster.
 
 ## Segment Containers
-In this document we refer to a **segment container** as **container**. The total number of containers is fixed for a given deployment. Each container can be owned by only one Pravega host and all containers in the cluster should be running at any given point in time.
+In this document we refer to a segment container as container. The total number of containers is fixed for a given deployment. Each container can be owned by only one Pravega host and all containers in the cluster should be running at any given point in time.
 
 ## Pravega Host
 A Pravega host is an instance of a Pravega service which owns and executes a set of containers.
@@ -27,7 +27,8 @@ If any changes are detected to the cluster membership, then all Containers are v
 We use Zookeeper to ensure only one Pravega Controller is monitoring the cluster to avoid multiple simultaneous Writers to the HostStore. This will avoid race conditions and allow the state to converge faster.
 
 ## Rebalance Frequency
-Rebalance of the Container ownership happens when either a Pravega Host is added or removed from the cluster. Since, this is an expensive operation and not to be repeated very often. Currently we ensure that a configured minimum time interval is maintained between any two rebalance operations. In the worst case, this will proportionally increase the time it takes to perform ownership change in the cluster.
+
+Pravega triggers the rebalancer when a Pravega Host is added or removed from the cluster to handle the Container ownership. As it is an expensive operation, Pravega maintains a configured minimum time interval between any two rebalance operations. It ends up in consuming more time for performing ownership change in the cluster, if the rebalance operation is delayed due to some reason.
 
 # Ownership Change Notification
 Every Pravega host has a long running Segment Manager Service. This constantly polls/watches the HostStore for any changes to the container ownership. On detecting any ownership changes for itself (identified by the host key in the Map) the Segment Manager triggers addition and removal of containers accordingly.
