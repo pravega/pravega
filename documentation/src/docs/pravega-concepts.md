@@ -33,7 +33,7 @@ A Stream is unbounded in size – Pravega itself does not impose any limits on h
 
 Pravega Streams are divided into **Stream Segments**, to handle a large volume of data within a Stream. A Stream Segment is a shard, or partition of the data within a Stream. For more information, please see [Stream Segments](#stream-segments) section.
 
-Applications, such as a Java program reading from an IoT sensor, write data to the tail (front) of the Stream.  Applications, such as a [Flink](https://flink.apache.org) or Hadoop jobs, can read from any point in the Stream. Many applications can read and write the same Stream in parallel. Elasticity, scalability, support for large volume of Stream data and applications are the highlights of Pravega's design. More information on read and write operations in the Streams will be discussed in the [Readers and Writers](#writers-readers-Reader Groups) section.
+Applications, such as a Java program reading from an IoT sensor, write data to the tail (front) of the Stream.  Applications, such as a [Flink](https://flink.apache.org) or Hadoop jobs, can read from any point in the Stream. Many applications can read and write the same Stream in parallel. Elasticity, scalability, support for large volume of Stream data and applications are the highlights of Pravega's design. More information on read and write operations in the Streams will be discussed in the [Readers and Writers](#writers-readers-reader-groups) section.
 
 ## Events
 
@@ -152,7 +152,7 @@ at time **now**, only Stream **Segments 3**, **6** and **4** are active and the 
 
 Stream Segments play a major role in understanding the way Reader Groups work.
 
-![Stream Segment](img/segment.Reader Group.png) 
+![Stream Segment](img/segment.readergroup.png) 
 
 Pravega assigns _zero_ or more Stream Segments to each Reader in a Reader Group. Pravega tries to balances the number of Stream Segments assigned to each Reader. In the figure above, **Reader B1** reads from two Stream Segments (**Segment 0** and **Segment 3**), while the other Reader Group (**Reader B2**, **Reader B3**) have only only one Stream Segment to read from. Pravega makes sure that each Stream Segment is read exactly by one Reader in any Reader Group configured with that Stream. Irrespective of  Readers being added to the Reader Group or removed from the Reader Group due to crash, Pravega reassigns Stream Segments to maintain balance amongst the Readers.
 
@@ -219,7 +219,7 @@ transaction. 
 
 For example, a Stream has five Segments, when a transaction is created on that
 Stream, conceptually that transaction also has five Segments. When an Event is
-published into the transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to _Segment 3_ in the Stream will be assigned to _Segment 3_ in the transaction). Once the transaction is committed, each of the transaction's
+published into the transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to **Segment 3** in the Stream will be assigned to **Segment 3** in the transaction). Once the transaction is committed, each of the transaction's
 Segments is automatically appended to the corresponding Segment in the Stream. If the Stream is aborted, the transaction, all its Segments and all the Events published into the transaction are removed from Pravega.
 
 ![Transaction](img/trx.commit.new.png) 
