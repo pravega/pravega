@@ -15,8 +15,8 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
-
 import java.io.IOException;
 
 /**
@@ -29,16 +29,24 @@ public interface Version {
 
     byte[] toBytes();
 
+    abstract class NotImplementedVersion implements Version {
+        @Override
+        public IntVersion asIntVersion() {
+            throw new UnsupportedOperationException();
+        }
+    }
+    
     @Data
     @Builder
+    @EqualsAndHashCode(callSuper = false)
     /**
      * A version implementation that uses integer values. 
      */
-    class IntVersion implements Version {
+    class IntVersion extends NotImplementedVersion {
         public static final IntVersion EMPTY = IntVersion.builder().intValue(Integer.MIN_VALUE).build();
         static final IntVersionSerializer SERIALIZER = new IntVersionSerializer();
         private final Integer intValue;
-
+        
         public static class IntVersionBuilder implements ObjectBuilder<IntVersion> {
 
         }

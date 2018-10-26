@@ -22,16 +22,19 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -58,6 +61,7 @@ import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +111,8 @@ public class ScaleRequestHandlerTest {
     private ClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 
+    private RequestTracker requestTracker = new RequestTracker(true);
+
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -136,7 +142,7 @@ public class ScaleRequestHandlerTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(ClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper());
+                executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper());
@@ -172,7 +178,8 @@ public class ScaleRequestHandlerTest {
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(),
+                1, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
 
         // verify that one scaleOp event is written into the stream
@@ -206,7 +213,8 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 4);
 
         // process first scale down event. it should only mark the segment as cold
-        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, four, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, four, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleDownEvent)));
         assertTrue(writer.queue.isEmpty());
 
@@ -215,7 +223,8 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 4);
         assertTrue(streamStore.isCold(scope, stream, four, null, executor).join());
 
-        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, three, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, three, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleDownEvent2)));
         assertTrue(streamStore.isCold(scope, stream, three, null, executor).join());
 
@@ -241,18 +250,19 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
-
+        
         // make it throw a non retryable failure so that test does not wait for number of retries.
         // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
         assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis()))));
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis()))));
+        activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
-
+        
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
@@ -277,7 +287,7 @@ public class ScaleRequestHandlerTest {
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L, 1L, 2L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis())).join();
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
@@ -347,7 +357,8 @@ public class ScaleRequestHandlerTest {
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)), false, System.currentTimeMillis())).join();
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)),
+                false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
@@ -363,9 +374,10 @@ public class ScaleRequestHandlerTest {
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
         // 6. run scale. this should fail in scaleCreateNewSegments with IllegalArgumentException with epochTransitionConsistent
-        AssertExtensions.assertThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-                false, System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
+        AssertExtensions.assertThrows("epoch transition should be inconsistent",
+                requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
+                        Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
+                        false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
         state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
@@ -404,7 +416,8 @@ public class ScaleRequestHandlerTest {
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)), false, System.currentTimeMillis())).join();
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)),
+                false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
@@ -422,7 +435,7 @@ public class ScaleRequestHandlerTest {
         // 6. run scale against old record but with manual scale flag set to true. This should be migrated to new epoch and processed.
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-                true, System.currentTimeMillis())).join();
+                true, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
@@ -518,7 +531,7 @@ public class ScaleRequestHandlerTest {
         CompletableFuture<Void> signal = new CompletableFuture<>();
         
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L), 
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis());
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
         if (isManual) {
             streamStore1.submitScale(scope, stream, Lists.newArrayList(0L),
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
@@ -692,7 +705,7 @@ public class ScaleRequestHandlerTest {
         CompletableFuture<Void> signal = new CompletableFuture<>();
 
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis());
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
         if (isManual) {
             streamStore1.submitScale(scope, stream, Lists.newArrayList(0L),
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
@@ -713,7 +726,7 @@ public class ScaleRequestHandlerTest {
 
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis());
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
         if (isManual) {
             streamStore1.submitScale(scope, stream, Lists.newArrayList(one),
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
@@ -741,6 +754,63 @@ public class ScaleRequestHandlerTest {
     }
 
     @Test
+    public void testScaleStateReset() {
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        String stream = "testResetState";
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRange = new ArrayList<>();
+        newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        
+        // start with manual scale
+        ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
+                newRange, true, System.currentTimeMillis(), System.currentTimeMillis());
+        streamStore.submitScale(scope, stream, Lists.newArrayList(0L),
+                newRange, System.currentTimeMillis(), null, null, executor).join();
+        
+        // perform scaling
+        scaleRequestHandler.execute(event).join();
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(1, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+        
+        // now set the state to SCALING
+        this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
+        
+        // rerun same manual scaling job. It should fail with StartException but after having reset the state to active
+        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event),
+                e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        // verify that state is reset
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(1, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+
+        // run scale 2.. this time auto scale
+        ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
+                newRange, false, System.currentTimeMillis(), System.currentTimeMillis());
+        scaleRequestHandler.execute(event2).join();
+        this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
+
+        // rerun same auto scaling job. 
+        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event2),
+                e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(2, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+
+        // now set the state to SCALING and run a new scaling job. This should succeed.
+        this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
+
+        long two = StreamSegmentNameUtils.computeSegmentId(2, 2);
+        ScaleOpEvent event3 = new ScaleOpEvent(scope, stream, Lists.newArrayList(two), newRange, false,
+                System.currentTimeMillis(), System.currentTimeMillis());
+        scaleRequestHandler.execute(event3).join();
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(3, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+    } 
+    
+    @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
         Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 100L, 0.1706574888245243, 0.7085170563088633);
@@ -755,7 +825,8 @@ public class ScaleRequestHandlerTest {
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1), AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1),
+                AutoScaleEvent.UP, System.currentTimeMillis(), 1, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
 
         reset(streamStore);

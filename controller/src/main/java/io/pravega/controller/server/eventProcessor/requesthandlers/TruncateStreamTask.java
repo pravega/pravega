@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
@@ -25,7 +26,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.MetricsNames.TRUNCATED_SIZE;
 import static io.pravega.shared.MetricsNames.nameFromStream;
@@ -33,8 +34,9 @@ import static io.pravega.shared.MetricsNames.nameFromStream;
 /**
  * Request handler for performing truncation operations received from requeststream.
  */
-@Slf4j
 public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(TruncateStreamTask.class));
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     private final StreamMetadataTasks streamMetadataTasks;
@@ -58,6 +60,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
 
         String scope = request.getScope();
         String stream = request.getStream();
+        long requestId = request.getRequestId();
 
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(versionedState -> streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
@@ -70,19 +73,19 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                                     throw new TaskExceptions.StartException("Truncate Stream not started yet.");
                                 }
                             } else {
-                                return processTruncate(scope, stream, versionedMetadata, versionedState, context);
+                                return processTruncate(scope, stream, versionedMetadata, versionedState, context, requestId);
                             }
                         }));
     }
 
     private CompletableFuture<Void> processTruncate(String scope, String stream, VersionedMetadata<StreamTruncationRecord> versionedTruncationRecord,
-                                                    VersionedMetadata<State> versionedState, OperationContext context) {
+                                                    VersionedMetadata<State> versionedState, OperationContext context, long requestId) {
         String delegationToken = this.streamMetadataTasks.retrieveDelegationToken();
         StreamTruncationRecord truncationRecord = versionedTruncationRecord.getObject();
-        log.info("Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
+        log.info(requestId, "Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
         return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.TRUNCATING, versionedState, context, executor)
-                .thenCompose(update -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken)
-                        .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken))
+                .thenCompose(update -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken, requestId)
+                        .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken, requestId))
                         .thenCompose(x -> streamMetadataStore.getSizeTillStreamCut(scope, stream, truncationRecord.getStreamCut(),
                                 context, executor))
                         .thenAccept(truncatedSize -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), truncatedSize))
@@ -90,19 +93,21 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
                         .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, update, context, executor))));
     }
 
-    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete, String delegationToken) {
-        log.debug("{}/{} deleting segments {}", scope, stream, segmentsToDelete);
+    private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,
+                                                         String delegationToken, long requestId) {
+        log.debug(requestId, "{}/{} deleting segments {}", scope, stream, segmentsToDelete);
         return Futures.allOf(segmentsToDelete.stream()
                 .parallel()
-                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment, delegationToken))
+                .map(segment -> streamMetadataTasks.notifyDeleteSegment(scope, stream, segment, delegationToken, requestId))
                 .collect(Collectors.toList()));
     }
 
-    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Long, Long> streamCut, String delegationToken) {
-        log.debug("{}/{} truncating segments", scope, stream);
+    private CompletableFuture<Void> notifyTruncateSegments(String scope, String stream, Map<Long, Long> streamCut,
+                                                           String delegationToken, long requestId) {
+        log.debug(requestId, "{}/{} truncating segments", scope, stream);
         return Futures.allOf(streamCut.entrySet().stream()
                 .parallel()
-                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut, delegationToken))
+                .map(segmentCut -> streamMetadataTasks.notifyTruncateSegment(scope, stream, segmentCut, delegationToken, requestId))
                 .collect(Collectors.toList()));
     }
 

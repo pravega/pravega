@@ -336,11 +336,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenApply(result -> {
+    public CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenAccept(result -> {
             SEAL_STREAM.reportSuccessValue(1);
             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-            return true;
         });
     }
 

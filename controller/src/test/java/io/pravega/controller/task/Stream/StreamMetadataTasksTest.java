@@ -22,6 +22,7 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
@@ -126,6 +127,8 @@ public class StreamMetadataTasksTest {
     private StreamRequestHandler streamRequestHandler;
     private ConnectionFactoryImpl connectionFactory;
 
+    private RequestTracker requestTracker = new RequestTracker(true);
+
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -142,9 +145,8 @@ public class StreamMetadataTasksTest {
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore,
-                taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key")));
+        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key"), requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory,
@@ -283,7 +285,7 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && !configProp.isUpdating());
 
         streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
-        UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1);
+        UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1, System.nanoTime());
         assertTrue(Futures.await(updateStreamTask.execute(event)));
         AssertExtensions.assertThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
@@ -398,7 +400,7 @@ public class StreamMetadataTasksTest {
 
         streamStorePartialMock.setState(SCOPE, "test", State.TRUNCATING, null, executor).join();
 
-        TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test");
+        TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test", System.nanoTime());
         assertTrue(Futures.await(truncateStreamTask.execute(event)));
         AssertExtensions.assertThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
 
@@ -814,7 +816,7 @@ public class StreamMetadataTasksTest {
 
         // now update stream with a retention policy
         streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, withRetentionConfig, null, executor).join();
-        UpdateStreamEvent update = new UpdateStreamEvent(SCOPE, stream);
+        UpdateStreamEvent update = new UpdateStreamEvent(SCOPE, stream, System.nanoTime());
         task.execute(update).join();
 
         // verify that bucket has the stream.

@@ -18,9 +18,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import io.pravega.segmentstore.storage.Storage;
@@ -147,6 +149,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
+    public <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass) {
+        throw new UnsupportedOperationException("getExtension is not supported on " + getClass().getSimpleName());
+    }
+
+    @Override
     public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return unsupported("append");
     }
@@ -189,6 +196,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         return unsupported("truncateStreamSegment");
+    }
+
+    @Override
+    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+        return unsupported("forSegment");
     }
 
     private <T> CompletableFuture<T> unsupported(String methodName) {

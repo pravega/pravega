@@ -12,7 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -25,14 +25,16 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 /**
  * Request handler for performing scale operations received from requeststream.
  */
-@Slf4j
 public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ScaleOperationTask.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
@@ -54,8 +56,8 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         CompletableFuture<Void> result = new CompletableFuture<>();
         final OperationContext context = streamMetadataStore.createContext(request.getScope(), request.getStream());
 
-        log.info("starting scale request for {}/{} segments {} to new ranges {}", request.getScope(), request.getStream(),
-                request.getSegmentsToSeal(), request.getNewRanges());
+        log.info(request.getRequestId(), "starting scale request for {}/{} segments {} to new ranges {}",
+                request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
         runScale(request, request.isRunOnlyIfStarted(), context,
                 this.streamMetadataTasks.retrieveDelegationToken())
@@ -65,12 +67,12 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
-                        log.warn("processing scale request for {}/{} segments {} failed {}", request.getScope(), request.getStream(),
-                                request.getSegmentsToSeal(), cause);
+                        log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
+                                request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
                         result.completeExceptionally(cause);
                     } else {
-                        log.info("scale request for {}/{} segments {} to new ranges {} completed successfully.", request.getScope(), request.getStream(),
-                                request.getSegmentsToSeal(), request.getNewRanges());
+                        log.info(request.getRequestId(), "scale request for {}/{} segments {} to new ranges {} completed successfully.",
+                                request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
                         result.complete(null);
                     }
@@ -88,6 +90,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context, String delegationToken) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
+        long requestId = scaleInput.getRequestId();
         // Note: There are two interesting cases for retry of partially completed workflow that are interesting:
         // if we crash before resetting epoch transition (complete scale step), then in rerun ETR will be rendered inconsistent
         // and deleted in startScale method.
@@ -96,45 +99,50 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
             .thenCompose(state -> streamMetadataStore.getEpochTransition(scope, stream, context, executor)
                     .thenCompose(record -> {
+                        AtomicReference<VersionedMetadata<State>> reference = new AtomicReference<>(state);
                         CompletableFuture<VersionedMetadata<EpochTransitionRecord>> future = CompletableFuture.completedFuture(record);
                         if (record.getObject().equals(EpochTransitionRecord.EMPTY)) {
                             if (state.getObject().equals(State.SCALING)) {
-                                return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
-                                        state, context, executor));
+                                future = streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                        state, context, executor).thenApply(updatedState -> {
+                                            reference.set(updatedState);
+                                            return record;
+                                });
+                            } 
+
+                            if (isManualScale) {
+                                throw new TaskExceptions.StartException("Scale Stream not started yet.");
                             } else {
-                                if (isManualScale) {
-                                    throw new TaskExceptions.StartException("Scale Stream not started yet.");
-                                } else {
-                                    future = streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
-                                            scaleInput.getNewRanges(), scaleInput.getScaleTime(), record, context, executor);
-                                }
+                                future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
+                                        scaleInput.getNewRanges(), scaleInput.getScaleTime(), record, context, executor));
                             }
                         } 
                         
                         return future
-                                .thenCompose(versionedMetadata -> processScale(scope, stream, isManualScale, delegationToken,
-                                        versionedMetadata, state, context));
+                                .thenCompose(versionedMetadata -> processScale(scope, stream, isManualScale, versionedMetadata, 
+                                        reference.get(), context, delegationToken, requestId));
                     }));
     }
 
-    private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale, String delegationToken,
-                                                                  VersionedMetadata<EpochTransitionRecord> metadata,
-                                                                  VersionedMetadata<State> state, OperationContext context) {
+    private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale,
+                                                 VersionedMetadata<EpochTransitionRecord> metadata,
+                                                 VersionedMetadata<State> state, OperationContext context,
+                                                 String delegationToken, long requestId) {
         return streamMetadataStore.updateVersionedState(scope, stream, State.SCALING, state, context, executor)
                 .thenCompose(updatedState -> streamMetadataStore.startScale(scope, stream, isManualScale, metadata, updatedState, context, executor)
                         .thenCompose(record -> streamMetadataStore.scaleCreateNewSegments(scope, stream, record, context, executor)
                         .thenCompose(v -> {
                             List<Long> segmentIds = record.getObject().getNewSegmentsWithRange().keySet().asList();
                             List<Long> segmentsToSeal = record.getObject().getSegmentsToSeal().asList();
-                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken)
+                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
                                     .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, record, context, executor))
-                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken))
+                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken, requestId))
                                     .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
                                     .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, record, context, executor))
                                     .thenCompose(x -> streamMetadataStore.completeScale(scope, stream, record, context, executor))
                                     .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updatedState, context, executor))
                                     .thenAccept(y -> {
-                                        log.info("scale processing for {}/{} epoch {} completed.", scope, stream, record.getObject().getActiveEpoch());
+                                        log.info(requestId, "scale processing for {}/{} epoch {} completed.", scope, stream, record.getObject().getActiveEpoch());
                                     });
                         })));
 

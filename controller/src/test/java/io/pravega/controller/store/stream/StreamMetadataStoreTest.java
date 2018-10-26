@@ -177,14 +177,12 @@ public abstract class StreamMetadataStoreTest {
 
         assertFalse(store.isSealed(scope, stream1, null, executor).get());
         assertNotEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
-        Boolean sealOperationStatus = store.setSealed(scope, stream1, null, executor).get();
-        assertTrue(sealOperationStatus);
+        store.setSealed(scope, stream1, null, executor).get();
         assertTrue(store.isSealed(scope, stream1, null, executor).get());
         assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
 
         //Sealing an already seal stream should return success.
-        Boolean sealOperationStatus1 = store.setSealed(scope, stream1, null, executor).get();
-        assertTrue(sealOperationStatus1);
+        store.setSealed(scope, stream1, null, executor).get();
         assertTrue(store.isSealed(scope, stream1, null, executor).get());
         assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
 

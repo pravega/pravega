@@ -26,4 +26,5 @@ include 'common',
         'standalone',
         'test:testcommon',
         'test:integration',
-        'test:system'
+        'test:system',
+        'bindings'

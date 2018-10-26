@@ -296,7 +296,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return boolean indicating whether the stream was updated.
      */
-    CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context, final Executor executor);
 
     /**
      * Get the stream sealed status.

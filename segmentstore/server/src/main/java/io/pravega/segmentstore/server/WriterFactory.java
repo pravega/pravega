@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.storage.Storage;
+import java.util.Collection;
 
 /**
  * Defines a Factory for Writers.
@@ -25,8 +26,21 @@ public interface WriterFactory {
      * @param attributeIndex    The ContainerAttributeIndex to attach to (to durably store Extended Attributes for
      *                          processed appends).
      * @param storage           The Storage adapter to use.
+     * @param createProcessors  A Function that, when invoked with a Segment's Metadata, will create any additional
+     *                          WriterSegmentProcessors for that Segment.
      * @return An instance of a class that implements the Writer interface.
      */
     Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
-                        ContainerAttributeIndex attributeIndex, Storage storage);
+                        ContainerAttributeIndex attributeIndex, Storage storage, CreateProcessors createProcessors);
+
+    @FunctionalInterface
+    interface CreateProcessors {
+        /**
+         * Instantiates the WriterSegmentProcessors for the segment represented by the given metadata.
+         *
+         * @param segmentMetadata The UpdateableSegmentMetadata for the segment for which to create processors.
+         * @return A collection containing new instances of all needed WriterSegmentProcessors.
+         */
+        Collection<WriterSegmentProcessor> apply(UpdateableSegmentMetadata segmentMetadata);
+    }
 }

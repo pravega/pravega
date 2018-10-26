@@ -7,15 +7,15 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-In Pravega Metrics Framework, we use [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
+In Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
 # 1. Metrics interfaces and examples usage
 There are four basic interfaces: StatsProvider, StatsLogger (short for Statistics Logger), OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger) and Dynamic Logger.
-StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms)); while OpStatsLogger is a sub-metric for complex ones (Timer/Histograms).
+StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)); while OpStatsLogger is a sub-metric for complex ones (Timer/Histograms).
 ## 1.1. Metrics Service Provider — Interface StatsProvider
 The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service. Regarding the reporters, currently we have support for CSV reporter and StatsD reporter.
 ```java
 public interface StatsProvider {
-    void start(MetricsConfig conf);
+    void start();
     void close();
     StatsLogger createStatsLogger(String scope);
     DynamicLogger createDynamicLogger();
@@ -69,12 +69,12 @@ public interface OpStatsLogger {
 A simple interface that only exposes simple type metrics: Counter/Gauge/Meter.
 ```java
 public interface DynamicLogger {
-void incCounterValue(String name, long delta);
-void updateCounterValue(String name, long value);
-void freezeCounter(String name);
-<T extends Number> void reportGaugeValue(String name, T value);
-void freezeGaugeValue(String name);
-void recordMeterEvents(String name, long number);
+    void incCounterValue(String name, long delta);
+    void updateCounterValue(String name, long value);
+    void freezeCounter(String name);
+    <T extends Number> void reportGaugeValue(String name, T value);
+    void freezeGaugeValue(String name);
+    void recordMeterEvents(String name, long number);
 }
 ```
 
@@ -91,15 +91,13 @@ This example is from file io.pravega.segmentstore.server.host.ServiceStarter. It
 ```java
 public final class ServiceStarter {
     ...
+    private final ServiceBuilderConfig builderConfig;
     private StatsProvider statsProvider;
     ...
-    private void start() {
+    public void start() throws Exception {
         ...
         log.info("Initializing metrics provider ...");
-        MetricsConfig config = MetricsConfig.builder()
-                                                    .with(MetricsConfig.METRICS_PREFIX, "metrics-prefix")
-                                                    .build();
-        MetricsProvider.initialize(metricsConfig);
+        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.start(); // Here metric service is started as a sub-service
         ...
@@ -126,7 +124,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
-    
     
     private void handleReadResult(ReadSegment request, ReadResult result) {
             String segment = request.getSegment();
@@ -212,19 +209,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     …
 }
 ```
-From the above example, we can see the reuired steps of how to register and use a metric in desired class and method:
+From the above example, we can see the required steps to register and use a metric in desired class and method:
 
 1. Get a StatsLogger from MetricsProvider: 
 ```
 StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
 ```
-1. Register all the desired metrics through StatsLogger:
+2. Register all the desired metrics through StatsLogger:
 ```
 static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
 ```
-1. Use these metrics within code at appropriate place where you would like to collect and record the values.
+3. Use these metrics within code at appropriate place where you would like to collect and record the values.
 ```
-Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsedNanos());
+Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
 ```
 Here CREATE_STREAM_SEGMENT is the name of this metric, and CREATE_STREAM_SEGMENT is the name of our Metrics logger, it will track operations of createSegment, and we will get the time of each createSegment operation happened, how long each operation takes, and other numbers computed based on them.
 
@@ -273,10 +270,10 @@ This is an example from io.pravega.segmentstore.server.SegmentStoreMetrics. In t
 public final class SegmentStoreMetrics {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     
-public void createSegment() {
+    public void createSegment() {
             DYNAMIC_LOGGER.recordMeterEvents(this.createSegmentCount, 1);  // Record event for meter metric createSegmentCount
-        } 
- }
+    } 
+}
 ```
  
 # 3. Metric reporter and Configurations
@@ -287,7 +284,7 @@ The reporter could be configured through MetricsConfig.
 ```java
 public class MetricsConfig extends ComponentConfig {
     //region Members
-    public static final String COMPONENT_CODE = "metrics";
+    public final static String COMPONENT_CODE = "metrics";
     public final static String ENABLE_STATISTICS = "enableStatistics"; //enable metric, or will report nothing, default = true,  
     public final static Property<Long> DYNAMIC_CACHE_SIZE = "dynamicCacheSize"; //dynamic cache size , default = 10000000L
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = "dynamicCacheEvictionDurationMs"; //dynamic cache evcition duration, default = 30
@@ -326,12 +323,12 @@ public class AddMetrics {
         //Using Stats Logger
         static final String CREATE_STREAM = "stream_created"; 
         static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(CREATE_STREAM);
-        static final String SEGMENT_CREATE_LATENCY = "segment_create_latency_ms";
+        static final String SEGMENT_CREATE_LATENCY = "segmentstore.segment.create_latency_ms";
         static final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
             
         //Using Dynamic Logger
-        static final String SEGMENT_READ_BYTES = "segmentstore.segment_read_bytes";  //Dynamic Counter
-        static final String OPEN_TRANSACTIONS = "controller.transactions_opened";    //Dynamic Gauge
+        static final String SEGMENT_READ_BYTES = "segmentstore.segment.read_bytes";  //Dynamic Counter
+        static final String OPEN_TRANSACTIONS = "controller.transactions.opened";    //Dynamic Gauge
         ...
     }
    
@@ -355,99 +352,99 @@ public class AddMetrics {
 
 - Metrics in Segment Store Service.
 ```
-segmentstore.segment_read_latency_ms
-segmentstore.segment_write_latency_ms 
-segmentstore.segment_create_latency_ms
+segmentstore.segment.read_latency_ms
+segmentstore.segment.write_latency_ms 
+segmentstore.segment.create_latency_ms
 
-//Dynamic
-segmentstore.segment_read_bytes.$scope.$stream.$segment.Counter
-segmentstore.segment_write_bytes.$scope.$stream.$segment.Counter
+//Dynamic Counter
+segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
+segmentstore.segment.write_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
 ```
 
 - Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate.	
 ```
-hdfs.tier2_read_latency_ms
-hdfs.tier2_write_latency_ms
+segmentstore.storage.read_latency_ms
+segmentstore.storage.write_latency_ms
 
-//Dynamic
-hdfs.tire2_read_bytes.Counter
-hdfs.tier2_write_bytes.Counter
+//Counter
+segmentstore.storage.read_bytes.Counter
+segmentstore.storage.write_bytes.Counter
 ```
 
 - Cache Metrics
 ```
-rocksdb.cache_insert_latency
-rocksdb.cache_get_latency
+segmentstore.cache.insert_latency_ms
+segmentstore.cache.get_latency
 ```
 
 - Tier-1 DurableDataLog Metrics: Read/Write Latency, Read/Write Rate.	
 ```
-bookkeeper.bookkeeper_total_write_latency
-bookkeeper.bookkeeper_write_latency
-bookkeeper.bookkeeper_write_bytes
-bookkeeper.bookkeeper_write_queue_size
-bookkeeper.bookkeeper_write_queue_fill
+segmentstore.bookkeeper.total_write_latency_ms
+segmentstore.bookkeeper.write_latency_ms
+segmentstore.bookkeeper.write_bytes
+segmentstore.bookkeeper.write_queue_size
+segmentstore.bookkeeper.write_queue_fill
 
 //Dynamic
-bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
+segmentstore.bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
 ```
 
 - Container-specific metrics.
 ```
-process_operations_latency.$containerId
-process_operations_batch_size.$containerId
-operation_queue_size.$containerId
-operation_processor_in_flight.$containerId
-operation_queue_wait_time.$containerId
-operation_processor_delay_ms.$containerId
-operation_commit_latency_ms.$containerId
-operation_latency_ms.$containerId
-operation_commit_metadata_txn_count.$containerId
-operation_commit_memory_latency_ms.$containerId
-operation_log_size.$containerId
+segmentstore.container.process_operations.latency_ms.$containerId
+segmentstore.container.process_operations.batch_size.$containerId
+segmentstore.container.operation_queue.size.$containerId
+segmentstore.container.operation_processor.in_flight.$containerId
+segmentstore.container.operation_queue.wait_time.$containerId
+segmentstore.container.operation_processor.delay_ms.$containerId
+segmentstore.container.operation_commit.latency_ms.$containerId
+segmentstore.container.operation.latency_ms.$containerId
+segmentstore.container.operation_commit.metadata_txn_count.$containerId
+segmentstore.container.operation_commit.memory_latency_ms.$containerId
+segmentstore.container.operation.log_size.$containerId
 
 //Dynamic
-container_append_count.$containerId.Meter
-container_append_offset_count.$containerId.Meter
-container_update_attributes_count.$containerId.Meter
-container_get_attributes_count.$containerId.Meter
-container_read_count.$containerId.Meter
-container_get_info_count.$containerId.Meter
-container_create_segment_count.$containerId.Meter
-container_delete_segment_count.$containerId.Meter
-container_merge_segment_count.$containerId.Meter
-container_seal_count.$containerId.Meter
-container_truncate_count.$containerId.Meter
-active_segments.$containerId.Gauge
+segmentstore.container.append_count.$containerId.Meter
+segmentstore.container.append_offset_count.$containerId.Meter
+segmentstore.container.update_attributes_count.$containerId.Meter
+segmentstore.container.get_attributes_count.$containerId.Meter
+segmentstore.container.read_count.$containerId.Meter
+segmentstore.container.get_info_count.$containerId.Meter
+segmentstore.container.create_segment_count.$containerId.Meter
+segmentstore.container.delete_segment_count.$containerId.Meter
+segmentstore.container.merge_segment_count.$containerId.Meter
+segmentstore.container.seal_count.$containerId.Meter
+segmentstore.container.truncate_count.$containerId.Meter
+segmentstore.active_segments.$containerId.Gauge
 ```
 
 - Metrics in Controller. 
 ```
-controller.stream_created
-controller.stream_sealed
-controller.stream_deleted
+controller.stream.created
+controller.stream.sealed
+controller.stream.deleted
 
 //Dynamic
-controller.transactions_created.$scope.$stream.Counter
-controller.transactions_committed.$scope.$stream.Counter
-controller.transactions_aborted.$scope.$stream.Counter
-controller.transactions_opened.$scope.$stream.Gauge
-controller.transactions_timedout.$scope.$stream.Counter
-controller.segments_count.$scope.$stream.Gauge
-controller.$scope.$stream.segments_splits.$scope.$stream.Counter
-controller.$scope.$stream.segments_merges.$scope.$stream.Counter
-controller.retention_frequency.$scope.$stream.Meter
-controller.truncated_size.$scope.$stream.Gauge
+controller.transactions.created.$scope.$stream.Counter
+controller.transactions.committed.$scope.$stream.Counter
+controller.transactions.aborted.$scope.$stream.Counter
+controller.transactions.opened.$scope.$stream.Gauge
+controller.transactions.timedout.$scope.$stream.Counter
+controller.segments.count.$scope.$stream.Gauge
+controller.segments.splits.$scope.$stream.Counter
+controller.segments.merges.$scope.$stream.Counter
+controller.retention.frequency.$scope.$stream.Meter
+controller.retention.truncated_size.$scope.$stream.Gauge
 ```
 
 - General Metrics.
 ```
-cache_size_bytes
-cache_gen
-thread_pool_queue_size
-thread_pool_active_threads
+segmentstore.cache.size_bytes
+segmentstore.cache.gen
+segmentstore.thread_pool.queue_size
+segmentstore.thread_pool.active_threads
 ```
 # 6. Useful links
-* [Dropwizard Metrics](http://metrics.dropwizard.io/3.1.0/apidocs)
+* [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)
 * [etsy_StatsD](https://github.com/etsy/statsd)

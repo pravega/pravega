@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -274,7 +275,7 @@ public class ServiceBuilder implements AutoCloseable {
         WriterFactory writerFactory = getSingleton(this.writerFactory, this::createWriterFactory);
         ContainerConfig containerConfig = this.serviceBuilderConfig.getConfig(ContainerConfig::builder);
         return new StreamSegmentContainerFactory(containerConfig, operationLogFactory, readIndexFactory, attributeIndexFactory,
-                writerFactory, storageFactory, this.coreExecutor);
+                writerFactory, storageFactory, SegmentContainerFactory.NO_EXTENSIONS, this.coreExecutor);
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {
@@ -436,7 +437,7 @@ public class ServiceBuilder implements AutoCloseable {
     /**
      * Setup helper for a ServiceBuilder component.
      */
-    public static class ComponentSetup {
+    public static class ComponentSetup implements ConfigSetup {
         private final ServiceBuilder builder;
 
         private ComponentSetup(ServiceBuilder builder) {
@@ -449,6 +450,7 @@ public class ServiceBuilder implements AutoCloseable {
          * @param builderConstructor A Supplier that creates a ConfigBuilder for the desired configuration type.
          * @param <T>                The type of the Configuration to instantiate.
          */
+        @Override
         public <T> T getConfig(Supplier<? extends ConfigBuilder<T>> builderConstructor) {
             return this.builder.serviceBuilderConfig.getConfig(builderConstructor);
         }

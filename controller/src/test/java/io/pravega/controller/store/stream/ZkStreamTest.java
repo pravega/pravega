@@ -403,14 +403,12 @@ public class ZkStreamTest {
 
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
-        Boolean sealOperationStatus = store.setSealed(SCOPE, streamName, context, executor).get();
-        assertTrue(sealOperationStatus);
+        store.setSealed(SCOPE, streamName, context, executor).get();
         assertTrue(store.isSealed(SCOPE, streamName, context, executor).get());
         assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
 
         //seal an already sealed stream.
-        Boolean sealOperationStatus1 = store.setSealed(SCOPE, streamName, context, executor).get();
-        assertTrue(sealOperationStatus1);
+        store.setSealed(SCOPE, streamName, context, executor).get();
         assertTrue(store.isSealed(SCOPE, streamName, context, executor).get());
         assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
 

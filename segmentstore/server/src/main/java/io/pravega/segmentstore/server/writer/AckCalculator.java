@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
 
 /**
  * Helper class that calculates Ack Sequence Numbers based on input information from OperationProcessors.
@@ -45,9 +46,9 @@ class AckCalculator {
      *
      * @param processors The Processors to inspect for commit status.
      */
-    <T extends OperationProcessor> long getHighestCommittedSequenceNumber(Iterable<T> processors) {
+    <T extends WriterSegmentProcessor> long getHighestCommittedSequenceNumber(Iterable<T> processors) {
         long lowestUncommittedSeqNo = Long.MAX_VALUE;
-        for (OperationProcessor a : processors) {
+        for (WriterSegmentProcessor a : processors) {
             if (!a.isClosed()) {
                 long firstSeqNo = a.getLowestUncommittedSequenceNumber();
                 if (firstSeqNo >= 0) {

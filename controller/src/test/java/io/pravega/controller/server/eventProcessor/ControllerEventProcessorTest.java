@@ -15,6 +15,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
@@ -79,6 +80,7 @@ public class ControllerEventProcessorTest {
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
     private CuratorFramework zkClient;
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setUp() throws Exception {
@@ -95,7 +97,7 @@ public class ControllerEventProcessorTest {
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper());
+                segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
                 executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
@@ -235,14 +237,16 @@ public class ControllerEventProcessorTest {
         streamStore.setState(SCOPE, STREAM, State.COMMITTING_TXN, null, executor).join();
 
         // verify that event that does not try to use `processor.withCompletion` runs without contention
-        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));
+        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L,
+                AutoScaleEvent.UP, 0L, 2, true, 0L))));
 
         // now same event's processing in face of a barrier should get postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, commitEventProcessor.getProcessorName(), null, executor).join();
-        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L, AutoScaleEvent.UP, 0L, 2, true))));
+        assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L,
+                AutoScaleEvent.UP, 0L, 2, true, 0L))));
 
         AssertExtensions.assertThrows("Operation should be disallowed", streamRequestHandler.processEvent(
-                new ScaleOpEvent(SCOPE, STREAM, Collections.emptyList(), Collections.emptyList(), false, 0L)),
+                new ScaleOpEvent(SCOPE, STREAM, Collections.emptyList(), Collections.emptyList(), false, 0L, 0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());

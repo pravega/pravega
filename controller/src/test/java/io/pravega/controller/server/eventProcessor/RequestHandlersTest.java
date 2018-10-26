@@ -17,6 +17,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
@@ -80,6 +81,7 @@ public class RequestHandlersTest {
     private final String stream = "stream";
     StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
             ScalingPolicy.byEventRate(1, 2, 3)).build();
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
@@ -123,7 +125,7 @@ public class RequestHandlersTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(ClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper());
+                executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper());
@@ -189,7 +191,8 @@ public class RequestHandlersTest {
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis());
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
+                System.currentTimeMillis());
         scaleRequesthandler.execute(event).join();
 
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
@@ -286,7 +289,8 @@ public class RequestHandlersTest {
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis());
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
+                System.currentTimeMillis());
         scaleRequesthandler.execute(event).join();
 
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
@@ -413,7 +417,7 @@ public class RequestHandlersTest {
 
         streamStore1.startUpdateConfiguration(scope, stream, config, null, executor).join();
 
-        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream);
+        UpdateStreamEvent event = new UpdateStreamEvent(scope, stream, System.currentTimeMillis());
 
         doAnswer(x -> {
             signal.complete(null);
@@ -462,7 +466,7 @@ public class RequestHandlersTest {
 
         streamStore1.startTruncation(scope, stream, map, null, executor).join();
 
-        TruncateStreamEvent event = new TruncateStreamEvent(scope, stream);
+        TruncateStreamEvent event = new TruncateStreamEvent(scope, stream, System.currentTimeMillis());
 
         doAnswer(x -> {
             signal.complete(null);
