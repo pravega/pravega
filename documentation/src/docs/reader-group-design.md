@@ -79,10 +79,10 @@ There are no races between multiple Readers coming online concurrently because o
 There is no ambiguity as to who the owner is, because it is stored in the shared state. There is no risk of a segment being ignored because every Reader can see the available segments by looking at the shared state and claim them.
 
 ## Reader going offline
-1. When a Reader dies, the `ReaderOffline()` method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state `readerOffline(readerId, position) api`.
+1. When a Reader dies, the `readerOffline(readerId, position) api` method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state.
 
-1. Other Readers will see this `position` object when they update their local state.
-1. If the `position` is sent as "null" then the last checkpointed position of the Reader is used by the newer Readers when they take ownership of the segment(s) that were read by the older/offline reader.
+1. If a null `Position` is sent then the last checkpointed position will be written to the state.
+1. This is used by the newer Readers when they take ownership of the segment(s) that were read by the older/offline reader.
 1. Any Reader can decide to take over one or more of the segments owned by the old Reader from where it left off by recording their intention to do so in the state object.
 1. Once the state has been updated by the new Reader, it is considered the owner of the segment and can read from it.
 
