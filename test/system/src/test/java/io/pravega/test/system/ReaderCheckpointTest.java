@@ -49,7 +49,6 @@ import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -93,16 +92,6 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
-    @Before
-    public void setup() {
-        controllerURI = fetchControllerURI();
-        StreamManager streamManager = StreamManager.create(controllerURI);
-        assertTrue("Creating Scope", streamManager.createScope(SCOPE_1));
-        assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM, streamConfig));
-        assertTrue("Creating Scope", streamManager.createScope(SCOPE_2));
-        assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM, streamConfig));
-    }
-
     @After
     public void tearDown() {
         ExecutorServiceHelpers.shutdown(readerExecutor);
@@ -110,6 +99,10 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
 
     @Test
     public void readerCheckpointTest() {
+        controllerURI = fetchControllerURI();
+        StreamManager streamManager = StreamManager.create(controllerURI);
+        assertTrue("Creating Scope", streamManager.createScope(SCOPE_1));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM, streamConfig));
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, controllerURI);
@@ -161,6 +154,10 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
 
     @Test
     public void generateStreamCutsTest() {
+        controllerURI = fetchControllerURI();
+        StreamManager streamManager = StreamManager.create(controllerURI);
+        assertTrue("Creating Scope", streamManager.createScope(SCOPE_2));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM, streamConfig));
 
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, controllerURI);
