@@ -109,9 +109,7 @@ truncating, sealing_ and _deleting streams_.
 
 The stream management can be broadly divided into three categories:
 
-1. Stream Abstraction  
-
-A stream can be viewed as a series of dynamically changing segment sets
+  1. **Stream Abstraction**: A stream can be viewed as a series of dynamically changing segment sets
 where the stream transitions from one set of consistent segments to the
 next. Controller is the place for creating and managing this stream abstraction.
 Controller decides when and how a stream transitions from one state to another and is responsible
@@ -121,17 +119,13 @@ controller enforces. Consequently, as part of stream management, the
 controller also performs roles of Policy Manager for policies like
 retention and scale.
 
-1. Automated policy Management  
-
-Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the stream. Presently we
+  2. **Policy Management**: Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the stream. Presently we
 have two policies that users can define, namely [Scaling Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
 [Retention Policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
 Scaling policy describes if and under what circumstances a stream should automatically scale its number of segments.
 Retention policy describes a policy about how much data to retain within a stream.
 
-1. [Transaction](pravega-concepts.md#transactions) Management  
-
-Implementing transactions requires the manipulation of segments. With
+  3. [**Transaction**](pravega-concepts.md#transactions) **Management**: Implementing transactions requires the manipulation of segments. With
 each transaction, Pravega creates a set of transaction segments, which
 are later merged onto the stream segments upon commit or discarded upon
 aborts. The controller performs the role of transaction manager and is
