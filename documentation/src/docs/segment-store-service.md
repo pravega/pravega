@@ -52,7 +52,7 @@ More details about each component described above can be found in the [Component
 
 ![System Diagram](img/Segment.Store.Components.png)
 
-In the above diagram, the major components of the Segment Store are shown. But for simplicity, only one Segment Container is depicted. All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in, one form or another, and adding it would only clutter the diagram.
+In the above diagram, the major components of the Segment Store are shown. But for simplicity, only one Segment Container is depicted. All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in one form or another and adding it would only clutter the diagram.
 
 More detailed diagrams can be found under the [Data Flow](#data-flow) section.
 
@@ -131,7 +131,7 @@ The _Durable Log_ is the central component that handles all Log Operations. All 
 
 1. All received operations are added to an _Operation Queue_ (the caller receives a Future which will be completed when the operation is durably persisted).
 2. The _Operation Processor_ picks all operations currently available in the queue (if the queue is empty, it will wait until at least one Operation is added).
-3. The _Operation Processor_ runs as a continuous loop (in a background thread), and has four main stages.
+3. The _Operation Processor_ runs as a continuous loop (in a background thread), and executes the following steps.
 
       1. _Dequeue_ all outstanding Operations from the Operation Queue (described above).
 
