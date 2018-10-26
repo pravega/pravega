@@ -176,7 +176,7 @@ A Stream comprises a set of Segments that can change over time. Segments that ov
 
 An Event written to a Stream is written to a single Segment, and is ordered with respect to the Events of that Segment. The existence and position of an Event within a Segment maintains consistency.
 
-Readers can be assigned multiple parallel Segments (from different parts of key space). A Reader reading from multiple Segments will interleave the Events of the Segments, but the order of Events per Segment is retained. Specifically, if **s** is a Segment, and **s** contains two Events _i.e.,_ **s = {e~1,e~2}** where **e~1** precedes **e~2**. Thus when a Reader tries to read both the Events (**e~1** and **e~2**) the read order is guaranteed by assuring that, the Reader is allowed to read **e~1** before **e~2**.
+Readers can be assigned multiple parallel Segments (from different parts of key space). A Reader reading from multiple Segments will interleave the Events of the Segments, but the order of Events per Segment is retained. Specifically, if **s** is a Segment, and **s** contains two Events _i.e.,_ **s** **=** {**e~1**,**e~2**} where **e~1** precedes **e~2**. Thus when a Reader tries to read both the Events (**e~1** and **e~2**) the read order is guaranteed by assuring that, the Reader is allowed to read **e~1** before **e~2**.
 
 This results in the following ordering guarantees:
 
