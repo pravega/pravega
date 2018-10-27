@@ -268,7 +268,7 @@ public class TimeoutServiceTest {
                 .join();
 
         VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, ModelHelper.encode(txnId), null, executor).join();
-        Assert.assertEquals(txnData.getVersion().asIntVersion().getIntValue().intValue(), 0);
+        Assert.assertEquals(txnData.getVersion().asIntVersion().getIntValue(), 0);
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
@@ -281,7 +281,7 @@ public class TimeoutServiceTest {
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         txnData = streamStore.getTransactionData(SCOPE, STREAM, ModelHelper.encode(txnId), null, executor).join();
-        Assert.assertEquals(txnData.getVersion().asIntVersion().getIntValue().intValue(), 1);
+        Assert.assertEquals(txnData.getVersion().asIntVersion().getIntValue(), 1);
 
         // timeoutService1 should believe that LEASE has expired and should get non empty completion tasks
         result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE + RETRY_DELAY), TimeUnit.MILLISECONDS);

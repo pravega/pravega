@@ -184,15 +184,11 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<Void> completeTruncation(VersionedMetadata<StreamTruncationRecord> record) {
         Preconditions.checkNotNull(record);
+        Preconditions.checkArgument(record.getObject().isUpdating());
         StreamTruncationRecord current = record.getObject();
-        if (current.isUpdating()) {
-            StreamTruncationRecord completedProp = StreamTruncationRecord.complete(current);
+        StreamTruncationRecord completedProp = StreamTruncationRecord.complete(current);
 
-            return setTruncationData(new Data(completedProp.toByteArray(), record.getVersion()));
-        } else {
-            // idempotent
-            return CompletableFuture.completedFuture(null);
-        }
+        return setTruncationData(new Data(completedProp.toByteArray(), record.getVersion()));
     }
 
     @Override
@@ -200,7 +196,7 @@ public abstract class PersistentStreamBase implements Stream {
         return getTruncationData(true)
                 .thenApply(data -> {
                     StreamTruncationRecord truncationRecord = StreamTruncationRecord.parse(data.getData());
-                    return new VersionedMetadata<StreamTruncationRecord>(truncationRecord, data.getVersion());
+                    return new VersionedMetadata<>(truncationRecord, data.getVersion());
                 });
     }
 
@@ -499,7 +495,7 @@ public abstract class PersistentStreamBase implements Stream {
             }
         }).thenCompose(record -> {
             if (!record.getObject().equals(EpochTransitionRecord.EMPTY)) {
-                // verify that its the same as the supplied input (--> segments to be sealed
+                // verify that it's the same as the supplied input (--> segments to be sealed
                 // and new ranges are identical). else throw scale conflict exception
                 if (!verifyRecordMatchesInput(segmentsToSeal, newRanges, record.getObject())) {
                     log.debug("scale conflict, another scale operation is ongoing");
@@ -796,6 +792,8 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Void> completeScale(VersionedMetadata<EpochTransitionRecord> record) {
+        Preconditions.checkNotNull(record);
+        Preconditions.checkArgument(!record.getObject().equals(EpochTransitionRecord.EMPTY));
         return Futures.toVoid(updateEpochTransitionNode(new Data(EpochTransitionRecord.EMPTY.toByteArray(), record.getVersion())));
     }
 
@@ -931,8 +929,8 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final UUID txnId,
-                                                                                            final long lease,
-                                                                                            final long maxExecutionTime) {
+                                                                         final long lease,
+                                                                         final long maxExecutionTime) {
         final long current = System.currentTimeMillis();
         final long leaseTimestamp = current + lease;
         final long maxExecTimestamp = current + maxExecutionTime;
@@ -1288,8 +1286,6 @@ public abstract class PersistentStreamBase implements Stream {
 
     /**
      * Get transactions in epoch. If no transactions exist return null.
-     * If transactions exist, create a new Committing transactions record in the store.
-     * Note, before calling this method, we check if committingTxnList exists or not so we can never get DataExistsException.
      */
     private CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
         return getTransactionsInEpoch(epoch)

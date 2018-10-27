@@ -29,11 +29,16 @@ public interface Version {
 
     byte[] toBytes();
 
-    abstract class NotImplementedVersion implements Version {
+    abstract class UnsupportedVersion implements Version {
         @Override
         public IntVersion asIntVersion() {
             throw new UnsupportedOperationException();
         }
+
+        public byte[] toBytes() {
+            throw new UnsupportedOperationException();
+        }
+
     }
     
     @Data
@@ -42,10 +47,10 @@ public interface Version {
     /**
      * A version implementation that uses integer values. 
      */
-    class IntVersion extends NotImplementedVersion {
+    class IntVersion extends UnsupportedVersion {
         public static final IntVersion EMPTY = IntVersion.builder().intValue(Integer.MIN_VALUE).build();
         static final IntVersionSerializer SERIALIZER = new IntVersionSerializer();
-        private final Integer intValue;
+        private final int intValue;
         
         public static class IntVersionBuilder implements ObjectBuilder<IntVersion> {
 

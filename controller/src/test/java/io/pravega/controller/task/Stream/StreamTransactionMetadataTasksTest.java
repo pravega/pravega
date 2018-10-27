@@ -279,10 +279,10 @@ public class StreamTransactionMetadataTasksTest {
         VersionedTransactionData tx4get = streamStore.getTransactionData(SCOPE, STREAM, tx4.getId(), null, executor).join();
 
         // Validate versions of all txn
-        Assert.assertEquals(0, tx1.getVersion().asIntVersion().getIntValue().intValue());
-        Assert.assertEquals(0, tx2.getVersion().asIntVersion().getIntValue().intValue());
-        Assert.assertEquals(0, tx3.getVersion().asIntVersion().getIntValue().intValue());
-        Assert.assertEquals(1, tx4get.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(0, tx1.getVersion().asIntVersion().getIntValue());
+        Assert.assertEquals(0, tx2.getVersion().asIntVersion().getIntValue());
+        Assert.assertEquals(0, tx3.getVersion().asIntVersion().getIntValue());
+        Assert.assertEquals(1, tx4get.getVersion().asIntVersion().getIntValue());
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         // Validate the txn index.
@@ -331,9 +331,9 @@ public class StreamTransactionMetadataTasksTest {
                 streamStore.transactionStatus(SCOPE, STREAM, tx4.getId(), null, executor).join());
 
         VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, tx1.getId(), null, executor).join();
-        Assert.assertEquals(1, txnData.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(1, txnData.getVersion().asIntVersion().getIntValue());
         txnData = streamStore.getTransactionData(SCOPE, STREAM, tx4.getId(), null, executor).join();
-        Assert.assertEquals(2, txnData.getVersion().asIntVersion().getIntValue().intValue());
+        Assert.assertEquals(2, txnData.getVersion().asIntVersion().getIntValue());
 
         // Create commit and abort event processors.
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();

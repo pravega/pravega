@@ -250,7 +250,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
-        
+
         // make it throw a non retryable failure so that test does not wait for number of retries.
         // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
@@ -262,7 +262,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
         assertTrue(activeSegments.size() == 3);
-        
+
         assertFalse(Futures.await(multiplexer.process(new AbortEvent(scope, stream, 0, UUID.randomUUID()))));
     }
 
@@ -570,7 +570,7 @@ public class ScaleRequestHandlerTest {
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
         assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
@@ -748,7 +748,7 @@ public class ScaleRequestHandlerTest {
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
         assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
-        assertEquals(4, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(4, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(2, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }

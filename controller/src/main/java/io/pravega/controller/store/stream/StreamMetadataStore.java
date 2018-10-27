@@ -676,8 +676,8 @@ public interface StreamMetadataStore {
      * @return transaction metadata along with its version.
      */
     CompletableFuture<VersionedTransactionData> getTransactionData(String scopeName, String streamName, UUID txId,
-                                                                                      final OperationContext context,
-                                                                                      final Executor executor);
+                                                                   final OperationContext context,
+                                                                   final Executor executor);
 
     /**
      * Get transaction status from the stream store.

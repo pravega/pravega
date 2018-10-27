@@ -230,7 +230,7 @@ public class RequestHandlersTest {
 
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
         assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
-        assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
 
@@ -333,7 +333,7 @@ public class RequestHandlersTest {
         // validate rolling txn done
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
         assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
-        assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(3, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
@@ -437,7 +437,7 @@ public class RequestHandlersTest {
         // validate rolling txn done
         VersionedMetadata<StreamConfigurationRecord> versioned = streamStore1.getConfigurationRecord(scope, stream, null, executor).join();
         assertFalse(versioned.getObject().isUpdating());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
 
@@ -486,7 +486,7 @@ public class RequestHandlersTest {
         // validate rolling txn done
         VersionedMetadata<StreamTruncationRecord> versioned = streamStore1.getTruncationRecord(scope, stream, null, executor).join();
         assertFalse(versioned.getObject().isUpdating());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue().intValue());
+        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
 }

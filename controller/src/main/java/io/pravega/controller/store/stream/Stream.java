@@ -200,8 +200,8 @@ interface Stream {
     CompletableFuture<List<Long>> getActiveSegments(int epoch);
 
     /**
-     *
-     * @return
+     * Method to get versioned Epoch Transition Record from store
+     * @return Future which when completed contains existing epoch transition record with version
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition();
 

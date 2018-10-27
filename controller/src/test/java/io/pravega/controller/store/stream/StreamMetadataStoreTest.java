@@ -37,7 +37,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
@@ -90,7 +89,7 @@ public abstract class StreamMetadataStoreTest {
     public abstract void setupTaskStore() throws Exception;
 
     @After
-    public abstract void cleanupTaskStore() throws IOException;
+    public abstract void cleanupTaskStore() throws Exception;
 
     @After
     public void tearDown() {
