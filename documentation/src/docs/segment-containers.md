@@ -28,15 +28,7 @@ We use Zookeeper to ensure only one Pravega Controller is monitoring the cluster
 
 ## Rebalance Frequency
 
-Rebalance of the container ownership happens when either a pravega host is added or removed from the cluster. Since this is a costly operation we need to guard against doing this very often. Currently we ensure that a configured minimum time interval is maintained between any 2 rebalance operations. In the worst case this will proportionally increase the time it takes to perform ownership change in the cluster.
-
 When a Pravega Host is added or removed from the cluster, rebalancing of the Container ownership happens. As it is an expensive operation, Pravega maintains a configured minimum time interval between any two rebalance operations. It ends up in proportionally increasing more time for performing ownership change in the cluster, if the rebalance operation is delayed due to some reason.
 
 # Ownership Change Notification
 Every Pravega host has a long running Segment Manager Service. This constantly polls/watches the HostStore for any changes to the container ownership. On detecting any ownership changes for itself (identified by the host key in the Map) the Segment Manager triggers addition and removal of containers accordingly.
-
-## Ensuring a container is stopped on one host before it is started on another host
-We currently plan to use conservative timeouts on the Pravega host to ensure a container is not started before it is stopped on another node. This needs further review/discussion.
-
-## Detecting and handling container start/stop failures
-Any container start/stop failures is treated as local failures and we expect the Pravega host to try its best to handle these scenarios locally. The Pravega Controller does not make any effort to correct this by running them on different hosts. This needs further review/discussion.
