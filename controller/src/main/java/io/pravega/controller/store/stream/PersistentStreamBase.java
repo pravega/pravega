@@ -412,7 +412,7 @@ public abstract class PersistentStreamBase implements Stream {
         return getSegmentSealedEpoch(segmentId)
                 .thenCompose(sealedEpoch -> {
                     if (sealedEpoch < 0) {
-                        return CompletableFuture.completedFuture(Collections.emptyMap());
+                        return getActiveEpoch(true).thenApply(activeSegments -> Collections.emptyMap());
                     }
 
                     // if sealed record exists. fetch its sealing epoch.
