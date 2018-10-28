@@ -104,13 +104,13 @@ public class TruncationRecord {
         deleted.addAll(toComplete.toDelete);
 
         return TruncationRecord.builder()
-                .updating(false)
-                .span(toComplete.span)
-                .streamCut(toComplete.streamCut)
-                .deletedSegments(deleted)
-                .toDelete(ImmutableSet.of())
-                .sizeTill(toComplete.sizeTill)               
-                .build();
+                               .updating(false)
+                               .span(toComplete.span)
+                               .streamCut(toComplete.streamCut)
+                               .deletedSegments(deleted)
+                               .toDelete(ImmutableSet.of())
+                               .sizeTill(toComplete.sizeTill)
+                               .build();
     }
 
     public static class TruncationRecordBuilder implements ObjectBuilder<TruncationRecord> {
@@ -128,7 +128,7 @@ public class TruncationRecord {
     }
     
     private static class TruncationRecordSerializer
-            extends VersionedSerializer.WithBuilder<TruncationRecord, TruncationRecord.TruncationRecordBuilder> {
+            extends VersionedSerializer.WithBuilder<TruncationRecord, TruncationRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -140,9 +140,9 @@ public class TruncationRecord {
         }
 
         private void read00(RevisionDataInput revisionDataInput,
-                            TruncationRecord.TruncationRecordBuilder streamTruncationRecordBuilder)
+                            TruncationRecordBuilder truncationRecordBuilder)
                 throws IOException {
-            streamTruncationRecordBuilder
+            truncationRecordBuilder
                     .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
                     .span(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt))
                     .deletedSegments(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
@@ -160,7 +160,7 @@ public class TruncationRecord {
         }
 
         @Override
-        protected TruncationRecord.TruncationRecordBuilder newBuilder() {
+        protected TruncationRecordBuilder newBuilder() {
             return TruncationRecord.builder();
         }
     }

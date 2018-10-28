@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables;
+package io.pravega.controller.store.stream;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;

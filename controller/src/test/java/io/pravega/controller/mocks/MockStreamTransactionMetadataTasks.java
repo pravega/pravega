@@ -55,8 +55,8 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     @Override
     @Synchronized
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
-                                                                                                         final long lease,
-                                                                                                         final OperationContext contextOpt) {
+                                                                                      final long lease,
+                                                                                      final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
         final UUID txnId = streamMetadataStore.generateTransactionId(scope, stream, null, executor).join();

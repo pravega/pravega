@@ -15,8 +15,10 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
@@ -37,7 +39,7 @@ import java.util.UUID;
 public class CommitTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
     public static final CommitTransactionsRecord EMPTY = CommitTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
-            .transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
+                                                                                 .transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
     /**
      * Epoch from which transactions are committed.
      */
@@ -50,6 +52,7 @@ public class CommitTransactionsRecord {
     /**
      * Set only for rolling transactions and identify the active epoch that is being rolled over.
      */
+    @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
     CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
@@ -80,7 +83,7 @@ public class CommitTransactionsRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    public CommitTransactionsRecord getRollingTxnRecord(int activeEpoch) {
+    public CommitTransactionsRecord createRollingTxnRecord(int activeEpoch) {
         Preconditions.checkState(!this.activeEpoch.isPresent());
         return new CommitTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
     }
@@ -89,8 +92,23 @@ public class CommitTransactionsRecord {
         return activeEpoch.isPresent();
     }
     
+    public int getCurrentEpoch() {
+        Preconditions.checkState(activeEpoch.isPresent());
+        return activeEpoch.get();
+    }
+    
+    public int getNewTxnEpoch() {
+        Preconditions.checkState(activeEpoch.isPresent());
+        return activeEpoch.get() + 1;
+    }
+
+    public int getNewActiveEpoch() {
+        Preconditions.checkState(activeEpoch.isPresent());
+        return activeEpoch.get() + 2;
+    }
+    
     private static class CommitTransactionsRecordSerializer
-            extends VersionedSerializer.WithBuilder<CommitTransactionsRecord, CommitTransactionsRecord.CommitTransactionsRecordBuilder> {
+            extends VersionedSerializer.WithBuilder<CommitTransactionsRecord, CommitTransactionsRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -101,7 +119,7 @@ public class CommitTransactionsRecord {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, CommitTransactionsRecord.CommitTransactionsRecordBuilder builder)
+        private void read00(RevisionDataInput revisionDataInput, CommitTransactionsRecordBuilder builder)
                 throws IOException {
             builder.epoch(revisionDataInput.readInt())
                    .transactionsToCommit(revisionDataInput.readCollection(RevisionDataInput::readUUID, ArrayList::new));
@@ -121,7 +139,7 @@ public class CommitTransactionsRecord {
         }
 
         @Override
-        protected CommitTransactionsRecord.CommitTransactionsRecordBuilder newBuilder() {
+        protected CommitTransactionsRecordBuilder newBuilder() {
             return CommitTransactionsRecord.builder();
         }
     }

@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
@@ -19,10 +18,8 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -53,26 +50,26 @@ public class RecordHelperTest {
         assertEquals(10, shard);
 
         mapshards.get(shard).addSealedSegmentSize(segmentId, 100L);
-        assertEquals(100L, mapshards.get(shard).getSize(segmentId));
+        assertEquals(100L, mapshards.get(shard).getSize(segmentId).longValue());
     }
 
     @Test
     public void retentionSetRecordTest() {
         RetentionSet retentionSet = new RetentionSet(Collections.emptyList());
 
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new RetentionStreamCutRecord(0L, 0L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(0L, 0L, Collections.emptyMap()));
         assertTrue(!retentionSet.getRetentionRecords().isEmpty());
 
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new RetentionStreamCutRecord(100L, 100L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(100L, 100L, Collections.emptyMap()));
         assertEquals(2, retentionSet.getRetentionRecords().size());
         assertEquals(100L, retentionSet.getLatest().recordingTime);
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new RetentionStreamCutRecord(99L, 99L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(99L, 99L, Collections.emptyMap()));
         assertEquals(2, retentionSet.getRetentionRecords().size());
         assertEquals(100L, retentionSet.getLatest().recordingTime);
 
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new RetentionStreamCutRecord(1000L, 1000L, Collections.emptyMap()));
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new RetentionStreamCutRecord(10000L, 10000L, Collections.emptyMap()));
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new RetentionStreamCutRecord(100000L, 100000L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(1000L, 1000L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(10000L, 10000L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(100000L, 100000L, Collections.emptyMap()));
         assertEquals(5, retentionSet.getRetentionRecords().size());
         assertEquals(100000L, retentionSet.getLatest().recordingTime);
 
@@ -116,21 +113,21 @@ public class RecordHelperTest {
                 new StreamSegmentRecord(4, 0, timestamp, 4 * keyRangeChunk, 1.0));
         EpochRecord epochRecord = new EpochRecord(0, 0, list, timestamp);
 
-        assertFalse(RecordHelper.canScaleFor(Sets.newHashSet(0L, 1L, 5L), epochRecord));
-        assertTrue(RecordHelper.canScaleFor(Sets.newHashSet(0L, 1L, 4L), epochRecord));
+        assertFalse(RecordHelper.canScaleFor(Lists.newArrayList(0L, 1L, 5L), epochRecord));
+        assertTrue(RecordHelper.canScaleFor(Lists.newArrayList(0L, 1L, 4L), epochRecord));
 
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         // 1. empty newRanges
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L), newRanges, epochRecord));
 
         // 2. simple mismatch
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, keyRangeChunk));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L), newRanges, epochRecord));
 
         // 3. simple valid match
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
-        Set<Long> segmentsToSeal = new HashSet<>(Lists.newArrayList(0L, 1L));
+        List<Long> segmentsToSeal = new ArrayList<>(Lists.newArrayList(0L, 1L));
         assertTrue(RecordHelper.validateInputRange(segmentsToSeal, newRanges, epochRecord));
         EpochTransitionRecord epochTransitionRecord = RecordHelper.computeEpochTransition(epochRecord,
                 segmentsToSeal, newRanges, timestamp);
@@ -142,7 +139,7 @@ public class RecordHelperTest {
         assertEquals(newRanges.get(0), epochTransitionRecord.getNewSegmentsWithRange().get(StreamSegmentNameUtils.computeSegmentId(5, 1)));
 
         assertTrue(RecordHelper.verifyRecordMatchesInput(segmentsToSeal, newRanges, true, epochTransitionRecord));
-        Set<Long> duplicate = segmentsToSeal.stream().map(x -> StreamSegmentNameUtils.computeSegmentId(StreamSegmentNameUtils.getSegmentNumber(x), 3)).collect(Collectors.toSet());
+        List<Long> duplicate = segmentsToSeal.stream().map(x -> StreamSegmentNameUtils.computeSegmentId(StreamSegmentNameUtils.getSegmentNumber(x), 3)).collect(Collectors.toList());
         assertFalse(RecordHelper.verifyRecordMatchesInput(duplicate, newRanges, false, epochTransitionRecord));
         assertTrue(RecordHelper.verifyRecordMatchesInput(duplicate, newRanges, true, epochTransitionRecord));
 
@@ -150,13 +147,13 @@ public class RecordHelperTest {
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
         newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 1.0));
-        assertTrue(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L, 3L, 4L), newRanges, epochRecord));
+        assertTrue(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L, 3L, 4L), newRanges, epochRecord));
 
         // 5. valid 1 merge and 1 disjoint
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(keyRangeChunk, 2 * keyRangeChunk));
         newRanges.add(new AbstractMap.SimpleEntry<>(3 * keyRangeChunk, 1.0));
-        assertTrue(RecordHelper.validateInputRange(Sets.newHashSet(1L, 3L, 4L), newRanges, epochRecord));
+        assertTrue(RecordHelper.validateInputRange(Lists.newArrayList(1L, 3L, 4L), newRanges, epochRecord));
 
         // 6. valid 1 merge, 2 splits
         newRanges = new ArrayList<>();
@@ -165,7 +162,7 @@ public class RecordHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 1.0));
-        assertTrue(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L, 3L, 4L), newRanges, epochRecord));
+        assertTrue(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L, 3L, 4L), newRanges, epochRecord));
 
         // 7. 1 merge, 1 split and 1 invalid split
         newRanges = new ArrayList<>();
@@ -174,7 +171,7 @@ public class RecordHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 0.99));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L, 3L, 4L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L, 3L, 4L), newRanges, epochRecord));
 
         // 8. valid unsorted segments to seal
         newRanges = new ArrayList<>();
@@ -183,7 +180,7 @@ public class RecordHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 1.0));
-        assertTrue(RecordHelper.validateInputRange(Sets.newHashSet(4L, 0L, 1L, 3L), newRanges, epochRecord));
+        assertTrue(RecordHelper.validateInputRange(Lists.newArrayList(4L, 0L, 1L, 3L), newRanges, epochRecord));
 
         // 9. valid unsorted new ranges
         newRanges = new ArrayList<>();
@@ -192,50 +189,50 @@ public class RecordHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 2 * keyRangeChunk));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
-        assertTrue(RecordHelper.validateInputRange(Sets.newHashSet(4L, 0L, 1L, 3L), newRanges, epochRecord));
+        assertTrue(RecordHelper.validateInputRange(Lists.newArrayList(4L, 0L, 1L, 3L), newRanges, epochRecord));
 
         // 10. invalid input range low == high
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L), newRanges, epochRecord));
 
         // 11. invalid input range low > high
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(0L, 1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(0L, 1L), newRanges, epochRecord));
 
         // 12. invalid overlapping key ranges
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 3 * keyRangeChunk));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(1L, 2L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(1L, 2L), newRanges, epochRecord));
 
         // 13. invalid overlapping key ranges -- a contains b
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.33));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(1L), newRanges, epochRecord));
 
         // 14. invalid overlapping key ranges -- b contains a (with b.low == a.low)
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.33));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(1L), newRanges, epochRecord));
 
         // 15. invalid overlapping key ranges b.low < a.high
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.35));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(1L), newRanges, epochRecord));
 
         // 16. invalid overlapping key ranges.. a.high < b.low
         newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
-        assertFalse(RecordHelper.validateInputRange(Sets.newHashSet(1L), newRanges, epochRecord));
+        assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(1L), newRanges, epochRecord));
     }
 }

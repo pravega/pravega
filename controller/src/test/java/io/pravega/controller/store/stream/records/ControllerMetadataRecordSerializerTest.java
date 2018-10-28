@@ -14,7 +14,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.State;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ public class ControllerMetadataRecordSerializerTest {
         List<UUID> list = Lists.newArrayList(UUID.randomUUID(), UUID.randomUUID());
         CommitTransactionsRecord commitTransactionsRecord = CommitTransactionsRecord.builder().epoch(0).transactionsToCommit(list).build();
         assertEquals(CommitTransactionsRecord.fromBytes(commitTransactionsRecord.toBytes()), commitTransactionsRecord);
-        CommitTransactionsRecord updated = commitTransactionsRecord.getRollingTxnRecord(10);
+        CommitTransactionsRecord updated = commitTransactionsRecord.createRollingTxnRecord(10);
         assertNotEquals(CommitTransactionsRecord.fromBytes(updated.toBytes()), commitTransactionsRecord);
         assertEquals(CommitTransactionsRecord.fromBytes(updated.toBytes()), updated);
     }
@@ -94,12 +94,12 @@ public class ControllerMetadataRecordSerializerTest {
 
     @Test
     public void retentionStreamCutRecordTest() {
-        Map<StreamSegmentRecord, Long> cut = new HashMap<>();
-        cut.put(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0), 0L);
-        RetentionStreamCutRecord record = RetentionStreamCutRecord.builder().recordingSize(100L).recordingTime(10L).streamCut(cut).build();
-        assertEquals(RetentionStreamCutRecord.fromBytes(record.toBytes()), record);
+        Map<Long, Long> cut = new HashMap<>();
+        cut.put(0L, 0L);
+        StreamCutRecord record = StreamCutRecord.builder().recordingSize(100L).recordingTime(10L).streamCut(cut).build();
+        assertEquals(StreamCutRecord.fromBytes(record.toBytes()), record);
 
-        assertTrue(record.getRetentionRecord().getRecordingTime() == 10L && record.getRetentionRecord().getRecordingSize() == 100L);
+        assertTrue(record.getReferenceRecord().getRecordingTime() == 10L && record.getReferenceRecord().getRecordingSize() == 100L);
     }
 
     @Test
@@ -125,7 +125,7 @@ public class ControllerMetadataRecordSerializerTest {
         Set<Long> set = new HashSet<>();
         set.add(0L);
         TruncationRecord record = TruncationRecord.builder().span(span).streamCut(streamCut).toDelete(set)
-                .deletedSegments(set).updating(true).build();
+                                                  .deletedSegments(set).updating(true).build();
         assertEquals(TruncationRecord.fromBytes(record.toBytes()), record);
         assertTrue(record.isUpdating());
         TruncationRecord completed = TruncationRecord.complete(record);
@@ -163,22 +163,22 @@ public class ControllerMetadataRecordSerializerTest {
         StreamConfiguration withRetentiononly = StreamConfiguration.builder().streamName("a").scope("a")
                                                                    .retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
 
-        ConfigurationRecord record = ConfigurationRecord.builder().streamConfiguration(withScalingAndRetention)
-                                                        .updating(true).build();
+        StreamConfigurationRecord record = StreamConfigurationRecord.builder().streamConfiguration(withScalingAndRetention)
+                                                                    .updating(true).build();
         byte[] serialized = record.toBytes();
-        ConfigurationRecord deserialized = ConfigurationRecord.fromBytes(serialized);
+        StreamConfigurationRecord deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
 
-        record = ConfigurationRecord.builder().streamConfiguration(withScalingOnly)
-                                    .updating(true).build();
+        record = StreamConfigurationRecord.builder().streamConfiguration(withScalingOnly)
+                                          .updating(true).build();
         serialized = record.toBytes();
-        deserialized = ConfigurationRecord.fromBytes(serialized);
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
 
-        record = ConfigurationRecord.builder().streamConfiguration(withRetentiononly)
-                                    .updating(true).build();
+        record = StreamConfigurationRecord.builder().streamConfiguration(withRetentiononly)
+                                          .updating(true).build();
         serialized = record.toBytes();
-        deserialized = ConfigurationRecord.fromBytes(serialized);
+        deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
     }
 

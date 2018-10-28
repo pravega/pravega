@@ -10,19 +10,23 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 
 public class RecordHelper {
     
@@ -35,7 +39,7 @@ public class RecordHelper {
      * @param currentEpoch   current epoch record
      * @return true if scale input is valid, false otherwise.
      */
-    public static boolean validateInputRange(final Set<Long> segmentsToSeal,
+    public static boolean validateInputRange(final List<Long> segmentsToSeal,
                                              final List<Map.Entry<Double, Double>> newRanges,
                                              final EpochRecord currentEpoch) {
         boolean newRangesCheck = newRanges.stream().noneMatch(x -> x.getKey() >= x.getValue() && x.getValue() > 0);
@@ -64,7 +68,7 @@ public class RecordHelper {
      * @param currentEpoch current epoch record
      * @return true if a scale operation can be performed, false otherwise
      */
-    public static boolean canScaleFor(final Set<Long> segmentsToSeal, final EpochRecord currentEpoch) {
+    public static boolean canScaleFor(final List<Long> segmentsToSeal, final EpochRecord currentEpoch) {
         return segmentsToSeal.stream().allMatch(x -> currentEpoch.getSegment(x) != null);
     }
 
@@ -80,7 +84,7 @@ public class RecordHelper {
      * @param record epoch transition record
      * @return true if record matches supplied input, false otherwise. 
      */
-    public static boolean verifyRecordMatchesInput(Set<Long> segmentsToSeal, List<Map.Entry<Double, Double>> newRanges,
+    public static boolean verifyRecordMatchesInput(List<Long> segmentsToSeal, List<Map.Entry<Double, Double>> newRanges,
                                                    boolean isManualScale, EpochTransitionRecord record) {
         // verify that supplied new range matches new range in the record
         boolean newRangeMatch = newRanges.stream().allMatch(x ->
@@ -114,7 +118,7 @@ public class RecordHelper {
      * @param scaleTimestamp scale time
      * @return new epoch transition record based on supplied input
      */
-    public static EpochTransitionRecord computeEpochTransition(EpochRecord currentEpoch, Set<Long> segmentsToSeal,
+    public static EpochTransitionRecord computeEpochTransition(EpochRecord currentEpoch, List<Long> segmentsToSeal,
                                                                List<Map.Entry<Double, Double>> newRanges, long scaleTimestamp) {
         Preconditions.checkState(segmentsToSeal.stream().allMatch(currentEpoch::containsSegment), "Invalid epoch transition request");
 
@@ -124,10 +128,47 @@ public class RecordHelper {
         for (int i = 0; i < newRanges.size(); i++) {
             newSegments.put(computeSegmentId(nextSegmentNumber + i, newEpoch), newRanges.get(i));
         }
-        return new EpochTransitionRecord(currentEpoch.getEpoch(), scaleTimestamp, segmentsToSeal, newSegments);
+        return new EpochTransitionRecord(currentEpoch.getEpoch(), scaleTimestamp, new HashSet<>(segmentsToSeal), newSegments);
 
     }
     // endregion
+
+    /**
+     * Method to get epoch from transaction id.
+     * 
+     * @param txId transaction id
+     * @return epoch
+     */
+    public static int getTransactionEpoch(UUID txId) {
+        // epoch == UUID.msb >> 32
+        return (int) (txId.getMostSignificantBits() >> 32);
+    }
+
+    /**
+     * This method takes a segment id and replaces its epoch with the epoch in the transaction.
+     *
+     * @param segmentId segment id
+     * @param txId transaction id
+     * @return new segment id which uses transaction's epoch.
+     */
+    public static long generalizedSegmentId(long segmentId, UUID txId) {
+        return computeSegmentId(getSegmentNumber(segmentId), getTransactionEpoch(txId));
+    }
+
+    /**
+     * Method to validate a given stream Cut.
+     * A stream cut is valid if it covers the entire key space without any overlaps in ranges for segments that form the
+     * streamcut. It throws {@link IllegalArgumentException} if the supplied stream cut does not satisfy the invariants.
+     *
+     * @param streamCutSegments supplied stream cut.
+     */
+    public static void validateStreamCut(List<Map.Entry<Double, Double>> streamCutSegments) {
+        // verify that stream cut covers the entire range of 0.0 to 1.0 keyspace without overlaps.
+        List<Map.Entry<Double, Double>> reduced = reduce(streamCutSegments);
+        Exceptions.checkArgument(reduced.size() == 1 && reduced.get(0).getKey().equals(0.0) &&
+                        reduced.get(0).getValue().equals(1.0), "streamCut",
+                " Invalid input, Stream Cut does not cover full key range.");
+    }
 
     /**
      * Helper method to compute list of continuous ranges. For example, two neighbouring key ranges where,
@@ -168,5 +209,25 @@ public class RecordHelper {
             result.add(new AbstractMap.SimpleEntry<>(low, high));
         }
         return result;
+    }
+
+    /**
+     * Method to compare two stream cuts given their spans.  
+     * 
+     * @param streamCut1 stream cut 1
+     * @param span1 snap for stream cut 1
+     * @param streamCut2 stream cut 2
+     * @param span2 span for stream cut 2
+     * @return returns true if streamcut 1 is strictly ahead of streamcut 2, false otherwise.
+     */
+    public static boolean streamCutComparator(Map<Long, Long> streamCut1, Map<StreamSegmentRecord, Integer> span1,
+                                              Map<Long, Long> streamCut2, Map<StreamSegmentRecord, Integer> span2) {
+            // find overlapping segments in map2 for all segments in map1
+            // compare epochs. map1 should have epochs gt or eq its overlapping segments in map2
+            return span1.entrySet().stream().allMatch(e1 ->
+                    span2.entrySet().stream().noneMatch(e2 ->
+                            (e2.getKey().segmentId() == e1.getKey().segmentId() &&
+                                    streamCut1.get(e1.getKey().segmentId()) < streamCut2.get(e2.getKey().segmentId()))
+                                    || (e2.getKey().overlaps(e1.getKey()) && e1.getValue() < e2.getValue())));
     }
 }

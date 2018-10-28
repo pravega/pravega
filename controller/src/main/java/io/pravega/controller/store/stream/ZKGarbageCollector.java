@@ -14,7 +14,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.util.RetryHelper;
 import lombok.Lombok;
 import lombok.SneakyThrows;

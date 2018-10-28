@@ -33,10 +33,10 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.tables.CommittingTransactionsRecord;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.CommitTransactionsRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.TruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -158,9 +158,9 @@ public class RequestHandlersTest {
         map.put("completeRollingTxn", 0);
         map.put("startCommitTransactions", 1);
         map.put("completeCommitTransactions", 1);
-        map.put("updateVersionedState", 1);
         concurrentTxnCommit("commit1", "startCommitTransactions", false,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map, 3);
+        map.put("updateVersionedState", 1);
 
         map.put("startCommitTransactions", 1);
         map.put("completeCommitTransactions", 1);
@@ -228,8 +228,8 @@ public class RequestHandlersTest {
             future1.join();
         }
 
-        VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
-        assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
+        VersionedMetadata<CommitTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
+        assertEquals(CommitTransactionsRecord.EMPTY, versioned.getObject());
         assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
@@ -322,7 +322,7 @@ public class RequestHandlersTest {
             verify(streamStore1Spied, times(invocationCount.get("rollingTxnCreateDuplicateEpochs")))
                     .rollingTxnCreateDuplicateEpochs(anyString(), anyString(), any(), anyLong(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeRollingTxn")))
-                    .completeRollingTxn(anyString(), anyString(), any(), anyLong(), any(), any(), any());
+                    .completeRollingTxn(anyString(), anyString(), any(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
                     .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
@@ -331,8 +331,8 @@ public class RequestHandlersTest {
             future1Rolling.join();
         }
         // validate rolling txn done
-        VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
-        assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
+        VersionedMetadata<CommitTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
+        assertEquals(CommitTransactionsRecord.EMPTY, versioned.getObject());
         assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(3, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
@@ -344,7 +344,9 @@ public class RequestHandlersTest {
             case "startCommitTransactions":
                 doAnswer(x -> {
                     signal.complete(null);
+
                     waitOn.join();
+
                     return store.startCommitTransactions(x.getArgument(0), x.getArgument(1),
                             x.getArgument(2), x.getArgument(3), x.getArgument(4));
                 }).when(spied).startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
@@ -379,8 +381,8 @@ public class RequestHandlersTest {
                     waitOn.join();
                     return store.completeRollingTxn(x.getArgument(0), x.getArgument(1),
                             x.getArgument(2), x.getArgument(3), x.getArgument(4),
-                            x.getArgument(5), x.getArgument(6));
-                }).when(spied).completeRollingTxn(anyString(), anyString(), any(), anyLong(), any(), any(), any());
+                            x.getArgument(5));
+                }).when(spied).completeRollingTxn(anyString(), anyString(), any(), any(), any(), any());
                 break;
             case "updateVersionedState":
                 doAnswer(x -> {
@@ -484,7 +486,7 @@ public class RequestHandlersTest {
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         // validate rolling txn done
-        VersionedMetadata<StreamTruncationRecord> versioned = streamStore1.getTruncationRecord(scope, stream, null, executor).join();
+        VersionedMetadata<TruncationRecord> versioned = streamStore1.getTruncationRecord(scope, stream, null, executor).join();
         assertFalse(versioned.getObject().isUpdating());
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());

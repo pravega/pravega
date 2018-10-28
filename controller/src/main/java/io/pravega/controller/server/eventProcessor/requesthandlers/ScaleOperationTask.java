@@ -17,11 +17,12 @@ import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
-import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
-import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -116,7 +117,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                                 });
                             } else {
                                 future = future.thenCompose(r -> streamMetadataStore.submitScale(scope, stream, scaleInput.getSegmentsToSeal(),
-                                        scaleInput.getNewRanges(), scaleInput.getScaleTime(), record, context, executor));
+                                        new ArrayList<>(scaleInput.getNewRanges()), scaleInput.getScaleTime(), record, context, executor));
                             }
                         } 
                         
@@ -132,12 +133,11 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                                                  String delegationToken, long requestId) {
         return streamMetadataStore.updateVersionedState(scope, stream, State.SCALING, state, context, executor)
                 .thenCompose(updatedState -> streamMetadataStore.startScale(scope, stream, isManualScale, metadata, updatedState, context, executor)
-                        .thenCompose(record -> streamMetadataStore.scaleCreateNewSegments(scope, stream, record, context, executor)
-                        .thenCompose(v -> {
-                            List<Long> segmentIds = record.getObject().getNewSegmentsWithRange().keySet().asList();
-                            List<Long> segmentsToSeal = record.getObject().getSegmentsToSeal().asList();
+                        .thenCompose(record -> {
+                            List<Long> segmentIds = new ArrayList<>(record.getObject().getNewSegmentsWithRange().keySet());
+                            List<Long> segmentsToSeal = new ArrayList<>(record.getObject().getSegmentsToSeal());
                             return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
-                                    .thenCompose(x -> streamMetadataStore.scaleNewSegmentsCreated(scope, stream, record, context, executor))
+                                    .thenCompose(x -> streamMetadataStore.scaleCreateNewEpochs(scope, stream, record, context, executor))
                                     .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken, requestId))
                                     .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
                                     .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, record, context, executor))
@@ -146,7 +146,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                                     .thenAccept(y -> {
                                         log.info(requestId, "scale processing for {}/{} epoch {} completed.", scope, stream, record.getObject().getActiveEpoch());
                                     });
-                        })));
+                        }));
 
     }
 }
