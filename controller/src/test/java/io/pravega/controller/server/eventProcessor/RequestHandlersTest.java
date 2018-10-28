@@ -344,9 +344,7 @@ public class RequestHandlersTest {
             case "startCommitTransactions":
                 doAnswer(x -> {
                     signal.complete(null);
-
                     waitOn.join();
-
                     return store.startCommitTransactions(x.getArgument(0), x.getArgument(1),
                             x.getArgument(2), x.getArgument(3), x.getArgument(4));
                 }).when(spied).startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());

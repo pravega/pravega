@@ -322,7 +322,7 @@ public class StreamMetadataTasks extends TaskBase {
                     final long generationTime = System.currentTimeMillis();
                     Map<Long, Long> streamCutMap = map.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(),
                             Map.Entry::getValue));
-                    return streamMetadataStore.getSizeTillStreamCut(scope, stream, streamCutMap, Optional.of(previous), context, executor)
+                    return streamMetadataStore.getSizeTillStreamCut(scope, stream, streamCutMap, Optional.ofNullable(previous), context, executor)
                             .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, streamCutMap));
                 });
     }
