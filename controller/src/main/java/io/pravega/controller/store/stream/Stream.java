@@ -181,11 +181,15 @@ interface Stream {
     CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut);
 
     /**
+     * Method to return currently active segments. 
+     * 
      * @return currently active segments
      */
     CompletableFuture<List<Long>> getActiveSegments();
 
     /**
+     * Method to get active segments at specified time. 
+     * 
      * @param timestamp point in time.
      * @return the list of segments active at timestamp.
      */
@@ -200,7 +204,8 @@ interface Stream {
     CompletableFuture<List<Long>> getActiveSegments(int epoch);
 
     /**
-     * Method to get versioned Epoch Transition Record from store
+     * Method to get versioned Epoch Transition Record from store.
+     * 
      * @return Future which when completed contains existing epoch transition record with version
      */
     CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition();
@@ -208,6 +213,7 @@ interface Stream {
     /**
      * Called to start metadata updates to stream store with respect to new scale request. This method should only update
      * the epochTransition record to reflect current request. It should not initiate the scale workflow. 
+     * This should be called for both auto scale and manual scale. 
      * In case of rolling transactions, this record may become invalid and can be discarded during the startScale phase
      * of scale workflow. 
      *
