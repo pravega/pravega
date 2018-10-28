@@ -326,7 +326,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
-        return controller.getInitialSegments(stream.getScope(), stream.getStreamName()).thenApply(segments -> {
+        return controller.getSegmentsAtHead(stream.getScope(), stream.getStreamName()).thenApply(segments -> {
             return segments.entrySet()
                            .stream()
                            .collect(Collectors.toMap(entry -> ModelHelper.encode(entry.getKey()),

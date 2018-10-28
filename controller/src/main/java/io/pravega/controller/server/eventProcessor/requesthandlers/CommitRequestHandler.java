@@ -19,7 +19,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.State;
-import io.pravega.controller.store.stream.records.CommitTransactionsRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -130,10 +130,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                 .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
 
-                    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> commitFuture =
+                    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
                             streamMetadataStore.startCommitTransactions(scope, stream, txnEpoch, context, executor)
                             .thenComposeAsync(versionedMetadata -> {
-                                if (versionedMetadata.getObject().equals(CommitTransactionsRecord.EMPTY)) {
+                                if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
                                     // reset state conditionally in case we were left with stale committing state from a previous execution
                                     // that died just before updating the state back to ACTIVE but after having completed all the work.
@@ -183,9 +183,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                 }, executor);
     }
 
-    private CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> rollTransactions(String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch,
-                                                                                            VersionedMetadata<CommitTransactionsRecord> existing, OperationContext context) {
-        CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
+    private CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> rollTransactions(String scope, String stream, EpochRecord txnEpoch, EpochRecord activeEpoch,
+                                                                                                VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context) {
+        CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> future = CompletableFuture.completedFuture(existing);
         if (!existing.getObject().isRollingTxnRecord()) {
             future = future.thenCompose(
                     x -> streamMetadataStore.startRollingTxn(scope, stream, activeEpoch.getEpoch(),
@@ -203,7 +203,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     }
 
     private CompletionStage<Void> runRollingTxn(String scope, String stream, EpochRecord txnEpoch,
-                                                EpochRecord activeEpoch, VersionedMetadata<CommitTransactionsRecord> existing, OperationContext context) {
+                                                EpochRecord activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context) {
         String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
 

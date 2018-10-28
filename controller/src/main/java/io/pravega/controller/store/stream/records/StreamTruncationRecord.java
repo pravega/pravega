@@ -34,10 +34,10 @@ import java.util.Set;
  */
 @Data
 @Slf4j
-public class TruncationRecord {
+public class StreamTruncationRecord {
     public static final TruncationRecordSerializer SERIALIZER = new TruncationRecordSerializer();
 
-    public static final TruncationRecord EMPTY = new TruncationRecord(ImmutableMap.of(),
+    public static final StreamTruncationRecord EMPTY = new StreamTruncationRecord(ImmutableMap.of(),
             ImmutableMap.of(), ImmutableSet.of(), ImmutableSet.of(), 0L, false);
 
     /**
@@ -81,8 +81,8 @@ public class TruncationRecord {
     private final boolean updating;
 
     @Builder
-    public TruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
-                            Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating) {
+    public StreamTruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
+                                  Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating) {
         this.streamCut = ImmutableMap.copyOf(streamCut);
         this.span = ImmutableMap.copyOf(span);
         this.deletedSegments = ImmutableSet.copyOf(deletedSegments);
@@ -98,27 +98,27 @@ public class TruncationRecord {
      * @param toComplete record to complete
      * @return new record that has the updating flag set to false
      */
-    public static TruncationRecord complete(TruncationRecord toComplete) {
+    public static StreamTruncationRecord complete(StreamTruncationRecord toComplete) {
         Preconditions.checkState(toComplete.updating);
         Set<Long> deleted = new HashSet<>(toComplete.deletedSegments);
         deleted.addAll(toComplete.toDelete);
 
-        return TruncationRecord.builder()
-                               .updating(false)
-                               .span(toComplete.span)
-                               .streamCut(toComplete.streamCut)
-                               .deletedSegments(deleted)
-                               .toDelete(ImmutableSet.of())
-                               .sizeTill(toComplete.sizeTill)
-                               .build();
+        return StreamTruncationRecord.builder()
+                                     .updating(false)
+                                     .span(toComplete.span)
+                                     .streamCut(toComplete.streamCut)
+                                     .deletedSegments(deleted)
+                                     .toDelete(ImmutableSet.of())
+                                     .sizeTill(toComplete.sizeTill)
+                                     .build();
     }
 
-    public static class TruncationRecordBuilder implements ObjectBuilder<TruncationRecord> {
+    public static class StreamTruncationRecordBuilder implements ObjectBuilder<StreamTruncationRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static TruncationRecord fromBytes(final byte[] data) {
+    public static StreamTruncationRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -128,7 +128,7 @@ public class TruncationRecord {
     }
     
     private static class TruncationRecordSerializer
-            extends VersionedSerializer.WithBuilder<TruncationRecord, TruncationRecordBuilder> {
+            extends VersionedSerializer.WithBuilder<StreamTruncationRecord, StreamTruncationRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -140,7 +140,7 @@ public class TruncationRecord {
         }
 
         private void read00(RevisionDataInput revisionDataInput,
-                            TruncationRecordBuilder truncationRecordBuilder)
+                            StreamTruncationRecordBuilder truncationRecordBuilder)
                 throws IOException {
             truncationRecordBuilder
                     .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
@@ -150,7 +150,7 @@ public class TruncationRecord {
                     .updating(revisionDataInput.readBoolean());
         }
 
-        private void write00(TruncationRecord streamTruncationRecord, RevisionDataOutput revisionDataOutput)
+        private void write00(StreamTruncationRecord streamTruncationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeMap(streamTruncationRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
             revisionDataOutput.writeMap(streamTruncationRecord.getSpan(), StreamSegmentRecord.SERIALIZER::serialize, DataOutput::writeInt);
@@ -160,8 +160,8 @@ public class TruncationRecord {
         }
 
         @Override
-        protected TruncationRecordBuilder newBuilder() {
-            return TruncationRecord.builder();
+        protected StreamTruncationRecordBuilder newBuilder() {
+            return StreamTruncationRecord.builder();
         }
     }
 }

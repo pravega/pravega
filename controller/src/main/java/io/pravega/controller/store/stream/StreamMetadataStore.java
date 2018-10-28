@@ -14,14 +14,14 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommitTransactionsRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.TruncationRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -271,7 +271,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Void> completeTruncation(final String scope,
                                                final String name,
-                                               final VersionedMetadata<TruncationRecord> record,
+                                               final VersionedMetadata<StreamTruncationRecord> record,
                                                final OperationContext context,
                                                final Executor executor);
 
@@ -284,9 +284,9 @@ public interface StreamMetadataStore {
      * @param executor     callers executor
      * @return current truncation property.
      */
-    CompletableFuture<VersionedMetadata<TruncationRecord>> getTruncationRecord(final String scope, final String name,
-                                                                               final OperationContext context,
-                                                                               final Executor executor);
+    CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationRecord(final String scope, final String name,
+                                                                                     final OperationContext context,
+                                                                                     final Executor executor);
 
     /**
      * Set the stream state to sealed.
@@ -355,10 +355,10 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         list of active segments in specified epoch.
      */
-    CompletableFuture<Map<Segment, Long>> getStartingSegments(final String scope,
-                                                       final String stream,
-                                                       final OperationContext context,
-                                                       final Executor executor);
+    CompletableFuture<Map<Segment, Long>> getSegmentsAtHead(final String scope,
+                                                            final String stream,
+                                                            final OperationContext context,
+                                                            final Executor executor);
 
     /**
      * Returns the segments in the specified epoch of the specified stream.
@@ -545,7 +545,7 @@ public interface StreamMetadataStore {
 
     /**
      * Api to indicate to store to start rolling transaction. 
-     * The store attempts to update CommitTransactionsRecord with details about rolling transaction information, 
+     * The store attempts to update CommittingTransactionsRecord with details about rolling transaction information, 
      * specifically updating active epoch in the aforesaid record. 
      *
      * @param scope scope
@@ -557,9 +557,9 @@ public interface StreamMetadataStore {
      * @return A future which when completed will capture updated versioned committing transactions record that represents 
      * an ongoing rolling transaction.
      */
-    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> startRollingTxn(String scope, String stream,
-                                                                                   int activeEpoch, VersionedMetadata<CommitTransactionsRecord> existing,
-                                                                                   OperationContext context, ScheduledExecutorService executor);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
+                                                                                       int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
+                                                                                       OperationContext context, ScheduledExecutorService executor);
 
     /**
      * This method is called from Rolling transaction workflow after new transactions that are duplicate of active transactions
@@ -578,7 +578,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(final String scope,
                                            final String name, Map<Long, Long> sealedTxnEpochSegments,
-                                           final long time, final VersionedMetadata<CommitTransactionsRecord> record,
+                                           final long time, final VersionedMetadata<CommittingTransactionsRecord> record,
                                            final OperationContext context, final Executor executor);
 
     /**
@@ -595,7 +595,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<Void> completeRollingTxn(final String scope, final String name,
                                                                     final Map<Long, Long> sealedActiveEpochSegments, 
-                                                                    final VersionedMetadata<CommitTransactionsRecord> record,
+                                                                    final VersionedMetadata<CommittingTransactionsRecord> record,
                                                                     final OperationContext context, final Executor executor);
 
     /**
@@ -1016,10 +1016,10 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A completableFuture which, when completed, mean that the record has been created successfully.
      */
-    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> startCommitTransactions(final String scope, final String stream,
-                                                                                           final int epoch,
-                                                                                           final OperationContext context,
-                                                                                           final ScheduledExecutorService executor);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope, final String stream,
+                                                                                               final int epoch,
+                                                                                               final OperationContext context,
+                                                                                               final ScheduledExecutorService executor);
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.
@@ -1032,8 +1032,8 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> getVersionedCommittingTransactionsRecord(final String scope, final String stream,
-                                                                                                            final OperationContext context, final ScheduledExecutorService executor);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommittingTransactionsRecord(final String scope, final String stream,
+                                                                                                                final OperationContext context, final ScheduledExecutorService executor);
 
     /**
      * Method to delete committing transaction record from the store for a given stream.
@@ -1045,7 +1045,7 @@ public interface StreamMetadataStore {
      * @param executor executor
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      */
-    CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream, final VersionedMetadata<CommitTransactionsRecord> record,
+    CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream, final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor);
 
     /**

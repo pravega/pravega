@@ -36,10 +36,9 @@ import java.util.UUID;
  * This also includes optional "active epoch" field which is set if the commits have to be rolled over because they are
  * over an older epoch.
  */
-public class CommitTransactionsRecord {
+public class CommittingTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
-    public static final CommitTransactionsRecord EMPTY = CommitTransactionsRecord.builder().epoch(Integer.MIN_VALUE)
-                                                                                 .transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
+    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE).transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
     /**
      * Epoch from which transactions are committed.
      */
@@ -55,26 +54,26 @@ public class CommitTransactionsRecord {
     @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
-    CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
         this(epoch, transactionsToCommit, Optional.empty());
     }
 
-    CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
+    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
         this(epoch, transactionsToCommit, Optional.of(activeEpoch));
     }
 
-    private CommitTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
+    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
         this.transactionsToCommit = ImmutableList.copyOf(transactionsToCommit);
         this.activeEpoch = activeEpoch;
     }
 
-    public static class CommitTransactionsRecordBuilder implements ObjectBuilder<CommitTransactionsRecord> {
+    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
         private Optional<Integer> activeEpoch = Optional.empty();
     }
 
     @SneakyThrows(IOException.class)
-    public static CommitTransactionsRecord fromBytes(final byte[] data) {
+    public static CommittingTransactionsRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -83,9 +82,9 @@ public class CommitTransactionsRecord {
         return SERIALIZER.serialize(this).getCopy();
     }
 
-    public CommitTransactionsRecord createRollingTxnRecord(int activeEpoch) {
+    public CommittingTransactionsRecord createRollingTxnRecord(int activeEpoch) {
         Preconditions.checkState(!this.activeEpoch.isPresent());
-        return new CommitTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
+        return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
     }
 
     public boolean isRollingTxnRecord() {
@@ -108,7 +107,7 @@ public class CommitTransactionsRecord {
     }
     
     private static class CommitTransactionsRecordSerializer
-            extends VersionedSerializer.WithBuilder<CommitTransactionsRecord, CommitTransactionsRecordBuilder> {
+            extends VersionedSerializer.WithBuilder<CommittingTransactionsRecord, CommittingTransactionsRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -119,7 +118,7 @@ public class CommitTransactionsRecord {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, CommitTransactionsRecordBuilder builder)
+        private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
                 throws IOException {
             builder.epoch(revisionDataInput.readInt())
                    .transactionsToCommit(revisionDataInput.readCollection(RevisionDataInput::readUUID, ArrayList::new));
@@ -132,15 +131,15 @@ public class CommitTransactionsRecord {
             }
         }
 
-        private void write00(CommitTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
+        private void write00(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeInt(record.getEpoch());
             revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
             revisionDataOutput.writeInt(record.getActiveEpoch().orElse(Integer.MIN_VALUE));
         }
 
         @Override
-        protected CommitTransactionsRecordBuilder newBuilder() {
-            return CommitTransactionsRecord.builder();
+        protected CommittingTransactionsRecordBuilder newBuilder() {
+            return CommittingTransactionsRecord.builder();
         }
     }
 }

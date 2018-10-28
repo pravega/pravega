@@ -11,14 +11,14 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommitTransactionsRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.TruncationRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -109,14 +109,14 @@ interface Stream {
      * @return future of operation.
      * @param record
      */
-    CompletableFuture<Void> completeTruncation(VersionedMetadata<TruncationRecord> record);
+    CompletableFuture<Void> completeTruncation(VersionedMetadata<StreamTruncationRecord> record);
 
     /**
      * Fetches the current stream cut.
      *
      * @return current stream cut.
      */
-    CompletableFuture<VersionedMetadata<TruncationRecord>> getTruncationRecord();
+    CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationRecord();
 
     /**
      * Api to get the current state with its current version.
@@ -208,7 +208,7 @@ interface Stream {
      * 
      * @return Future which when completed will contain segments at head of stream with offsets
      */
-    CompletableFuture<Map<Segment, Long>> getInitialSegments();
+    CompletableFuture<Map<Segment, Long>> getSegmentsAtHead();
     
     /**
      * Returns the active segments in the specified epoch.
@@ -297,7 +297,7 @@ interface Stream {
 
     /**
      * Api to indicate to store to start rolling transaction. 
-     * The store attempts to update CommitTransactionsRecord with details about rolling transaction information, 
+     * The store attempts to update CommittingTransactionsRecord with details about rolling transaction information, 
      * specifically updating active epoch in the aforesaid record. 
      * 
      * @param activeEpoch active epoch
@@ -305,8 +305,8 @@ interface Stream {
      * @return A future which when completed will capture updated versioned committing transactions record that represents 
      * an ongoing rolling transaction.
      */
-    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> startRollingTxn(int activeEpoch,
-                                                                                   VersionedMetadata<CommitTransactionsRecord> existing);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(int activeEpoch,
+                                                                                       VersionedMetadata<CommittingTransactionsRecord> existing);
 
     /**
      * This method is called from Rolling transaction workflow after new transactions that are duplicate of active transactions
@@ -320,7 +320,7 @@ interface Stream {
      * @return CompletableFuture which upon completion will indicate that we have successfully created new epoch entries.
      */
     CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(Map<Long, Long> sealedTxnEpochSegments,
-                                                           long time, VersionedMetadata<CommitTransactionsRecord> existing);
+                                                           long time, VersionedMetadata<CommittingTransactionsRecord> existing);
 
     /**
      * This is the final step of rolling transaction and is called after old segments are sealed in segment store.
@@ -330,7 +330,7 @@ interface Stream {
      * @return CompletableFuture which upon successful completion will indicate that rolling transaction is complete.
      */
     CompletableFuture<Void> completeRollingTxn(Map<Long, Long> sealedActiveEpochSegments, 
-                                               VersionedMetadata<CommitTransactionsRecord> existing);
+                                               VersionedMetadata<CommittingTransactionsRecord> existing);
 
     /**
      * Sets cold marker which is valid till the specified time stamp.
@@ -514,7 +514,7 @@ interface Stream {
      * @param epoch epoch
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> startCommittingTransactions(final int epoch);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(final int epoch);
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.
@@ -523,7 +523,7 @@ interface Stream {
      *
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> getVersionedCommitTransactionsRecord();
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommitTransactionsRecord();
 
     /**
      * Method to delete committing transaction record from the store for a given stream.
@@ -531,7 +531,7 @@ interface Stream {
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      * @param record existing versioned record.
      */
-    CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommitTransactionsRecord> record);
+    CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record);
 
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.

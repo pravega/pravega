@@ -149,17 +149,16 @@ public class ControllerService {
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
     }
 
-    public CompletableFuture<Map<SegmentId, Long>> getInitialSegments(final String scope, final String stream) {
+    public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtHead(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
-        return streamStore.getStartingSegments(scope, stream, null, executor).thenApply(segments -> {
+        return streamStore.getSegmentsAtHead(scope, stream, null, executor).thenApply(segments -> {
             return segments.entrySet().stream()
                            .collect(Collectors.toMap(entry -> ModelHelper.createSegmentId(scope, stream, entry.getKey().segmentId()),
                                    Map.Entry::getValue));
-            //TODO: Implement https://github.com/pravega/pravega/issues/191  (Which will supply a value besides 0)
         });
     }
 

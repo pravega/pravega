@@ -379,7 +379,7 @@ public class ZkStreamTest {
                           .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
         assertTrue(successors.isEmpty());
         // start -1
-        Map<Long, Long> historicalSegments = store.getStartingSegments(SCOPE, streamName, context, executor).get()
+        Map<Long, Long> historicalSegments = store.getSegmentsAtHead(SCOPE, streamName, context, executor).get()
                                                   .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
         assertEquals(historicalSegments.size(), 5);
         assertTrue(historicalSegments.keySet().containsAll(Lists.newArrayList(0L, 1L, 2L, 3L, 4L)));

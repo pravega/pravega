@@ -35,11 +35,11 @@ public class ControllerMetadataRecordSerializerTest {
     @Test
     public void commitTransactionsRecordTest() {
         List<UUID> list = Lists.newArrayList(UUID.randomUUID(), UUID.randomUUID());
-        CommitTransactionsRecord commitTransactionsRecord = CommitTransactionsRecord.builder().epoch(0).transactionsToCommit(list).build();
-        assertEquals(CommitTransactionsRecord.fromBytes(commitTransactionsRecord.toBytes()), commitTransactionsRecord);
-        CommitTransactionsRecord updated = commitTransactionsRecord.createRollingTxnRecord(10);
-        assertNotEquals(CommitTransactionsRecord.fromBytes(updated.toBytes()), commitTransactionsRecord);
-        assertEquals(CommitTransactionsRecord.fromBytes(updated.toBytes()), updated);
+        CommittingTransactionsRecord commitTransactionsRecord = CommittingTransactionsRecord.builder().epoch(0).transactionsToCommit(list).build();
+        assertEquals(CommittingTransactionsRecord.fromBytes(commitTransactionsRecord.toBytes()), commitTransactionsRecord);
+        CommittingTransactionsRecord updated = commitTransactionsRecord.createRollingTxnRecord(10);
+        assertNotEquals(CommittingTransactionsRecord.fromBytes(updated.toBytes()), commitTransactionsRecord);
+        assertEquals(CommittingTransactionsRecord.fromBytes(updated.toBytes()), updated);
     }
 
     @Test
@@ -124,12 +124,12 @@ public class ControllerMetadataRecordSerializerTest {
         streamCut.put(0L, 0L);
         Set<Long> set = new HashSet<>();
         set.add(0L);
-        TruncationRecord record = TruncationRecord.builder().span(span).streamCut(streamCut).toDelete(set)
-                                                  .deletedSegments(set).updating(true).build();
-        assertEquals(TruncationRecord.fromBytes(record.toBytes()), record);
+        StreamTruncationRecord record = StreamTruncationRecord.builder().span(span).streamCut(streamCut).toDelete(set)
+                                                              .deletedSegments(set).updating(true).build();
+        assertEquals(StreamTruncationRecord.fromBytes(record.toBytes()), record);
         assertTrue(record.isUpdating());
-        TruncationRecord completed = TruncationRecord.complete(record);
-        assertEquals(TruncationRecord.fromBytes(completed.toBytes()), completed);
+        StreamTruncationRecord completed = StreamTruncationRecord.complete(record);
+        assertEquals(StreamTruncationRecord.fromBytes(completed.toBytes()), completed);
         assertTrue(!completed.isUpdating());
     }
 

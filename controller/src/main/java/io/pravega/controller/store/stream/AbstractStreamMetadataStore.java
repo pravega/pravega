@@ -19,14 +19,14 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
-import io.pravega.controller.store.stream.records.CommitTransactionsRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
-import io.pravega.controller.store.stream.records.TruncationRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -285,16 +285,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> completeTruncation(final String scope, final String name, final VersionedMetadata<TruncationRecord> record,
+    public CompletableFuture<Void> completeTruncation(final String scope, final String name, final VersionedMetadata<StreamTruncationRecord> record,
                                                       final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).completeTruncation(record), executor);
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<TruncationRecord>> getTruncationRecord(final String scope,
-                                                                                      final String name,
-                                                                                      final OperationContext context,
-                                                                                      final Executor executor) {
+    public CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationRecord(final String scope,
+                                                                                            final String name,
+                                                                                            final OperationContext context,
+                                                                                            final Executor executor) {
         return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
     }
 
@@ -354,9 +354,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Map<Segment, Long>> getStartingSegments(final String scope, final String name, final OperationContext context, final Executor executor) {
+    public CompletableFuture<Map<Segment, Long>> getSegmentsAtHead(final String scope, final String name, final OperationContext context, final Executor executor) {
         final Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getInitialSegments(), executor);
+        return withCompletion(stream.getSegmentsAtHead(), executor);
     }
 
     @Override
@@ -476,23 +476,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> startRollingTxn(String scope, String stream,
-                                                                                          int activeEpoch, VersionedMetadata<CommitTransactionsRecord> existing,
-                                                                                          OperationContext context, ScheduledExecutorService executor) {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
+                                                                                              int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
+                                                                                              OperationContext context, ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).startRollingTxn(activeEpoch, existing), executor);
     }
 
 
     @Override
     public CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(String scope, String name,
-                        Map<Long, Long> sealedTxnEpochSegments, long time, VersionedMetadata<CommitTransactionsRecord> record,
+                        Map<Long, Long> sealedTxnEpochSegments, long time, VersionedMetadata<CommittingTransactionsRecord> record,
                         OperationContext context, Executor executor) {
         return withCompletion(getStream(scope, name, context).rollingTxnCreateDuplicateEpochs(sealedTxnEpochSegments, time, record), executor);
     }
 
     @Override
     public CompletableFuture<Void> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
-                                                      VersionedMetadata<CommitTransactionsRecord> record, OperationContext context, Executor executor) {
+                                                      VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
         return withCompletion(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
     }
 
@@ -715,19 +715,19 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> startCommitTransactions(String scope,
-                                                                                                  String stream, int epoch, OperationContext context, ScheduledExecutorService executor) {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(String scope,
+                                                                                                      String stream, int epoch, OperationContext context, ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).startCommittingTransactions(epoch), executor);
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommitTransactionsRecord>> getVersionedCommittingTransactionsRecord(String scope, String stream, OperationContext context,
-                                                                                                                   ScheduledExecutorService executor) {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommittingTransactionsRecord(String scope, String stream, OperationContext context,
+                                                                                                                       ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).getVersionedCommitTransactionsRecord(), executor);
     }
 
     @Override
-    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommitTransactionsRecord> record,
+    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).completeCommittingTransactions(record), executor);
     }
