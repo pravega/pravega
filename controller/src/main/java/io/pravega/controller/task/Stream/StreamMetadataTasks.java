@@ -169,10 +169,10 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("updateStream", scope, stream);
 
         // 1. get configuration
-        return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
+        return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
                 .thenCompose(configProperty -> {
                     // 2. post event to start update workflow
-                    if (!configProperty.isUpdating()) {
+                    if (!configProperty.getObject().isUpdating()) {
                         return writeEvent(new UpdateStreamEvent(scope, stream, requestId))
                                 // 3. update new configuration in the store with updating flag = true
                                 // if attempt to update fails, we bail out with no harm done
@@ -202,8 +202,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isUpdated(String scope, String stream, StreamConfiguration newConfig, OperationContext context) {
-        return streamMetadataStore.getConfigurationRecord(scope, stream, true, context, executor)
-                .thenApply(configProperty -> !configProperty.isUpdating() || !configProperty.getStreamConfiguration().equals(newConfig));
+        return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
+                .thenApply(configProperty -> !configProperty.getObject().isUpdating() || !configProperty.getObject().getStreamConfiguration().equals(newConfig));
     }
 
     /**
@@ -354,9 +354,9 @@ public class StreamMetadataTasks extends TaskBase {
                                                        OperationContext contextOpt, long requestId) {
         final OperationContext context = contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
+        return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
                 .thenCompose(property -> {
-                    if (!property.isUpdating()) {
+                    if (!property.getObject().isUpdating()) {
                         // 2. post event with new stream cut if no truncation is ongoing
                         return writeEvent(new TruncateStreamEvent(scope, stream, requestId))
                                 // 3. start truncation by updating the metadata
@@ -374,8 +374,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Long, Long> streamCut, OperationContext context) {
-        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
-                .thenApply(truncationProp -> !truncationProp.isUpdating() || !truncationProp.getStreamCut().equals(streamCut));
+        return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
+                .thenApply(truncationProp -> !truncationProp.getObject().isUpdating() || !truncationProp.getObject().getStreamCut().equals(streamCut));
     }
 
     /**
@@ -394,17 +394,17 @@ public class StreamMetadataTasks extends TaskBase {
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
         return writeEvent(event)
                 // 2. set state to sealing
-                .thenCompose(x -> streamMetadataStore.getState(scope, stream, false, context, executor))
+                .thenCompose(x -> streamMetadataStore.getVersionedState(scope, stream, context, executor))
                 .thenCompose(state -> {
-                    if (state.equals(State.SEALED)) {
-                        return CompletableFuture.completedFuture(true);
+                    if (state.getObject().equals(State.SEALED)) {
+                        return CompletableFuture.completedFuture(state);
                     } else {
-                        return streamMetadataStore.setState(scope, stream, State.SEALING, context, executor);
+                        return streamMetadataStore.updateVersionedState(scope, stream, State.SEALING, state, context, executor);
                     }
                 })
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
-                    if (result) {
+                    if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {
                         return checkDone(() -> isSealed(scope, stream, context))
                                 .thenApply(x -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
@@ -483,8 +483,8 @@ public class StreamMetadataTasks extends TaskBase {
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, requestId);
 
         return writeEvent(event)
-                .thenCompose(segmentsToBeSealed -> streamMetadataStore.startScale(scope, stream, segmentsToSeal, newRanges, scaleTimestamp, false,
-                        context, executor)
+                .thenCompose(x -> streamMetadataStore.submitScale(scope, stream, segmentsToSeal, newRanges,
+                        scaleTimestamp, null, context, executor)
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
 
@@ -500,11 +500,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 log.info(requestId, "scale for stream {}/{} started successfully", scope, stream);
                                 response.setStatus(ScaleResponse.ScaleStreamStatus.STARTED);
                                 response.addAllSegments(
-                                        startScaleResponse.getNewSegmentsWithRange().entrySet()
+                                        startScaleResponse.getObject().getNewSegmentsWithRange().entrySet()
                                                 .stream()
                                                 .map(segment -> convert(scope, stream, segment))
                                                 .collect(Collectors.toList()));
-                                response.setEpoch(startScaleResponse.getActiveEpoch());
+                                response.setEpoch(startScaleResponse.getObject().getActiveEpoch());
                             }
                             return response.build();
                         }));
@@ -619,8 +619,15 @@ public class StreamMetadataTasks extends TaskBase {
                                             future = CompletableFuture.completedFuture(null);
                                         }
                                         return future
-                                                .thenCompose(v ->  streamMetadataStore.setState(scope, stream, State.ACTIVE,
-                                                        context, executor));
+                                                .thenCompose(v -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                                                .thenCompose(state -> {
+                                                    if (state.getObject().equals(State.CREATING)) {
+                                                        return streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                                                state, context, executor);
+                                                    } else {
+                                                        return CompletableFuture.completedFuture(state);
+                                                    }
+                                                }));
                                     }, executor)
                                             .thenApply(z -> status);
                                 });

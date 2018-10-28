@@ -162,7 +162,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     }
 
     private CompletableFuture<Void> setSealed(String scope, String stream, OperationContext context) {
-        return Futures.toVoid(streamMetadataStore.setSealed(scope, stream, context, executor));
+        return streamMetadataStore.setSealed(scope, stream, context, executor);
     }
 
     @Override

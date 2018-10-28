@@ -7,12 +7,15 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables;
+package io.pravega.controller.store.stream;
 
-import io.pravega.controller.store.stream.Version;
+import lombok.Data;
 
-@lombok.Data
-public class Data {
-    private final byte[] data;
+@Data
+/**
+ * Wrapper data class that wraps a generic object with a version. 
+ */
+public class VersionedMetadata<OBJECT> {
+    private final OBJECT object;
     private final Version version;
 }

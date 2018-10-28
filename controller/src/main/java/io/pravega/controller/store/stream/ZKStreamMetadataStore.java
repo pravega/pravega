@@ -54,7 +54,7 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -165,6 +165,16 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         return future;
     }
 
+    @Override
+    Version getEmptyVersion() {
+        return Version.IntVersion.EMPTY;
+    }
+
+    @Override
+    Version parseVersionData(byte[] data) {
+        return Version.IntVersion.fromBytes(data);
+    }
+
     @VisibleForTesting
     CompletableFuture<Void> refreshRangeIfNeeded() {
         CompletableFuture<Void> refreshFuture;
@@ -209,7 +219,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                         .thenCompose(data -> {
                             Int96 previous = Int96.fromBytes(data.getData());
                             Int96 nextLimit = previous.add(COUNTER_RANGE);
-                            return storeHelper.setData(COUNTER_PATH, new Data<>(nextLimit.toBytes(), data.getVersion()))
+                            return storeHelper.setData(COUNTER_PATH, new Data(nextLimit.toBytes(), data.getVersion()))
                                     .thenAccept(x -> {
                                         // Received new range, we should reset the counter and limit under the lock
                                         // and then reset refreshfutureref to null
@@ -405,9 +415,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     }
                 }).thenCompose(data -> {
                     if (data == null) {
-                        return storeHelper.createZNodeIfNotExist(retentionPath, serialize);
+                        return Futures.toVoid(storeHelper.createZNodeIfNotExist(retentionPath, serialize));
                     } else {
-                        return storeHelper.setData(retentionPath, new Data<>(serialize, data.getVersion()));
+                        return Futures.toVoid(storeHelper.setData(retentionPath, new Data(serialize, data.getVersion())));
                     }
                 });
     }
@@ -445,13 +455,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                           .thenCompose(data -> {
                               log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
                               if (data == null) {
-                                  return storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes);
+                                  return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
                               } else {
                                   final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
                                   Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
                                           "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                           oldLastActiveSegment, scope, stream, lastActiveSegment);
-                                  return storeHelper.setData(deletePath, new Data<>(maxSegmentNumberBytes, data.getVersion()));
+                                  return Futures.toVoid(storeHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
                               }
                           });
     }
@@ -497,6 +507,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @VisibleForTesting
     public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
         this.storeHelper = storeHelper;
+    }
+
+    @Override
+    public void close() throws Exception {
+        completedTxnGC.stopAsync();
+        completedTxnGC.awaitTerminated();
     }
     // endregion
 }

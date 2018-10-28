@@ -25,8 +25,9 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.tables.TableHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -253,7 +254,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     public CompletableFuture<TxnStatus> abortTxn(final String scope,
                                                  final String stream,
                                                  final UUID txId,
-                                                 final Integer version,
+                                                 final Version version,
                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
@@ -361,8 +362,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         }, 5, executor));
     }
 
-    private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId, CompletableFuture<VersionedTransactionData> txnFuture) {
-        int version = 0;
+    private void addTxnToTimeoutService(String scope, String stream, long lease, long maxExecutionPeriod, UUID txnId,
+                                        CompletableFuture<VersionedTransactionData> txnFuture) {
+        Version version = null;
         long executionExpiryTime = System.currentTimeMillis() + maxExecutionPeriod;
         if (!txnFuture.isCompletedExceptionally()) {
             version = txnFuture.join().getVersion();
@@ -389,7 +391,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private CompletableFuture<Void> addTxnToIndex(String scope, String stream, UUID txnId) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
         // Step 2. Add txn to host-transaction index.
-        return streamMetadataStore.addTxnToIndex(hostId, resource, 0)
+        return streamMetadataStore.addTxnToIndex(hostId, resource, null)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
@@ -472,10 +474,13 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 return CompletableFuture.completedFuture(createStatus(Status.MAX_EXECUTION_TIME_EXCEEDED));
             } else {
                 TxnResource resource = new TxnResource(scope, stream, txnId);
-                int expVersion = txnData.getVersion() + 1;
 
                 // Step 2. Add txn to host-transaction index
-                CompletableFuture<Void> addIndex = streamMetadataStore.addTxnToIndex(hostId, resource, expVersion).whenComplete((v, e) -> {
+                CompletableFuture<Void> addIndex = !timeoutService.containsTxn(scope, stream, txnId) ?
+                        streamMetadataStore.addTxnToIndex(hostId, resource, txnData.getVersion()) :
+                        CompletableFuture.completedFuture(null);
+
+                addIndex.whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
                     } else {
@@ -496,7 +501,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
                     // Step 4. Add it to timeout service and start managing timeout for this txn.
                     return pingTxn.thenApplyAsync(data -> {
-                        int version = data.getVersion();
+                        Version version = data.getVersion();
                         long expiryTime = data.getMaxExecutionExpiryTime();
                         // Even if timeout service has an active/executing timeout task for this txn, it is bound
                         // to fail, since version of txn node has changed because of the above store.pingTxn call.
@@ -506,6 +511,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             log.debug("Txn={}, extending lease in timeout service", txnId);
                             timeoutService.pingTxn(scope, stream, txnId, version, lease);
                         } else {
+                            log.debug("Txn={}, adding in timeout service", txnId);
                             timeoutService.addTxn(scope, stream, txnId, version, lease, expiryTime);
                         }
                         return createStatus(Status.OK);
@@ -543,16 +549,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                              final String stream,
                                              final boolean commit,
                                              final UUID txnId,
-                                             final Integer version,
+                                             final Version version,
                                              final OperationContext ctx) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
-        Optional<Integer> versionOpt = Optional.ofNullable(version);
+        Optional<Version> versionOpt = Optional.ofNullable(version);
 
         // Step 1. Add txn to current host's index, if it is not already present
         CompletableFuture<Void> addIndex = host.equals(hostId) && !timeoutService.containsTxn(scope, stream, txnId) ?
                 // PS: txn version in index does not matter, because if update is successful,
                 // then txn would no longer be open.
-                streamMetadataStore.addTxnToIndex(hostId, resource, Integer.MAX_VALUE) :
+                streamMetadataStore.addTxnToIndex(hostId, resource, version) :
                 CompletableFuture.completedFuture(null);
 
         addIndex.whenComplete((v, e) -> {

@@ -17,24 +17,24 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class Cache<T> {
+public class Cache {
 
     @FunctionalInterface
-    public interface Loader<U> {
-        CompletableFuture<Data<U>> get(final String key);
+    public interface Loader {
+        CompletableFuture<Data> get(final String key);
     }
 
-    private final LoadingCache<String, CompletableFuture<Data<T>>> cache;
+    private final LoadingCache<String, CompletableFuture<Data>> cache;
 
-    public Cache(final Loader<T> loader) {
+    public Cache(final Loader loader) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(new CacheLoader<String, CompletableFuture<Data<T>>>() {
+                .build(new CacheLoader<String, CompletableFuture<Data>>() {
                     @ParametersAreNonnullByDefault
                     @Override
-                    public CompletableFuture<Data<T>> load(final String key) {
-                        CompletableFuture<Data<T>> result = loader.get(key);
+                    public CompletableFuture<Data> load(final String key) {
+                        CompletableFuture<Data> result = loader.get(key);
                         result.exceptionally(ex -> {
                             invalidateCache(key);
                             return null;
@@ -44,7 +44,7 @@ public class Cache<T> {
                 });
     }
 
-    public CompletableFuture<Data<T>> getCachedData(final String key) {
+    public CompletableFuture<Data> getCachedData(final String key) {
         return cache.getUnchecked(key);
     }
 

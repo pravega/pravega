@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -28,7 +27,6 @@ import org.apache.curator.test.TestingServer;
 import org.apache.curator.utils.ZKPaths;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -68,7 +66,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     }
 
     @Override
-    public void cleanupTaskStore() throws IOException {
+    public void cleanupTaskStore() throws Exception {
         cli.close();
         zkServer.close();
     }
@@ -120,7 +118,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(0, newCounter.getMsb());
 
         // set range in store to have lsb = Long.Max - 100
-        Data<Integer> data = new Data<>(new Int96(0, Long.MAX_VALUE - 100).toBytes(), null);
+        Data data = new Data(new Int96(0, Long.MAX_VALUE - 100).toBytes(), null);
         doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(COUNTER_PATH);
         // set local limit to {msb, Long.Max - 100}
         zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
@@ -213,11 +211,11 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.StoreConnectionException;
 
         zkServer.close();
-        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, 0), checker);
+        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
     }
 
     private void testFailure(String host, TxnResource txn, Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, 0), checker);
+        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
         AssertExtensions.assertThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
         AssertExtensions.assertThrows("Remove host fails", store.removeHostFromIndex(host), checker);
         AssertExtensions.assertThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
@@ -382,7 +380,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(1, oldSchemeTxns.size());
         assertEquals(txnId, oldSchemeTxns.get(0));
         String txnOldPath = ZKPaths.makePath(streamOldPath, txnId.toString());
-        Data<Integer> oldSchemeTxnData = storeHelper.getData(txnOldPath).join();
+        Data oldSchemeTxnData = storeHelper.getData(txnOldPath).join();
         assertEquals(TxnStatus.COMMITTED, CompletedTxnRecord.parse(oldSchemeTxnData.getData()).getCompletionStatus());
         // explicitly delete from old scheme
         storeHelper.deletePath(txnOldPath, false).join();
@@ -466,14 +464,16 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         long scaleTimestamp = System.currentTimeMillis();
         List<Long> existingSegments = segments.stream().map(Segment::segmentId).collect(Collectors.toList());
-        EpochTransitionRecord response = store.startScale(scope, stream, existingSegments, newRanges,
-                scaleTimestamp, false, null, executor).join();
-        ImmutableMap<Long, SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
-        store.setState(scope, stream, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(scope, stream, false, null, executor).join();
-        store.scaleNewSegmentsCreated(scope, stream, null, executor).join();
-        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        VersionedMetadata<EpochTransitionRecord> versioned = store.submitScale(scope, stream, existingSegments, newRanges,
+                scaleTimestamp, null, null, executor).join();
+        VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
+        state = store.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
+        store.startScale(scope, stream, false, versioned, state, null, executor).join();
+        store.scaleCreateNewSegments(scope, stream, versioned, null, executor).join();
+        store.scaleNewSegmentsCreated(scope, stream, versioned, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, existingSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).join();
+        store.completeScale(scope, stream, versioned, null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 }

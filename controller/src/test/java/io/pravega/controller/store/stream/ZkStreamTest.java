@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -263,13 +262,15 @@ public class ZkStreamTest {
         long scale1 = start + 10000;
         ArrayList<Long> sealedSegments = Lists.newArrayList(3L, 4L);
         long five = computeSegmentId(5, 1);
-        EpochTransitionRecord response = store.startScale(SCOPE, streamName, sealedSegments, newRanges, scale1, false, context, executor).get();
-        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getNewSegmentsWithRange();
-        store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        VersionedMetadata<EpochTransitionRecord> versioned = store.submitScale(SCOPE, streamName, sealedSegments, newRanges, scale1, null, context, executor).get();
+        VersionedMetadata<State> state = store.getVersionedState(SCOPE, streamName, null, executor).join();
+        state = store.updateVersionedState(SCOPE, streamName, State.SCALING, state, null, executor).join();
+        versioned = store.startScale(SCOPE, streamName, false, versioned, state, null, executor).join();
+        store.scaleCreateNewSegments(SCOPE, streamName, versioned, context, executor).get();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, versioned, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 context, executor).get();
+        store.completeScale(SCOPE, streamName, versioned, null, executor).join();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 4);
@@ -287,13 +288,16 @@ public class ZkStreamTest {
         long six = computeSegmentId(6, 2);
         long seven = computeSegmentId(7, 2);
         long eight = computeSegmentId(8, 2);
-        response = store.startScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, false, context, executor).get();
-        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
-        store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        versioned = store.submitScale(SCOPE, streamName, sealedSegments1, newRanges, scale2, null, context, executor).get();
+        EpochTransitionRecord response = versioned.getObject();
+        state = store.getVersionedState(SCOPE, streamName, null, executor).join();
+        state = store.updateVersionedState(SCOPE, streamName, State.SCALING, state, null, executor).join();
+        versioned = store.startScale(SCOPE, streamName, false, versioned, state, null, executor).join();
+        store.scaleCreateNewSegments(SCOPE, streamName, versioned, context, executor).get();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, versioned, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 context, executor).get();
+        store.completeScale(SCOPE, streamName, versioned, null, executor).join();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
@@ -312,13 +316,16 @@ public class ZkStreamTest {
         long ten = computeSegmentId(10, 3);
         long eleven = computeSegmentId(11, 3);
         ArrayList<Long> sealedSegments2 = Lists.newArrayList(seven, eight);
-        response = store.startScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, false, context, executor).get();
-        segmentsCreated = response.getNewSegmentsWithRange();
-        store.setState(SCOPE, streamName, State.SCALING, null, executor).join();
-        store.scaleCreateNewSegments(SCOPE, streamName, false, context, executor).get();
-        store.scaleNewSegmentsCreated(SCOPE, streamName, context, executor).get();
-        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        versioned = store.submitScale(SCOPE, streamName, sealedSegments2, newRanges, scale3, null, context, executor).get();
+        response = versioned.getObject();
+        state = store.getVersionedState(SCOPE, streamName, null, executor).join();
+        state = store.updateVersionedState(SCOPE, streamName, State.SCALING, state, null, executor).join();
+        store.startScale(SCOPE, streamName, false, versioned, state, null, executor).join();
+        store.scaleCreateNewSegments(SCOPE, streamName, versioned, context, executor).get();
+        store.scaleNewSegmentsCreated(SCOPE, streamName, versioned, context, executor).get();
+        store.scaleSegmentsSealed(SCOPE, streamName, sealedSegments2.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 context, executor).get();
+        store.completeScale(SCOPE, streamName, versioned, null, executor).join();
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).join();
 
         segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
@@ -396,14 +403,12 @@ public class ZkStreamTest {
 
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
-        Boolean sealOperationStatus = store.setSealed(SCOPE, streamName, context, executor).get();
-        assertTrue(sealOperationStatus);
+        store.setSealed(SCOPE, streamName, context, executor).get();
         assertTrue(store.isSealed(SCOPE, streamName, context, executor).get());
         assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
 
         //seal an already sealed stream.
-        Boolean sealOperationStatus1 = store.setSealed(SCOPE, streamName, context, executor).get();
-        assertTrue(sealOperationStatus1);
+        store.setSealed(SCOPE, streamName, context, executor).get();
         assertTrue(store.isSealed(SCOPE, streamName, context, executor).get());
         assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
 
@@ -456,7 +461,7 @@ public class ZkStreamTest {
                 context, executor).get();
         Assert.assertEquals(txnId2, tx2.getId());
 
-        store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.<Integer>empty(),
+        store.sealTransaction(SCOPE, streamName, tx.getId(), true, Optional.empty(),
                 context, executor).get();
         assert store.transactionStatus(SCOPE, streamName, tx.getId(), context, executor)
                 .get().equals(TxnStatus.COMMITTING);
@@ -472,7 +477,7 @@ public class ZkStreamTest {
         CompletableFuture<TxnStatus> f1 = store.commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
         store.setState(SCOPE, streamName, State.ACTIVE, context, executor).join();
 
-        store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.<Integer>empty(),
+        store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(),
                 context, executor).get();
         assert store.transactionStatus(SCOPE, streamName, tx2.getId(), context, executor)
                 .get().equals(TxnStatus.ABORTING);
@@ -560,7 +565,7 @@ public class ZkStreamTest {
         doReturn(Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "txn data not found")))
                 .when(storeHelper).getData(eq(activeTxPath));
 
-        Map<String, Data<Integer>> result = stream.getCurrentTxns().join();
+        Map<String, Data> result = stream.getCurrentTxns().join();
         // verify that call succeeds and no active txns were found
         assertTrue(result.isEmpty());
 
