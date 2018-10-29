@@ -229,16 +229,16 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(retentionSet -> {
                     StreamCutReferenceRecord latestCut = retentionSet.getLatest();
                     
-                    return checkGenerateStreamCut(scope, stream, latestCut, recordingTime, context, delegationToken)
+                    return generateStreamCutIfRequired(scope, stream, latestCut, recordingTime, context, delegationToken)
                             .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime, requestId));
                 })
                 .thenAccept(x -> DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(RETENTION_FREQUENCY, scope, stream), 1));
 
     }
 
-    private CompletableFuture<StreamCutRecord> checkGenerateStreamCut(String scope, String stream, 
-                                                                      StreamCutReferenceRecord previous, long recordingTime, 
-                                                                      OperationContext context, String delegationToken) {
+    private CompletableFuture<StreamCutRecord> generateStreamCutIfRequired(String scope, String stream,
+                                                                           StreamCutReferenceRecord previous, long recordingTime,
+                                                                           OperationContext context, String delegationToken) {
         if (previous == null || recordingTime - previous.getRecordingTime() > RETENTION_FREQUENCY_IN_MINUTES) {
             return Futures.exceptionallyComposeExpecting(
                     previous == null ? CompletableFuture.completedFuture(null) :
