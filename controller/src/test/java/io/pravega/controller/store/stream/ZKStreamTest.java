@@ -41,6 +41,7 @@ public class ZKStreamTest extends StreamTestBase {
         cli.close();
         zkServer.close();
         store.close();
+        executor.shutdown();
     }
 
     @Override
