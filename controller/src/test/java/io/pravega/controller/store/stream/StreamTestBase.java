@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -813,5 +814,208 @@ public abstract class StreamTestBase {
 
     private Map<Long, Integer> transform(Map<StreamSegmentRecord, Integer> span) {
         return span.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+    }
+
+    /*
+     Segment mapping of stream8 used for the below tests.
+
+     +-------+------+-------+-------+
+     |       |   8  |       |       |
+     |   2   +------|       |       |
+     |       |   7  |   10  |       |
+     +-------+ -----|       |       |
+     |       |   6  |       |       |
+     |  1    +------+-------+-------+
+     |       |   5  |       |       |
+     +-------+------|       |       |
+     |       |   4  |   9   |       |
+     |  0    +------|       |       |
+     |       |   3  |       |       |
+     +-------+------+----------------
+     */
+    @Test
+    public void testCutpointSuccessors() {
+        int startingSegmentNumber = new Random().nextInt(2000);
+        List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+        long timestamp = System.currentTimeMillis();
+
+        PersistentStreamBase stream = createStream("scope", "stream" + startingSegmentNumber, timestamp, 3, startingSegmentNumber);
+
+        List<Segment> initialSegments = stream.getActiveSegments().join();
+        Segment zero = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 0, 0)).findAny().get();
+        Segment one = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 1, 0)).findAny().get();
+        Segment two = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 2, 0)).findAny().get();
+        Segment three = new Segment(computeSegmentId(startingSegmentNumber + 3, 1), timestamp, 0.0, 0.16);
+        Segment four = new Segment(computeSegmentId(startingSegmentNumber + 4, 1), timestamp, 0.16, zero.getKeyEnd());
+        Segment five = new Segment(computeSegmentId(startingSegmentNumber + 5, 1), timestamp, one.getKeyStart(), 0.5);
+        Segment six = new Segment(computeSegmentId(startingSegmentNumber + 6, 1), timestamp, 0.5, one.getKeyEnd());
+        Segment seven = new Segment(computeSegmentId(startingSegmentNumber + 7, 1), timestamp, two.getKeyStart(), 0.83);
+        Segment eight = new Segment(computeSegmentId(startingSegmentNumber + 8, 1), timestamp, 0.83, two.getKeyEnd());
+        Segment nine = new Segment(computeSegmentId(startingSegmentNumber + 9, 2), timestamp, 0.0, 0.5);
+        Segment ten = new Segment(computeSegmentId(startingSegmentNumber + 10, 2), timestamp, 0.5, 1);
+
+        // 2 -> 7, 8
+        // 1 -> 5, 6
+        // 0 -> 3, 4
+        LinkedList<Segment> newsegments = new LinkedList<>();
+        newsegments.add(three);
+        newsegments.add(four);
+        newsegments.add(five);
+        newsegments.add(six);
+        newsegments.add(seven);
+        newsegments.add(eight);
+        List<Long> segmentsToSeal = stream.getActiveSegments().join().stream().map(x -> x.segmentId()).collect(Collectors.toList());
+        newRanges = newsegments.stream()
+                            .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+
+        scaleStream(stream, ++timestamp, segmentsToSeal, new LinkedList<>(newRanges), Collections.emptyMap());
+
+        // 6, 7, 8 -> 10
+        // 3, 4, 5 -> 9
+        newsegments = new LinkedList<>();
+        newsegments.add(nine);
+        newsegments.add(ten);
+        segmentsToSeal = stream.getActiveSegments().join().stream().map(x -> x.segmentId()).collect(Collectors.toList());
+
+        newRanges = newsegments.stream()
+                            .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
+        scaleStream(stream, ++timestamp, segmentsToSeal, new LinkedList<>(newRanges), Collections.emptyMap());
+
+        // only from
+        Map<Long, Long> fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero.segmentId(), 0L);
+        fromStreamCut.put(one.segmentId(), 0L);
+        fromStreamCut.put(two.segmentId(), 0L);
+
+        List<Segment> segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
+        assertEquals(11, segmentsBetween.size());
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero.segmentId(), 0L);
+        fromStreamCut.put(two.segmentId(), 0L);
+        fromStreamCut.put(five.segmentId(), 0L);
+        fromStreamCut.put(six.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
+        assertEquals(10, segmentsBetween.size());
+        assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == one.segmentId()));
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(zero.segmentId(), 0L);
+        fromStreamCut.put(five.segmentId(), 0L);
+        fromStreamCut.put(ten.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
+        assertEquals(6, segmentsBetween.size());
+        // 0, 3, 4, 5, 9, 10
+        assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == one.segmentId() || x.segmentId() == two.segmentId()
+                || x.segmentId() == six.segmentId() || x.segmentId() == seven.segmentId() || x.segmentId() == eight.segmentId()));
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(six.segmentId(), 0L);
+        fromStreamCut.put(seven.segmentId(), 0L);
+        fromStreamCut.put(eight.segmentId(), 0L);
+        fromStreamCut.put(nine.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
+        assertEquals(5, segmentsBetween.size());
+        assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == one.segmentId() || x.segmentId() == two.segmentId()
+                || x.segmentId() == three.segmentId() || x.segmentId() == four.segmentId() || x.segmentId() == five.segmentId()));
+
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(ten.segmentId(), 0L);
+        fromStreamCut.put(nine.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
+        assertEquals(2, segmentsBetween.size());
+        assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == one.segmentId() || x.segmentId() == two.segmentId()
+                || x.segmentId() == three.segmentId() || x.segmentId() == four.segmentId() || x.segmentId() == five.segmentId()
+                || x.segmentId() == six.segmentId() || x.segmentId() == seven.segmentId() || x.segmentId() == eight.segmentId()));
+
+        // to before from
+        fromStreamCut = new HashMap<>();
+        fromStreamCut.put(three.segmentId(), 0L);
+        fromStreamCut.put(four.segmentId(), 0L);
+        fromStreamCut.put(one.segmentId(), 0L);
+        fromStreamCut.put(two.segmentId(), 0L);
+
+        Map<Long, Long> toStreamCut = new HashMap<>();
+        toStreamCut.put(zero.segmentId(), 0L);
+        toStreamCut.put(one.segmentId(), 0L);
+        toStreamCut.put(two.segmentId(), 0L);
+        Map<Long, Long> fromStreamCutCopy = fromStreamCut;
+        AssertExtensions.assertThrows("", 
+                () -> stream.getSegmentsBetweenStreamCuts(fromStreamCutCopy, toStreamCut), 
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+
+        // to and from overlap
+        Map<Long, Long> fromStreamCutOverlap = new HashMap<>();
+        fromStreamCutOverlap.put(three.segmentId(), 0L);
+        fromStreamCutOverlap.put(four.segmentId(), 0L);
+        fromStreamCutOverlap.put(one.segmentId(), 0L);
+        fromStreamCutOverlap.put(two.segmentId(), 0L);
+
+        Map<Long, Long> toStreamCutOverlap = new HashMap<>();
+        toStreamCutOverlap.put(zero.segmentId(), 0L);
+        toStreamCutOverlap.put(five.segmentId(), 0L);
+        toStreamCutOverlap.put(six.segmentId(), 0L);
+        toStreamCutOverlap.put(two.segmentId(), 0L);
+        AssertExtensions.assertThrows("",
+                () -> stream.getSegmentsBetweenStreamCuts(fromStreamCutOverlap, toStreamCutOverlap),
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+
+        Map<Long, Long> fromPartialOverlap = new HashMap<>();
+        fromPartialOverlap.put(zero.segmentId(), 0L);
+        fromPartialOverlap.put(five.segmentId(), 0L);
+        fromPartialOverlap.put(six.segmentId(), 0L);
+        fromPartialOverlap.put(two.segmentId(), 0L);
+
+        Map<Long, Long> toPartialOverlap = new HashMap<>();
+        toPartialOverlap.put(eight.segmentId(), 0L);
+        toPartialOverlap.put(seven.segmentId(), 0L);
+        toPartialOverlap.put(one.segmentId(), 0L);
+        toPartialOverlap.put(three.segmentId(), 0L);
+        toPartialOverlap.put(four.segmentId(), 0L);
+        AssertExtensions.assertThrows("",
+                () -> stream.getSegmentsBetweenStreamCuts(fromPartialOverlap, toPartialOverlap),
+                e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+
+        // Success cases
+        Map<Long, Long> fromStreamCutSuccess = new HashMap<>();
+        fromStreamCutSuccess.put(zero.segmentId(), 0L);
+        fromStreamCutSuccess.put(one.segmentId(), 0L);
+        fromStreamCutSuccess.put(two.segmentId(), 0L);
+
+        Map<Long, Long> toStreamCutSuccess = new HashMap<>();
+        toStreamCutSuccess.put(zero.segmentId(), 0L);
+        toStreamCutSuccess.put(five.segmentId(), 0L);
+        toStreamCutSuccess.put(six.segmentId(), 0L);
+        toStreamCutSuccess.put(two.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCutSuccess, toStreamCutSuccess).join();
+        assertEquals(5, segmentsBetween.size());
+        assertTrue(segmentsBetween.stream().allMatch(x -> x.segmentId() == zero.segmentId() || x.segmentId() == one.segmentId()
+                || x.segmentId() == two.segmentId() || x.segmentId() == five.segmentId() || x.segmentId() == six.segmentId()));
+
+        fromStreamCutSuccess = new HashMap<>();
+        fromStreamCutSuccess.put(zero.segmentId(), 0L);
+        fromStreamCutSuccess.put(five.segmentId(), 0L);
+        fromStreamCutSuccess.put(six.segmentId(), 0L);
+        fromStreamCutSuccess.put(two.segmentId(), 0L);
+
+        toStreamCutSuccess = new HashMap<>();
+        toStreamCutSuccess.put(nine.segmentId(), 0L);
+        toStreamCutSuccess.put(ten.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCutSuccess, toStreamCutSuccess).join();
+        assertEquals(10, segmentsBetween.size());
+        assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == one.segmentId()));
+
+        // empty from
+        toStreamCutSuccess = new HashMap<>();
+        toStreamCutSuccess.put(zero.segmentId(), 0L);
+        toStreamCutSuccess.put(five.segmentId(), 0L);
+        toStreamCutSuccess.put(six.segmentId(), 0L);
+        toStreamCutSuccess.put(two.segmentId(), 0L);
+        segmentsBetween = stream.getSegmentsBetweenStreamCuts(Collections.emptyMap(), toStreamCutSuccess).join();
+        assertEquals(5, segmentsBetween.size());
+        assertTrue(segmentsBetween.stream().noneMatch(x -> x.segmentId() == three.segmentId() || x.segmentId() == four.segmentId()
+                || x.segmentId() == seven.segmentId() || x.segmentId() == eight.segmentId() || x.segmentId() == nine.segmentId()
+                || x.segmentId() == ten.segmentId()));
+
     }
 }

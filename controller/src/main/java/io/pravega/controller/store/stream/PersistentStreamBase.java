@@ -507,7 +507,7 @@ public abstract class PersistentStreamBase implements Stream {
                 getEpochRecord(0).thenApply(this::convertToSpan)
                 : computeStreamCutSpan(from);
         CompletableFuture<Map<StreamSegmentRecord, Integer>> spanToFuture = to.isEmpty() ?
-                getActiveEpochRecord(false).thenApply(this::convertToSpan)
+                getActiveEpochRecord(true).thenApply(this::convertToSpan)
                 : computeStreamCutSpan(to);
 
         return CompletableFuture.allOf(spanFromFuture, spanToFuture)
