@@ -74,6 +74,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -310,7 +311,13 @@ public class ScaleRequestHandlerTest {
         EpochRecord epochTwo = streamStore.getEpoch(scope, stream, 2, null, executor).join();
         EpochRecord epochThree = streamStore.getEpoch(scope, stream, 3, null, executor).join();
         assertEquals(0, epochTwo.getReferenceEpoch());
+        assertEquals(epochZero.getSegments().size(), epochTwo.getSegments().size());
+        assertEquals(epochZero.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
+                epochTwo.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
         assertEquals(1, epochThree.getReferenceEpoch());
+        assertEquals(epochOne.getSegments().size(), epochThree.getSegments().size());
+        assertEquals(epochOne.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
+                epochThree.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
 
         EpochRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(epochThree, activeEpoch);
