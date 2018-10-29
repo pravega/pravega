@@ -31,7 +31,7 @@ The `HelloWorldWriter` application is a simple demonstration of using the
 Taking a look first at the `HelloWorldWriter` example application, the key part of
 the code is in the `run()`` method:
 
-```java {.line-numbers}
+```java class:{.lineNo}
 
 public void run(String routingKey, String message) {
     StreamManager streamManager = StreamManager.create(controllerURI);
