@@ -401,7 +401,7 @@ the value by querying Zookeeper every time. So we have introduced an
 in-memory cache that each stream store maintains. It caches retrieved
 metadata per stream so that there is maximum one copy of the data per
 stream in the cache. There are two in-memory caches: _A cache of
-multiple stream objects in the store_ and _ache properties of a stream in
+multiple stream objects in the store_ and _cache properties of a stream in
 the stream object_.
 
 We have introduced a concept of operation context and at the start of
@@ -631,7 +631,7 @@ complete any step, the stream is left dangling in *Creating* state.
 ### Update Stream
 
 Update stream is implemented as a task on serialized sequest
-handler or concurrent event processor framework. Update stream is invoked
+handler over concurrent event processor framework. Update stream is invoked
 by an explicit API call into Controller. It first posts an _Update
 Request_ event into request stream. Following that it tries to create a
 temporary update property. If it fails to create the temporary update
