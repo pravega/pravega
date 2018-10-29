@@ -13,7 +13,7 @@ You may obtain a copy of the License at
 A set of Readers can be grouped together in order that the set of Events in a Stream can be read in parallel. This grouping of Readers is called a Reader Group. Pravega guarantees that each Event in the Stream is read by exactly one Reader in the Reader Group.
 
 Each Reader in a Reader Group is assigned zero or more Segments.
-The Reader assigned to a Segment is the only Reader within the Reader Group that reads Events from that Segment. This is the fundamental mechanism by which Pravega makes ordering guarantees of Event delivery to a Reader – a Reader will receive Events in the order they were published into a Segment.
+The Reader assigned to a Segment is the only Reader within the Reader Group that reads Events from that Segment. This is the fundamental mechanism by which Pravega makes ordering guarantees of Event delivery to a Reader – a Reader will receive Events in the order they were written into a Segment.
 There are several challenges associated with this mechanism:
 
  -  How to maintain the mapping of which Reader within a Reader Group is assigned which Segment?
@@ -21,7 +21,7 @@ There are several challenges associated with this mechanism:
  -  How to manage the above mapping when Readers are added to the Reader Group?
  -  How to manage the above mapping when Readers leave the Reader Group either by an explicit operation or the Reader becoming unavailable due to network outage or the Reader process failing?
 
-To address these challenges, we can use [State Synchronizer](state-synchronizer-design.md) to enable coordination among Readers.
+To address these challenges, we use [State Synchronizer](state-synchronizer-design.md) to enable coordination among Readers.
 
 ### Consistent Replicated State
 A consistent replicated state object representing the Reader Group metadata will be created in each Reader. This Reader Group metadata consists of:
@@ -34,13 +34,13 @@ Every time the Readers in a Reader Group change, the state can be updated. The r
 Given this information:
 
  - A new Reader can infer which segments are available to read from. (By virtue of it being absent from the state).
- - Merging segments becomes easy, because the last Reader to reach the end of its pre-merge segment knows it can freely take ownership of the new segment.
+ - Dealing with a segment being merged becomes easy, because the last reader to reach the end of its pre-merge segment knows it can freely take ownership of the new segment.
  - Readers can see their relative load and how they are progressing relative to the other Readers in their group and can decide to transfer segments if things are out of balance.
  - This allows Readers to take action directly to ensure all the events are read without the need for some external tracker.
 
 ## Reader Group APIs
 
-The external APIs to manage Reader Groups could be added to the `StreamManager` object. It consist of:
+The external APIs to manage Reader Groups could be added to the `ReaderGroupManager` object. It consist of:
 
 ```
     ReaderGroup createReaderGroup(String name, Stream stream, ReaderGroupConfig config);
@@ -54,11 +54,11 @@ ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
 EventStreamReader< T > reader = clientFactory.createReader(readerId, READER_GROUP_NAME, serializer, readerConfig);
 
 ```
-The Readers, while joining the group access the information stored on the state to determine which segments to read from. Once when they shut down, they update the state so that other Readers can take over their segments.
+The Readers, while joining the group, access the information stored on the state to determine which segments to read from. Once when they shut down, they update the state so that other Readers can take over their segments.
 
 # Failure detector
 
-We still need some effective mechanism to identify, whether Readers are alive. The problem is greatly simplified because it need not produce a view of the cluster or manage any state. The component would just need to detect failures and invoke the `void ReaderOffline(String ReaderId, Position lastPosition);` API on the Reader Group.
+We still need some effective mechanism to identify, whether Readers are alive or not. The problem is greatly simplified because it need not produce a view of the cluster or manage any state. The component would just need to detect failures and invoke the `void ReaderOffline(String ReaderId, Position lastPosition);` API on the Reader Group.
 
 For consistency, the Failure detector should not declare a host as dead that is still processing events. Doing so could violate exactly once processing guarantees.
 
@@ -79,7 +79,7 @@ There are no races between multiple Readers coming online concurrently because o
 There is no ambiguity as to who the owner is, because it is stored in the shared state. There is no risk of a segment being ignored because every Reader can see the available segments by looking at the shared state and claim them.
 
 ## Reader going offline
-1. When a Reader dies, the `readerOffline(readerId, position) api` method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state.
+1. When a Reader dies, the `readerOffline(readerId, position)` API method will be invoked either by the Reader itself in a graceful shutdown (internally to the close method) or via a "liveness detector". In either case the Reader's last position is written to the state.
 
 1. If a null `Position` is sent then the last checkpointed position will be written to the state.
 1. This is used by the newer Readers when they take ownership of the segment(s) that were read by the older/offline reader.
@@ -87,6 +87,7 @@ There is no ambiguity as to who the owner is, because it is stored in the shared
 1. Once the state has been updated by the new Reader, it is considered the owner of the segment and can read from it.
 
 
+# Other Considerations on Reader Groups
 
 ## What happens if a Reader does not keep up to date?
 A Reader with out-of-date state can read from their existing segments without interference. The only disadvantage to this is that they will not shed load to another Reader should one become available. However, because they have to write to the shared state to start reading from any segment which they don't already own, they must fetch up-to-date information before moving on to a new segment.
