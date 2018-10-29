@@ -25,27 +25,28 @@ before continuing reading this page.
 
 ## HelloWorldWriter
 
-The HelloWorldWriter application is a simple demonstration of using the
-EventStreamWriter to write an Event to Pravega.
+The `HelloWorldWriter` application is a simple demonstration of using the
+`EventStreamWriter` to write an Event to Pravega.
 
-Taking a look first at the HelloWorldWriter example application, the key part of
-the code is in the run() method:
+Taking a look first at the `HelloWorldWriter` example application, the key part of
+the code is in the `run()`` method:
 
-```java
+```java {.line-numbers}
+
 public void run(String routingKey, String message) {
     StreamManager streamManager = StreamManager.create(controllerURI);
-  
+
     final boolean scopeCreation = streamManager.createScope(scope);
     StreamConfiguration streamConfig = StreamConfiguration.builder()
             .scalingPolicy(ScalingPolicy.fixed(1))
             .build();
     final boolean streamCreation = streamManager.createStream(scope, streamName, streamConfig);
-  
+
     try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
          EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                                                           new JavaSerializer<String>(),
                                                    EventWriterConfig.builder().build())) {
-             
+
          System.out.format("Writing message: '%s' with routing-key: '%s' to stream '%s / %s'%n",
                 message, routingKey, scope, streamName);
          final CompletableFuture<Void> writeFuture = writer.writeEvent(routingKey, message);
@@ -53,7 +54,7 @@ public void run(String routingKey, String message) {
 }
 ```
 
-The purpose of the run() method is to create a Stream (lines 2-9) and output the
+The purpose of the `run()` method is to create a Stream (lines 2-9) and output the
 given Event to that Stream (lines 10-18).
 
 ## Creating a Stream and the StreamManager Interface
@@ -225,13 +226,13 @@ is in the run() method:
 ```java
 public void run() {
    StreamManager streamManager = StreamManager.create(controllerURI);
- 
+
    final boolean scopeIsNew = streamManager.createScope(scope);
    StreamConfiguration streamConfig = StreamConfiguration.builder()
            .scalingPolicy(ScalingPolicy.fixed(1))
            .build();
    final boolean streamIsNew = streamManager.createStream(scope, streamName, streamConfig);
- 
+
    final String readerGroup = UUID.randomUUID().toString().replace("-", "");
    final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                                                                 .stream(Stream.of(scope, streamName))
@@ -239,7 +240,7 @@ public void run() {
    try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI)) {
        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
    }
- 
+
    try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
         EventStreamReader<String> reader = clientFactory.createReader("reader",
                                                                       readerGroup,
@@ -297,7 +298,7 @@ context of a Scope, we can safely conclude that ReaderGroup names are namespaced
 by that Scope.  
 
 The ReaderGroupConfig right now doesn't have much behavior.  The developer
-specifies the Stream which should be part of the ReaderGroup and its lower and 
+specifies the Stream which should be part of the ReaderGroup and its lower and
 upper bounds. In our case, on line 11, we start at the beginning of the Stream.
 Other configuration items, such as specifying checkpointing etc. are options
 that will be available through the ReaderGroupConfig.  But for now, we keep it
@@ -357,12 +358,12 @@ blocks for a specified timeout period.  If, after the timeout period has expire
 and no Event is available for reading, null is returned. That is why there is a
 null check on line 27 (to avoid printing out a spurious "null" event message to
 the console).  It is also used as the termination of the loop on line 34.  Note
-that the Event itself is wrapped in an EventRead object. 
+that the Event itself is wrapped in an EventRead object.
 
 It is worth noting that readNextEvent() may throw an exception (handled in lines
 30-33).  This exception would be handled in cases where the Readers in the
 ReaderGroup need to be reset to a checkpoint or the ReaderGroup itself has been
-altered and the set of Streams being read has therefore been changed. 
+altered and the set of Streams being read has therefore been changed.
 
 So that's it.  The simple HelloWorldReader loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
@@ -370,11 +371,11 @@ until there are no more Events, and then the application terminates.
 # Experimental batch reader
 
 For applications that want to perform batch reads of historical stream data, the BatchClient provides a way to do this.
-It allows for listing all of the segments in a stream, and reading their data. 
+It allows for listing all of the segments in a stream, and reading their data.
 
 When the data is read this way, rather than joining a reader group which automatically partitions the data, the underlying structure of the stream is exposed and it is up to the application to decide how to process it. So events read in this way need not be read in order.
 
-Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as MapReduce. 
+Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as MapReduce.
 
 As an example to iterate over all the segments in the stream:
 ```java
