@@ -17,7 +17,9 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -128,14 +130,20 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
-                .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage));
+        return Retry.withExpBackoff(1, 10, 5)
+                    .retryingOn(StreamSegmentNotExistsException.class)
+                    .throwingOn(RuntimeException.class)
+                    .run(() -> getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
+                            .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage)));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout);
+        return Retry.withExpBackoff(1, 10, 5)
+                    .retryingOn(StreamSegmentNotExistsException.class)
+                    .throwingOn(RuntimeException.class)
+                    .run(() -> this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout));
     }
 
 
