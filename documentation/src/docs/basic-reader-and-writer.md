@@ -29,9 +29,9 @@ The `HelloWorldWriter` application is a simple demonstration of using the
 `EventStreamWriter` to write an Event to Pravega.
 
 Taking a look first at the `HelloWorldWriter` example application, the key part of
-the code is in the `run()`` method:
+the code is in the `run()` method:
 
-```java class:{.lineNo}
+```java {.lineNo}
 
 public void run(String routingKey, String message) {
     StreamManager streamManager = StreamManager.create(controllerURI);
