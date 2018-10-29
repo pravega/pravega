@@ -147,6 +147,7 @@ public class StreamTruncationRecord {
                     .span(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt))
                     .deletedSegments(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
                     .toDelete(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
+                    .sizeTill(revisionDataInput.readLong())
                     .updating(revisionDataInput.readBoolean());
         }
 
@@ -156,6 +157,7 @@ public class StreamTruncationRecord {
             revisionDataOutput.writeMap(streamTruncationRecord.getSpan(), StreamSegmentRecord.SERIALIZER::serialize, DataOutput::writeInt);
             revisionDataOutput.writeCollection(streamTruncationRecord.getDeletedSegments(), DataOutput::writeLong);
             revisionDataOutput.writeCollection(streamTruncationRecord.getToDelete(), DataOutput::writeLong);
+            revisionDataOutput.writeLong(streamTruncationRecord.sizeTill);
             revisionDataOutput.writeBoolean(streamTruncationRecord.isUpdating());
         }
 

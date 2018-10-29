@@ -151,21 +151,35 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(existing -> {
                     Preconditions.checkNotNull(existing);
                     Preconditions.checkArgument(!existing.getObject().isUpdating());
-                    return computeStreamCutSpan(streamCut)
-                            .thenCompose(span -> {
-                                StreamTruncationRecord previous = existing.getObject();
-                                // check greater than
-                                Exceptions.checkArgument(span.keySet().stream().allMatch(x ->
-                                                previous.getSpan().keySet().stream().noneMatch(y -> y.overlaps(x) && y.segmentId() > x.segmentId())),
-                                        "StreamCut", "Supplied streamcut is behind previous truncation point");
+                    return isStreamCutValid(streamCut)
+                        .thenCompose(isValid -> {
+                            Exceptions.checkArgument(isValid, "streamCut", "invalid stream cut");
+                            return computeStreamCutSpan(streamCut)
+                                    .thenCompose(span -> {
+                                        StreamTruncationRecord previous = existing.getObject();
+                                        // check greater than
+                                        Exceptions.checkArgument(greaterThan(streamCut, span, previous.getStreamCut(), previous.getSpan()),
+                                                "StreamCut", "Supplied streamcut is behind previous truncation point");
 
-                                return computeTruncationRecord(previous, streamCut, span)
-                                        .thenCompose(prop ->
-                                                Futures.toVoid(setTruncationData(new Data(prop.toBytes(), existing.getVersion()))));
-                            });
+                                        return computeTruncationRecord(previous, streamCut, span)
+                                                .thenCompose(prop ->
+                                                        Futures.toVoid(setTruncationData(new Data(prop.toBytes(), existing.getVersion()))));
+                                    });
+                        });
                 });
     }
 
+    private boolean greaterThan(Map<Long, Long> cut1, Map<StreamSegmentRecord, Integer> span1,
+                                Map<Long, Long> cut2, Map<StreamSegmentRecord, Integer> span2) {
+        // find overlapping segments in map2 for all segments in span1 compare epochs. 
+        // span1 should have epochs gt or eq its overlapping segments in span2
+        return span1.entrySet().stream().allMatch(e1 ->
+                span2.entrySet().stream().noneMatch(e2 ->
+                        (e2.getKey().segmentId() == e1.getKey().segmentId() &&
+                                cut1.get(e1.getKey().segmentId()) < cut2.get(e2.getKey().segmentId()))
+                                || (e2.getKey().overlaps(e1.getKey()) && e1.getValue() < e2.getValue())));
+    }
+    
     private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord previous, Map<Long, Long> streamCut,
                                                                               Map<StreamSegmentRecord, Integer> span) {
         log.debug("computing truncation for stream {}/{}", scope, name);
@@ -453,7 +467,7 @@ public abstract class PersistentStreamBase implements Stream {
     public CompletableFuture<List<Segment>> getActiveSegments() {
         // read current epoch record
         return verifyLegalState()
-                .thenCompose(v -> getActiveEpochRecord(false).thenApply(epochRecord -> transform(epochRecord.getSegments())));
+                .thenCompose(v -> getActiveEpochRecord(true).thenApply(epochRecord -> transform(epochRecord.getSegments())));
     }
 
     @Override
@@ -954,8 +968,7 @@ public abstract class PersistentStreamBase implements Stream {
                     // always set transaction epoch as refrence epoch so that all transactions on duplicate epochs
                     // are collected.
                     // epochs that are not duplicates will refer to themselves.
-                    long msb64Bit = (long) epochRecord.getReferenceEpoch() << 32 | msb32Bit & 0xFFFFFFFFL;
-                    return new UUID(msb64Bit, lsb64Bit);
+                    return RecordHelper.generateTxnId(epochRecord.getReferenceEpoch(), msb32Bit, lsb64Bit);
                 });
     }
 

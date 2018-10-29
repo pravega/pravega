@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -234,5 +235,17 @@ public class RecordHelperTest {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
         assertFalse(RecordHelper.validateInputRange(Lists.newArrayList(1L), newRanges, epochRecord));
+    }
+    
+    @Test
+    public void testTransactionId() {
+        UUID txnId = RecordHelper.generateTxnId(0, 0, 100L);
+        assertEquals(0, RecordHelper.getTransactionEpoch(txnId));
+
+        txnId = RecordHelper.generateTxnId(100, 10, 100L);
+        assertEquals(100, RecordHelper.getTransactionEpoch(txnId));
+
+        long generalized = RecordHelper.generalizedSegmentId(StreamSegmentNameUtils.computeSegmentId(100, 200), txnId);
+        assertEquals(StreamSegmentNameUtils.computeSegmentId(100, 100), generalized);
     }
 }
