@@ -41,7 +41,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public abstract class StreamTestBase {
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
