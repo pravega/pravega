@@ -18,7 +18,7 @@ Java Client Library to access Pravega functionality.
 
 Instructions for running the sample applications can be found in the [Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see Pravega Concepts)
 before continuing reading this page.
@@ -31,7 +31,7 @@ The `HelloWorldWriter` application is a simple demonstration of using the
 Taking a look first at the `HelloWorldWriter` example application, the key part of
 the code is in the `run()` method:
 
-```java {.line-numbers}
+```java
 
 public void run(String routingKey, String message) {
     StreamManager streamManager = StreamManager.create(controllerURI);
@@ -68,7 +68,7 @@ developer, I can choose whatever categorization scheme I need and use the Scope
 concept for organizing my Streams along that categorization scheme.
 
 Scopes and Streams are created and manipulated via the StreamManager Interface
-to the Pravega Controller.  You need to have a URI to any of the Pravega
+to the Pravega Controller. You need to have a URI to any of the Pravega
 Controller instances in your cluster in order to create a StreamManager object.
  This is shown in line 2.
 
@@ -146,14 +146,14 @@ the Stream.  Currently, this property is effective only when the stream is
 created; at some point in the future, update stream will allow this factor to be
 used to change the minimum degree of read parallelism on an existing Stream.
 
-Once the StreamConfiguration object is created, creating the Stream is straight
+Once the `StreamConfiguration` object is created, creating the Stream is straight
 forward (line 8).  After the Stream is created, we are all set to start writing
 Event(s) to the Stream.
 
 ## Writing an Event using EventWriter
 
-Applications use an EventStreamWriter object to write Events to a Stream.  The
-key object to creating the EventStreamWriter is the ClientFactory.  The
+Applications use an `EventStreamWriter` object to write Events to a Stream.  The
+key object to creating the `EventStreamWriter` is the ClientFactory.  The
 ClientFactory is used to create Readers, Writers and other types of Pravega
 Client objects such as the State Synchronizer (see [Working with Pravega: State
 Synchronizer](state-synchronizer.md)).
