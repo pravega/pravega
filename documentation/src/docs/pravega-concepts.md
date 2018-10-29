@@ -179,7 +179,7 @@ Applications can react to changes in the number of Segments in a Stream by adjus
 
 A Stream comprises a set of Segments that can change over time. Segments that overlap in their area of key space have a defined order.
 
-An Event written to a Stream is written to a single Segment, and is ordered with respect to the Events of that Segment. The existence and position of an Event within a Segment maintains consistency.
+An Event written to a Stream is written to a single Segment, and is ordered with respect to the Events of that Segment. The existence and position of an Event within a Segment is strongly consistent.
 
 Readers can be assigned multiple parallel Segments (from different parts of key space). A Reader reading from multiple Segments will interleave the Events of the Segments, but the order of Events per Segment is retained. Specifically, if **s** is a Segment, and **s** contains two Events _i.e.,_ **s** **=** {**e~1**,**e~2**} where **e~1** precedes **e~2**. Thus when a Reader tries to read both the Events (**e~1** and **e~2**) the read order is guaranteed by assuring that, the Reader is allowed to read **e~1** before **e~2**.
 
@@ -192,7 +192,8 @@ This results in the following ordering guarantees:
 
 - If an Event has been acknowledged to its Writer or has been read by a Reader, it is guaranteed that  it will continue to exist in the same location or position for all subsequent reads until it is deleted.
 
-- If multiple Readers are reading a Stream and backs up for a while and then again when it performs re-reads, it is assured that no reordering would have happened.
+- If there are multiple Readers reading a Stream and they all back up to any given point, they will never see any reordering with respect to that point. (It will never be the case that an event that they read before the chosen point now comes after or vice versa).
+
 
 ## Reader Group Checkpoints
 
@@ -209,29 +210,28 @@ For more details on working with Reader Groups, Please see [Reader Group Basics
 
 ## Transactions
 
-Pravega supports Transactions. The idea of a transaction is that a Writer can
+Pravega supports Transactions. The idea of a Transaction is that a Writer can
 "batch" up a bunch of Events and commit them as a unit into a Stream. This is
-useful, for example, in Flink jobs, Pravega is used as a sink.  The Flink job
-can continuously produce results for some data processing and use the transaction
+useful, for example, in Flink jobs, using Pravega as a sink. The Flink job
+can continuously produce results for some data processing and use the Transaction
 to durably accumulate the results of the processing. For example, at the end of some sort of
-time window, the Flink job can commit the transaction and therefore
+time window, the Flink job can commit the Transaction and therefore
 make the results of the processing available for downstream processing, or in
-the case of an error, the transaction is aborted and the results disappear.
+the case of an error, the Transaction is aborted and the results disappear.
 
-A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the transaction are _not_ visible to Readers until the transaction is committed by the Writer. A transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
-transaction, the Event itself is appended to a Stream Segment of the
-transaction. 
+A key difference between Pravega's Transactions and similar approaches (Kafka's producer-side batching) vary with the feature durability. Events added to a Transaction are durable when the Event is acknowledged back to the Writer. However, the Events in the Transaction are _not_ visible to Readers until the Transaction is committed by the Writer. A Transaction is a similar to a Stream and is  associated with multiple Stream Segments.  When an Event is published into a
+Transaction, the Event itself is appended to a Stream Segment of the
+Transaction. 
 
-For example, a Stream has five Segments, when a transaction is created on that
-Stream, conceptually that transaction also has five Segments. When an Event is
-published into the transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to **Segment 3** in the Stream will be assigned to **Segment 3** in the transaction). Once the transaction is committed, each of the transaction's
-Segments is automatically appended to the corresponding Segment in the Stream. If the Stream is aborted, the transaction, all its Segments and all the Events published into the transaction are removed from Pravega.
+For example, a Stream has five Segments, when a Transaction is created on that
+Stream, conceptually that Transaction also has five Segments. When an Event is
+published into the Transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to **Segment 3** in the Stream will be assigned to **Segment 3** in the Transaction). Once the Transaction is committed, is committed, all the Transaction Segments are automatically appended to their corresponding Segment in the Stream. If the Transaction is aborted, the Transaction, all its Segments and all the Events published into the Transaction are removed from Pravega.
 
 ![Transaction](img/trx.commit.new.png) 
 
-Events published into a transaction are visible to the Reader only after the transaction is committed.
+Events published into a Transaction are visible to the Reader only after the Transaction is committed.
 
-For more details on working with Transactions, Please see [Working with Pravega:
+For more details on working with Transactions, please see [Working with Pravega:
 Transactions](transactions.md).
 
 ## State Synchronizers
