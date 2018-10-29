@@ -130,7 +130,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return Retry.withExpBackoff(1, 10, 5)
+        return Retry.withExpBackoff(30, 10, 4)
                     .retryingOn(StreamSegmentNotExistsException.class)
                     .throwingOn(RuntimeException.class)
                     .run(() -> getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
@@ -140,7 +140,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return Retry.withExpBackoff(1, 10, 5)
+        return Retry.withExpBackoff(30, 10, 4)
                     .retryingOn(StreamSegmentNotExistsException.class)
                     .throwingOn(RuntimeException.class)
                     .run(() -> this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout));
