@@ -28,7 +28,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
-import io.pravega.controller.store.stream.tables.TableHelper;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -337,7 +337,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
                     // Step 4. Notify segment stores about new txn.
                     CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                            streamMetadataStore.getActiveSegments(scope, stream, txnData.getEpoch(), ctx, executor), executor);
+                            streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
                     CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
                             notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
@@ -350,7 +350,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                         addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
                     }, executor).thenApplyAsync(v -> {
                         List<Segment> segments = segmentsFuture.join().stream().map(x -> {
-                            long generalizedSegmentId = TableHelper.generalizedSegmentId(x.segmentId(), txnId);
+                            long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
                             return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
                         }).collect(Collectors.toList());
 

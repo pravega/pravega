@@ -51,7 +51,7 @@ public class RetentionSet {
      * @param cut stream cut for which the reference has to be added. 
      * @return updated retentionSet
      */
-    public static RetentionSet addReferenceToStreamCutIfLatest(RetentionSet retentionSet, RetentionStreamCutRecord cut) {
+    public static RetentionSet addReferenceToStreamCutIfLatest(RetentionSet retentionSet, StreamCutRecord cut) {
         // add only if cut.recordingTime is newer than any previous cut
         List<StreamCutReferenceRecord> retentionRecords = retentionSet.retentionRecords;
         if (retentionRecords.isEmpty() || retentionRecords.get(retentionRecords.size() - 1).getRecordingTime() < cut.getRecordingTime()) {

@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.controller.store.stream.tables.Data;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

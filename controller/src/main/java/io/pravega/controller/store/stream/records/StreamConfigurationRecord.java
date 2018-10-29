@@ -29,29 +29,29 @@ import java.io.IOException;
 @Builder
 @Slf4j
 @AllArgsConstructor
-public class ConfigurationRecord {
+public class StreamConfigurationRecord {
 
     public static final ConfigurationRecordSerializer SERIALIZER = new ConfigurationRecordSerializer();
 
     private final StreamConfiguration streamConfiguration;
     private final boolean updating;
 
-    public static ConfigurationRecord update(StreamConfiguration streamConfig) {
-        return ConfigurationRecord.builder().streamConfiguration(streamConfig)
-                                  .updating(true).build();
+    public static StreamConfigurationRecord update(StreamConfiguration streamConfig) {
+        return StreamConfigurationRecord.builder().streamConfiguration(streamConfig)
+                                        .updating(true).build();
     }
 
-    public static ConfigurationRecord complete(StreamConfiguration streamConfig) {
-        return ConfigurationRecord.builder().streamConfiguration(streamConfig)
-                                  .updating(false).build();
+    public static StreamConfigurationRecord complete(StreamConfiguration streamConfig) {
+        return StreamConfigurationRecord.builder().streamConfiguration(streamConfig)
+                                        .updating(false).build();
     }
 
-    public static class ConfigurationRecordBuilder implements ObjectBuilder<ConfigurationRecord> {
+    public static class StreamConfigurationRecordBuilder implements ObjectBuilder<StreamConfigurationRecord> {
 
     }
 
     @SneakyThrows(IOException.class)
-    public static ConfigurationRecord fromBytes(final byte[] data) {
+    public static StreamConfigurationRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
     }
 
@@ -75,8 +75,8 @@ public class ConfigurationRecord {
         }
 
         private static class ScalingPolicyRecordSerializer extends
-                VersionedSerializer.WithBuilder<ConfigurationRecord.ScalingPolicyRecord,
-                        ConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder> {
+                VersionedSerializer.WithBuilder<StreamConfigurationRecord.ScalingPolicyRecord,
+                        StreamConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder> {
             @Override
             protected byte getWriteVersion() {
                 return 0;
@@ -87,7 +87,7 @@ public class ConfigurationRecord {
                 version(0).revision(0, this::write00, this::read00);
             }
 
-            private void read00(RevisionDataInput revisionDataInput, ConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder scalingPolicyRecordBuilder)
+            private void read00(RevisionDataInput revisionDataInput, StreamConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder scalingPolicyRecordBuilder)
                     throws IOException {
                 boolean exists = revisionDataInput.readBoolean();
                 if (exists) {
@@ -102,7 +102,7 @@ public class ConfigurationRecord {
                 }
             }
 
-            private void write00(ConfigurationRecord.ScalingPolicyRecord scalingPolicyRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            private void write00(StreamConfigurationRecord.ScalingPolicyRecord scalingPolicyRecord, RevisionDataOutput revisionDataOutput) throws IOException {
                 if (scalingPolicyRecord == null || scalingPolicyRecord.getScalingPolicy() == null) {
                     revisionDataOutput.writeBoolean(false);
                 } else {
@@ -116,8 +116,8 @@ public class ConfigurationRecord {
             }
 
             @Override
-            protected ConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder newBuilder() {
-                return ConfigurationRecord.ScalingPolicyRecord.builder();
+            protected StreamConfigurationRecord.ScalingPolicyRecord.ScalingPolicyRecordBuilder newBuilder() {
+                return StreamConfigurationRecord.ScalingPolicyRecord.builder();
             }
         }
     }
@@ -137,7 +137,7 @@ public class ConfigurationRecord {
         }
 
         private static class RetentionPolicyRecordSerializer extends
-                VersionedSerializer.WithBuilder<ConfigurationRecord.RetentionPolicyRecord, ConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder> {
+                VersionedSerializer.WithBuilder<StreamConfigurationRecord.RetentionPolicyRecord, StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder> {
             @Override
             protected byte getWriteVersion() {
                 return 0;
@@ -148,7 +148,7 @@ public class ConfigurationRecord {
                 version(0).revision(0, this::write00, this::read00);
             }
 
-            private void read00(RevisionDataInput revisionDataInput, ConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder retentionPolicyRecordBuilder)
+            private void read00(RevisionDataInput revisionDataInput, StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder retentionPolicyRecordBuilder)
                     throws IOException {
                 boolean exists = revisionDataInput.readBoolean();
                 if (exists) {
@@ -161,7 +161,7 @@ public class ConfigurationRecord {
                 }
             }
 
-            private void write00(ConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
+            private void write00(StreamConfigurationRecord.RetentionPolicyRecord retentionPolicyRecord, RevisionDataOutput revisionDataOutput)
                     throws IOException {
                 if (retentionPolicyRecord == null || retentionPolicyRecord.getRetentionPolicy() == null) {
                     revisionDataOutput.writeBoolean(false);
@@ -174,15 +174,15 @@ public class ConfigurationRecord {
             }
 
             @Override
-            protected ConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder newBuilder() {
-                return ConfigurationRecord.RetentionPolicyRecord.builder();
+            protected StreamConfigurationRecord.RetentionPolicyRecord.RetentionPolicyRecordBuilder newBuilder() {
+                return StreamConfigurationRecord.RetentionPolicyRecord.builder();
             }
         }
     }
 
     private static class ConfigurationRecordSerializer
-            extends VersionedSerializer.WithBuilder<ConfigurationRecord,
-            ConfigurationRecord.ConfigurationRecordBuilder> {
+            extends VersionedSerializer.WithBuilder<StreamConfigurationRecord,
+            StreamConfigurationRecordBuilder> {
         @Override
         protected byte getWriteVersion() {
             return 0;
@@ -194,37 +194,37 @@ public class ConfigurationRecord {
         }
 
         @Override
-        protected void beforeSerialization(ConfigurationRecord configurationRecord) {
-            Preconditions.checkNotNull(configurationRecord);
-            Preconditions.checkNotNull(configurationRecord.getStreamConfiguration());
+        protected void beforeSerialization(StreamConfigurationRecord streamConfigurationRecord) {
+            Preconditions.checkNotNull(streamConfigurationRecord);
+            Preconditions.checkNotNull(streamConfigurationRecord.getStreamConfiguration());
         }
 
         private void read00(RevisionDataInput revisionDataInput,
-                            ConfigurationRecord.ConfigurationRecordBuilder configurationRecordBuilder)
+                            StreamConfigurationRecordBuilder configurationRecordBuilder)
                 throws IOException {
             StreamConfiguration.StreamConfigurationBuilder streamConfigurationBuilder = StreamConfiguration.builder();
             streamConfigurationBuilder.scope(revisionDataInput.readUTF())
                                       .streamName(revisionDataInput.readUTF())
-                                      .scalingPolicy(ConfigurationRecord.ScalingPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getScalingPolicy())
-                                      .retentionPolicy(ConfigurationRecord.RetentionPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getRetentionPolicy());
+                                      .scalingPolicy(StreamConfigurationRecord.ScalingPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getScalingPolicy())
+                                      .retentionPolicy(StreamConfigurationRecord.RetentionPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getRetentionPolicy());
             configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build())
-                                            .updating(revisionDataInput.readBoolean());
+                                      .updating(revisionDataInput.readBoolean());
         }
 
-        private void write00(ConfigurationRecord configurationRecord, RevisionDataOutput revisionDataOutput)
+        private void write00(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
-            revisionDataOutput.writeUTF(configurationRecord.getStreamConfiguration().getScope());
-            revisionDataOutput.writeUTF(configurationRecord.getStreamConfiguration().getStreamName());
-            ConfigurationRecord.ScalingPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
-                    new ConfigurationRecord.ScalingPolicyRecord(configurationRecord.getStreamConfiguration().getScalingPolicy()));
-            ConfigurationRecord.RetentionPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
-                    new ConfigurationRecord.RetentionPolicyRecord(configurationRecord.getStreamConfiguration().getRetentionPolicy()));
-            revisionDataOutput.writeBoolean(configurationRecord.isUpdating());
+            revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamConfiguration().getScope());
+            revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamConfiguration().getStreamName());
+            StreamConfigurationRecord.ScalingPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
+                    new StreamConfigurationRecord.ScalingPolicyRecord(streamConfigurationRecord.getStreamConfiguration().getScalingPolicy()));
+            StreamConfigurationRecord.RetentionPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
+                    new StreamConfigurationRecord.RetentionPolicyRecord(streamConfigurationRecord.getStreamConfiguration().getRetentionPolicy()));
+            revisionDataOutput.writeBoolean(streamConfigurationRecord.isUpdating());
         }
 
         @Override
-        protected ConfigurationRecord.ConfigurationRecordBuilder newBuilder() {
-            return ConfigurationRecord.builder();
+        protected StreamConfigurationRecordBuilder newBuilder() {
+            return StreamConfigurationRecord.builder();
         }
     }
 }

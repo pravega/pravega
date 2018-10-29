@@ -9,17 +9,14 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.controller.store.stream.tables.Data;
-import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StateRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StateRecord;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -28,23 +25,19 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.stubbing.Answer;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 public class StreamTest {
@@ -100,7 +93,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1).toByteArray()).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1).toBytes()).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -109,7 +102,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.createStateIfAbsent(StateRecord.create(State.UNKNOWN).toByteArray()).get();
+        stream.createStateIfAbsent(StateRecord.builder().state(State.UNKNOWN).build().toBytes()).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -168,7 +161,7 @@ public class StreamTest {
 
         ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
 
-        List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
+        List<Map.Entry<Double, Double>> newRanges;
 
         newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
 
@@ -177,70 +170,26 @@ public class StreamTest {
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
         VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale, null).join();
-        ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
+        Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
         VersionedMetadata<State> state = zkStream.getVersionedState().join();
         state = zkStream.updateVersionedState(state, State.SCALING).join();
         zkStream.startScale(false, response, state).join();
-        newSegments.entrySet().stream().map(x -> x.getKey()).collect(Collectors.toList());
-        zkStream.scaleCreateNewSegments(response).get();
-        zkStream.scaleNewSegmentsCreated(response).get();
+        zkStream.scaleCreateNewEpoch(response).get();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.
-
-        final CompletableFuture<Data> segmentTable = zkStream.getSegmentTable();
-        final CompletableFuture<Data> historyTable = zkStream.getHistoryTable();
-
-        AtomicBoolean historyCalled = new AtomicBoolean(false);
-        AtomicBoolean segmentCalled = new AtomicBoolean(false);
-        // mock.. If segment table is fetched before history table, throw runtime exception so that the test fails
-        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
-            if (!historyCalled.get() && segmentCalled.get()) {
-                throw new RuntimeException();
-            }
-            historyCalled.set(true);
-            return historyTable;
-        }).when(zkStream).getHistoryTable();
-        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
-            if (!historyCalled.get()) {
-                throw new RuntimeException();
-            }
-            segmentCalled.set(true);
-            return segmentTable;
-        }).when(zkStream).getSegmentTable();
-
-        Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get();
+        
+        Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get()
+                .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
         // reset mock so that we can resume scale operation
-        doAnswer((Answer<CompletableFuture<Data>>) invocation -> historyTable).when(zkStream).getHistoryTable();
-        doAnswer((Answer<CompletableFuture<Data>>) invocation -> segmentTable).when(zkStream).getSegmentTable();
 
         zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
         zkStream.completeScale(response).join();
-        // scale is completed, history table also has completed record now.
-        final CompletableFuture<Data> segmentTable2 = zkStream.getSegmentTable();
-        final CompletableFuture<Data> historyTable2 = zkStream.getHistoryTable();
 
-        // mock such that if segment table is fetched before history table, throw runtime exception so that the test fails
-        segmentCalled.set(false);
-        historyCalled.set(false);
-        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
-            if (!historyCalled.get() && segmentCalled.get()) {
-                throw new RuntimeException();
-            }
-            historyCalled.set(true);
-            return historyTable2;
-        }).when(zkStream).getHistoryTable();
-        doAnswer((Answer<CompletableFuture<Data>>) invocation -> {
-            if (!historyCalled.get()) {
-                throw new RuntimeException();
-            }
-            segmentCalled.set(true);
-            return segmentTable2;
-        }).when(zkStream).getSegmentTable();
-
-        successors = zkStream.getSuccessorsWithPredecessors(0).get();
+        successors = zkStream.getSuccessorsWithPredecessors(0).get()
+                                                   .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
     }
