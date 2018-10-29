@@ -643,7 +643,6 @@ public abstract class StreamTestBase {
         List<Segment> activeSegments = stream.getActiveSegments().join();
 
         // epoch 1 --> 0, 2, 3
-
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
@@ -706,8 +705,6 @@ public abstract class StreamTestBase {
         // getActiveSegments wrt first truncation record which is on epoch 0
         Map<Long, Long> activeSegmentsWithOffset;
         // 1. truncationRecord = 0/1, 1/1
-
-        // 1.1 epoch at time = 0 = {0, 1}
         // expected active segments with offset = 0/1, 1/1
         activeSegmentsWithOffset = stream.getSegmentsAtHead().join().entrySet().stream()
                                          .collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
@@ -739,7 +736,6 @@ public abstract class StreamTestBase {
         stream.completeTruncation(versionedTruncationRecord).join();
 
         // 2. truncationRecord = 0/1, 2/1, 4/1, 5/1.
-        // 2.1 epoch at time = 0 = {0, 1}
         // expected active segments = 0/1, 2/1, 4/1, 5/1
         activeSegmentsWithOffset = stream.getSegmentsAtHead().join().entrySet().stream()
                                          .collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
@@ -777,8 +773,6 @@ public abstract class StreamTestBase {
 
         // 3. truncation record 2/10, 4/10, 5/10, 8/10, 9/10
         // getActiveSegments wrt first truncation record which spans epoch 2 to 4
-
-        // 3.1 epoch at time 0 = 0 = {0, 1}
         // expected active segments = 2/10, 4/10, 5/10, 8/10, 9/10
         activeSegmentsWithOffset = stream.getSegmentsAtHead().join().entrySet().stream()
                                          .collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
