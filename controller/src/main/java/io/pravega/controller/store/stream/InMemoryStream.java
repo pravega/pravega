@@ -317,7 +317,7 @@ public class InMemoryStream extends PersistentStreamBase {
             return CompletableFuture.completedFuture(null);
         }
     }
-    
+
     @Override
     CompletableFuture<Void> createHistoryTimeSeriesChunkDataIfAbsent(int chunkNumber, byte[] data) {
         Preconditions.checkNotNull(data);

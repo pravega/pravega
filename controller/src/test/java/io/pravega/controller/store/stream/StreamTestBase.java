@@ -834,7 +834,7 @@ public abstract class StreamTestBase {
      +-------+------+----------------
      */
     @Test
-    public void testCutpointSuccessors() {
+    public void testStreamCutSegmentsBetween() {
         int startingSegmentNumber = new Random().nextInt(2000);
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
         long timestamp = System.currentTimeMillis();

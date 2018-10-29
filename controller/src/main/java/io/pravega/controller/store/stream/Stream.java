@@ -157,7 +157,7 @@ interface Stream {
     CompletableFuture<Segment> getSegment(final long segmentId);
 
     /**
-     * Fetches all segments in the stream.
+     * Fetches all segment ids in the stream between head of the stream and tail of the stream. 
      *
      * @return Future which when completed contains a list of all segments in the stream.
      */

@@ -183,7 +183,6 @@ public abstract class PersistentStreamBase implements Stream {
     private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord previous, Map<Long, Long> streamCut,
                                                                               Map<StreamSegmentRecord, Integer> span) {
         log.debug("computing truncation for stream {}/{}", scope, name);
-        // compute segments to delete between previous and streamcut.
 
         // find segments between "previous" stream cut and current stream cut. these are segments to delete.
         // Note: exclude segments in current streamcut
@@ -333,7 +332,7 @@ public abstract class PersistentStreamBase implements Stream {
                                     "segment not found in epoch")));
                 });
     }
-    
+
     @Override
     public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final long from, final long to) {
         // fetch history index and find epochs corresponding to "from" and "to"
@@ -366,7 +365,7 @@ public abstract class PersistentStreamBase implements Stream {
                                return new ScaleMetadata(record.getCreationTime(), transform(segments), splits, merges);
                            }).collect(Collectors.toList());
     }
-    
+
     /**
      * Method to calculate number of splits and merges.
      *
@@ -421,8 +420,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Map<Segment, List<Long>>> getSuccessorsWithPredecessors(final long segmentId) {
-        // get segment sealed record.
-        // fetch segment sealed record.
+        // fetch segment sealed epoch record.
         return getSegmentSealedEpoch(segmentId)
                 .thenCompose(sealedEpoch -> {
                     if (sealedEpoch < 0) {
@@ -577,11 +575,11 @@ public abstract class PersistentStreamBase implements Stream {
                       .thenApply(sizes -> {
                           AtomicLong sizeTill = new AtomicLong(0L);
                           sizes.forEach((segment, value) -> {
-                              // segments in both.. streamcut.offset - reference.offset
+                              // segments in both.. to.offset - from.offset
                               if (streamCutTo.containsKey(segment.segmentId()) && streamCutFrom.containsKey(segment.segmentId())) {
                                   sizeTill.addAndGet(streamCutTo.get(segment.segmentId()) - streamCutFrom.get(segment.segmentId()));
                               } else if (streamCutTo.containsKey(segment.segmentId())) {
-                                  // segments only in streamcut: take their offsets in streamcut
+                                  // segments only in streamcutTo: take their offsets in streamcut
                                   sizeTill.addAndGet(streamCutTo.get(segment.segmentId()));
                               } else if (streamCutFrom.containsKey(segment.segmentId())) {
                                   // segments only in from: take their total size - offset in from
@@ -675,7 +673,6 @@ public abstract class PersistentStreamBase implements Stream {
             } else {
                 // check input is valid and satisfies preconditions
                 if (!RecordHelper.canScaleFor(segmentsToSeal, currentEpoch)) {
-                    // invalid input, log and ignore
                     return updateEpochTransitionNode(new Data(EpochTransitionRecord.EMPTY.toBytes(), record.getVersion()))
                             .thenApply(x -> {
                                 log.warn("scale precondition failed {}", segmentsToSeal);
@@ -1391,7 +1388,7 @@ public abstract class PersistentStreamBase implements Stream {
                     }
                 });
     }
-    
+
     private CompletableFuture<Void> verifyLegalState() {
         return getState(false).thenApply(state -> {
             if (state == null || state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {

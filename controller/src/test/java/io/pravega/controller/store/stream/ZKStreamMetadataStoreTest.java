@@ -407,7 +407,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertTrue(batches.contains(secondBatch));
         assertTrue(batches.contains(thirdBatch));
     }
-    
+
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
