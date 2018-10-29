@@ -713,6 +713,11 @@ public abstract class StreamMetadataStoreTest {
         activeEpoch = store.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(3, activeEpoch.getEpoch());
         assertEquals(1, activeEpoch.getReferenceEpoch());
+        assertEquals(3, activeEpoch.getSegments().size());
+        List<Segment> txnDuplicate = store.getSegmentsInEpoch(scope, stream, 2, null, executor).join();
+        assertEquals(2, txnDuplicate.size());
+        List<Segment> activeEpochDuplicate = store.getSegmentsInEpoch(scope, stream, 3, null, executor).join();
+        assertEquals(3, activeEpochDuplicate.size());
         EpochRecord txnCommittedEpoch = store.getEpoch(scope, stream, 2, null, executor).join();
         assertEquals(0, txnCommittedEpoch.getReferenceEpoch());
         assertEquals(store.transactionStatus(scope, stream, tx01.getId(), null, executor).join(), TxnStatus.COMMITTED);

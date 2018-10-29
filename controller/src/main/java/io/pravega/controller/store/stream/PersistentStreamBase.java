@@ -893,7 +893,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                                   timeStamp, x.getKeyStart(), x.getKeyEnd()))
                                                           .collect(Collectors.toList());
                             List<StreamSegmentRecord> duplicateActiveSegments =
-                                    transactionEpochRecord.getSegments().stream()
+                                    activeEpochRecord.getSegments().stream()
                                                           .map(x -> newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
                                                                   committingTxnRecord.getNewActiveEpoch()),
                                                                   timeStamp, x.getKeyStart(), x.getKeyEnd()))
