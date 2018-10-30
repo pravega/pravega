@@ -69,7 +69,7 @@ ReaderGroupConfig.builder()
 ```
 
 The below API can be used to reset an existing Reader Group with a new Reader Group configuration instead creating a Reader Group.
-```
+```java
 /*
  * ReaderGroup API used to reset a ReaderGroup to a newer ReaderGroup configuration.
  */
@@ -93,17 +93,6 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 
 ```
 ## StreamCut with BatchClient
-
-```java
-/*
-
- * The API io.pravega.client.batch.BatchClient.getStreamInfo(Stream stream) fetches the StreamCut representing the
- * current head and tail of the stream. StreamInfo.getHeadStreamCut() and StreamInfo.getTailStreamCut() can be
- * used to fetch the StreamCuts.
- */
-CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
-
-```
 
 `BatchClient` can be used to perform bounded processing of the stream given the start and end `StreamCut`s. `BatchClient` API ```io.pravega.client.batch.BatchClient.getSegments(stream, startStreamCut, endStreamCut)``` is used to
 fetch segments which reside between the given `startStreamCut` and `endStreamCut`. With the retrieved segment information, the user can consume all the events in parallel without adhering to time ordering of events.
