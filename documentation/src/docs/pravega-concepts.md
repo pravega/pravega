@@ -180,8 +180,6 @@ An Event written to a Stream is written to a single Stream Segment, and is order
 
 Readers can be assigned multiple parallel Stream Segments (from different parts of key space). A Reader reading from multiple Stream Segments will interleave the Events of the Stream Segments, but the order of Events per Stream Segment is retained. Specifically, if **s** is a Stream Segment, and **s** contains two Events _i.e.,_ **s** **=** {**e~1**,**e~2**} where **e~1** precedes **e~2**. Thus, for a Reader reading Stream Segments, it is guaranteed that **e~1** will be read before **e~2**.
 
-.
-
 This results in the following ordering guarantees:
 
 - Events with the same Routing Key are consumed in the order they were written.
