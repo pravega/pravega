@@ -78,21 +78,23 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 
 ## StreamCut with Stream Manager
 
-`StreamCut` representing the current head and current tail of a stream can be obtained using the `StreamManager` API. The `getStreamInfo(String scopeName, String streamName)` API on `StreamManager` ensures that the `getStreamInfo()` API can be used outside the `BatchClient`.
+`StreamCut` representing the current head and current tail of a stream can be obtained using the `StreamManager` API `getStreamInfo(String scopeName, String streamName)`.
 
-```
-/*
+```java
+/**
+     * Get information about a given Stream, {@link StreamInfo}.
+     * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
+     *
+     * @param scopeName The scope of the stream.
+     * @param streamName The stream name.
+     * @return stream information.
+     */
+    StreamInfo getStreamInfo(String scopeName, String streamName);
 
- * The API io.pravega.client.admin.StreamManager#getStreamInfo fetches the StreamCut representing the
- * current head and tail of the stream. StreamInfo.getHeadStreamCut() and StreamInfo.getTailStreamCut() can be
- * used to fetch the StreamCuts.
- */
-CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
-```
 ## StreamCut with BatchClient
 
-```
+```java
 /*
 
  * The API io.pravega.client.batch.BatchClient.getStreamInfo(Stream stream) fetches the StreamCut representing the
