@@ -91,7 +91,7 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
      */
     StreamInfo getStreamInfo(String scopeName, String streamName);
 
-
+```
 ## StreamCut with BatchClient
 
 ```java
