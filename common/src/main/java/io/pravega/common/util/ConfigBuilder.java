@@ -69,6 +69,7 @@ public class ConfigBuilder<T> {
      *
      * @param property The property to set.
      * @param value    The value of the property. This must be of the same type as accepted by the Property.
+     *                 In case a `null` value is sent, the value of the property will be set to empty string.
      * @param <V>      Type of the property.
      * @return This instance.
      */
