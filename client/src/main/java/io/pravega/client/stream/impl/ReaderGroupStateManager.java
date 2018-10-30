@@ -37,11 +37,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomUtils;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
@@ -81,9 +79,6 @@ public class ReaderGroupStateManager {
     private final TimeoutTimer acquireTimer;
     private final TimeoutTimer fetchStateTimer;
     private final TimeoutTimer checkpointTimer;
-    @Getter
-    @GuardedBy("this")
-    private String latestDelegationToken;
 
     ReaderGroupStateManager(String readerId, StateSynchronizer<ReaderGroupState> sync, Controller controller, Supplier<Long> nanoClock) {
         Preconditions.checkNotNull(readerId);
@@ -119,7 +114,7 @@ public class ReaderGroupStateManager {
             throw new IllegalStateException("The requested reader: " + readerId
                     + " cannot be added to the group because it is already in the group. Perhaps close() was not called?");
         }
-        long randomDelay = (long) (RandomUtils.nextFloat() * Math.min(initialAllocationDelay, sync.getState().getConfig().getGroupRefreshTimeMillis()));
+        long randomDelay = (long) (Math.random() * Math.min(initialAllocationDelay, sync.getState().getConfig().getGroupRefreshTimeMillis()));
         acquireTimer.reset(Duration.ofMillis(initialAllocationDelay + randomDelay));
     }
     
@@ -159,12 +154,9 @@ public class ReaderGroupStateManager {
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
     void handleEndOfSegment(Segment segmentCompleted, boolean fetchSuccesors) throws ReinitializationRequiredException {
-        final Map<Segment, List<Integer>> segmentToPredecessor;
+        final Map<Segment, List<Long>> segmentToPredecessor;
         if (fetchSuccesors) {
             val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
-            synchronized (this) {
-                latestDelegationToken = successors.getDelegationToken();
-            }
             segmentToPredecessor = successors.getSegmentToPredecessor();
         } else {
             segmentToPredecessor = Collections.emptyMap();
@@ -288,6 +280,7 @@ public class ReaderGroupStateManager {
 
     private void fetchUpdatesIfNeeded() {
         if (!fetchStateTimer.hasRemaining()) {
+            log.debug("Update group state for reader {}", readerId);
             sync.fetchUpdates();
             long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
             fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
@@ -406,7 +399,7 @@ public class ReaderGroupStateManager {
         checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));
         return state.getCheckpointForReader(readerId);
     }
-    
+
     void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState((state, updates) -> {
@@ -420,5 +413,13 @@ public class ReaderGroupStateManager {
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
         }
+    }
+
+    boolean isCheckpointSilent(String atCheckpoint) {
+        return sync.getState().getCheckpointState().isCheckpointSilent(atCheckpoint);
+    }
+
+    public String getOrRefreshDelegationTokenFor(Segment segmentId) {
+            return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
     }
 }

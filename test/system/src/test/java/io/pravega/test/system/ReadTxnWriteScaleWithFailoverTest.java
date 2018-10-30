@@ -73,10 +73,9 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 3);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 3);
     }
-
 
     @Before
     public void setup() {
@@ -117,7 +116,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
                                     .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
         testState = new TestState(true);
-        testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
@@ -130,7 +128,6 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -169,7 +166,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             keyRanges.put(0.8, 1.0);
 
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, stream),
-                    Collections.singletonList(0),
+                    Collections.singletonList(0L),
                     keyRanges,
                     executorService).getFuture();
             Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));

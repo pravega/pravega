@@ -16,17 +16,20 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.WriterFactory;
+import io.pravega.segmentstore.server.WriterFlushResult;
+import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
@@ -52,7 +55,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,6 +66,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -510,6 +516,74 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the StorageWriter with multiple Segment Processors.
+     */
+    @Test
+    public void testMultipleProcessors() throws Exception {
+        final int processorCount = 2;
+        val processors = new HashMap<Long, ArrayList<WriterSegmentProcessor>>();
+
+        WriterFactory.CreateProcessors createProcessors = sm -> {
+            Assert.assertFalse("Processors already created for segment " + sm, processors.containsKey(sm.getId()));
+            val result = new ArrayList<WriterSegmentProcessor>();
+            for (int i = 0; i < processorCount; i++) {
+                val p = new TestWriterProcessor();
+                result.add(p);
+            }
+
+            processors.put(sm.getId(), result);
+            return result;
+        };
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG, createProcessors);
+
+        context.writer.startAsync();
+
+        // Create a bunch of segments and Transactions.
+        ArrayList<Long> segmentIds = createSegments(context);
+        HashMap<Long, ArrayList<Long>> transactionsBySegment = createTransactions(segmentIds, context);
+        ArrayList<Long> transactionIds = new ArrayList<>();
+        transactionsBySegment.values().forEach(transactionIds::addAll);
+
+        // Append data.
+        HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        appendDataBreadthFirst(segmentIds, segmentContents, context);
+        appendDataBreadthFirst(transactionIds, segmentContents, context);
+        sealSegments(transactionIds, context);
+        mergeTransactions(transactionIds, segmentContents, context);
+        sealSegments(segmentIds, context);
+
+        // Wait for the writer to complete its job.
+        metadataCheckpoint(context);
+        context.dataSource.waitFullyAcked().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // Verify the processors.
+        for (val e : processors.entrySet()) {
+            // Verify they received the same operations.
+            val firstProcessor = (TestWriterProcessor) e.getValue().get(0);
+            AssertExtensions.assertGreaterThan("Expected at least one operation.", 0, firstProcessor.operations.size());
+            for (int i = 1; i < e.getValue().size(); i++) {
+                AssertExtensions.assertListEquals("Not all processors for the same segment received the same operations.",
+                        firstProcessor.operations, ((TestWriterProcessor) e.getValue().get(i)).operations, Object::equals);
+            }
+
+            // Verify they have all been flushed.
+            for (val p : e.getValue()) {
+                Assert.assertEquals("Not all processors were flushed.", -1, p.getLowestUncommittedSequenceNumber());
+            }
+        }
+
+        // Verify that the main Segment Aggregators were still able to do their jobs.
+        verifyFinalOutput(segmentContents, transactionIds, context);
+        context.writer.close();
+        for (val e : processors.entrySet()) {
+            for (val p : e.getValue()) {
+                Assert.assertTrue("Not all processors were closed.", p.isClosed());
+            }
+        }
+    }
+
+    /**
      * Tests the writer as it is setup in the given context.
      * General test flow:
      * 1. Add Appends (Cached/non-cached) to both Parent and Transaction segments
@@ -580,7 +654,8 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         for (long segmentId : segmentContents.keySet()) {
             SegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
             Assert.assertNotNull("Setup error: No metadata for segment " + segmentId, metadata);
-            Assert.assertEquals("Setup error: Not expecting a Transaction segment in the final list: " + segmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, metadata.getParentId());
+            Assert.assertFalse("Setup error: Not expecting a Transaction segment in the final list: " + segmentId,
+                    context.transactionIds.containsKey(metadata.getId()));
 
             Assert.assertEquals("Metadata does not indicate that all bytes were copied to Storage for segment " + segmentId, metadata.getLength(), metadata.getStorageLength());
             Assert.assertEquals("Metadata.Sealed disagrees with Metadata.SealedInStorage for segment " + segmentId, metadata.isSealed(), metadata.isSealedInStorage());
@@ -603,7 +678,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private void verifyAttributes(SegmentMetadata metadata, TestContext context) {
         val persistedAttributes = context.dataSource.getPersistedAttributes(metadata.getId());
         int extendedAttributeCount = 0;
-        if (metadata.isTransaction() && metadata.isMerged()) {
+        if (context.transactionIds.containsKey(metadata.getId()) && metadata.isMerged()) {
             Assert.assertEquals("Unexpected number of attributes in attribute index for merged transaction " + metadata.getId(),
                     0, persistedAttributes.size());
             AssertExtensions.assertThrows(
@@ -634,13 +709,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     private void mergeTransactions(Iterable<Long> transactionIds, HashMap<Long, ByteArrayOutputStream> segmentContents, TestContext context) {
         for (long transactionId : transactionIds) {
             UpdateableSegmentMetadata transactionMetadata = context.metadata.getStreamSegmentMetadata(transactionId);
-            UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(transactionMetadata.getParentId());
+            UpdateableSegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(context.transactionIds.get(transactionMetadata.getId()));
             Assert.assertFalse("Transaction already merged", transactionMetadata.isMerged());
             Assert.assertTrue("Transaction not sealed prior to merger", transactionMetadata.isSealed());
             Assert.assertFalse("Parent is sealed already merged", parentMetadata.isSealed());
 
             // Create the Merge Op
-            MergeTransactionOperation op = new MergeTransactionOperation(parentMetadata.getId(), transactionMetadata.getId());
+            MergeSegmentOperation op = new MergeSegmentOperation(parentMetadata.getId(), transactionMetadata.getId());
             op.setLength(transactionMetadata.getLength());
             op.setStreamSegmentOffset(parentMetadata.getLength());
 
@@ -796,12 +871,13 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
             SegmentMetadata parentMetadata = context.metadata.getStreamSegmentMetadata(parentId);
             for (int i = 0; i < TRANSACTIONS_PER_SEGMENT; i++) {
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(parentMetadata.getName(), UUID.randomUUID());
-                context.metadata.mapStreamSegmentId(transactionName, transactionId, parentId);
+                context.transactionIds.put(transactionId, parentId);
+                context.metadata.mapStreamSegmentId(transactionName, transactionId);
                 initializeSegment(transactionId, context);
                 segmentTransactions.add(transactionId);
 
                 // Add the operation to the log.
-                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(parentId, context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
+                StreamSegmentMapOperation mapOp = new StreamSegmentMapOperation(context.storage.getStreamSegmentInfo(transactionName, TIMEOUT).join());
                 mapOp.setStreamSegmentId(transactionId);
                 context.dataSource.add(mapOp);
 
@@ -840,6 +916,58 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
 
     //endregion
 
+    //region TestWriterProcessor
+
+    @RequiredArgsConstructor
+    private class TestWriterProcessor implements WriterSegmentProcessor {
+        final AtomicBoolean closed = new AtomicBoolean();
+        final ArrayList<SegmentOperation> operations = new ArrayList<>();
+        final AtomicInteger firstUnAcked = new AtomicInteger();
+
+        //region WriterSegmentProcessor Implementation
+
+        @Override
+        public void close() {
+            this.closed.set(true);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return this.closed.get();
+        }
+
+        @Override
+        public long getLowestUncommittedSequenceNumber() {
+            if (this.firstUnAcked.get() >= this.operations.size()) {
+                return -1;
+            }
+
+            return this.operations.get(this.firstUnAcked.get()).getSequenceNumber();
+        }
+
+        @Override
+        public boolean mustFlush() {
+            return false;
+        }
+
+        @Override
+        public void add(SegmentOperation operation) {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            this.operations.add(operation);
+        }
+
+        @Override
+        public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
+            Exceptions.checkNotClosed(this.closed.get(), this);
+            this.firstUnAcked.set(this.operations.size());
+            return CompletableFuture.completedFuture(new WriterFlushResult());
+        }
+
+        //endregion
+    }
+
+    //endregion
+
     // region TestContext
 
     private class TestContext implements AutoCloseable {
@@ -848,25 +976,33 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final InMemoryStorage baseStorage;
         final TestStorage storage;
         final WriterConfig config;
+        final Map<Long, Long> transactionIds;
+        final WriterFactory.CreateProcessors createProcessors;
         StorageWriter writer;
 
         TestContext(WriterConfig config) {
+            this(config, m -> Collections.emptyList());
+        }
+
+        TestContext(WriterConfig config, WriterFactory.CreateProcessors createProcessors) {
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.baseStorage = new InMemoryStorage();
             this.storage = new TestStorage(this.baseStorage, executorService());
             this.storage.initialize(1);
             this.config = config;
+            this.createProcessors = createProcessors;
 
+            this.transactionIds = new HashMap<>();
             val dataSourceConfig = new TestWriterDataSource.DataSourceConfig();
             dataSourceConfig.autoInsertCheckpointFrequency = METADATA_CHECKPOINT_FREQUENCY;
             this.dataSource = new TestWriterDataSource(this.metadata, executorService(), dataSourceConfig);
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.createProcessors, executorService());
         }
 
         void resetWriter() {
             this.writer.close();
             this.baseStorage.changeOwner();
-            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, executorService());
+            this.writer = new StorageWriter(this.config, this.dataSource, this.storage, this.createProcessors, executorService());
         }
 
         @Override

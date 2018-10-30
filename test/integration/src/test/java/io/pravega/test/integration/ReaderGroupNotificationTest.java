@@ -143,7 +143,7 @@ public class ReaderGroupNotificationTest {
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
         writer.writeEvent("0", "data2").get();
 
@@ -215,7 +215,7 @@ public class ReaderGroupNotificationTest {
         Map<Double, Double> map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
         writer.writeEvent("0", "data2").get();
         assertTrue(controller.sealStream(SCOPE, streamName).get()); // seal stream

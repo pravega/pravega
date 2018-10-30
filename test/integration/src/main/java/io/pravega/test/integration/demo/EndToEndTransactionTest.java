@@ -36,7 +36,6 @@ import static org.junit.Assert.assertTrue;
 public class EndToEndTransactionTest {
 
     final static long MAX_LEASE_VALUE = 30000;
-    final static long MAX_SCALE_GRACE_PERIOD = 60000;
 
     @Test
     public static void main(String[] args) throws Exception {
@@ -88,7 +87,7 @@ public class EndToEndTransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(
                 testStream,
                 new JavaSerializer<>(),
-                EventWriterConfig.builder().transactionTimeoutTime(txnTimeout).transactionTimeoutScaleGracePeriod(txnTimeout).build());
+                EventWriterConfig.builder().transactionTimeoutTime(txnTimeout).build());
 
         // region Successful commit tests
         Transaction<String> transaction = producer.beginTxn();

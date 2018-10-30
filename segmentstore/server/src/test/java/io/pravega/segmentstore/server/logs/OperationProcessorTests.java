@@ -18,7 +18,8 @@ import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ServiceListeners;
@@ -31,7 +32,6 @@ import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.CacheFactory;
@@ -46,6 +46,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -374,7 +375,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
         // immediately shut down and stop accepting other ops.
@@ -547,7 +547,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         if (successfulOps.size() > 0) {
             // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.
             // We check periodically until the last item has been written.
-            await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10);
+            TestUtils.await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10, TIMEOUT.toMillis());
         }
 
         Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
@@ -619,10 +619,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage = InMemoryStorageFactory.newStorage(executorService());
             this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            ReadIndexConfig readIndexConfig = ConfigHelpers
-                    .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
-                    .build();
-            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
+            ReadIndexConfig readIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex, Runnables.doNothing());

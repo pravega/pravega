@@ -11,14 +11,15 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -50,6 +51,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,7 +61,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -83,6 +84,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
+    private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     @Getter
@@ -90,6 +92,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final Object lock = new Object();
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
+    private final boolean replyWithStackTraceOnError;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -113,7 +116,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, null, verifier);
+        this(store, connection, next, null, verifier, false);
     }
 
     /**
@@ -123,13 +126,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param next          The RequestProcessor to invoke next.
      * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
      * @param tokenVerifier Delegation token verifier.
+     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
-    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
+    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
+                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
         this.statsRecorder = statsRecorder;
         this.tokenVerifier = tokenVerifier;
+        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
     //endregion
@@ -284,7 +290,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
                 }
             } else {
-                if (statsRecorder != null) {
+                if (statsRecorder != null && !StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
                     statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
                 }
                 final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
@@ -294,7 +300,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 //Don't report metrics if segment is a transaction
                 //Update the parent segment metrics, once the transaction is merged
                 //TODO: https://github.com/pravega/pravega/issues/2570
-                if (StreamSegmentNameUtils.getParentStreamSegmentName(append.getSegment()) == null) {
+                if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
                 }
@@ -334,31 +340,33 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
 
         u = Exceptions.unwrap(u);
+        String clientReplyStackTrace = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(u) : EMPTY_STACK_TRACE;
+
         if (u instanceof StreamSegmentExistsException) {
             log.warn("Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new SegmentAlreadyExists(requestId, segment));
+            connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
             log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new NoSuchSegment(requestId, segment));
+            connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentSealedException) {
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new SegmentIsSealed(requestId, segment));
+            connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn("Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
                     segment, containerId, writerId, doingWhat);
-            connection.send(new WrongHost(requestId, segment, ""));
+            connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
-            connection.send(new InvalidEventNumber(writerId, requestId));
+            connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof AuthenticationException) {
             log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
-            connection.send(new OperationUnsupported(requestId, doingWhat));
+            connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem

@@ -45,6 +45,7 @@ public class EventPointerTest {
 
         name.append("/");
         name.append(segmentId);
+        name.append(".#epoch.0");
         assertEquals(name.toString(), pointerRead.asImpl().getSegment().getScopedName());
 
         assertTrue(pointerRead.asImpl().getEventStartOffset() == 10L);

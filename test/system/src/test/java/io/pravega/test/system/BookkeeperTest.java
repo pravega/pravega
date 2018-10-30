@@ -15,7 +15,9 @@ import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import java.net.URI;
 import java.util.List;
@@ -24,13 +26,17 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class BookkeeperTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
+
     /**
      * This is used to setup the various services required by the system test framework.
      *
      * @throws MarathonException if error in setup
      */
     @Environment
-    public static void setup() throws MarathonException {
+    public static void initialize() throws MarathonException {
         Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
@@ -43,10 +49,10 @@ public class BookkeeperTest {
 
     /**
      * Invoke the bookkeeper test.
-     * The test fails incase bookkeeper is not running on given port.
+     * The test fails in case bookkeeper is not running on given port.
      */
 
-    @Test(timeout = 5 * 60 * 1000)
+    @Test
     public void bkTest() {
         log.debug("Start execution of bkTest");
         Service bk = Utils.createBookkeeperService(null);

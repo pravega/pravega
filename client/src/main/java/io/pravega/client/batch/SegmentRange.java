@@ -23,7 +23,7 @@ public interface SegmentRange extends Serializable {
      * Returns the segment number of Segment.
      * @return The segment number
      */
-    int getSegmentNumber();
+    long getSegmentId();
 
     /**
      * Returns the stream name the segment is associated with.

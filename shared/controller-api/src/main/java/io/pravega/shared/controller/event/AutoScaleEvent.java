@@ -21,11 +21,12 @@ public class AutoScaleEvent implements ControllerEvent {
 
     private final String scope;
     private final String stream;
-    private final int segmentNumber;
+    private final long segmentId;
     private final byte direction;
     private final long timestamp;
     private final int numOfSplits;
     private final boolean silent;
+    private final long requestId;
 
     @Override
     public String getKey() {

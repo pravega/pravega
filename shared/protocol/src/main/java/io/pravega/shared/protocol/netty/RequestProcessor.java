@@ -9,14 +9,11 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import io.pravega.shared.protocol.netty.WireCommands.AbortTransaction;
-import io.pravega.shared.protocol.netty.WireCommands.CommitTransaction;
+import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.CreateTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.GetTransactionInfo;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
@@ -44,15 +41,9 @@ public interface RequestProcessor {
 
     void getStreamSegmentInfo(GetStreamSegmentInfo getStreamInfo);
 
-    void getTransactionInfo(GetTransactionInfo getTransactionInfo);
-
     void createSegment(CreateSegment createSegment);
 
-    void createTransaction(CreateTransaction createTransaction);
-
-    void commitTransaction(CommitTransaction commitTransaction);
-    
-    void abortTransaction(AbortTransaction abortTransaction);
+    void mergeSegments(MergeSegments mergeSegments);
 
     void sealSegment(SealSegment sealSegment);
 

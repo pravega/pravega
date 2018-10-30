@@ -17,6 +17,7 @@ import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.IOException;
 import java.time.Duration;
@@ -26,12 +27,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.val;
@@ -118,7 +117,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
                 }
             }
             // Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
-            await(() -> commitFrames.size() >= order.size(), 20);
+            TestUtils.await(() -> commitFrames.size() >= order.size(), 20, TIMEOUT.toMillis());
 
             List<DataFrame.DataFrameEntryIterator> frames = dataLog.getAllEntries(readItem ->
                     DataFrame.read(readItem.getPayload(), readItem.getLength(), readItem.getAddress()));
@@ -187,7 +186,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
 
                 b.close();
             } catch (ObjectClosedException ex) {
-                await(() -> b.failureCause() != null, 20);
+                TestUtils.await(() -> b.failureCause() != null, 20, TIMEOUT.toMillis());
 
                 // If DataFrameBuilder is closed, then we must have had an exception thrown via the callback before.
                 Assert.assertNotNull("DataFrameBuilder is closed, yet failure cause is not set yet.", b.failureCause());
@@ -195,7 +194,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             }
         }
 
-        await(() -> successCommits.size() >= attemptCount.get(), 20);
+        TestUtils.await(() -> successCommits.size() >= attemptCount.get(), 20, TIMEOUT.toMillis());
 
         // Read all committed items.
         @Cleanup
@@ -252,7 +251,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             b.flush();
 
             // Wait for all the frames commit callbacks to be invoked.
-            await(() -> commitFrames.size() >= 1, 20);
+            TestUtils.await(() -> commitFrames.size() >= 1, 20, TIMEOUT.toMillis());
 
             // Check the correctness of the commit callback (after closing the builder).
             Assert.assertEquals("Exactly one Data Frame was expected so far.", 1, commitFrames.size());
@@ -288,7 +287,7 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             // Wait for all the frames commit callbacks to be invoked. Even though the DataFrameBuilder waits (upon close)
             // for the OrderedItemProcessor to finish, there are other callbacks chained that need to be completed (such
             // as the one collecting frames in the list above).
-            await(() -> commitFrames.size() >= order.size(), delayMillis);
+            TestUtils.await(() -> commitFrames.size() >= order.size(), delayMillis, TIMEOUT.toMillis());
 
             // It is quite likely that acks will arrive out of order. The DataFrameBuilder has no responsibility for
             // rearrangement; that should be done by its user.
@@ -314,18 +313,6 @@ public class DataFrameBuilderTests extends ThreadPooledTestSuite {
             //Read all entries in the Log and interpret them as DataFrames, then verify the records can be reconstructed.
             val frames = dataLog.getAllEntries(readItem -> DataFrame.read(readItem.getPayload(), readItem.getLength(), readItem.getAddress()));
             DataFrameTestHelpers.checkReadRecords(frames, records, r -> new ByteArraySegment(r.getFullSerialization()));
-        }
-    }
-
-    private void await(Supplier<Boolean> condition, int checkFrequencyMillis) throws TimeoutException {
-        long remainingMillis = TIMEOUT.toMillis();
-        while (!condition.get() && remainingMillis > 0) {
-            Exceptions.handleInterrupted(() -> Thread.sleep(checkFrequencyMillis));
-            remainingMillis -= checkFrequencyMillis;
-        }
-
-        if (!condition.get() && remainingMillis <= 0) {
-            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
     }
 }

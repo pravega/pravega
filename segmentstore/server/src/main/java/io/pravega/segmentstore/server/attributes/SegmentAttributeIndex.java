@@ -16,10 +16,12 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.hash.HashHelper;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -27,10 +29,12 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -38,6 +42,7 @@ import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
+import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -49,19 +54,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,7 +80,7 @@ import lombok.extern.slf4j.Slf4j;
  * Attribute Index for a single Segment.
  */
 @Slf4j
-class SegmentAttributeIndex implements AttributeIndex {
+class SegmentAttributeIndex implements AttributeIndex, CacheManager.Client, AutoCloseable {
     //region Members
 
     /**
@@ -91,13 +102,26 @@ class SegmentAttributeIndex implements AttributeIndex {
             .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
 
+    /**
+     * The number of buckets to hash Attributes into with respect to caching. Since each cache operation involves some sort
+     * of marshalling and serialization, the higher the number of buckets the less of those we'll need to make.
+     */
+    private static final int CACHE_BUCKETS = 64;
+    private static final HashHelper HASH = HashHelper.seededWith(SegmentAttributeIndex.class.getName());
+
     private final SegmentMetadata segmentMetadata;
     private final AtomicReference<AttributeSegment> attributeSegment;
     private final Storage storage;
     private final OperationLog operationLog;
+    private final Cache cache;
+    @GuardedBy("cacheEntries")
+    private int currentCacheGeneration;
+    @GuardedBy("cacheEntries")
+    private final CacheEntry[] cacheEntries;
     private final AttributeIndexConfig config;
     private final ScheduledExecutorService executor;
     private final String traceObjectId;
+    private final AtomicBoolean closed;
 
     //endregion
 
@@ -109,17 +133,22 @@ class SegmentAttributeIndex implements AttributeIndex {
      * @param segmentMetadata The SegmentMetadata of the Segment whose attributes we want to manage.
      * @param storage         A Storage adapter which can be used to access the Attribute Segment.
      * @param operationLog    An OperationLog that can be used to atomically update attributes for the main Segment.
+     * @param cache           The Cache to use.
      * @param config          Attribute Index Configuration.
      * @param executor        An Executor to run async tasks.
      */
-    SegmentAttributeIndex(SegmentMetadata segmentMetadata, Storage storage, OperationLog operationLog, AttributeIndexConfig config, ScheduledExecutorService executor) {
+    SegmentAttributeIndex(SegmentMetadata segmentMetadata, Storage storage, OperationLog operationLog, Cache cache,
+                          AttributeIndexConfig config, ScheduledExecutorService executor) {
         this.segmentMetadata = Preconditions.checkNotNull(segmentMetadata, "segmentMetadata");
         this.storage = Preconditions.checkNotNull(storage, "storage");
         this.operationLog = Preconditions.checkNotNull(operationLog, "operationLog");
+        this.cache = Preconditions.checkNotNull(cache, "cache");
         this.config = Preconditions.checkNotNull(config, "config");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.attributeSegment = new AtomicReference<>();
         this.traceObjectId = String.format("AttributeIndex[%s]", this.segmentMetadata.getId());
+        this.cacheEntries = new CacheEntry[CACHE_BUCKETS];
+        this.closed = new AtomicBoolean();
     }
 
     /**
@@ -150,19 +179,109 @@ class SegmentAttributeIndex implements AttributeIndex {
     /**
      * Deletes all the Attribute data associated with the given Segment.
      *
-     * @param segmentMetadata The SegmentMetadata for the Segment whose attribute data should be deleted.
-     * @param storage         A Storage Adapter to execute the deletion on.
-     * @param timeout         Timeout for the operation.
+     * @param segmentName The name of the Segment whose attribute data should be deleted.
+     * @param storage     A Storage Adapter to execute the deletion on.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation finished successfully.
      */
-    static CompletableFuture<Void> delete(SegmentMetadata segmentMetadata, Storage storage, Duration timeout) {
+    static CompletableFuture<Void> delete(String segmentName, Storage storage, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentMetadata.getName());
+        String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(segmentName);
         return Futures.exceptionallyExpecting(
                 storage.openWrite(attributeSegmentName)
                        .thenCompose(handle -> storage.delete(handle, timer.getRemaining())),
                 ex -> ex instanceof StreamSegmentNotExistsException,
                 null);
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
+        // be erased anyway.
+        close(false);
+    }
+
+    /**
+     * Closes the SegmentAttributeIndex and optionally cleans the cache.
+     *
+     * @param cleanCache If true, the Cache will be cleaned up of all entries pertaining to this Index. If false, the
+     *                   Cache will not be touched.
+     */
+    void close(boolean cleanCache) {
+        if (!this.closed.getAndSet(true)) {
+            // Close storage reader (and thus cancel those reads).
+            if (cleanCache) {
+                this.executor.execute(() -> {
+                    removeAllCacheEntries();
+                    log.info("{}: Closed.", this.traceObjectId);
+                });
+            } else {
+                log.info("{}: Closed (no cache cleanup).", this.traceObjectId);
+            }
+        }
+    }
+
+    /**
+     * Removes all entries from the cache.
+     */
+    @VisibleForTesting
+    void removeAllCacheEntries() {
+        List<CacheEntry> entries;
+        synchronized (this.cacheEntries) {
+            entries = Arrays.stream(this.cacheEntries).filter(Objects::nonNull).collect(Collectors.toList());
+            Arrays.fill(this.cacheEntries, null);
+        }
+
+        entries.forEach(CacheEntry::clear);
+        log.info("{}: Cleared all cache entries ({}).", this.traceObjectId, entries.size());
+    }
+
+    //endregion
+
+    //region CacheManager.Client implementation
+
+    @Override
+    public CacheManager.CacheStatus getCacheStatus() {
+        int minGen = 0;
+        int maxGen = 0;
+        long size = 0;
+        synchronized (this.cacheEntries) {
+            for (CacheEntry e : this.cacheEntries) {
+                if (e != null) {
+                    int g = e.getGeneration();
+                    minGen = Math.min(minGen, g);
+                    maxGen = Math.max(maxGen, g);
+                    size += e.getSize();
+                }
+            }
+        }
+
+        return new CacheManager.CacheStatus(size, minGen, maxGen);
+    }
+
+    @Override
+    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+
+        // Remove those entries that have a generation below the oldest permissible one.
+        long sizeRemoved = 0;
+        synchronized (this.cacheEntries) {
+            this.currentCacheGeneration = currentGeneration;
+            for (int i = 0; i < this.cacheEntries.length; i++) {
+                CacheEntry e = this.cacheEntries[i];
+                if (e != null && e.getGeneration() < oldestGeneration) {
+                    this.cache.remove(e.getKey());
+                    sizeRemoved += e.getSize();
+                    this.cacheEntries[i] = null;
+                }
+            }
+        }
+
+        return sizeRemoved;
     }
 
     //endregion
@@ -183,15 +302,15 @@ class SegmentAttributeIndex implements AttributeIndex {
             return CompletableFuture.completedFuture(null);
         } else {
             AttributeCollection c = new AttributeCollection(values);
-            if (shouldSnapshot()) {
-                // We are overdue for a snapshot. Create one while including the new values. No need to also write them
-                // separately.
-                return createSnapshot(c, false, timeout);
-            } else {
-                // Write the new values separately, as an atomic append.
-                return Futures.toVoid(appendConditionally(() -> CompletableFuture.completedFuture(serialize(c)),
-                        new TimeoutTimer(timeout)));
-            }
+
+            // Check if we are overdue for a snapshot. If so, create one while including the new values (which should prevent
+            // us from having to write them separately).
+            CompletableFuture<WriteInfo> result = shouldSnapshot()
+                    ? createSnapshot(c, false, timeout)
+                    : appendConditionally(() -> CompletableFuture.completedFuture(serialize(c)), new TimeoutTimer(timeout));
+
+            // Update the cache after the operation succeeds.
+            return result.thenAcceptAsync(writeInfo -> updateCache(c, writeInfo.getEndOffset()), this.executor);
         }
     }
 
@@ -202,7 +321,15 @@ class SegmentAttributeIndex implements AttributeIndex {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
 
-        return readAllSinceLastSnapshot(timeout)
+        Map<UUID, Long> cachedValues = getFromCache(keys);
+        if (cachedValues.size() == keys.size()) {
+            // Cache hit.
+            return CompletableFuture.completedFuture(cachedValues);
+        }
+
+        // This will process all attributes anyway so we need not bother with partially filling the result and then selectively
+        // picking our values from the result. We'll re-cache all attributes at this point.
+        return readAllSinceLastSnapshot(true, timeout)
                 .thenApply(c -> {
                     ImmutableMap.Builder<UUID, Long> b = ImmutableMap.builder();
                     keys.forEach(attributeId -> {
@@ -218,7 +345,13 @@ class SegmentAttributeIndex implements AttributeIndex {
     @Override
     public CompletableFuture<Long> get(UUID key, Duration timeout) {
         ensureInitialized();
-        return readAllSinceLastSnapshot(timeout)
+        Map<UUID, Long> cachedValues = getFromCache(Collections.singleton(key));
+        if (!cachedValues.isEmpty()) {
+            // Cache hit.
+            return CompletableFuture.completedFuture(cachedValues.get(key));
+        }
+
+        return readAllSinceLastSnapshot(true, timeout)
                 .thenApply(c -> c.attributes.get(key));
     }
 
@@ -263,15 +396,18 @@ class SegmentAttributeIndex implements AttributeIndex {
     /**
      * Reads all attributes beginning with the last recorded snapshot until the current end of the Attribute Segment.
      *
-     * @param timeout Timeout for the operation.
+     * @param cacheValues If true, the read values will be cached.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the Attributes as they should be when reaching the
      * end of the Attribute Segment.
      */
-    private CompletableFuture<AttributeCollection> readAllSinceLastSnapshot(Duration timeout) {
+    private CompletableFuture<AttributeCollection> readAllSinceLastSnapshot(boolean cacheValues, Duration timeout) {
+        AtomicLong lastReadOffset = new AtomicLong();
         CompletableFuture<AttributeCollection> result = READ_RETRY.runAsync(() -> {
             ensureMainSegmentExists();
             long lastSnapshotOffset = getLastSnapshotOffset();
             int readLength = (int) Math.min(Integer.MAX_VALUE, this.attributeSegment.get().getLength() - lastSnapshotOffset);
+            lastReadOffset.set(lastSnapshotOffset + readLength);
             CompletableFuture<AttributeCollection> r = new CompletableFuture<>();
             if (readLength == 0) {
                 // Nothing to read.
@@ -284,6 +420,14 @@ class SegmentAttributeIndex implements AttributeIndex {
             }
             return r;
         }, this.executor);
+
+        if (cacheValues) {
+            result = result.thenApplyAsync(r -> {
+                updateCache(r, lastReadOffset.get());
+                return r;
+            }, this.executor);
+        }
+
         return Futures.exceptionallyCompose(result,
                 ex -> {
                     ex = Exceptions.unwrap(ex);
@@ -307,14 +451,15 @@ class SegmentAttributeIndex implements AttributeIndex {
      *                      Snapshots generated as part of Seals, all of those must complete in order for the operation to
      *                      be considered successful.
      * @param timeout       Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully.
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully. It
+     * will contain information about the Storage write pertaining to the Snapshot write.
      */
-    private CompletableFuture<Void> createSnapshot(AttributeCollection newAttributes, boolean mustComplete, Duration timeout) {
+    private CompletableFuture<WriteInfo> createSnapshot(AttributeCollection newAttributes, boolean mustComplete, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // The serialization may be invoked multiple times, based on whether the appendConditionally() requires a retry.
         Supplier<CompletableFuture<ArrayView>> s = () ->
-                readAllSinceLastSnapshot(timer.getRemaining())
+                readAllSinceLastSnapshot(false, timer.getRemaining())
                         .thenApplyAsync(c -> {
                             c.mergeWith(newAttributes);
                             return serialize(c);
@@ -329,20 +474,38 @@ class SegmentAttributeIndex implements AttributeIndex {
      * @param writeInfo    Information about the data written as part of the Snapshot.
      * @param mustComplete Whether the operation must complete. Refer to createSnapshot's mustComplete for more details.
      * @param timer        Timer for the operation (used for timeouts).
-     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully.
+     * @return A CompletableFuture that, when completed, will indicate that the operation has completed successfully. It
+     * will contain the value of the writeInfo argument passed into this method.
      */
-    private CompletableFuture<Void> updateStatePostSnapshot(WriteInfo writeInfo, boolean mustComplete, TimeoutTimer timer) {
+    private CompletableFuture<WriteInfo> updateStatePostSnapshot(WriteInfo writeInfo, boolean mustComplete, TimeoutTimer timer) {
         log.debug("{}: Snapshot serialized to attribute segment ({}).", this.traceObjectId, writeInfo);
         UpdateAttributesOperation op = new UpdateAttributesOperation(this.segmentMetadata.getId(), Arrays.asList(
                 new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_OFFSET, AttributeUpdateType.ReplaceIfGreater, writeInfo.offset),
                 new AttributeUpdate(Attributes.LAST_ATTRIBUTE_SNAPSHOT_LENGTH, AttributeUpdateType.Replace, writeInfo.length)));
+
         CompletableFuture<Void> result = this.operationLog
                 .add(op, timer.getRemaining())
-                .thenComposeAsync(v -> {
+                .handleAsync((v, ex) -> {
+                    if (ex != null) {
+                        // If we are unable to update the main segment attributes due to the segment having been sealed,
+                        // merged or deleted, do not do anything else.
+                        ex = Exceptions.unwrap(ex);
+                        if (ex instanceof StreamSegmentMergedException
+                                || ex instanceof StreamSegmentSealedException
+                                || ex instanceof StreamSegmentNotExistsException) {
+                            log.warn("{}: Snapshot serialized to attribute segment, but failed to update snapshot location due to {}.",
+                                    this.traceObjectId, ex.toString());
+                            return CompletableFuture.<Void>completedFuture(null);
+                        } else {
+                            return Futures.<Void>failedFuture(ex);
+                        }
+                    }
+
                     log.debug("{}: Snapshot location updated in main segment's metadata ({}).", this.traceObjectId, writeInfo);
                     ensureMainSegmentExists();
                     return this.storage.truncate(this.attributeSegment.get().handle, writeInfo.offset, timer.getRemaining());
-                }, this.executor);
+                }, this.executor)
+                .thenCompose(f -> f);
 
         if (!mustComplete) {
             result = result.exceptionally(ex -> {
@@ -357,7 +520,7 @@ class SegmentAttributeIndex implements AttributeIndex {
                 return null;
             });
         }
-        return result;
+        return result.thenApply(v -> writeInfo);
     }
 
     /**
@@ -461,6 +624,85 @@ class SegmentAttributeIndex implements AttributeIndex {
             log.info("{}: Main Segment ({}) is Deleted. Aborting operation.", this.traceObjectId, this.segmentMetadata.getName());
             throw new StreamSegmentNotExistsException(this.segmentMetadata.getName());
         }
+    }
+
+    /**
+     * Updates the cache with the Attribute Values contained in the given collection, but only if the cache version is
+     * lower than the given version.
+     *
+     * @param attributes The AttributeCollection that contains the updates to apply.
+     * @param version    The update version.
+     */
+    private void updateCache(AttributeCollection attributes, long version) {
+        if (attributes.attributes.isEmpty()) {
+            return;
+        }
+
+        // Hash the attributes and map them to the appropriate Cache Entry.
+        Map<Integer, List<Map.Entry<UUID, Long>>> hashedAttributes = hash(attributes.attributes);
+        Map<CacheEntry, List<Map.Entry<UUID, Long>>> entryAttributes = new HashMap<>();
+        int generation;
+        synchronized (this.cacheEntries) {
+            generation = this.currentCacheGeneration;
+            hashedAttributes.forEach((bucket, values) -> {
+                CacheEntry e = this.cacheEntries[bucket];
+                if (e == null) {
+                    e = new CacheEntry(bucket, generation);
+                    this.cacheEntries[bucket] = e;
+                }
+
+                entryAttributes.put(e, values);
+            });
+        }
+
+        // Outside of the main lock (since this may be time consuming), update each cache entry.
+        entryAttributes.forEach((e, values) -> e.updateValues(values, version, generation));
+    }
+
+    /**
+     * Fetches the attribute values from the Cache for those attributes ids in the given Collection that are present in the cache.
+     *
+     * @param attributeIds The Attribute Ids to query.
+     * @return A Map containing those attribute values present in the Cache.
+     */
+    private Map<UUID, Long> getFromCache(Collection<UUID> attributeIds) {
+        if (attributeIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // Hash the attributes and map them to the appropriate Cache Entry.
+        Map<Integer, List<UUID>> hashedAttributes = hash(attributeIds);
+        Map<CacheEntry, List<UUID>> entryAttributes = new HashMap<>();
+        int generation;
+        synchronized (this.cacheEntries) {
+            generation = this.currentCacheGeneration;
+            hashedAttributes.forEach((bucket, ids) -> {
+                CacheEntry e = this.cacheEntries[bucket];
+                if (e != null) {
+                    entryAttributes.put(e, ids);
+                }
+            });
+        }
+
+        // Outside of the main lock (since this may be time consuming), query each cache entry.
+        Map<UUID, Long> result = new HashMap<>();
+        entryAttributes.forEach((e, ids) -> e.fetchValues(ids, result, generation));
+        return result;
+    }
+
+    private Map<Integer, List<Map.Entry<UUID, Long>>> hash(Map<UUID, Long> attributes) {
+        return attributes.entrySet().stream()
+                .collect(Collectors.groupingBy(e -> HASH.hashToBucket(e.getKey(), CACHE_BUCKETS)));
+    }
+
+    private Map<Integer, List<UUID>> hash(Collection<UUID> attributeIds) {
+        return attributeIds.stream()
+                .collect(Collectors.groupingBy(e -> HASH.hashToBucket(e, CACHE_BUCKETS)));
+    }
+
+    @VisibleForTesting
+    Map<UUID, Integer> getBuckets(Collection<UUID> attributeIds) {
+        return attributeIds.stream().collect(Collectors.toMap(id -> id, id -> HASH.hashToBucket(id, CACHE_BUCKETS)));
     }
 
     private void ensureInitialized() {
@@ -634,9 +876,149 @@ class SegmentAttributeIndex implements AttributeIndex {
         private final long offset;
         private final int length;
 
+        long getEndOffset() {
+            return this.offset + this.length;
+        }
+
         @Override
         public String toString() {
             return String.format("Offset=%d, Length=%d", this.offset, this.length);
+        }
+    }
+
+    //endregion
+
+    //region CacheEntry
+
+    /**
+     * An entry in the Cache to which one or more Attributes are mapped.
+     */
+    private class CacheEntry {
+        /**
+         * Id of the entry. This is used to lookup cached data in the Cache.
+         */
+        @Getter
+        private final int entryId;
+        @GuardedBy("this")
+        private int generation;
+        @GuardedBy("this")
+        private int size;
+
+        CacheEntry(int id, int currentGeneration) {
+            this.entryId = id;
+            this.generation = currentGeneration;
+            this.size = 0;
+        }
+
+        /**
+         * Gets a new CacheKey representing this Entry.
+         */
+        CacheKey getKey() {
+            return new CacheKey(SegmentAttributeIndex.this.segmentMetadata.getId(), this.entryId);
+        }
+
+        /**
+         * Gets a value representing the current Generation of this Cache Entry. This value is updated every time the
+         * data behind this entry is modified or accessed.
+         */
+        synchronized int getGeneration() {
+            return this.generation;
+        }
+
+        /**
+         * Gets a value representing the size, in bytes, of the data behind this Cache Entry.
+         */
+        synchronized int getSize() {
+            return this.size;
+        }
+
+        /**
+         * Reads all the values from this Cache Entry for the given Attribute Ids into the given Map.
+         *
+         * @param attributeIds      The Attribute Ids to query.
+         * @param result            A Map where to store the result. Only those Attribute Ids which have data in this entry
+         *                          will be added here.
+         * @param currentGeneration The current Cache Generation (from the Cache Manager). The internal generation will
+         *                          only be updated if at least one Attribute Value is fetched (cache hit).
+         */
+        synchronized void fetchValues(Collection<UUID> attributeIds, Map<UUID, Long> result, int currentGeneration) {
+            if (attributeIds.isEmpty()) {
+                // Nothing to do.
+                return;
+            }
+
+            byte[] data = SegmentAttributeIndex.this.cache.get(getKey());
+            if (data != null && data.length > 0) {
+                // The Cache Entry Serialization has the Attributes in sorted order (by Id), so the most efficient way of
+                // searching the values is to do a binary search within the byte array.
+                boolean anythingRead = CollectionHelpers.binarySearch(CacheEntryLayout.wrap(data), attributeIds, result);
+                if (anythingRead) {
+                    this.generation = currentGeneration;
+                }
+            }
+        }
+
+        /**
+         * Updates the data in this Cache Entry with the new values. The new data will not overwrite the whole entry, rather
+         * the new attribute values will be merged into the Entry, using the following scheme:
+         * - Attributes that do not exist in attributeValues are left untouched.
+         * - Attributes that do not exist in the entry but do exist in attributeValues are added.
+         * - Attributes that exist in both the entry and attributeValues are only modified if their version is smaller than
+         * the given version.
+         *
+         * @param attributeValues   The Attribute Values to add or update.
+         * @param version           The current Cache Version. This is usually the last offset in the Attribute Segment
+         *                          where the given set of Attribute Values are written.
+         * @param currentGeneration The current Cache Generation (from the Cache Manager). The internal generation will
+         *                          only be updated if at least one Attribute Value is updated.
+         */
+        synchronized void updateValues(Collection<Map.Entry<UUID, Long>> attributeValues, long version, int currentGeneration) {
+            if (attributeValues.isEmpty()) {
+                // Nothing to do.
+                return;
+            }
+
+            // Fetch existing data.
+            byte[] existingData = SegmentAttributeIndex.this.cache.get(getKey());
+            Map<UUID, VersionedValue> values = existingData == null
+                    ? new HashMap<>()
+                    : CacheEntryLayout.wrap(existingData).getAllValues();
+
+            // Merge new values.
+            boolean changed = false;
+            for (Map.Entry<UUID, Long> e : attributeValues) {
+                VersionedValue existing = values.getOrDefault(e.getKey(), null);
+                if (existing == null || existing.version < version) {
+                    if (e.getValue() == Attributes.NULL_ATTRIBUTE_VALUE) {
+                        values.remove(e.getKey());
+                        changed |= existing != null;
+                    } else {
+                        // As per the CacheEntryLayout contract, we create a UUID with MSB set to Version and LSB set to Value
+                        // in order to pass it down for serialization.
+                        values.put(e.getKey(), new VersionedValue(version, e.getValue()));
+                        changed |= existing == null || existing.value != e.getValue();
+                    }
+                }
+            }
+
+            // Serialize, but only if anything changed.
+            if (changed) {
+                byte[] newData = CacheEntryLayout.setValues(
+                        existingData,
+                        values.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).iterator(),
+                        values.size());
+                SegmentAttributeIndex.this.cache.insert(getKey(), newData);
+                this.size = newData.length;
+                this.generation = currentGeneration;
+            }
+        }
+
+        /**
+         * Removes all data associated with this cache entry.
+         */
+        synchronized void clear() {
+            SegmentAttributeIndex.this.cache.remove(getKey());
+            this.size = 0;
         }
     }
 

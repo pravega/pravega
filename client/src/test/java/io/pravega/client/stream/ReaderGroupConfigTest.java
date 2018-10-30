@@ -176,6 +176,36 @@ public class ReaderGroupConfigTest {
                          .build();
     }
 
+    @Test
+    public void testOutstandingCheckpointRequestConfig() {
+        //test if the supplied pending checkpoint value is configured
+        ReaderGroupConfig cfg = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .maxOutstandingCheckpointRequest(5)
+                .build();
+        assertEquals(cfg.getMaxOutstandingCheckpointRequest(), 5);
+
+        //test if the default checkpoint value is configured
+        cfg = ReaderGroupConfig.builder()
+                .disableAutomaticCheckpoints()
+                .stream("scope/s1", getStreamCut("s1"))
+                .build();
+        assertEquals(cfg.getMaxOutstandingCheckpointRequest(), 3);
+
+        //test if the minimum checkpoint value is being validated
+        try {
+            cfg = ReaderGroupConfig.builder()
+                    .disableAutomaticCheckpoints()
+                    .stream("scope/s1", getStreamCut("s1"))
+                    .maxOutstandingCheckpointRequest(-1)
+                    .build();
+        } catch (IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "Outstanding checkpoint request should be greater than zero");
+        }
+
+    }
+
     private StreamCut getStreamCut(String streamName) {
         return getStreamCut(streamName, 10L);
     }

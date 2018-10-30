@@ -16,7 +16,7 @@ This guide describes the options for running Pravega for development, testing an
 There are two modes for running Pravega.
 
 - Standalone - Standalone mode is suitable for development and testing Pravega applications. It can either be run from the source code, from the distribution package or as a docker container.
-- Distributed - Distributed mode runs each component separately on a single or multiple nodes. This is suitable for production in addition for development and testing. There are deployment options available including a manual installation, running in a docker swarm or DC/OS.
+- Distributed - Distributed mode runs each component separately on a single or multiple nodes. This is suitable for production in addition for development and testing. The deployment options in this mode include a manual installation, running in a docker swarm or DC/OS.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ For more details on the prerequisites and recommended configuration options for 
 There are multiple options provided for running Pravega in different environments. Most of these use the installation package from a Pravega release. You can find the latest Pravega release on the [github releases page](https://github.com/pravega/pravega/releases).
 
 - [Local](run-local.md) - Running Pravega locally is suitable for development and testing.
-    - Running from source
+    - [Running from source](run-local.md#from-source)
     - Local Standalone Mode
     - Docker Compose (Distributed Mode)
 - Production - Multi-node installation suitable for running in production.

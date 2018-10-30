@@ -104,7 +104,6 @@ public abstract class ControllerServiceMainTest {
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
         return ControllerServiceConfigImpl.builder()

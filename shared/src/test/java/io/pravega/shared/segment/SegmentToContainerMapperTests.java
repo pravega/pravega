@@ -104,6 +104,27 @@ public class SegmentToContainerMapperTests {
         }
     }
 
+    @Test
+    public void testSegmentMapping() {
+        int containerCount = 16;
+        int streamSegmentCount = 256;
+        int epochCount = 10;
+        SegmentToContainerMapper m = new SegmentToContainerMapper(containerCount);
+
+        // Generate all possible names with the given length and assign them to a container.
+        for (int segmentId = 0; segmentId < streamSegmentCount; segmentId++) {
+            String segmentName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream",
+                    StreamSegmentNameUtils.computeSegmentId(segmentId, 0));
+            int containerId = m.getContainerId(segmentName);
+            for (int i = 0; i < epochCount; i++) {
+                String duplicate = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream",
+                        StreamSegmentNameUtils.computeSegmentId(segmentId, i));
+                int duplicateContainerId = m.getContainerId(duplicate);
+                Assert.assertEquals("Parent and Transaction were not assigned to the same container.", containerId, duplicateContainerId);
+            }
+        }
+    }
+
     private String getSegmentName(int segmentId) {
         CharBuffer buffer = CharBuffer.allocate(4);
         segmentId = Integer.reverseBytes(Integer.reverse(segmentId));

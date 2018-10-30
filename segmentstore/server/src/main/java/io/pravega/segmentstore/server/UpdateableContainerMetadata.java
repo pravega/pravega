@@ -9,8 +9,6 @@
  */
 package io.pravega.segmentstore.server;
 
-import java.util.Collection;
-
 /**
  * Defines an updateable StreamSegment Metadata.
  */
@@ -25,25 +23,12 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId);
 
     /**
-     * Maps a new StreamSegment to its Parent StreamSegment.
-     * This is used for Transactions that are dependent on their parent StreamSegments.
-     *
-     * @param streamSegmentName     The case-sensitive name of the StreamSegment to map.
-     * @param streamSegmentId       The Id of the StreamSegment to map.
-     * @param parentStreamSegmentId The Id of the Parent StreamSegment.
-     * @return An UpdateableSegmentMetadata that represents the metadata for the newly mapped StreamSegment.
-     * @throws IllegalArgumentException If the parentStreamSegmentId refers to an unknown StreamSegment.
-     */
-    UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId);
-
-    /**
-     * Marks the StreamSegment and all child StreamSegments as deleted.
+     * Marks the StreamSegment as deleted.
      *
      * @param streamSegmentName The name of the StreamSegment to delete.
-     * @return A Collection of SegmentMetadatas for the Segments that have been deleted. This includes the given StreamSegment,
-     * as well as any child StreamSegments that have been deleted.
+     * @return The deleted StreamSegment's Metadata, or null if this Segment is not registered.
      */
-    Collection<SegmentMetadata> deleteStreamSegment(String streamSegmentName);
+    SegmentMetadata deleteStreamSegment(String streamSegmentName);
 
     /**
      * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.

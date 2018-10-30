@@ -71,7 +71,7 @@ public class EndToEndStatsTest {
         statsRecorder = new TestStatsRecorder();
 
         server = new PravegaConnectionListener(false, "localhost", servicePort, store,
-                statsRecorder, null, null, null);
+                statsRecorder, null, null, null, true);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -106,25 +106,25 @@ public class EndToEndStatsTest {
 
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
+                EventWriterConfig.builder().transactionTimeoutTime(10000).build());
 
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
 
         Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
 
         transaction.commit();
         Stream stream = new StreamImpl("test", "test");
         while (!controller.checkTransactionStatus(stream, transaction.getTxnId()).get().equals(Transaction.Status.COMMITTED)) {
             Thread.sleep(100);
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 20);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 20);
     }
 
     private static class TestStatsRecorder implements SegmentStatsRecorder {

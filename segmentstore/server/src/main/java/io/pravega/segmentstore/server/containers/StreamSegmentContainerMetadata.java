@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,8 +54,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     private final HashMap<String, StreamSegmentMetadata> metadataByName;
     @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentMetadata> metadataById;
-    @GuardedBy("lock")
-    private final HashMap<Long, Integer> activeTxnCounts;
     private final AtomicBoolean recoveryMode;
     private final int streamSegmentContainerId;
     private final int maxActiveSegmentCount;
@@ -85,7 +82,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         this.sequenceNumber = new AtomicLong();
         this.metadataByName = new HashMap<>();
         this.metadataById = new HashMap<>();
-        this.activeTxnCounts = new HashMap<>();
         this.truncationMarkers = new TreeMap<>();
         this.truncationPoints = new TreeSet<>();
         this.recoveryMode = new AtomicBoolean();
@@ -162,7 +158,19 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         StreamSegmentMetadata segmentMetadata;
         int count;
         synchronized (this.lock) {
-            validateNewMapping(streamSegmentName, streamSegmentId);
+            Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName",
+                    "StreamSegment '%s' is already mapped.", streamSegmentName);
+            Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId",
+                    "StreamSegment Id %d is already mapped.", streamSegmentId);
+            if (!this.recoveryMode.get()) {
+                // We enforce the max active segment count only in non-recovery mode. If for some reason we manage to recover
+                // more than this number of segments, then we shouldn't block recovery for that (it likely means we have a problem
+                // somewhere else though).
+                Preconditions.checkState(this.metadataById.size() < this.maxActiveSegmentCount,
+                        "StreamSegment '%s' cannot be mapped because the maximum allowed number of mapped segments (%s)has been reached.",
+                        streamSegmentName, this.maxActiveSegmentCount);
+            }
+
             segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, getContainerId());
             this.metadataByName.put(streamSegmentName, segmentMetadata);
             this.metadataById.put(streamSegmentId, segmentMetadata);
@@ -176,46 +184,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId) {
-        StreamSegmentMetadata segmentMetadata;
-        int count;
-        synchronized (this.lock) {
-            validateNewMapping(streamSegmentName, streamSegmentId);
-            StreamSegmentMetadata parentMetadata = this.metadataById.getOrDefault(parentStreamSegmentId, null);
-            Exceptions.checkArgument(parentMetadata != null, "parentStreamSegmentId", "Invalid Parent Segment Id (%s).", parentStreamSegmentId);
-            Exceptions.checkArgument(!parentMetadata.isTransaction(), "parentStreamSegmentId", "Cannot create a Transaction for another Transaction (%s).", parentStreamSegmentId);
-
-            segmentMetadata = new StreamSegmentMetadata(streamSegmentName, streamSegmentId, parentStreamSegmentId, getContainerId());
-            this.metadataByName.put(streamSegmentName, segmentMetadata);
-            this.metadataById.put(streamSegmentId, segmentMetadata);
-            count = this.metadataById.size();
-            updateValue(this.activeTxnCounts, parentStreamSegmentId, 1);
-        }
-
-        segmentMetadata.setLastUsed(getOperationSequenceNumber());
-        log.info("{}: MapTransactionStreamSegment ParentId = {}, SegmentId = {}, Name = '{}', Active = {}", this.traceObjectId,
-                parentStreamSegmentId, streamSegmentId, streamSegmentName, count);
-        this.metrics.segmentCount(count);
-        return segmentMetadata;
-    }
-
-    @GuardedBy("lock")
-    private void validateNewMapping(String streamSegmentName, long streamSegmentId) {
-        Exceptions.checkArgument(!this.metadataByName.containsKey(streamSegmentName), "streamSegmentName",
-                "StreamSegment '%s' is already mapped.", streamSegmentName);
-        Exceptions.checkArgument(!this.metadataById.containsKey(streamSegmentId), "streamSegmentId",
-                "StreamSegment Id %d is already mapped.", streamSegmentId);
-        if (!this.recoveryMode.get()) {
-            // We enforce the max active segment count only in non-recovery mode. If for some reason we manage to recover
-            // more than this number of segments, then we shouldn't block recovery for that (it likely means we have a problem
-            // somewhere else though).
-            Preconditions.checkState(this.metadataById.size() < this.maxActiveSegmentCount,
-                    "StreamSegment '%s' cannot be mapped because the maximum allowed number of mapped segments (%s)has been reached.",
-                    streamSegmentName, this.maxActiveSegmentCount);
-        }
-    }
-
-    @Override
     public Collection<Long> getAllStreamSegmentIds() {
         synchronized (this.lock) {
             return new HashSet<>(this.metadataById.keySet());
@@ -223,34 +191,29 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public Collection<SegmentMetadata> deleteStreamSegment(String streamSegmentName) {
-        Collection<SegmentMetadata> result = new ArrayList<>();
+    public SegmentMetadata deleteStreamSegment(String streamSegmentName) {
+        StreamSegmentMetadata segmentMetadata;
         synchronized (this.lock) {
-            StreamSegmentMetadata segmentMetadata = this.metadataByName.getOrDefault(streamSegmentName, null);
+            segmentMetadata = this.metadataByName.getOrDefault(streamSegmentName, null);
             if (segmentMetadata == null) {
                 // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
                 // with it, so no need to do anything else.
                 log.info("{}: DeleteStreamSegments (nothing)", this.traceObjectId);
-                return result;
+                return null;
+            } else if (segmentMetadata.isDeleted() || segmentMetadata.isMerged()) {
+                // Do not attempt to re-delete the Segment if already deleted or merged. That is more likely to cause
+                // issues in downstream components.
+                log.info("{}: DeleteStreamSegments {} ('{}') - no action (deleted={}, merged={}).", this.traceObjectId,
+                        segmentMetadata.getId(), segmentMetadata.getName(), segmentMetadata.isDeleted(), segmentMetadata.isMerged());
+                return null;
             }
 
             // Mark this segment as deleted.
-            result.add(segmentMetadata);
             segmentMetadata.markDeleted();
-
-            // Find any transactions that point to this StreamSegment (as a parent) which haven't already been deleted
-            // or fully merged in Storage.
-            this.metadataById
-                    .values().stream()
-                    .filter(m -> m.getParentId() == segmentMetadata.getId() && !m.isDeleted())
-                    .forEach(m -> {
-                        m.markDeleted();
-                        result.add(m);
-                    });
         }
 
-        log.info("{}: DeleteStreamSegments {}", this.traceObjectId, result);
-        return result;
+        log.info("{}: DeleteStreamSegment {} ('{}').", this.traceObjectId, segmentMetadata.getId(), segmentMetadata.getName());
+        return segmentMetadata;
     }
 
     @Override
@@ -286,17 +249,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         long adjustedCutoff = Math.min(sequenceNumberCutoff, this.lastTruncatedSequenceNumber.get());
         List<SegmentMetadata> candidates;
         synchronized (this.lock) {
-            // Find those segments that have active transactions associated with them.
-            Set<Long> activeTransactions = this.metadataById
-                    .values().stream()
-                    .filter(m -> m.isTransaction() && !isEligibleForEviction(m, adjustedCutoff))
-                    .map(SegmentMetadata::getParentId)
-                    .collect(Collectors.toSet());
-
-            // The result is all segments that are eligible for removal but that do not have any active transactions.
             candidates = this.metadataById
                     .values().stream()
-                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !activeTransactions.contains(m.getId()))
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff))
                     .collect(Collectors.toList());
         }
 
@@ -315,16 +270,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         Collection<SegmentMetadata> evictedSegments = new ArrayList<>(evictionCandidates.size());
         int count;
         synchronized (this.lock) {
-            // First, process all transactions eligible for removal and update their parent's stats.
             evictionCandidates
                     .stream()
-                    .filter(m -> m.isTransaction() && isEligibleForEviction(m, adjustedCutoff))
-                    .forEach(m -> updateValue(this.activeTxnCounts, m.getParentId(), -1));
-
-            // Remove those candidates that are still eligible for removal and which do not have any active transactions.
-            evictionCandidates
-                    .stream()
-                    .filter(m -> isEligibleForEviction(m, adjustedCutoff) && !this.activeTxnCounts.containsKey(m.getId()))
+                    .filter(m -> isEligibleForEviction(m, adjustedCutoff))
                     .forEach(m -> {
                         StreamSegmentMetadata removedMetadata = this.metadataById.remove(m.getId());
                         removedMetadata.markInactive();
@@ -370,15 +318,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
                 || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
     }
 
-    private void updateValue(HashMap<Long, Integer> map, long key, int delta) {
-        int newValue = map.getOrDefault(key, 0) + delta;
-        if (newValue == 0) {
-            map.remove(key);
-        } else {
-            map.put(key, newValue);
-        }
-    }
-
     //endregion
 
     //region RecoverableMetadata Implementation
@@ -406,7 +345,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
         synchronized (this.lock) {
             this.metadataByName.clear();
             this.metadataById.clear();
-            this.activeTxnCounts.clear();
         }
 
         synchronized (this.truncationMarkers) {

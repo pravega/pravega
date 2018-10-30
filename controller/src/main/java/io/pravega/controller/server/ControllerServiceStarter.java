@@ -20,6 +20,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
@@ -28,6 +29,7 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.retention.StreamCutService;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
@@ -138,6 +140,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             String hostName = getHostName();
             Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
+            // Create a RequestTracker instance to trace client requests end-to-end.
+            RequestTracker requestTracker = new RequestTracker(serviceConfig.getGRPCServerConfig().get().isRequestTracingEnabled());
+
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
                 monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
@@ -157,16 +162,16 @@ public class ControllerServiceStarter extends AbstractIdleService {
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             SegmentHelper segmentHelper = new SegmentHelper();
 
+            AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
+                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
             streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory,
-                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory,
-                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
+                    connectionFactory, authHelper);
 
-            streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, retentionExecutor);
+            streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks,
+                    retentionExecutor, requestTracker);
             log.info("starting auto retention service asynchronously");
             streamCutService.startAsync();
             streamCutService.awaitRunning();
@@ -198,7 +203,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        hostStore, segmentHelper, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                        connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                         controllerExecutor);
 
                 // Bootstrap and start it asynchronously.
@@ -225,7 +230,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
-                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get());
+                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get(), requestTracker);
                 grpcServer.startAsync();
                 log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();

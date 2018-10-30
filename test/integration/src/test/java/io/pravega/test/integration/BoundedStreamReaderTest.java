@@ -335,7 +335,7 @@ public class BoundedStreamReaderTest {
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
         Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
-        assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executor).getFuture().get());
     }
 
     private void truncateStream(final String streamName, final StreamCut streamCut) throws Exception {

@@ -37,6 +37,7 @@ import java.util.function.Consumer;
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
@@ -117,6 +118,46 @@ public class EventStreamReaderTest {
         Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
         //Validate that groupState.handleEndOfSegment method is invoked.
         Mockito.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 10000)
+    public void testReadWithSegmentTruncatedException() throws Exception {
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+
+        //Prep the mocks.
+        ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+
+        //Mock for the two SegmentInputStreams.
+        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        SegmentInputStream segmentInputStream1 = Mockito.mock(SegmentInputStream.class);
+        Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new SegmentTruncatedException());
+        Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
+
+        SegmentInputStream segmentInputStream2 = Mockito.mock(SegmentInputStream.class);
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        ByteBuffer buffer = writeInt(stream, 1);
+        Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
+        Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(Segment.fromScopedName("Foo/test/0"));
+        Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
+
+        SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
+        Mockito.when(inputStreamFactory.createInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        //Mock Orderer
+        Orderer orderer = Mockito.mock(Orderer.class);
+        Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
+
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
+                new ByteArraySerializer(), groupState,
+                orderer, clock::get,
+                ReaderConfig.builder().build());
+
+        AssertExtensions.assertThrows(TruncatedDataException.class,
+                () -> reader.readNextEvent(100L));
+        //Validate that groupState.getOrRefreshDelegationTokenFor method is invoked.
+        Mockito.verify(groupState, Mockito.times(1)).getOrRefreshDelegationTokenFor(segment);
     }
 
     @Test(timeout = 10000)
@@ -271,8 +312,13 @@ public class EventStreamReaderTest {
         assertTrue(eventRead.isCheckpoint());
         assertNull(eventRead.getEvent());
         assertEquals("Foo", eventRead.getCheckpointName());
+        InOrder order = Mockito.inOrder(groupState);
+        order.verify(groupState).getCheckpoint();
+        order.verify(groupState, Mockito.never()).checkpoint(Mockito.anyString(), Mockito.any());
         assertEquals(buffer, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         assertNull(reader.readNextEvent(0).getEvent());
+        order.verify(groupState).checkpoint(Mockito.eq("Foo"), Mockito.any());
+        order.verify(groupState).getCheckpoint();
         reader.close();
     }
     
@@ -325,9 +371,9 @@ public class EventStreamReaderTest {
         assertEquals(0, length % 3);
         EventRead<byte[]> event1 = reader.readNextEvent(0);
         assertEquals(buffer1, ByteBuffer.wrap(event1.getEvent()));
-        metadataClient.truncateSegment(segment, length / 3);
+        metadataClient.truncateSegment(length / 3);
         assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
-        metadataClient.truncateSegment(segment, length);
+        metadataClient.truncateSegment(length);
         ByteBuffer buffer4 = writeInt(stream, 4);
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));

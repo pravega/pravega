@@ -62,7 +62,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
-    private boolean atCheckpoint;
+    private String atCheckpoint;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
 
@@ -116,7 +116,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             if (buffer == null) {
                return createEmptyEvent(null);
             } 
-            lastRead = Sequence.create(segment.getSegmentNumber(), offset);
+            lastRead = Sequence.create(segment.getSegmentId(), offset);
             int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
             return new EventReadImpl<>(lastRead,
                     deserializer.deserialize(buffer),
@@ -135,10 +135,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 .collect(Collectors.toMap(e -> e.getSegmentId(), e -> e.getOffset()));
         return new PositionImpl(positions);
     }
-    
+
     /**
-     * Releases or acquires segments as needed. Returns the name of the checkpoint if the reader is
-     * at one.
+     * If the last call was a checkpoint updates the reader group state to indicate it has completed
+     * and releases segments.
+     * 
+     * If a checkpoint is pending its identifier is returned. (The checkpoint will be considered
+     * complete when this is invoked again.)
+     * 
+     * Otherwise it checks for any segments that need to be acquired.
      * 
      * Segments can only be released on the next read call following a checkpoint because this is
      * the only point we can be sure the caller has persisted their position, which is needed to be
@@ -150,20 +155,24 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
         try {
-            String checkpoint = groupState.getCheckpoint();
-            if (checkpoint == null) {
-                if (atCheckpoint) {
-                    releaseSegmentsIfNeeded();
-                    atCheckpoint = false;
-                }
-                acquireSegmentsIfNeeded();
-                return null;
-            } else {
-                log.info("{} at checkpoint {}", this, checkpoint);
-                groupState.checkpoint(checkpoint, getPosition());
-                atCheckpoint = true;
-                return checkpoint;
+            if (atCheckpoint != null) {
+                groupState.checkpoint(atCheckpoint, getPosition());
+                releaseSegmentsIfNeeded();
             }
+            atCheckpoint = groupState.getCheckpoint();
+            if (atCheckpoint != null) {
+                log.info("{} at checkpoint {}", this, atCheckpoint);
+                if (groupState.isCheckpointSilent(atCheckpoint)) {
+                    // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
+                    groupState.checkpoint(atCheckpoint, getPosition());
+                    atCheckpoint = null;
+                    return null;
+                } else {
+                    return atCheckpoint;
+                }
+            }
+            acquireSegmentsIfNeeded();
+            return null;
         } catch (ReinitializationRequiredException e) {
             close();
             throw e;
@@ -222,7 +231,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void handleSegmentTruncated(SegmentInputStream segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
-        String delegationToken = groupState.getLatestDelegationToken();
+        String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
+
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
         try {

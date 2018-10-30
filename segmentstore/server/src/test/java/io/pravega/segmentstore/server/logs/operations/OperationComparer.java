@@ -101,8 +101,8 @@ public class OperationComparer {
             }
         } else if (expected instanceof CachedStreamSegmentAppendOperation) {
             assertSame(message, (CachedStreamSegmentAppendOperation) expected, (CachedStreamSegmentAppendOperation) actual);
-        } else if (expected instanceof MergeTransactionOperation) {
-            assertSame(message, (MergeTransactionOperation) expected, (MergeTransactionOperation) actual);
+        } else if (expected instanceof MergeSegmentOperation) {
+            assertSame(message, (MergeSegmentOperation) expected, (MergeSegmentOperation) actual);
         } else if (expected instanceof StreamSegmentTruncateOperation) {
             assertSame(message, (StreamSegmentTruncateOperation) expected, (StreamSegmentTruncateOperation) actual);
         } else {
@@ -149,8 +149,8 @@ public class OperationComparer {
         }
     }
 
-    private void assertSame(String message, MergeTransactionOperation expected, MergeTransactionOperation actual) {
-        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getTransactionSegmentId(), actual.getTransactionSegmentId());
+    private void assertSame(String message, MergeSegmentOperation expected, MergeSegmentOperation actual) {
+        Assert.assertEquals(message + " Unexpected TransactionStreamSegmentId.", expected.getSourceSegmentId(), actual.getSourceSegmentId());
         Assert.assertEquals(message + " Unexpected TransactionStreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected TargetStreamSegmentOffset.", expected.getStreamSegmentOffset(), actual.getStreamSegmentOffset());
     }

@@ -19,24 +19,26 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 
 /**
  * The successor segments of a given segment.
  */
 @EqualsAndHashCode
+@ToString(exclude = "delegationToken")
 public class StreamSegmentsWithPredecessors {
-    private final Map<Segment, List<Integer>> segmentWithPredecessors;
-    private final Map<Integer, List<SegmentWithRange>> replacementRanges;
+    private final Map<Segment, List<Long>> segmentWithPredecessors;
+    private final Map<Long, List<SegmentWithRange>> replacementRanges;
     @Getter
     private final String delegationToken;
 
-    public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Integer>> segments, String delegationToken) {
+    public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Long>> segments, String delegationToken) {
         segmentWithPredecessors = Collections.unmodifiableMap(segments.entrySet().stream().collect(
                 Collectors.toMap(entry -> entry.getKey().getSegment(), Map.Entry::getValue)));
 
-        Map<Integer, List<SegmentWithRange>> replacementRanges = new HashMap<>();
-        for (Entry<SegmentWithRange, List<Integer>> entry : segments.entrySet()) {
-            for (Integer oldSegment : entry.getValue()) {
+        Map<Long, List<SegmentWithRange>> replacementRanges = new HashMap<>();
+        for (Entry<SegmentWithRange, List<Long>> entry : segments.entrySet()) {
+            for (Long oldSegment : entry.getValue()) {
                 List<SegmentWithRange> newRanges = replacementRanges.get(oldSegment);
                 if (newRanges == null) {
                     newRanges = new ArrayList<>(2);
@@ -54,7 +56,7 @@ public class StreamSegmentsWithPredecessors {
      *
      * @return A {@link Map} with {@link Segment} as key and {@link List} of {@link Integer} as value.
      */
-    public Map<Segment, List<Integer>> getSegmentToPredecessor() {
+    public Map<Segment, List<Long>> getSegmentToPredecessor() {
         return segmentWithPredecessors;
     }
 
@@ -65,7 +67,7 @@ public class StreamSegmentsWithPredecessors {
      * 
      * @return Predecessors mapped to successors.
      */
-    public Map<Integer, List<SegmentWithRange>> getReplacementRanges() {
+    public Map<Long, List<SegmentWithRange>> getReplacementRanges() {
         return replacementRanges;
     }
 

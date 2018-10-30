@@ -33,6 +33,7 @@ import org.junit.Test;
  */
 @Slf4j
 public class InProcPravegaClusterTest {
+    boolean restEnabled = true;
     boolean authEnabled = false;
     boolean tlsEnabled = false;
     LocalPravegaEmulator localPravega;
@@ -50,10 +51,14 @@ public class InProcPravegaClusterTest {
                                            .segmentStorePort(TestUtils.getAvailableListenPort())
                                            .zkPort(TestUtils.getAvailableListenPort())
                                            .restServerPort(TestUtils.getAvailableListenPort())
+                                           .enableRestServer(restEnabled)
                                            .enableAuth(authEnabled)
                                            .enableTls(tlsEnabled)
                                            .certFile("../config/cert.pem")
                                            .keyFile("../config/key.pem")
+                                           .jksKeyFile("../config/bookie.keystore.jks")
+                                           .jksTrustFile("../config/bookie.truststore.jks")
+                                           .keyPasswordFile("../config/bookie.keystore.jks.passwd")
                                            .passwdFile("../config/passwd")
                                            .userName("admin")
                                            .passwd("1111_aaaa")

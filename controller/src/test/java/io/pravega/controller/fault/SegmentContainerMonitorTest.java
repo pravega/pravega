@@ -118,7 +118,7 @@ public class SegmentContainerMonitorTest {
             }
             
             @Override
-            public Host getHostForSegment(String scope, String stream, int segmentNumber) {
+            public Host getHostForSegment(String scope, String stream, long segmentNumber) {
                 return null;
             }
         }

@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.attributes;
 
 import io.pravega.segmentstore.server.AttributeIndex;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -18,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines a Collection of Attribute Index objects.
  */
-public interface ContainerAttributeIndex {
+public interface ContainerAttributeIndex extends AutoCloseable {
     /**
      * Gets or creates an AttributeIndex instance and initializes it.
      *
@@ -31,11 +30,11 @@ public interface ContainerAttributeIndex {
     /**
      * Deletes any existing attribute data pertaining to the given Segment.
      *
-     * @param metadata The SegmentMetadata for the Segment whose Attribute data to delete.
-     * @param timeout  Timeout for the operation.
+     * @param segmentName The name of the Segment whose attribute data should be deleted.
+     * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate that the operation finished.
      */
-    CompletableFuture<Void> delete(SegmentMetadata metadata, Duration timeout);
+    CompletableFuture<Void> delete(String segmentName, Duration timeout);
 
     /**
      * Removes all internal indices that point to the given StreamSegments from memory. This does not delete the data itself.
@@ -44,4 +43,7 @@ public interface ContainerAttributeIndex {
      *                   registered in this ContainerAttributeIndex are eligible for removal.
      */
     void cleanup(Collection<Long> segmentIds);
+
+    @Override
+    void close();
 }

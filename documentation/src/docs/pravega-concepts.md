@@ -18,8 +18,7 @@ Pravega concepts.
 ## Streams
 
 Pravega organizes data into Streams.  A Stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  A Pravega Stream is
-similar to but more flexible than a "topic" in popular message-oriented middleware such as
-[RabbitMQ](https://www.rabbitmq.com/) or Apache Kafka.
+similar to but more flexible than a "topic" in popular message-oriented middleware such as [RabbitMQ](https://www.rabbitmq.com/) or [Apache Kafka](https://kafka.apache.org/). 
 
 Pravega Streams are based on an append-only log data structure. By using
 append-only logs, Pravega can rapidly ingest data into durable storage,
@@ -42,13 +41,7 @@ other categorization the developer chooses.
 
 A Stream is unbounded in size – Pravega itself does not impose any limits on how
 many Events can be in a Stream or how many total bytes are stored in a Stream.
- Pravega is built as a data storage primitive first and foremost.  Pravega is
-carefully designed to take advantage of software defined storage so that the
-amount of data stored in Pravega is limited only by the total storage capacity
-of your data center.  And like you would expect from a storage primitive, once
-data is written to Pravega it is durably stored.  Short of a disaster that
-permanently destroys a large portion of a data center, data stored in Pravega is never
-lost.
+Pravega’s design horizontally scales from few machines to a whole datacenter’s capacity.
 
 To deal with a potentially large amount of data within a Stream, Pravega Streams
 are divided into Stream Segments.  A Stream Segment is a shard, or partition of
@@ -129,7 +122,7 @@ processing Stream data in parallel is a good example use of a ReaderGroup.
 
 For more details on the basics of working with Pravega Readers and Writers,
 see [Working with Pravega: Basic Reader and
-Writer](basic-reader-and-writer.md).
+Writer](basic-reader-and-writer.md#working-with-pravega-basic-reader-and-writer).
 
 We need to talk in more detail about the relationship between Readers,
 ReaderGroups and Streams and the ordering guarantees provided by Pravega.  But
@@ -153,7 +146,7 @@ space is then divided into a number of partitions, corresponding to the number
 of Stream Segments. Consistent hashing determines which Segment an Event is
 assigned to.
 
-### AutoScaling: The number of Stream Segments can vary over time
+### AutoScaling: Varying the number of Stream Segments over time
 
 The number of Stream Segments in a Stream can grow *and shrink* over time as I/O
 load on the Stream increases and decreases.   We refer to this feature as
@@ -288,8 +281,9 @@ state.  Once a Checkpoint has been completed, the application can use the
 Checkpoint to reset all the Readers in the ReaderGroup to the known consistent
 state represented by the Checkpoint.
 
-For more details on working with ReaderGroups, see [Working with Pravega: Reader
-Groups](basic-reader-and-writer.md).
+For more details on working with ReaderGroups, 
+see [ReaderGroup Basics](basic-reader-and-writer.md#readergroup-basics).
+
 
 ## Transactions
 
@@ -384,8 +378,8 @@ The following figure depicts the components deployed by Pravega:
 Pravega is deployed as a distributed system – a cluster of servers and storage
 coordinated to run Pravega called a "Pravega cluster".  
 
-Pravega itself is composed of two kinds of workload: Controller instances and
-Pravega Servers. The set of Pravega Servers is known collectively as the Segment Store. 
+Pravega presents a software-defined storage (SDS) architecture formed by Controller instances 
+(control plane) and Pravega Servers (data plane).The set of Pravega Servers is known collectively as the Segment Store. 
 
 The set of Controller instances make up the control plane of Pravega, providing
 functionality to create, update and delete Streams, retrieve information about
@@ -412,10 +406,19 @@ it is moved into Tier 2 Storage.
 Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
 coordination mechanism for the components in the Pravega cluster.  
 
+Pravega is built as a data storage primitive first and foremost.  Pravega is
+carefully designed to take advantage of software defined storage so that the
+amount of data stored in Pravega is limited only by the total storage capacity
+of your data center.  And like you would expect from a storage primitive, once
+data is written to Pravega it is durably stored.  Short of a disaster that
+permanently destroys a large portion of a data center, data stored in Pravega is never
+lost.
+
 Pravega provides a client library, written in Java, for building client-side
 applications such as analytics applications using Flink. The Pravega Java Client
 Library manages the interaction between application code and Pravega via a
 custom TCP wire protocol.
+
 
 ## Putting the Concepts Together
 

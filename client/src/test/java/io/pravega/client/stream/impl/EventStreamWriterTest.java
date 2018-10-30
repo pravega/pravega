@@ -85,8 +85,8 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
     
     private CompletableFuture<StreamSegmentsWithPredecessors> getReplacement(Segment old, Segment repacement) {
-        Map<SegmentWithRange, List<Integer>> segments = new HashMap<>();
-        segments.put(new SegmentWithRange(repacement, 0, 1), Collections.singletonList(old.getSegmentNumber()));
+        Map<SegmentWithRange, List<Long>> segments = new HashMap<>();
+        segments.put(new SegmentWithRange(repacement, 0, 1), Collections.singletonList(old.getSegmentId()));
         return CompletableFuture.completedFuture(new StreamSegmentsWithPredecessors(segments, ""));
     }
 
@@ -333,15 +333,15 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).transactionTimeoutScaleGracePeriod(0).build();
+        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
-        Mockito.when(controller.createTransaction(stream, 0, 0))
+        Mockito.when(controller.createTransaction(stream, 0))
                .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
-        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any(), any()))
+        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
                 .thenReturn(outputStream);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
 
@@ -367,15 +367,15 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         StreamImpl stream = new StreamImpl(scope, streamName);
         Segment segment = new Segment(scope, streamName, 0);
         UUID txid = UUID.randomUUID();
-        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).transactionTimeoutScaleGracePeriod(0).build();
+        EventWriterConfig config = EventWriterConfig.builder().transactionTimeoutTime(0).build();
         SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
         Controller controller = Mockito.mock(Controller.class);
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         FakeSegmentOutputStream outputStream = new FakeSegmentOutputStream(segment);
         FakeSegmentOutputStream bad = new FakeSegmentOutputStream(segment);
-        Mockito.when(controller.createTransaction(stream, 0,  0))
+        Mockito.when(controller.createTransaction(stream, 0))
                .thenReturn(CompletableFuture.completedFuture(new TxnSegments(getSegments(segment), txid)));
-        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any(), any()))
+        Mockito.when(streamFactory.createOutputStreamForTransaction(eq(segment), eq(txid), any(), any()))
                 .thenReturn(outputStream);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(bad);
 

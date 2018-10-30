@@ -29,12 +29,13 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     private final Controller controller;
     private final ConnectionFactory cf;
+    private final Consumer<Segment> nopSegmentSealedCallback = s -> log.error("Transaction segment: {} cannot be sealed", s);
 
     @Override
-    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, Consumer<Segment> segmentSealedCallback,
-                                                                EventWriterConfig config, String delegationToken) {
+    public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
+                                                                String delegationToken) {
         return new SegmentOutputStreamImpl(StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId), controller, cf,
-                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config), delegationToken);
+                UUID.randomUUID(), nopSegmentSealedCallback, getRetryFromConfig(config), delegationToken);
     }
 
     @Override
@@ -43,7 +44,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                 UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config), delegationToken);
         try {
             result.getConnection();
-        } catch (RetriesExhaustedException | SegmentSealedException e) {
+        } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;

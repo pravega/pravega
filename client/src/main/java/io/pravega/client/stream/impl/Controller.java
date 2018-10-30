@@ -115,7 +115,7 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the scaling was started or not.
      */
-    CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
+    CompletableFuture<Boolean> startScale(final Stream stream, final List<Long> sealedSegments,
                                            final Map<Double, Double> newKeyRanges);
 
     /**
@@ -128,7 +128,7 @@ public interface Controller extends AutoCloseable {
      * @param executorService executor to be used for busy waiting.
      * @return A Cancellable request object which can be used to get the future for scale operation or cancel the scale operation.
      */
-    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                            final Map<Double, Double> newKeyRanges,
                                            final ScheduledExecutorService executorService);
 
@@ -158,11 +158,9 @@ public interface Controller extends AutoCloseable {
      * 
      * @param stream           Stream name
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
-     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
-     *                         the scaling operation is initiated on the txn stream.
      * @return                 Transaction id.
      */
-    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod);
+    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease);
 
     /**
      * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.

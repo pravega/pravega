@@ -9,8 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Metric;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -37,18 +35,13 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,6 +50,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
 
@@ -141,7 +141,8 @@ public class MetricsTest {
 
     @Test
     public void metricsTimeBasedCacheEvictionTest() throws InterruptedException, ExecutionException {
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
             boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
 
@@ -188,7 +189,7 @@ public class MetricsTest {
                 }
             }
 
-            long initialCount = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter");
+            long initialCount = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
@@ -212,7 +213,7 @@ public class MetricsTest {
                 }
             }
 
-            long countAfterCacheEvicted = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".0.Counter");
+            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -223,7 +224,7 @@ public class MetricsTest {
 
             //Seal segment 0, create segment 1
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
-                    Collections.singletonList(0),
+                    Collections.singletonList(0L),
                     map,
                     executorService).getFuture();
             Assert.assertTrue(scaleStatus.get());
@@ -254,7 +255,7 @@ public class MetricsTest {
                 }
             }
 
-            long countFromSecondSegment = getCounter("pravega.segmentstore.segment_read_bytes." + scope + "." + STREAM_NAME + ".1.Counter");
+            long countFromSecondSegment = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").getCount();
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
 
@@ -276,14 +277,5 @@ public class MetricsTest {
 
         log.info("Metrics Time based Cache Eviction test succeeds");
     }
-
-    private long getCounter(String metricsName) {
-        Metric metric = MetricsProvider.getMetric(metricsName);
-        if (metric == null) {
-            log.info("No metric reported");
-            return 0;
-        }
-        Counter counter = (Counter) metric;
-        return counter.getCount();
-    }
+       
 }

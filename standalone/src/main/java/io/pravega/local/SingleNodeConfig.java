@@ -25,9 +25,12 @@ public class SingleNodeConfig {
     public final static Property<String> PASSWD_FILE = Property.named("passwdFile", "");
     public final static Property<String> USER_NAME = Property.named("userName", "");
     public final static Property<String> PASSWD = Property.named("passwd", "");
+    public final static Property<Boolean> ENABLE_REST_SERVER = Property.named("enableRestServer", true);
     public final static Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public final static Property<Boolean> ENABLE_AUTH = Property.named("enableAuth", false);
     public final static String PROPERTY_FILE = "singlenode.configurationFile";
+    public final static Property<String> KEYSTORE_JKS = Property.named("singlenode.keyStoreJKS", "");
+    public final static Property<String> KEYSTORE_JKS_PASSWORD = Property.named("singlenode.keyStoreJKSPassword", "");
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
@@ -89,6 +92,24 @@ public class SingleNodeConfig {
     private String passwd;
 
     /**
+     * JKS key store for secure access to controller REST API.
+     */
+    @Getter
+    private final String keyStoreJKS;
+
+    /**
+     * Password file for JKS key store for secure access to controller REST API.
+     */
+    @Getter
+    private final String keyStoreJKSPassword;
+
+    /**
+     * Flag to enable REST server.
+     */
+    @Getter
+    private boolean enableRestServer;
+
+    /**
      * Flag to enable TLS.
      */
     @Getter
@@ -113,8 +134,11 @@ public class SingleNodeConfig {
         this.passwdFile = properties.get(PASSWD_FILE);
         this.userName = properties.get(USER_NAME);
         this.passwd = properties.get(PASSWD);
+        this.enableRestServer = properties.getBoolean(ENABLE_REST_SERVER);
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         this.enableAuth = properties.getBoolean(ENABLE_AUTH);
+        keyStoreJKS = properties.get(KEYSTORE_JKS);
+        keyStoreJKSPassword = properties.get(KEYSTORE_JKS_PASSWORD);
     }
 
     /**

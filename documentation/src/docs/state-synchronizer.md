@@ -19,7 +19,7 @@ we explore with this document.
 
 Instructions for running the sample applications can be found in the[ Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/master/standalone-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
 Concepts](pravega-concepts.md)) before continuing reading this page.
@@ -44,7 +44,7 @@ concurrently read and write the shared state in a consistent fashion. 
 Before we dive into the details about how to use State Synchronizer, let's take
 a quick look at an example application that uses State Synchronizer.  We have
 provided a simple yet illustrative example of using State
-Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/master/standalone-examples/src/main/java/io/pravega/example/statesynchronizer)
+Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/v0.4.0/pravega-client-examples/src/main/java/io/pravega/example/statesynchronizer)
 
 The example uses State Synchronizer to build an implementation of Java's Map
 data structure called SharedMap.  We use that primitive SharedMap data structure
@@ -370,16 +370,16 @@ StateSynchronizer programming in a bit more detail:
  */
 public V put(K key, V value){
     final AtomicReference<V> oldValue = new AtomicReference<V>(null);
-    stateSynchronizer.updateState(state -> {
+     stateSynchronizer.updateState((state, updates) -> {
         oldValue.set(state.get(key));
-        return Collections.singletonList(new Put<K,V>(key,value));
+        updates.add(new Put<K,V>(key,value));
     });
     return oldValue.get();
 }
 ```
 
 It is important to note that the function provided to the StateSynchronizer's
-updateState() will be call potentially multiple times. The result of applying the function to the old state is written
+updateState() will be called potentially multiple times. The result of applying the function to the old state is written
 only when it is applied against the most current revision of the state.
 If there was a race and the optimistic concurrency check fails, it will be called again.
 Most of the time there will only be a small number of invocations.  In some cases, the
@@ -412,4 +412,3 @@ Stream.
 As a result of the compact() operation, a new initial sate (Initial2) is written
 to the stream.  Now, all the data from Change3 and older is no longer relevant
 and can be garbage collected out of the Stream.
-

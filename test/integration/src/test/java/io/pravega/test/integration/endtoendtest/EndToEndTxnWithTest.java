@@ -25,6 +25,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -38,10 +39,13 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -55,6 +59,9 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
+
+    private static final String STREAM = "stream";
+    private static final String SCOPE = "scope";
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
@@ -114,7 +121,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
+                EventWriterConfig.builder().transactionTimeoutTime(10000).build());
         Transaction<String> transaction = test.beginTxn();
         transaction.writeEvent("0", "txntest1");
         transaction.commit();
@@ -125,7 +132,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         map.put(0.0, 0.33);
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
-        Boolean result = controller.scaleStream(stream, Collections.singletonList(0), map, executorService()).getFuture().get();
+        Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executorService()).getFuture().get();
 
         assertTrue(result);
 
@@ -145,6 +152,38 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         assertNotNull(event);
         assertEquals("txntest2", event.getEvent());
     }
+
+    @Test(timeout = 30000)
+    public void testTxnWithErrors() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scope(SCOPE)
+                                                        .streamName(STREAM)
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controller.createStream(config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> test = clientFactory.createEventWriter(STREAM, new JavaSerializer<>(),
+                EventWriterConfig.builder().transactionTimeoutTime(10000).build());
+        Transaction<String> transaction = test.beginTxn();
+        transaction.writeEvent("0", "txntest1");
+        //abort the transaction to simulate a txn abort due to a missing ping request.
+        controller.abortTransaction(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
+        TimeUnit.SECONDS.sleep(10);
+        //check the status of the transaction.
+        Transaction.Status status = controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
+        assertEquals("Transaction status should be Aborted", Transaction.Status.ABORTED, status);
+        transaction.writeEvent("0", "txntest2");
+        //verify that commit fails with TxnFailedException.
+        AssertExtensions.assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
+    }
+
+
 
     @Test(timeout = 10000)
     public void testTxnConfig() throws Exception {
@@ -166,17 +205,8 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         EventWriterConfig defaultConfig = EventWriterConfig.builder().build();
         assertNotNull(createTxn(clientFactory, defaultConfig, "test"));
 
-        EventWriterConfig validConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build();
+        EventWriterConfig validConfig = EventWriterConfig.builder().transactionTimeoutTime(10000).build();
         assertNotNull(createTxn(clientFactory, validConfig, "test"));
-
-        EventWriterConfig leaseMoreThanScaleGraceConfig = EventWriterConfig.builder()
-                .transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(11000).build();
-        AssertExtensions.assertThrows("lease more than scale grace period not honoured",
-                () -> createTxn(clientFactory, leaseMoreThanScaleGraceConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
-
-        EventWriterConfig highScaleGraceConfig = EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(100 * 1000).build();
-        AssertExtensions.assertThrows("high scale grace period not honoured",
-                () -> createTxn(clientFactory, highScaleGraceConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
 
         EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
         AssertExtensions.assertThrows("low timeout period not honoured",

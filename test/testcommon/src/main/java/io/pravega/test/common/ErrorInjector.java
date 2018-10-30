@@ -10,10 +10,10 @@
 package io.pravega.test.common;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import lombok.SneakyThrows;
 
 /**
  * Simple count-based error injector.
@@ -56,11 +56,14 @@ public class ErrorInjector<T extends Throwable> {
      * @param injector The Error Injector to use.
      * @param <T>      The type of exception to throw.
      */
+    @SneakyThrows
     public static <T extends Throwable> void throwSyncExceptionIfNeeded(ErrorInjector<T> injector) {
         if (injector != null) {
             T ex = injector.generateExceptionIfNecessary();
             if (ex != null) {
-                throw new CompletionException(ex);
+                // Throw the exception directly (thanks to SneakyThrows), vs wrapping it in some other exception, which
+                // may not be handled or expected by the "catching" code.
+                throw ex;
             }
         }
     }

@@ -25,10 +25,12 @@ service ControllerService {
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
+    rpc getSegmentsBetween(StreamCutRange) returns (StreamCutRangeResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
+    rpc isStreamCutValid(StreamCut) returns (StreamCutValidityResponse);
     rpc createTransaction(CreateTxnRequest) returns (CreateTxnResponse);
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
@@ -112,7 +114,7 @@ message PingTxnStatus {
         OK = 0;
         LEASE_TOO_LARGE = 1;
         MAX_EXECUTION_TIME_EXCEEDED = 2;
-        SCALE_GRACE_TIME_EXCEEDED = 3;
+        SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
     }
     Status status = 1;
@@ -169,13 +171,18 @@ message StreamConfig {
 
 message StreamCut {
     StreamInfo streamInfo = 1;
-    map<int32, int64> cut = 2;
+    map<int64, int64> cut = 2;
 }
 
+ message StreamCutRange {
+     StreamInfo streamInfo = 1;
+     map<int64, int64> from = 2;
+     map<int64, int64> to = 3;
+ }
 
 message SegmentId {
     StreamInfo streamInfo = 1;
-    int32 segmentNumber = 2;
+    int64 segmentId = 2;
 }
 
 message SegmentRange {
@@ -206,7 +213,7 @@ message TxnId {
 message CreateTxnRequest {
     StreamInfo streamInfo = 1;
     int64 lease = 2;
-    int64 scaleGracePeriod = 3;
+    int64 scaleGracePeriod = 3 [deprecated=true];
 }
 
 message CreateTxnResponse {
@@ -229,15 +236,20 @@ message PingTxnRequest {
 message SuccessorResponse {
     message SegmentEntry {
         SegmentRange segment = 1;
-        repeated int32 value = 2;
+        repeated int64 value = 2;
     }
     repeated SegmentEntry segments = 1;
     string delegationToken = 2;
 }
 
+ message StreamCutRangeResponse {
+     repeated SegmentId segments = 1;
+     string delegationToken = 2;
+ }
+
 message ScaleRequest {
     StreamInfo streamInfo = 1;
-    repeated int32 sealedSegments = 2;
+    repeated int64 sealedSegments = 2;
     message KeyRangeEntry {
         double start = 1;
         double end = 2;
@@ -284,6 +296,10 @@ message GetSegmentsRequest {
 }
 
 message SegmentValidityResponse {
+    bool response = 1;
+}
+
+message StreamCutValidityResponse {
     bool response = 1;
 }
 

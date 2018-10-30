@@ -27,10 +27,8 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
-import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.InlineExecutor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -41,6 +39,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -48,10 +48,8 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -63,9 +61,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 
-public class SegmentOutputStreamTest {
+public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
     private static final String SEGMENT = "test/0";
+    private static final String TXN_SEGMENT = "scope/stream/0.#epoch.0#transaction.00000000000000000000000000000001";
     private static final int SERVICE_PORT = 12345;
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 1, 2);
     private final Consumer<Segment> segmentSealedCallback = segment -> { };
@@ -79,9 +78,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -139,6 +136,34 @@ public class SegmentOutputStreamTest {
     }
 
     @Test(timeout = 10000)
+    public void testConnectAndFailedSetupAppendDueToTruncation() throws Exception {
+        AtomicBoolean callbackInvoked = new AtomicBoolean();
+        Consumer<Segment> resendToSuccessorsCallback = segment -> {
+            callbackInvoked.set(true);
+        };
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
+        cf.setExecutor(executor);
+
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        @Cleanup
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, resendToSuccessorsCallback, RETRY_SCHEDULE, "");
+        output.reconnect();
+        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT, "SomeException"));
+        CompletableFuture<ClientConnection> connectionFuture = output.getConnection();
+        assertThrows(NoSuchSegmentException.class, () -> Futures.getThrowingException(connectionFuture));
+        assertTrue(callbackInvoked.get());
+    }
+
+
+    @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
@@ -163,7 +188,7 @@ public class SegmentOutputStreamTest {
         cf.getProcessor(uri).connectionDropped();
         verify(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
 
-        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(3, SEGMENT, "newHost"));
+        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(3, SEGMENT, "newHost", "SomeException"));
         verify(connection).send(new SetupAppend(4, cid, SEGMENT, ""));
     }
 
@@ -197,9 +222,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -217,9 +240,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         InOrder inOrder = inOrder(connection);
@@ -277,9 +298,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -426,9 +445,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -484,9 +501,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -538,9 +553,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -567,9 +580,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -584,7 +595,7 @@ public class SegmentOutputStreamTest {
         output.write(new PendingEvent(null, data, ack));
         order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
         assertEquals(false, ack.isDone());
-        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
         output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
@@ -594,9 +605,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdown")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -614,7 +623,7 @@ public class SegmentOutputStreamTest {
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -634,9 +643,7 @@ public class SegmentOutputStreamTest {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        @Cleanup("shutdownNow")
-        InlineExecutor inlineExecutor = new InlineExecutor();
-        cf.setExecutor(inlineExecutor);
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
@@ -655,7 +662,7 @@ public class SegmentOutputStreamTest {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "netty-callback");
         //simulate a SegmentIsSealed WireCommand from SegmentStore.
-        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT)));
+        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException")));
 
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -811,7 +818,7 @@ public class SegmentOutputStreamTest {
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT));
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
             output.getUnackedEventsOnSeal();
         });
         verify(connection).send(new WireCommands.KeepAlive());
@@ -823,39 +830,101 @@ public class SegmentOutputStreamTest {
     public void testNoSuchSegment() throws Exception {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
-        implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
-        cf.setExecutor(executor);
-
+        cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        @Cleanup
+        InOrder order = Mockito.inOrder(connection);
+
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-
-        cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate segment does not exist
-        verify(connection).close();
-        
-        //With an inflight event.
-        connection = mock(ClientConnection.class);
-        cf.provideConnection(uri, connection);
-        @Cleanup
-        SegmentOutputStreamImpl output2 = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
-        output2.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
-        CompletableFuture<Void> ack = new CompletableFuture<>();
-        output2.write(new PendingEvent("RoutingKey", ByteBuffer.wrap(new byte[] { 1, 2, 3 }), ack));
-        assertFalse(ack.isDone());
+        ByteBuffer data = getBuffer("test");
 
-        cf.getProcessor(uri).noSuchSegment(new NoSuchSegment(1, SEGMENT)); // simulate segment does not exist
-        verify(connection).close();
-        assertTrue(ack.isCompletedExceptionally());
-        assertTrue(Futures.getException(ack) instanceof NoSuchSegmentException);
+        //Write an Event.
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertEquals(false, ack.isDone()); //writer is not complete until a response from Segment Store is received.
+
+        //Simulate a No Such Segment while waiting on flush.
+        AssertExtensions.assertBlocks(() -> {
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        }, () -> {
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT, "SomeException"));
+            output.getUnackedEventsOnSeal();
+        });
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
-    
+
+    @Test(timeout = 10000)
+    public void testFlushDuringTransactionAbort() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(1, cid, TXN_SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, TXN_SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        // Write an Event.
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack));
+        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertFalse(ack.isDone()); //writer is not complete until a response from Segment Store is received.
+
+        // Validate that flush() is blocking until there is a response from Segment Store.
+        AssertExtensions.assertBlocks(() -> {
+            // A flush() should throw a SegmentSealedException.
+            AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+        }, () -> {
+            // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT, "SomeException"));
+        });
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
+    }
+
+    @Test(timeout = 10000)
+    public void testCloseDuringTransactionAbort() throws Exception {
+
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(1, cid, TXN_SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(1, TXN_SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        // Write an Event.
+        CompletableFuture<Void> ack1 = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack1));
+        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, Unpooled.wrappedBuffer(data), null));
+        assertFalse(ack1.isDone()); //writer is not complete until a response from Segment Store is received.
+
+        // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT, "SomeException"));
+
+        //Trigger a second write.
+        CompletableFuture<Void> ack2 = new CompletableFuture<>();
+        output.write(new PendingEvent(null, data, ack2));
+
+        // Closing the Segment writer should cause a SegmentSealedException.
+        AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.close());
+    }
 }

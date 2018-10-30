@@ -16,12 +16,17 @@ import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.index.HostIndex;
-import io.pravega.controller.store.stream.tables.ActiveTxnRecord;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StreamConfigurationRecord;
-import io.pravega.controller.store.stream.tables.StreamCutRecord;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
+import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -36,8 +41,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.List;
@@ -131,7 +134,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public OperationContext createContext(String scope, String name) {
-        return new OperationContextImpl(getStream(scope, name, null));
+        return new OperationContextImpl<>(getStream(scope, name, null));
     }
 
     @Override
@@ -141,19 +144,21 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final long createTimestamp,
                                                    final OperationContext context,
                                                    final Executor executor) {
-        return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
-                .thenApply(result -> {
-                    if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
-                        CREATE_STREAM.reportSuccessValue(1);
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                                configuration.getScalingPolicy().getMinNumSegments());
-                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
-                    }
+        return getSafeStartingSegmentNumberFor(scope, name)
+                .thenCompose(startingSegmentNumber ->
+                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor)
+                    .thenApply(result -> {
+                        if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
+                            CREATE_STREAM.reportSuccessValue(1);
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
+                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
+                                    configuration.getScalingPolicy().getMinNumSegments());
+                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
+                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
+                        }
 
-                    return result;
-                });
+                        return result;
+                    }));
     }
 
     @Override
@@ -161,8 +166,13 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final String name,
                                                 final OperationContext context,
                                                 final Executor executor) {
-        return withCompletion(getStream(scope, name, context).delete(), executor)
-                .thenAccept(r -> cache.invalidate(new ImmutablePair<>(scope, name)))
+        Stream s = getStream(scope, name, context);
+        return s.getActiveSegments()
+                .thenApply(activeSegments -> activeSegments.stream().map(Segment::getNumber)
+                                                                    .reduce(Integer::max).get())
+                .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
+                .thenCompose(v -> withCompletion(s.delete(), executor))
+                .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)))
                 .thenApply(result -> {
                     DELETE_STREAM.reportSuccessValue(1);
                     DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));
@@ -174,7 +184,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> setState(final String scope, final String name,
+    public CompletableFuture<Void> setState(final String scope, final String name,
                                                final State state, final OperationContext context,
                                                final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateState(state), executor);
@@ -189,8 +199,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> resetStateConditionally(String scope, String name, State state, OperationContext context, Executor executor) {
-        return withCompletion(getStream(scope, name, context).resetStateConditionally(state), executor);
+    public CompletableFuture<VersionedMetadata<State>> updateVersionedState(final String scope, final String name,
+                                                                            final State state, final VersionedMetadata<State> previous, final OperationContext context,
+                                                                            final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateVersionedState(previous, state), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<State>> getVersionedState(final String scope, final String name,
+                                             final OperationContext context,
+                                             final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getVersionedState(), executor);
     }
 
     /**
@@ -260,24 +279,23 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> startTruncation(final String scope,
                                                    final String name,
-                                                   final Map<Integer, Long> streamCut,
+                                                   final Map<Long, Long> streamCut,
                                                    final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).startTruncation(streamCut), executor);
     }
 
     @Override
-    public CompletableFuture<Void> completeTruncation(final String scope, final String name,
+    public CompletableFuture<Void> completeTruncation(final String scope, final String name, final VersionedMetadata<StreamTruncationRecord> record,
                                                       final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).completeTruncation(), executor);
+        return withCompletion(getStream(scope, name, context).completeTruncation(record), executor);
     }
 
     @Override
-    public CompletableFuture<StreamTruncationRecord> getTruncationRecord(final String scope,
-                                                                         final String name,
-                                                                         final boolean ignoreCached,
-                                                                         final OperationContext context,
-                                                                         final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getTruncationRecord(ignoreCached), executor);
+    public CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationRecord(final String scope,
+                                                                                            final String name,
+                                                                                            final OperationContext context,
+                                                                                            final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getTruncationRecord(), executor);
     }
 
     @Override
@@ -291,8 +309,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> completeUpdateConfiguration(final String scope, final String name,
+                                                               final VersionedMetadata<StreamConfigurationRecord> existing,
                                                                final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).completeUpdateConfiguration(), executor);
+        return withCompletion(getStream(scope, name, context).completeUpdateConfiguration(existing), executor);
     }
 
     @Override
@@ -303,12 +322,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<StreamConfigurationRecord> getConfigurationRecord(final String scope,
-                                                                               final String name,
-                                                                               final boolean ignoreCached,
-                                                                               final OperationContext context,
-                                                                               final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getConfigurationRecord(ignoreCached), executor);
+    public CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getConfigurationRecord(final String scope,
+                                                                                                  final String name,
+                                                                                                  final OperationContext context,
+                                                                                                  final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getVersionedConfigurationRecord(), executor);
     }
 
     @Override
@@ -317,23 +335,28 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenApply(result -> {
+    public CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenAccept(result -> {
             SEAL_STREAM.reportSuccessValue(1);
             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-            return result;
         });
     }
 
 
     @Override
-    public CompletableFuture<Segment> getSegment(final String scope, final String name, final int number, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getSegment(number), executor);
+    public CompletableFuture<Segment> getSegment(final String scope, final String name, final long segmentId, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getSegment(segmentId), executor);
+    }
+    
+    @Override
+    public CompletableFuture<Set<Long>> getAllSegmentIds(final String scope, final String name, final OperationContext context, final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getAllSegmentIds(), executor);
     }
 
     @Override
-    public CompletableFuture<Integer> getSegmentCount(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getSegmentCount(), executor);
+    public CompletableFuture<Map<Segment, Long>> getSegmentsAtHead(final String scope, final String name, final OperationContext context, final Executor executor) {
+        final Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getSegmentsAtHead(), executor);
     }
 
     @Override
@@ -342,94 +365,98 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.getState(true)
                         .thenComposeAsync(state -> {
                             if (State.SEALED.equals(state)) {
-                                return CompletableFuture.completedFuture(Collections.<Integer>emptyList());
+                                return CompletableFuture.completedFuture(Collections.emptyList());
                             } else {
                                 return stream.getActiveSegments();
                             }
-                        }, executor)
-                        .thenComposeAsync(currentSegments ->
-                                Futures.allOfWithResults(currentSegments.stream().map(stream::getSegment)
-                                                                        .collect(Collectors.toList())), executor),
+                        }, executor),
                 executor);
     }
-
-
+    
     @Override
-    public CompletableFuture<List<Integer>> getActiveSegments(final String scope, final String name, final long timestamp, final OperationContext context, final Executor executor) {
-        Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getActiveSegments(timestamp), executor);
-    }
-
-    @Override
-    public CompletableFuture<List<Segment>> getActiveSegments(final String scope,
+    public CompletableFuture<List<Segment>> getSegmentsInEpoch(final String scope,
                                                               final String stream,
                                                               final int epoch,
                                                               final OperationContext context,
                                                               final Executor executor) {
         final Stream streamObj = getStream(scope, stream, context);
-        return withCompletion(streamObj.getActiveSegments(epoch).thenComposeAsync(segments -> {
-            return Futures.allOfWithResults(segments
-                    .stream()
-                    .map(streamObj::getSegment)
-                    .collect(Collectors.toList()));
-        }, executor), executor);
+        return withCompletion(streamObj.getSegmentsInEpoch(epoch), executor);
     }
 
     @Override
-    public CompletableFuture<List<Integer>> getActiveSegmentIds(final String scope,
-                                                                final String stream,
-                                                                final int epoch,
-                                                                final OperationContext context,
-                                                                final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getActiveSegments(epoch), executor);
-    }
-
-    @Override
-    public CompletableFuture<Map<Integer, List<Integer>>> getSuccessors(final String scope, final String streamName,
-                                                                        final int segmentNumber, final OperationContext context, final Executor executor) {
+    public CompletableFuture<Map<Segment, List<Long>>> getSuccessors(final String scope, final String streamName,
+                                                                  final long segmentId, final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return withCompletion(stream.getSuccessorsWithPredecessors(segmentNumber), executor);
+        return withCompletion(stream.getSuccessorsWithPredecessors(segmentId), executor);
     }
 
     @Override
-    public CompletableFuture<StartScaleResponse> startScale(final String scope,
-                                                            final String name,
-                                                            final List<Integer> sealedSegments,
-                                                            final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
-                                                            final long scaleTimestamp,
-                                                            final boolean runOnlyIfStarted,
-                                                            final OperationContext context,
-                                                            final Executor executor) {
-        return withCompletion(getStream(scope, name, context)
-                .startScale(sealedSegments, newRanges, scaleTimestamp, runOnlyIfStarted), executor);
+    public CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final String scope, final String streamName, final Map<Long, Long> from,
+                                                                         final Map<Long, Long> to, final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return withCompletion(stream.getSegmentsBetweenStreamCuts(from, to), executor);
     }
 
     @Override
-    public CompletableFuture<Void> scaleCreateNewSegments(final String scope,
+    public CompletableFuture<Boolean> isStreamCutValid(final String scope,
+                                                final String streamName,
+                                                final Map<Long, Long> streamCut,
+                                                final OperationContext context,
+                                                final Executor executor) {
+        Stream stream = getStream(scope, streamName, context);
+        return withCompletion(stream.isStreamCutValid(streamCut), executor);
+    }
+
+
+    @Override
+    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final String scope,
+                                                                                   final String name,
+                                                                                   final List<Long> sealedSegments,
+                                                                                   final List<Map.Entry<Double, Double>> newRanges,
+                                                                                   final long scaleTimestamp,
+                                                                                   final VersionedMetadata<EpochTransitionRecord> record,
+                                                                                   final OperationContext context,
+                                                                                   final Executor executor) {
+        return withCompletion(getStream(scope, name, context).submitScale(sealedSegments, newRanges, scaleTimestamp, record), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> getEpochTransition(String scope, String stream,
+                                                                                          OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).getEpochTransition(), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> startScale(final String scope,
                                                           final String name,
+                                                          final boolean isManualScale,
+                                                          final VersionedMetadata<EpochTransitionRecord> record,
+                                                          final VersionedMetadata<State> state,
                                                           final OperationContext context,
                                                           final Executor executor) {
-        return withCompletion(getStream(scope, name, context).scaleCreateNewSegments(), executor);
+        return withCompletion(getStream(scope, name, context).startScale(isManualScale, record, state), executor);
     }
 
     @Override
-    public CompletableFuture<Void> scaleNewSegmentsCreated(final String scope,
-                                                           final String name,
-                                                           final OperationContext context,
-                                                           final Executor executor) {
-        return withCompletion(getStream(scope, name, context).scaleNewSegmentsCreated(), executor);
+    public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> scaleCreateNewEpochs(final String scope,
+                                                          final String name,
+                                                          final VersionedMetadata<EpochTransitionRecord> record,
+                                                          final OperationContext context,
+                                                          final Executor executor) {
+        return withCompletion(getStream(scope, name, context).scaleCreateNewEpoch(record), executor);
     }
-
+    
     @Override
     public CompletableFuture<Void> scaleSegmentsSealed(final String scope,
                                                        final String name,
-                                                       final Map<Integer, Long> sealedSegmentSizes,
+                                                       final Map<Long, Long> sealedSegmentSizes,
+                                                       final VersionedMetadata<EpochTransitionRecord> record,
                                                        final OperationContext context,
                                                        final Executor executor) {
-        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes), executor);
+        CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes, record), executor);
 
         future.thenCompose(result -> CompletableFuture.allOf(
-                getActiveSegments(scope, name, System.currentTimeMillis(), null, executor).thenAccept(list ->
+                getActiveSegments(scope, name, null, executor).thenAccept(list ->
                         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
                 findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry -> {
                     DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), simpleEntry.getKey());
@@ -440,28 +467,33 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<DeleteEpochResponse> tryDeleteEpochIfScaling(final String scope,
-                                                                          final String name,
-                                                                          final int epoch,
-                                                                          final OperationContext context,
-                                                                          final Executor executor) {
-        Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.scaleTryDeleteEpoch(epoch), executor)
-                .thenCompose(deleted -> {
-                    if (deleted) {
-                        return stream.latestScaleData()
-                                .thenCompose(pair -> {
-                                    List<Integer> segmentsSealed = pair.getLeft();
-                                    return Futures.allOfWithResults(pair.getRight().stream().map(stream::getSegment)
-                                                                        .collect(Collectors.toList()))
-                                                  .thenApply(segmentsCreated ->
-                                                    new DeleteEpochResponse(true, segmentsSealed, segmentsCreated));
-                                });
-                    } else {
-                        return CompletableFuture.completedFuture(
-                                new DeleteEpochResponse(false, null, null));
-                    }
-                });
+    public CompletableFuture<Void> completeScale(final String scope,
+                                                 final String name,
+                                                 final VersionedMetadata<EpochTransitionRecord> record,
+                                                 final OperationContext context,
+                                                 final Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeScale(record), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startRollingTxn(String scope, String stream,
+                                                                                              int activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing,
+                                                                                              OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).startRollingTxn(activeEpoch, existing), executor);
+    }
+
+
+    @Override
+    public CompletableFuture<Void> rollingTxnCreateDuplicateEpochs(String scope, String name,
+                        Map<Long, Long> sealedTxnEpochSegments, long time, VersionedMetadata<CommittingTransactionsRecord> record,
+                        OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, name, context).rollingTxnCreateDuplicateEpochs(sealedTxnEpochSegments, time, record), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeRollingTxn(String scope, String name, Map<Long, Long> sealedActiveEpochSegments,
+                                                      VersionedMetadata<CommittingTransactionsRecord> record, OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, name, context).completeRollingTxn(sealedActiveEpochSegments, record), executor);
     }
 
     @Override
@@ -472,37 +504,56 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<StreamCutRecord>> getStreamCutsFromRetentionSet(final String scope, final String name,
-                                                                                  final OperationContext context, final Executor executor) {
+    public CompletableFuture<RetentionSet> getRetentionSet(final String scope, final String name,
+                                                           final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getRetentionStreamCuts(), executor);
+        return withCompletion(stream.getRetentionSet(), executor);
     }
 
     @Override
-    public CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String name, final StreamCutRecord streamCut,
+    public CompletableFuture<StreamCutRecord> getStreamCutRecord(final String scope, final String name,
+                                                          final StreamCutReferenceRecord reference,
+                                                          final OperationContext context, final Executor executor) {
+        Stream stream = getStream(scope, name, context);
+        return withCompletion(stream.getStreamCutRecord(reference), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStreamCutBefore(final String scope, final String name, final StreamCutReferenceRecord streamCut,
                                                          final OperationContext context, final Executor executor) {
         Stream stream = getStream(scope, name, context);
         return withCompletion(stream.deleteStreamCutBefore(streamCut), executor);
     }
 
     @Override
-    public CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String name, final Map<Integer, Long> streamCut,
-                                                        final OperationContext context, final ScheduledExecutorService executor) {
+    public CompletableFuture<Long> getSizeTillStreamCut(final String scope, final String name, final Map<Long, Long> streamCut,
+                                                        final Optional<StreamCutRecord> reference, final OperationContext context, 
+                                                        final ScheduledExecutorService executor) {
         Stream stream = getStream(scope, name, context);
-        return withCompletion(stream.getSizeTillStreamCut(streamCut), executor);
+        return withCompletion(stream.getSizeTillStreamCut(streamCut, reference), executor);
+    }
+
+    @Override
+    public CompletableFuture<UUID> generateTransactionId(final String scopeName, final String streamName,
+                                                             final OperationContext context,
+                                                             final Executor executor) {
+        Stream stream = getStream(scopeName, streamName, context);
+
+        // This can throw write conflict exception
+        CompletableFuture<Int96> nextFuture = getNextCounter();
+        return withCompletion(nextFuture.thenCompose(next -> stream.generateNewTxnId(next.getMsb(), next.getLsb())), executor);
     }
 
     @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
-                                                                         final String streamName,
-                                                                         final UUID txnId,
-                                                                         final long lease,
-                                                                         final long maxExecutionTime,
-                                                                         final long scaleGracePeriod,
-                                                                         final OperationContext context,
-                                                                         final Executor executor) {
+                                                                                            final String streamName,
+                                                                                            final UUID txnId,
+                                                                                            final long lease,
+                                                                                            final long maxExecutionTime,
+                                                                                            final OperationContext context,
+                                                                                            final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime, scaleGracePeriod), executor)
+        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count -> {
                         DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
@@ -538,11 +589,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName, final int epoch,
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName,
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        CompletableFuture<TxnStatus> future = withCompletion(stream.commitTransaction(epoch, txId), executor);
+        CompletableFuture<TxnStatus> future = withCompletion(stream.commitTransaction(txId), executor);
 
         future.thenCompose(result -> {
             return stream.getNumberOfOngoingTransactions().thenAccept(count -> {
@@ -559,7 +610,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                               final String streamName,
                                                                               final UUID txId,
                                                                               final boolean commit,
-                                                                              final Optional<Integer> version,
+                                                                              final Optional<Version> version,
                                                                               final OperationContext context,
                                                                               final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
@@ -567,11 +618,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String streamName, final int epoch,
+    public CompletableFuture<TxnStatus> abortTransaction(final String scope, final String streamName,
                                                          final UUID txId, final OperationContext context,
                                                          final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        CompletableFuture<TxnStatus> future = withCompletion(stream.abortTransaction(epoch, txId), executor);
+        CompletableFuture<TxnStatus> future = withCompletion(stream.abortTransaction(txId), executor);
         future.thenApply(result -> {
             stream.getNumberOfOngoingTransactions().thenAccept(count -> {
                 DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
@@ -583,14 +634,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Boolean> isTransactionOngoing(final String scope, final String stream, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getNumberOfOngoingTransactions(), executor)
-                .thenApply(num -> num > 0);
-    }
-
-    @Override
-    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, int version) {
-        return hostIndex.addEntity(hostId, getTxnResourceString(txn), ByteBuffer.allocate(Integer.BYTES).putInt(version).array());
+    public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, Version version) {
+        return hostIndex.addEntity(hostId, getTxnResourceString(txn), Optional.ofNullable(version).orElse(getEmptyVersion()).toBytes());
     }
 
     @Override
@@ -605,9 +650,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Integer> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
-        return hostIndex.getEntityData(hostId, getTxnResourceString(resource)).thenApply(data ->
-            data != null ? ByteBuffer.wrap(data).getInt() : null);
+    public CompletableFuture<Version> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
+        return hostIndex.getEntityData(hostId, getTxnResourceString(resource))
+                .thenApply(data -> Optional.ofNullable(data).map(this::parseVersionData).filter(x -> !x.equals(getEmptyVersion())).orElse(null));
     }
 
     @Override
@@ -621,22 +666,22 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> markCold(final String scope, final String stream, final int segmentNumber, final long timestamp,
+    public CompletableFuture<Void> markCold(final String scope, final String stream, final long segmentId, final long timestamp,
                                             final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).setColdMarker(segmentNumber, timestamp), executor);
+        return withCompletion(getStream(scope, stream, context).setColdMarker(segmentId, timestamp), executor);
     }
 
     @Override
-    public CompletableFuture<Boolean> isCold(final String scope, final String stream, final int number,
+    public CompletableFuture<Boolean> isCold(final String scope, final String stream, final long segmentId,
                                              final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getColdMarker(number)
+        return withCompletion(getStream(scope, stream, context).getColdMarker(segmentId)
                 .thenApply(marker -> marker != null && marker > System.currentTimeMillis()), executor);
     }
 
     @Override
-    public CompletableFuture<Void> removeMarker(final String scope, final String stream, final int number,
+    public CompletableFuture<Void> removeMarker(final String scope, final String stream, final long segmentId,
                                                 final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, stream, context).removeColdMarker(number), executor);
+        return withCompletion(getStream(scope, stream, context).removeColdMarker(segmentId), executor);
     }
 
     @Override
@@ -646,18 +691,62 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name,
+    public CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final long from, final long to, 
                                                                    final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).getScaleMetadata(), executor);
+        return withCompletion(getStream(scope, name, context).getScaleMetadata(from, to), executor);
     }
 
     @Override
-    public CompletableFuture<Pair<Integer, List<Integer>>>  getActiveEpoch(final String scope,
-                                              final String stream,
-                                              final OperationContext context,
-                                              final boolean ignoreCached,
-                                              final Executor executor) {
+    public CompletableFuture<EpochRecord>  getActiveEpoch(final String scope,
+                                                            final String stream,
+                                                            final OperationContext context,
+                                                            final boolean ignoreCached,
+                                                            final Executor executor) {
         return withCompletion(getStream(scope, stream, context).getActiveEpoch(ignoreCached), executor);
+    }
+
+    @Override
+    public CompletableFuture<EpochRecord> getEpoch(final String scope,
+                                                   final String stream,
+                                                   final int epoch,
+                                                   final OperationContext context,
+                                                   final Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getEpochRecord(epoch), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(String scope,
+                                                                                                      String stream, int epoch, OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).startCommittingTransactions(epoch), executor);
+    }
+
+    @Override
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommittingTransactionsRecord(String scope, String stream, OperationContext context,
+                                                                                                                       ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).getVersionedCommitTransactionsRecord(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
+                                                              OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).completeCommittingTransactions(record), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> createWaitingRequestIfAbsent(String scope, String stream, String processorName,
+                                                                OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).createWaitingRequestIfAbsent(processorName), executor);
+    }
+
+    @Override
+    public CompletableFuture<String> getWaitingRequestProcessor(String scope, String stream, OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).getWaitingRequestProcessor(), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName,
+                                                                     OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).deleteWaitingRequestConditionally(processorName), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {
@@ -704,7 +793,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, null, executor).thenApply(scaleMetadataList -> {
+        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, null, executor).thenApply(scaleMetadataList -> {
             AtomicLong totalNumSplits = new AtomicLong(0L);
             AtomicLong totalNumMerges = new AtomicLong(0L);
             scaleMetadataList.forEach(x -> {
@@ -716,7 +805,36 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
+    /**
+     * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
+     * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
+     * same name has been recently deleted, this method will provide as a safe starting segment number the last segment
+     * number of the previously deleted stream + 1. This will avoid potential segment naming collisions with segments
+     * being asynchronously deleted from the segment store.
+     *
+     * @param scopeName scope
+     * @param streamName stream
+     * @return CompletableFuture with a safe starting segment number for this stream.
+     */
+    abstract CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName);
+
+    /**
+     * This method stores the last active segment for a stream upon its deletion. Persistently storing this value is
+     * necessary in the case of a stream re-creation for picking an appropriate starting segment number.
+     *
+     * @param scope scope
+     * @param stream stream
+     * @param lastActiveSegment segment with highest number for a stream
+     * @param context context
+     * @param executor executor
+     * @return CompletableFuture which indicates the task completion related to persistently store lastActiveSegment.
+     */
+    abstract CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,
+                                                             OperationContext context, final Executor executor);
+
     abstract Stream newStream(final String scope, final String name);
+
+    abstract CompletableFuture<Int96> getNextCounter();
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);
@@ -734,5 +852,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     String getScopedStreamName(String scope, String stream) {
         return String.format("%s/%s", scope, stream);
     }
+
+    abstract Version getEmptyVersion();
+
+    abstract Version parseVersionData(byte[] data);
 }
 

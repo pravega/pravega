@@ -46,6 +46,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
+    private static final String CMD_SHELL = "CMD-SHELL"; // Docker Instruction used to run a health check command.
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
@@ -187,6 +188,19 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         } catch (Exception e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to create service", e);
         }
+    }
+
+    // Default Health Check which uses Socket Statistics command to ensure the service is  up and running.
+    List<String> defaultHealthCheck(int port) {
+        return  customHealthCheck("ss -l | grep "+port+" || exit 1");
+    }
+
+    //Custom Health check with the command provided by the service.
+    List<String> customHealthCheck(final String cmd) {
+        final List<String> commandList = new ArrayList<>(2);
+        commandList.add(CMD_SHELL);
+        commandList.add(cmd);
+        return commandList;
     }
 
     long setNanoCpus(final double cpu) {

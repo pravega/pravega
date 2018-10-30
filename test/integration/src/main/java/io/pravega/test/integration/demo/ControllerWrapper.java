@@ -83,7 +83,6 @@ public class ControllerWrapper implements AutoCloseable {
 
         TimeoutServiceConfig timeoutServiceConfig = TimeoutServiceConfig.builder()
                 .maxLeaseValue(Config.MAX_LEASE_VALUE)
-                .maxScaleGracePeriod(Config.MAX_SCALE_GRACE_PERIOD)
                 .build();
 
         Optional<ControllerEventProcessorConfig> eventProcessorConfig;
@@ -106,8 +105,13 @@ public class ControllerWrapper implements AutoCloseable {
             eventProcessorConfig = Optional.empty();
         }
 
-        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder().port(controllerPort)
-                .publishedRPCHost("localhost").publishedRPCPort(controllerPort).build();
+        GRPCServerConfig grpcServerConfig = GRPCServerConfigImpl.builder()
+                .port(controllerPort)
+                .publishedRPCHost("localhost")
+                .publishedRPCPort(controllerPort)
+                .replyWithStackTraceOnError(false)
+                .requestTracingEnabled(true)
+                .build();
 
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
                 Optional.of(RESTServerConfigImpl.builder().host("localhost").port(restPort).build()) :

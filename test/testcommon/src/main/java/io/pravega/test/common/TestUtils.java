@@ -9,11 +9,17 @@
  */
 package io.pravega.test.common;
 
-import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Random;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Utility class for Tests.
@@ -48,4 +54,36 @@ public class TestUtils {
                 String.format("Could not assign port in range %d - %d", BASE_PORT, MAX_PORT_COUNT + BASE_PORT));
     }
 
+    /**
+     * Awaits the given condition to become true.
+     *
+     * @param condition            A Supplier that indicates when the condition is true. When this happens, this method will return.
+     * @param checkFrequencyMillis The number of millis to wait between successive checks of the condition.
+     * @param timeoutMillis        The maximum amount of time to wait.
+     * @throws TimeoutException If the condition was not met during the allotted time.
+     */
+    @SneakyThrows(InterruptedException.class)
+    public static void await(Supplier<Boolean> condition, int checkFrequencyMillis, long timeoutMillis) throws TimeoutException {
+        long remainingMillis = timeoutMillis;
+        while (!condition.get() && remainingMillis > 0) {
+            Thread.sleep(checkFrequencyMillis);
+            remainingMillis -= checkFrequencyMillis;
+        }
+
+        if (!condition.get() && remainingMillis <= 0) {
+            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
+        }
+    }
+
+    /**
+     * Generates an auth token using the Basic authentication scheme.
+     * @param username the username to use.
+     * @param password the password to use.
+     * @return an en encoded token.
+     */
+    public static String basicAuthToken(String username, String password) {
+        String decoded = String.format("%s:%s", username, password);
+        String encoded = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
+    }
 }

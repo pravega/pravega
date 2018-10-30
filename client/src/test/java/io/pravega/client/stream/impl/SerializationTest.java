@@ -104,8 +104,8 @@ public class SerializationTest {
     
     @Test
     public void testSegment() {
-        Segment segmnet = Segment.fromScopedName("foo/bar/2");
-        assertEquals("foo/bar/2", segmnet.getScopedName());   
+        Segment segmnet = Segment.fromScopedName("foo/bar/2.#epoch.0");
+        assertEquals("foo/bar/2.#epoch.0", segmnet.getScopedName());
     }
     
     @Test
@@ -143,7 +143,7 @@ public class SerializationTest {
         builder.distanceToTail(createMap(this::createString, r::nextLong));
         builder.endSegments(createSegmentToLongMap());
         builder.unassignedSegments(createSegmentToLongMap());
-        builder.futureSegments(createMap(this::createSegment, () -> new HashSet<>(createIntList())));
+        builder.futureSegments(createMap(this::createSegment, () -> new HashSet<>(createLongList())));
         verify(initSerializer, builder.build());
 
     }
@@ -157,7 +157,7 @@ public class SerializationTest {
         verify(serializer, new AcquireSegment(createString(), createSegment()));
         verify(serializer, new UpdateDistanceToTail(createString(), r.nextLong()));
         verify(serializer, new SegmentCompleted(createString(), createSegment(),
-                                                createMap(this::createSegment, this::createIntList)));
+                                                createMap(this::createSegment, this::createLongList)));
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
@@ -175,8 +175,8 @@ public class SerializationTest {
         assertEquals(value, deserialized);
     }
 
-    private List<Integer> createIntList() throws Exception {
-        return createList(r::nextInt);
+    private List<Long> createLongList() throws Exception {
+        return createList(r::nextLong);
     }
     
     private List<String> createStringList() throws Exception {

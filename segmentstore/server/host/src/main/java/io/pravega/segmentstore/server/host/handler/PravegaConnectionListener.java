@@ -61,6 +61,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private final SegmentStatsRecorder statsRecorder;
+    private final boolean replyWithStackTraceOnError;
 
     //endregion
 
@@ -75,7 +76,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, "localhost", port, streamSegmentStore, null, new PassingTokenVerifier(), null, null);
+        this(ssl, "localhost", port, streamSegmentStore, null, new PassingTokenVerifier(), null, null, true);
     }
 
     /**
@@ -87,10 +88,12 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param statsRecorder      (Optional) A StatsRecorder for Metrics.
      * @param tokenVerifier      The object to verify delegation token.
      * @param certFile           Path to the certificate file to be used for TLS.
-     * @param keyFile            PAth to be key file to be used for TLS.
+     * @param keyFile            Path to be key file to be used for TLS.
+     * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      */
     public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
-                                     SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier, String certFile, String keyFile) {
+                                     SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
+                                     String certFile, String keyFile, boolean replyWithStackTraceOnError) {
         this.ssl = ssl;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
@@ -104,6 +107,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         } else {
             this.tokenVerifier = new PassingTokenVerifier();
         }
+        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
     //endregion
@@ -153,9 +157,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier),
+                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
-                         tokenVerifier));
+                         tokenVerifier,
+                         replyWithStackTraceOnError));
              }
          });
 

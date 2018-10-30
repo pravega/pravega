@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.server.CacheManager;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.GuardedBy;

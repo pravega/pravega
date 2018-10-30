@@ -98,8 +98,7 @@ public class ControllerBootstrapTest {
         Assert.assertTrue(!streamStatus.isDone());
 
         // Create transaction should fail.
-        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM),
-                10000, 30000);
+        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
         try {
             txIdFuture.join();
@@ -130,7 +129,7 @@ public class ControllerBootstrapTest {
         Assert.assertTrue(initialized);
 
         // Now create transaction should succeed.
-        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000, 30000);
+        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
         try {
             TxnSegments id = txIdFuture.join();

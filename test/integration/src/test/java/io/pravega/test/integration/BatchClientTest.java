@@ -15,7 +15,6 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
@@ -59,6 +58,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -147,6 +147,7 @@ public class BatchClientTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws Exception {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
@@ -160,7 +161,7 @@ public class BatchClientTest {
         // 3a. Fetch Segments using StreamCut.UNBOUNDED>
         ArrayList<SegmentRange> segmentsPostTruncation1 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         // 3b. Fetch Segments using getStreamInfo() api.
-        StreamInfo streamInfo = batchClient.getStreamInfo(Stream.of(SCOPE, STREAM)).join();
+        io.pravega.client.batch.StreamInfo streamInfo = batchClient.getStreamInfo(Stream.of(SCOPE, STREAM)).join();
         ArrayList<SegmentRange> segmentsPostTruncation2 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), streamInfo.getHeadStreamCut(), streamInfo.getTailStreamCut()).getIterator());
         // Validate results.
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation1);
@@ -182,7 +183,7 @@ public class BatchClientTest {
         // 3. Truncate stream.
         assertTrue("truncate stream", controllerWrapper.getController().truncateStream(SCOPE, STREAM, streamCut90L).join());
         // 4. Use SegmentRange obtained before truncation.
-        SegmentRange s0 = segmentsPostTruncation.stream().filter(segmentRange -> segmentRange.getSegmentNumber() == 0).findFirst().get();
+        SegmentRange s0 = segmentsPostTruncation.stream().filter(segmentRange -> segmentRange.getSegmentId() == 0L).findFirst().get();
         // 5. Read non existent segment.
         List<String> eventList = new ArrayList<>();
         @Cleanup
@@ -221,14 +222,15 @@ public class BatchClientTest {
         map.put(0.33, 0.66);
         map.put(0.66, 1.0);
         Boolean result;
-        assertTrue("Scale up operation", controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Collections.singletonList(0), map, executor).getFuture().join());
+        assertTrue("Scale up operation", controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Collections.singletonList(0L), map, executor).getFuture().join());
         write30ByteEvents(3, writer);
 
         //scale down and write events.
         map = new HashMap<>();
         map.put(0.0, 0.5);
         map.put(0.5, 1.0);
-        result = controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Arrays.asList(1, 2, 3), map, executor).getFuture().get();
+        result = controllerWrapper.getController().scaleStream(Stream.of(SCOPE, STREAM), Arrays.asList(computeSegmentId(1, 1),
+                computeSegmentId(2, 1), computeSegmentId(3, 1)), map, executor).getFuture().get();
         assertTrue("Scale down operation result", result);
         write30ByteEvents(3, writer);
     }

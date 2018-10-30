@@ -7,7 +7,8 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# StateSynchronizer
+# StateSynchronizer Design
+
 A StateSynchronizer provides a means for data to be written and read by multiple processes, while consistency is guaranteed using optimistic checks. A rough version of this API is [checked in here.](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java)
 
 This works by having each process keep a copy of the data. All updates are written through the StateSynchronizer which appends them to a Pravega segment. They can keep up to date of changes to the data by consuming from the segment. To provide consistency a conditional append is used. This ensures that the updates can only proceed if the process performing them has the most recent data. Finally to prevent the segment from growing without bound, we use have a compact operation that re-writes the latest data, and truncates the old data so it can be dropped.
