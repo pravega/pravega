@@ -390,24 +390,24 @@ public class ZkStreamTest {
         assertEquals(segmentsInEpoch.size(), 5);
         assertTrue(segmentsInEpoch.containsAll(Lists.newArrayList(0L, 1L, 2L, 3L, 4L)));
 
-        // scale1 
+        // scale1
         segmentsInEpoch = store.getSegmentsInEpoch(SCOPE, streamName, 1, context, executor).get()
                                .stream().map(x -> x.segmentId()).collect(Collectors.toList());
         assertEquals(segmentsInEpoch.size(), 4);
         assertTrue(segmentsInEpoch.containsAll(Lists.newArrayList(0L, 1L, 2L, five)));
 
-        // scale2 
+        // scale2
         segmentsInEpoch = store.getSegmentsInEpoch(SCOPE, streamName, 2, context, executor).get()
                                .stream().map(x -> x.segmentId()).collect(Collectors.toList());
         assertEquals(segmentsInEpoch.size(), 4);
         assertTrue(segmentsInEpoch.containsAll(Lists.newArrayList(0L, six, seven, eight)));
 
-        // scale3 
+        // scale3
         segmentsInEpoch = store.getSegmentsInEpoch(SCOPE, streamName, 3, context, executor).get()
                                .stream().map(x -> x.segmentId()).collect(Collectors.toList());
         assertEquals(segmentsInEpoch.size(), 5);
         assertTrue(segmentsInEpoch.containsAll(Lists.newArrayList(0L, six, nine, ten, eleven)));
-        
+
         assertFalse(store.isSealed(SCOPE, streamName, context, executor).get());
         assertNotEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
         store.setSealed(SCOPE, streamName, context, executor).get();
