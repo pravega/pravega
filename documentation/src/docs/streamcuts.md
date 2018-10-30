@@ -82,6 +82,7 @@ io.pravega.client.stream.ReaderGroup.resetReaderGroup(ReaderGroupConfig config)
 
 ```java
 /**
+
      * Get information about a given Stream, {@link StreamInfo}.
      * This includes {@link StreamCut}s pointing to the current HEAD and TAIL of the Stream.
      *
