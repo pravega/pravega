@@ -145,7 +145,7 @@ public class AppendReconnectTest {
         ack.get(5, TimeUnit.SECONDS);
         ack2.get(5, TimeUnit.SECONDS);
         SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, "");
-        assertEquals(payload.length * 2 , metadataClient.fetchCurrentSegmentLength());
+        assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
     }
     
     @Test
@@ -178,6 +178,7 @@ public class AppendReconnectTest {
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
         SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, "");
-        assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2 , metadataClient.fetchCurrentSegmentLength());
+        assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2,
+                     metadataClient.fetchCurrentSegmentLength());
     }
 }
