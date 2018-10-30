@@ -277,7 +277,7 @@ are usually multiple (recommended at least 3) Controller instances running in a 
 
 The [Segment Store](segment-store-service.md) implements the Pravega data plane.
 Pravega Servers provide the API to read and write data in Streams. Data storage is comprised of two tiers:
-- **Tier 1:** It provides short term, low-latency, data storage, guaranteeing the durability of data written to Streams. Pravega uses [Apache Bookkeeper](http://bookkeeper.apache.org/) to implement
+- **Tier 1:** It provides short term, low-latency data storage, guaranteeing the durability of data written to Streams. Pravega uses [Apache Bookkeeper](http://bookkeeper.apache.org/) to implement
 Tier 1 Storage. Tier 1 Storage typically runs _within_ the Pravega cluster.
 
 - **Tier 2:** It provides long term storage for Stream data. Pravega uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud Storage (ECS) to implement Tier 2 Storage.  Tier 2 Storage is normally deployed _outside_ the Pravega cluster.
