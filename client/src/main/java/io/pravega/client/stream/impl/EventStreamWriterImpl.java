@@ -117,7 +117,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     handleMissingLog();
                     segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
                 }
-                segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
+                segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
             }
         }
         return ackFuture;

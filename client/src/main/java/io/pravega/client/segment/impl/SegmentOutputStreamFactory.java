@@ -43,4 +43,18 @@ public interface SegmentOutputStreamFactory {
      * @return New instance of SegmentOutputStream for writing.
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken);
+    
+    /**
+     * Creates a SegmentOutputStream for an existing segment. This operation will fail if the
+     * segment does not exist or is sealed. This operation may be called multiple times on the same
+     * segment from the same or different clients (i.e., there can be concurrent Stream Writers in
+     * the same process space).
+     *
+     * @param segment The segment.
+     * @param config The configuration for the writer
+     * @param delegationToken token to pass on to segmentstore to authenticate access to the
+     *            segment.
+     * @return New instance of SegmentOutputStream for writing.
+     */
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken);
 }

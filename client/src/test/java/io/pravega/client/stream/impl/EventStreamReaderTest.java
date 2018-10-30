@@ -11,10 +11,10 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -90,11 +90,11 @@ public class EventStreamReaderTest {
 
         //Mock for the two SegmentInputStreams.
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        SegmentInputStream segmentInputStream1 = Mockito.mock(SegmentInputStream.class);
+        EventSegmentReader segmentInputStream1 = Mockito.mock(EventSegmentReader.class);
         Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OFFSET_REACHED));
         Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
 
-        SegmentInputStream segmentInputStream2 = Mockito.mock(SegmentInputStream.class);
+        EventSegmentReader segmentInputStream2 = Mockito.mock(EventSegmentReader.class);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
@@ -102,7 +102,7 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
 
         SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
-        Mockito.when(inputStreamFactory.createInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
         //Mock Orderer
         Orderer orderer = Mockito.mock(Orderer.class);
         Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
@@ -131,11 +131,11 @@ public class EventStreamReaderTest {
 
         //Mock for the two SegmentInputStreams.
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        SegmentInputStream segmentInputStream1 = Mockito.mock(SegmentInputStream.class);
+        EventSegmentReader segmentInputStream1 = Mockito.mock(EventSegmentReader.class);
         Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new SegmentTruncatedException());
         Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
 
-        SegmentInputStream segmentInputStream2 = Mockito.mock(SegmentInputStream.class);
+        EventSegmentReader segmentInputStream2 = Mockito.mock(EventSegmentReader.class);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
@@ -143,7 +143,7 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream2.getOffset()).thenReturn(10L);
 
         SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
-        Mockito.when(inputStreamFactory.createInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
+        Mockito.when(inputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream1);
         //Mock Orderer
         Orderer orderer = Mockito.mock(Orderer.class);
         Mockito.when(orderer.nextSegment(any(List.class))).thenReturn(segmentInputStream1).thenReturn(segmentInputStream2);
@@ -203,7 +203,7 @@ public class EventStreamReaderTest {
         writeInt(stream1, 1);
         writeInt(stream2, 2);
         reader.readNextEvent(0);
-        List<SegmentInputStream> readers = reader.getReaders();
+        List<EventSegmentReader> readers = reader.getReaders();
         assertEquals(2, readers.size());
         Assert.assertEquals(segment1, readers.get(0).getSegmentId());
         Assert.assertEquals(segment2, readers.get(1).getSegmentId());
@@ -224,7 +224,7 @@ public class EventStreamReaderTest {
     private ByteBuffer writeInt(SegmentOutputStream stream, int value) throws SegmentSealedException {
         ByteBuffer buffer = ByteBuffer.allocate(4).putInt(value);
         buffer.flip();
-        stream.write(new PendingEvent(null, buffer, new CompletableFuture<Void>()));
+        stream.write(PendingEvent.withHeader(null, buffer, new CompletableFuture<Void>()));
         return buffer;
     }
 
@@ -252,7 +252,7 @@ public class EventStreamReaderTest {
         writeInt(stream2, 3);
         writeInt(stream2, 4);
         reader.readNextEvent(0);
-        List<SegmentInputStream> readers = reader.getReaders();
+        List<EventSegmentReader> readers = reader.getReaders();
         assertEquals(1, readers.size());
         Assert.assertEquals(segment1, readers.get(0).getSegmentId());
 
@@ -395,10 +395,10 @@ public class EventStreamReaderTest {
         SegmentInputStreamFactory segInputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
         SegmentMetadataClientFactory segmentMetadataClientFactory = Mockito.mock(SegmentMetadataClientFactory.class);
         SegmentMetadataClient metadataClient = Mockito.mock(SegmentMetadataClient.class);
-        SegmentInputStream segmentInputStream = Mockito.mock(SegmentInputStream.class);
+        EventSegmentReader segmentInputStream = Mockito.mock(EventSegmentReader.class);
         Mockito.when(segmentMetadataClientFactory.createSegmentMetadataClient(any(Segment.class), any())).thenReturn(metadataClient);
         Mockito.when(segmentInputStream.getSegmentId()).thenReturn(segment);
-        Mockito.when(segInputStreamFactory.createInputStreamForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream);
+        Mockito.when(segInputStreamFactory.createEventReaderForSegment(any(Segment.class), anyLong())).thenReturn(segmentInputStream);
         // Ensure segmentInputStream.read() returns SegmentTruncatedException.
         Mockito.when(segmentInputStream.read(anyLong())).thenThrow(SegmentTruncatedException.class);
         // Ensure SegmentInfo returns NoSuchSegmentException.
