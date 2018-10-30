@@ -106,24 +106,24 @@ and time.
 ![Stream Segment](img/segment.split.merge.overtime.new.png) 
 
 - A Stream starts at time **t0** with a configurable number of Stream Segments.  If the
-rate of data written to the Stream is constant, there will be no change in the number of Segments. 
+rate of data written to the Stream is constant, there will be no change in the number of Stream Segments. 
 
-- At time **t1**, the system noted an increase in the ingestion rate and splits **Segment 1** into two parts. This process is referred as **Scale-Up** Event.
+- At time **t1**, the system noted an increase in the ingestion rate and splits Stream **Segment 1** into two parts. This process is referred as **Scale-Up** Event.
 
 - Before **t1**, Events with a Routing Key that hashes to the upper part of the key
-space (i.e., values ranging from **200-399**) would be placed in **Segment 1** and those that hash into the
-lower part of the key space (i.e., values ranging from **0-199**) would be placed in **Segment 0**.
+space (i.e., values ranging from **200-399**) would be placed in Stream **Segment 1** and those that hash into the
+lower part of the key space (i.e., values ranging from **0-199**) would be placed in Stream **Segment 0**.
 
-- After **t1**, **Segment 1** is split into **Segment 2** and **Segment 3**. The **Segment 1** is sealed and stops accepting writes.  At this point in time, Events with Routing Key **300** and _above_ are written to **Segment 3** and those between **200** and **299** would be written into **Segment 2**.
+- After **t1**, Stream **Segment 1** is split into Stream **Segment 2** and Stream **Segment 3**. The Stream **Segment 1** is sealed and stops accepting writes.  At this point in time, Events with Routing Key **300** and _above_ are written to Stream **Segment 3** and those between **200** and **299** would be written into Stream **Segment 2**.
 
-- **Segment 0** continues accepting the same range of Events as before **t1**.  
+- Stream **Segment 0** continues accepting the same range of Events as before **t1**.  
 
-- Another scale-up Event occurs at time **t2**, as **Segment 0**’s range of Routing
-Key is split into **Segment 5** and **Segment 4**. Also at this time, **Segment 0** is sealed
+- Another scale-up Event occurs at time **t2**, as Stream **Segment 0**’s range of Routing
+Key is split into Stream **Segment 5** and Stream **Segment 4**. Also at this time, Stream **Segment 0** is sealed
 and allows no further writes.
 
-- Segments covering a contiguous range of the key space can also be merged. At
-time **t3**, **Segment 2**’s range and **Segment 5**’s range are merged to **Segment 6** to
+- Stream Segments covering a contiguous range of the key space can also be merged. At
+time **t3**, Stream **Segment 2**’s range and Stream **Segment 5**’s range are merged to Stream **Segment 6** to
 accommodate a decrease in the load on the Stream.
 
 When a Stream is created, it is configured with a **Scaling Policy** that
@@ -145,7 +145,7 @@ As mentioned earlier in this section, that an Event is written into one of the S
 ![Stream Segment](img/rk.segment.new.png) 
 
 It is also worth emphasizing that Events are written only on the active Stream
-Segments. Segments that are sealed do not accept writes. In the figure above,
+Segments. Stream Segments that are sealed do not accept writes. In the figure above,
 at time **now**, only Stream **Segments 3**, **6** and **4** are active and the entire key space is covered between those three Stream Segments.  
 
 ### Stream Segments and Reader Groups
@@ -170,15 +170,15 @@ ideal number of Readers.
 
 The number of Stream Segments change over time by using the Pravega's Auto Scaling feature as we discussed in the [Auto Scaling](#elastic-streams-auto-scaling) section. The size of any Stream is determined by the storage capacity of the Pravega cluster. More Streams can be obtained by increasing the storage of the Pravega cluster.
 
-Applications can react to changes in the number of Segments in a Stream by adjusting the number of Readers within a Reader Group to maintain optimal read parallelism. As a cool use case, Pravega may allow Flink to increase or decrease the number of task instances that are processing a Stream in parallel.
+Applications can react to changes in the number of Stream Segments in a Stream by adjusting the number of Readers within a Reader Group to maintain optimal read parallelism. As a cool use case, Pravega may allow Flink to increase or decrease the number of task instances that are processing a Stream in parallel.
 
 ### Ordering Guarantees
 
 A Stream comprises a set of Segments that can change over time. Segments that overlap in their area of key space have a defined order.
 
-An Event written to a Stream is written to a single Segment, and is ordered with respect to the Events of that Segment. The existence and position of an Event within a Segment is strongly consistent.
+An Event written to a Stream is written to a single Stream Segment, and is ordered with respect to the Events of that Stream Segment. The existence and position of an Event within a Stream Segment is strongly consistent.
 
-Readers can be assigned multiple parallel Segments (from different parts of key space). A Reader reading from multiple Segments will interleave the Events of the Segments, but the order of Events per Segment is retained. Specifically, if **s** is a Segment, and **s** contains two Events _i.e.,_ **s** **=** {**e~1**,**e~2**} where **e~1** precedes **e~2**. Thus, for a Reader reading Segments, it is guaranteed that **e~1** will be read before **e~2**.
+Readers can be assigned multiple parallel Stream Segments (from different parts of key space). A Reader reading from multiple Stream Segments will interleave the Events of the Stream Segments, but the order of Events per Stream Segment is retained. Specifically, if **s** is a Stream Segment, and **s** contains two Events _i.e.,_ **s** **=** {**e~1**,**e~2**} where **e~1** precedes **e~2**. Thus, for a Reader reading Stream Segments, it is guaranteed that **e~1** will be read before **e~2**.
 
 .
 
@@ -222,9 +222,9 @@ A key difference between Pravega's Transactions and similar approaches (Kafka's 
 Transaction, the Event itself is appended to a Stream Segment of the
 Transaction. 
 
-For example, a Stream has five Segments, when a Transaction is created on that
-Stream, conceptually that Transaction also has five Segments. When an Event is
-published into the Transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to **Segment 3** in the Stream will be assigned to **Segment 3** in the Transaction). Once the Transaction is committed, all the Transaction Segments are automatically appended to their corresponding Segment in the Stream. If the Transaction is aborted, the Transaction, all its Segments and all the Events published into the Transaction are removed from Pravega.
+For example, a Stream has five Stream Segments, when a Transaction is created on that
+Stream, conceptually that Transaction also has five Stream Segments. When an Event is
+published into the Transaction, it is routed and assigned to the same numbered Stream Segment similar to Stream (i.e., Event assigned to Stream **Segment 3** in the Stream will be assigned to **Segment 3** in the Transaction). Once the Transaction is committed, all the Transaction Segments are automatically appended to their corresponding Stream Segment in the Stream. If the Transaction is aborted, the Transaction, all its Stream Segments and all the Events published into the Transaction are removed from Pravega.
 
 ![Transaction](img/trx.commit.new.png) 
 
@@ -326,8 +326,8 @@ The concepts in Pravega are depicted in the following figure:
     Reader Group. 
 
 -   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 Storage. 
-    The tail of the Segment is stored in Tier 1 providing low latency reads and
-    writes. The rest of the Segment is stored in Tier 2, providing high
+    The tail of the Stream Segment is stored in Tier 1 providing low latency reads and
+    writes. The rest of the Stream Segment is stored in Tier 2, providing high
     throughput read access with horizontal scalability and low cost. 
 
 ## A Note on Tiered Storage
