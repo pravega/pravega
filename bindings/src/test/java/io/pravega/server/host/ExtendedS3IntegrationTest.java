@@ -117,7 +117,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
-            S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
+            S3JerseyClient client = new io.pravega.segmentstore.server.host.S3ClientWrapper(s3Config, filesystemS3);
             return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
         }
     }
