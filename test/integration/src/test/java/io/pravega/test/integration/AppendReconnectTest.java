@@ -111,7 +111,7 @@ public class AppendReconnectTest {
         return channel;
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void reconnectOnSegmentClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
@@ -148,7 +148,7 @@ public class AppendReconnectTest {
         assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void reconnectThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
