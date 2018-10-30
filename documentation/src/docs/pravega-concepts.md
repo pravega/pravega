@@ -239,7 +239,7 @@ Transactions](transactions.md).
 ## State Synchronizers
 
 Pravega implements various building blocks to materialize the Stream primitive. One of such building blocks, namely **State Synchronizer**, is aimed at coordinating processes in a distributed computing environment. Internally, the **State Synchronizer** uses a Pravega Stream to provide a synchronization
-mechanism for state shared between multiple processes running in a cluster and making it easier to build distributed applications.  With State Synchronizer, an application developer can use Pravega to read and make changes to shared state consistently and perform optimistic locking. 
+mechanism for state shared between multiple processes running in a cluster and making it easier to build distributed applications. With State Synchronizer, an application developer can use Pravega to read and make changes to shared state consistently and perform optimistic locking. 
 
 ![State synchroner](img/state.synchronizer.png) 
 
@@ -283,13 +283,11 @@ are usually multiple (recommended at least 3) Controller instances running in a 
 The [Segment Store](Segment-store-service.md) implements the Pravega data plane.
 Pravega Servers provide the API to read and write data in Streams. Data storage is comprised of two tiers:
 - **Tier 1:** It provides short term, low-latency, data storage, guaranteeing the durability of data written to Streams. Pravega uses [Apache Bookkeeper](http://bookkeeper.apache.org/) to implement
-Tier 1 Storage. Tier 1 Storage typically runs _within_ the Pravega cluster. Tier 2 Storage is normally deployed _outside_ the Pravega cluster. Tiering storage is important to deliver the combination of fast access to Stream
-data and also allows large data storage for Streams. Tier 1 Storage
-persists on the most recently written Stream data. As data in Tier 1 Storage ages,
-it is moved into Tier 2 Storage.
+Tier 1 Storage. Tier 1 Storage typically runs _within_ the Pravega cluster.
 
-- **Tier 2:** It provides long term storage for Stream data. Pravega uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud Storage (ECS) to implement Tier 2 Storage.
+- **Tier 2:** It provides long term storage for Stream data. Pravega uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud Storage (ECS) to implement Tier 2 Storage.  Tier 2 Storage is normally deployed _outside_ the Pravega cluster.
 
+Storage tiering allows Pravega to achieve a sweet spot in the latency vs throughput trade-off. This makes Pravega an ideal storage substrate for serving data to both real-time and batch (analytics) applications. Moreover, as data in Tier 1 Storage ages, it is automatically moved into Tier 2 Storage. Thus, Pravega can store vasts amounts of Stream data and applications can read it at any time, while being oblivious to its actual location.
 
 Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
 coordination mechanism for the components in the Pravega cluster.  
@@ -304,7 +302,6 @@ applications such as analytics applications using Flink. The Pravega Java Clien
 Library manages the interaction between the application code and Pravega via a
 custom TCP Wire Protocol.
 
-Storage tiering allows Pravega to achieve a sweet spot in the latency vs throughput trade-off. This makes Pravega an ideal storage substrate for serving data to both real-time and batch (analytics) applications. Moreover, as data in Tier 1 Storage ages, it is automatically moved into Tier 2 Storage. Thus, Pravega can store vasts amounts of Stream data and applications can read it at any time, while being oblivious to its actual location.
 
 
 ## Putting the Concepts Together
