@@ -101,7 +101,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
             session.lastEventNumber = append.getEventNumber();
             session.eventCount++;
-            ByteBuf data = append.getData();
+            ByteBuf data = append.getData().slice();
             int msgSize = data.readableBytes();
             // Is there enough space for a subsequent message after this one?
             if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {

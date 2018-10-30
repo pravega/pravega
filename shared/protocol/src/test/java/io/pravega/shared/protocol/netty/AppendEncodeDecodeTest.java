@@ -277,7 +277,9 @@ public class AppendEncodeDecodeTest {
         Arrays.fill(content, (byte) messageNumber);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         Append msg = new Append(segment, writerId, messageNumber, event);
+        assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
         encoder.encode(null, msg, out);
+        assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
         return offset + length;
     }
 
