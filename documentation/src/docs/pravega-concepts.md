@@ -9,7 +9,9 @@ You may obtain a copy of the License at
 -->
 # Pravega Concepts
 
-Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data.
+Pravega is an open source storage system implementing **Streams** as first-class primitive for storing/serving continuous and unbounded data.
+
+
 
 Next, we overview the key concepts in Pravega. For a concise definition of key terms of Pravega concepts, please see [Terminology](terminology.md).
 
@@ -171,7 +173,7 @@ If **Stream 1** in the figure above experienced a **Scale-Down** event, by reduc
 number of Stream Segments to three, then the **Reader Group B**  will have an
 ideal number of Readers.
 
-The number of Stream Segments can chnage over time by using the Pravega's Auto Scaling feature as we discussed in the [Auto Scaling](#elastic-streams-auto-scaling) section. The size of any Stream is determined by the storage capacity of the Pravega cluster. More Streams can be obtained by increasing the storage of the Pravega cluster.
+The number of Stream Segments change over time by using the Pravega's Auto Scaling feature as we discussed in the [Auto Scaling](#elastic-streams-auto-scaling) section. The size of any Stream is determined by the storage capacity of the Pravega cluster. More Streams can be obtained by increasing the storage of the Pravega cluster.
 
 Applications can react to changes in the number of Segments in a Stream by adjusting the number of Readers within a Reader Group to maintain optimal read parallelism. As a cool use case, Pravega may allow Flink to increase or decrease the number of task instances that are processing a Stream in parallel.
 
@@ -188,7 +190,7 @@ This results in the following ordering guarantees:
 - Events with the same Routing Key are consumed in the order they were written.
 
 - Events with different Routing Keys are sent to a specific Segment and will always be
-    read in the same order even if the Reader performs backs up and re-reads.
+    read in the same order even if the Reader performs back ups and re-reads.
 
 - If an Event has been acknowledged to its Writer or has been read by a Reader, it is guaranteed that  it will continue to exist in the same location or position for all subsequent reads until it is deleted.
 
@@ -225,7 +227,7 @@ Transaction. 
 
 For example, a Stream has five Segments, when a Transaction is created on that
 Stream, conceptually that Transaction also has five Segments. When an Event is
-published into the Transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to **Segment 3** in the Stream will be assigned to **Segment 3** in the Transaction). Once the Transaction is committed, is committed, all the Transaction Segments are automatically appended to their corresponding Segment in the Stream. If the Transaction is aborted, the Transaction, all its Segments and all the Events published into the Transaction are removed from Pravega.
+published into the Transaction, it is routed and assigned to the same numbered Segment similar to Stream (i.e., Event assigned to **Segment 3** in the Stream will be assigned to **Segment 3** in the Transaction). Once the Transaction is committed, all the Transaction Segments are automatically appended to their corresponding Segment in the Stream. If the Transaction is aborted, the Transaction, all its Segments and all the Events published into the Transaction are removed from Pravega.
 
 ![Transaction](img/trx.commit.new.png) 
 
@@ -236,7 +238,7 @@ Transactions](transactions.md).
 
 ## State Synchronizers
 
-Pravega is a Streaming storage primitive and which can coordinate processes in a distributed computing environment. A **State Synchronizer** uses a Pravega Stream to provide a synchronization
+Pravega implements various building blocks to materialize the Stream primitive. One of such building blocks, namely **State Synchronizer**, is aimed at coordinating processes in a distributed computing environment. Internally, the **State Synchronizer** uses a Pravega Stream to provide a synchronization
 mechanism for state shared between multiple processes running in a cluster and making it easier to build distributed applications.  With State Synchronizer, an application developer can use Pravega to read and make changes to shared state consistently and perform optimistic locking. 
 
 ![State synchroner](img/state.synchronizer.png) 
@@ -246,8 +248,8 @@ application's configuration property across all instances of that application 
 a cloud.  State Synchronizer could also be used to store one piece of data or a
 map with thousands of different key value pairs. In Pravega, managing the state of Reader Groups and distribution of Readers throughout the network is implemented using State Synchronizer.
 
-An application developer creates a State Synchronizer on a Stream similar to the creation of Writer. The State Synchronizer keeps a local copy of the shared state and allows faster access to the data in the application. State Synchronizer keeps track of all the changes happening in the shred state and responsible for performing any modification to the shared state in the Stream. Each application instance uses the State Synchronizer, to remain updated with the
-changes by pulling updates to the shared state and modifies the local copy of the
+An application developer creates a State Synchronizer on a Stream similar to the creation of a Writer. The State Synchronizer keeps a local copy of the shared state and allows faster access to the data for the application. State Synchronizer keeps track of all the changes happening in the shared state and it is responsible for performing any modification to the shared state in the Stream. Each application instance uses the State Synchronizer, to remain updated with the
+changes by pulling updates to the shared state and modifying the local copy of the
 data. Consistency is maintained through a conditional append style of updates
 to the shared state through the State Synchronizer, making sure that updates are
 made only to the most recent version of the shared state.
@@ -272,7 +274,7 @@ Pravega is deployed as a distributed system – a cluster of servers and storage
 coordinated to run Pravega called a **Pravega cluster**.  
 
 Pravega presents a software-defined storage (SDS) architecture formed by **Controller** instances
-(_control plane_) and Pravega Servers (_data plane_).The set of Pravega Servers is collectively known as the **Segment Store**. 
+(_control plane_) and Pravega Servers (_data plane_). The set of Pravega Servers is collectively known as the **Segment Store**. 
 
 The set of Controller instances together forms the control plane of Pravega, providing
 functionality to _create, update_ and _delete_ Streams. Further, it extends the functionality to retrieve information about the Streams, monitor the health of the Pravega cluster, gather metrics, etc.  There
@@ -281,19 +283,19 @@ are usually multiple (recommended at least 3) Controller instances running in a 
 The [Segment Store](Segment-store-service.md) implements the Pravega data plane.
 Pravega Servers provide the API to read and write data in Streams. Data storage is comprised of two tiers:
 - **Tier 1:** It provides short term, low-latency, data storage, guaranteeing the durability of data written to Streams. Pravega uses [Apache Bookkeeper](http://bookkeeper.apache.org/) to implement
-Tier 1 Storage.
-- **Tier 2:** It provides long term storage for Stream data. Pravega uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud Storage (ECS) to implement Tier 2 Storage.
-
-Tier 1 Storage typically runs _within_ the Pravega cluster. Tier 2 Storage is normally deployed _outside_ the Pravega cluster. Tiering storage is important to deliver the combination of fast access to Stream
-data and also allows large data storage for Streams. Tier 1 storage
+Tier 1 Storage. Tier 1 Storage typically runs _within_ the Pravega cluster. Tier 2 Storage is normally deployed _outside_ the Pravega cluster. Tiering storage is important to deliver the combination of fast access to Stream
+data and also allows large data storage for Streams. Tier 1 Storage
 persists on the most recently written Stream data. As data in Tier 1 Storage ages,
 it is moved into Tier 2 Storage.
+
+- **Tier 2:** It provides long term storage for Stream data. Pravega uses HDFS, Dell EMC's Isilon or Dell EMC's Elastic Cloud Storage (ECS) to implement Tier 2 Storage.
+
 
 Pravega uses [Apache Zookeeper](https://zookeeper.apache.org/) as the
 coordination mechanism for the components in the Pravega cluster.  
 
 Pravega is built as a data storage primitive first and foremost. Pravega is
-carefully designed to take advantage of software-defined storage, so that, the
+carefully designed to take advantage of software-defined storage, so that the
 amount of data stored in Pravega is limited only by the total storage capacity
 of the data center. Once an Event is written to Pravega, it is durably stored and replicated so it can survive permanent crashes of datacenter nodes.
 
@@ -301,6 +303,8 @@ Pravega provides a **Java Client Library**, for building client-side
 applications such as analytics applications using Flink. The Pravega Java Client
 Library manages the interaction between the application code and Pravega via a
 custom TCP Wire Protocol.
+
+Storage tiering allows Pravega to achieve a sweet spot in the latency vs throughput trade-off. This makes Pravega an ideal storage substrate for serving data to both real-time and batch (analytics) applications. Moreover, as data in Tier 1 Storage ages, it is automatically moved into Tier 2 Storage. Thus, Pravega can store vasts amounts of Stream data and applications can read it at any time, while being oblivious to its actual location.
 
 
 ## Putting the Concepts Together
@@ -328,7 +332,7 @@ The concepts in Pravega are depicted in the following figure:
     one of the Stream Segments based on Routing Key.  For any Reader Group reading a Stream, each Stream Segment is assigned to one Reader in that
     Reader Group. 
 
--   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 storage. 
+-   Each Stream Segment is stored in a combination of Tier 1 and Tier 2 Storage. 
     The tail of the Segment is stored in Tier 1 providing low latency reads and
     writes. The rest of the Segment is stored in Tier 2, providing high
     throughput read access with horizontal scalability and low cost. 
@@ -346,9 +350,9 @@ there are really three data access mechanisms in a Log:
 ![State synchroner](img/anatomy.of.log.png) 
 
 All of the write activity, and much of the read activity happens at the tail of
-the log.  Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real time access to the published data by Readers.
+the log.  Writes are appended to the log and many clients try to read data immediately as it is written to the log. These two data access mechanisms are dominated by the need for low latency – low latency writes by Writers and near real-time access to the published data by Readers.
 
-Please note that, not all Readers read from the tail of the log. Some Readers read
+Please note that not all Readers read from the tail of the log. Some Readers read
 by starting at some arbitrary position in the log.  These reads are known as
 **catch-up reads**.  Access to historical data traditionally was done by batch
 analytics jobs, often using HDFS and Map/Reduce.  However with new streaming
