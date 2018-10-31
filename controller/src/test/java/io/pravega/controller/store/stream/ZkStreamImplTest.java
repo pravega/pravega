@@ -17,7 +17,7 @@ import org.apache.curator.test.TestingServer;
 
 import java.time.Duration;
 
-public class ZKStreamTestBase extends StreamTestBase {
+public class ZkStreamImplTest extends StreamTestBase {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
