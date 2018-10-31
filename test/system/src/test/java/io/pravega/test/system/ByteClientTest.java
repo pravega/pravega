@@ -142,6 +142,7 @@ public class ByteClientTest extends AbstractSystemTest {
                         try {
                             log.debug("Writing payload of size: {}. Iteration {}.", payload.length, writerIterations.get());
                             writer.write(payload);
+                            writer.flush();
                         } catch (IOException e) {
                             throw new CompletionException(e);
                         }
