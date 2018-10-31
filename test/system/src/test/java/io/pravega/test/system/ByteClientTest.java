@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,6 +42,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -55,23 +57,24 @@ import static org.junit.Assert.assertTrue;
 public class ByteClientTest extends AbstractSystemTest {
 
     private static final String STREAM = "testByteClientStream";
-    private static final String SCOPE = "testByteClientScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
+    private static final String SCOPE = "testByteClientScope" + RandomFactory.getSeed();
     private static final int PARALLELISM = 1;
     private static final int MAX_PAYLOAD_SIZE = 100000000;
-    private static final int IO_ITERATIONS = 5;
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(8 * 60);
+    private static final int IO_ITERATIONS = 10;
+    private static final ScheduledExecutorService WRITER_EXECUTOR =
+            ExecutorServiceHelpers.newScheduledThreadPool(2, "byte-writer");
+    private static final ScheduledExecutorService READER_EXECUTOR =
+            ExecutorServiceHelpers.newScheduledThreadPool(2, "byte-reader");
 
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
+    @Rule
+    public final Timeout globalTimeout = Timeout.seconds(8 * 60);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
     private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
             .streamName(STREAM)
             .scalingPolicy(scalingPolicy).build();
     private URI controllerURI = null;
     private StreamManager streamManager = null;
-    private ScheduledExecutorService writerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(2, "byte-writer");
-    private ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(2, "byte-reader");
-
+    private final Random randomFactory = RandomFactory.create();
 
     /**
      * This is used to setup the services required by the system test framework.
@@ -99,9 +102,12 @@ public class ByteClientTest extends AbstractSystemTest {
     @After
     public void tearDown() {
         streamManager.close();
-        ExecutorServiceHelpers.shutdown(executor);
-        ExecutorServiceHelpers.shutdown(writerExecutor);
-        ExecutorServiceHelpers.shutdown(readerExecutor);
+    }
+
+    @AfterClass
+    public static void cleanUp() {
+        ExecutorServiceHelpers.shutdown(WRITER_EXECUTOR);
+        ExecutorServiceHelpers.shutdown(READER_EXECUTOR);
     }
 
     /**
@@ -130,7 +136,7 @@ public class ByteClientTest extends AbstractSystemTest {
             // Create the synthetic payload for the write.
             byte[] payload = new byte[payloadSize];
             byte[] readBuffer = new byte[payloadSize];
-            RandomFactory.create().nextBytes(payload);
+            randomFactory.nextBytes(payload);
             final int payloadHashCode = Arrays.hashCode(payload);
             log.info("Created synthetic payload of size {} with hashcode {}.", payload.length, payloadHashCode);
             AtomicInteger writerIterations = new AtomicInteger();
@@ -142,12 +148,15 @@ public class ByteClientTest extends AbstractSystemTest {
                         try {
                             log.debug("Writing payload of size: {}. Iteration {}.", payload.length, writerIterations.get());
                             writer.write(payload);
-                            writer.flush();
+                            if (writerIterations.get() % 2 == 0) {
+                                log.debug("Flushing write.");
+                                writer.flush();
+                            }
                         } catch (IOException e) {
                             throw new CompletionException(e);
                         }
-                        writerIterations.addAndGet(1);
-                    }, writerExecutor), writerExecutor);
+                        writerIterations.incrementAndGet();
+                    }, WRITER_EXECUTOR), WRITER_EXECUTOR);
 
             // Read the written data with a read buffer of the same size than the payload and check that read data is correct.
             CompletableFuture<Void> readerLoop = Futures.loop(() -> readerIterations.get() < IO_ITERATIONS,
@@ -162,8 +171,8 @@ public class ByteClientTest extends AbstractSystemTest {
                         } catch (IOException e) {
                             throw new CompletionException(e);
                         }
-                        readerIterations.addAndGet(1);
-                    }, readerExecutor), readerExecutor);
+                        readerIterations.incrementAndGet();
+                    }, READER_EXECUTOR), READER_EXECUTOR);
 
             writerLoop.join();
             readerLoop.join();
