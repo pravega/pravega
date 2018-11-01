@@ -19,6 +19,7 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
 import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.util.ByteArraySegment;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -34,9 +35,13 @@ import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 
 @NotThreadSafe
 @EqualsAndHashCode
+@Slf4j
 public class CheckpointState {
     
     private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
@@ -69,7 +74,7 @@ public class CheckpointState {
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
     }
-    
+
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
         if (!checkpointPositions.containsKey(checkpointId)) {
             if (!currentReaders.isEmpty()) {
@@ -104,6 +109,7 @@ public class CheckpointState {
     }
     
     void readerCheckpointed(String checkpointId, String readerName, Map<Segment, Long> position) {
+        log.debug("Reader : {} completed checkpointing for Checkpoint : {}", readerName, checkpointId);
         List<String> readers = uncheckpointedHosts.get(checkpointId);
         if (readers != null) {
             boolean removed = readers.remove(readerName);
@@ -120,6 +126,10 @@ public class CheckpointState {
     
     boolean isCheckpointComplete(String checkpointId) {
         return !uncheckpointedHosts.containsKey(checkpointId);
+    }
+
+    boolean isCheckpointSilent(String checkpointId) {
+        return checkpointId.contains(SILENT);
     }
     
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {

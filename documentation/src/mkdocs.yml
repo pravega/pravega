@@ -62,6 +62,12 @@ pages:
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
       - 'Pravega Metrics': 'metrics.md'
+  - Pravega Security:
+      - 'Pravega Authentication/Authorization Plugin': 'auth/auth-plugin.md'
+      - 'Client Auth Interface': 'auth/client-auth.md'
+      - 'Pravega Security Authorization/Authentication': 'security/pravega-security-authorization-authentication.md'
+      - 'Pravega Security Configurations': 'security/pravega-security-configurations.md'
+      - 'pravega Security Encryption': 'security/pravega-security-encryption.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'

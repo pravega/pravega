@@ -16,14 +16,13 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import io.pravega.test.common.TestUtils;
+import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,9 +39,7 @@ public class StreamManagerImplTest {
 
     private static final int SERVICE_PORT = 12345;
     private final String defaultScope = "foo";
-    private final int controllerPort = TestUtils.getAvailableListenPort();
     private StreamManager streamManager;
-    private JavaSerializer<String> serializer;
     private Controller controller = null;
 
     @Before
@@ -51,7 +48,6 @@ public class StreamManagerImplTest {
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
         this.streamManager = new StreamManagerImpl(controller, cf);
-        this.serializer = new JavaSerializer<>();
     }
 
     @Test
@@ -104,7 +100,7 @@ public class StreamManagerImplTest {
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                                                            connectionFactory);
-
+        @Cleanup
         final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
 
         streamManager.createScope(defaultScope);

@@ -91,7 +91,35 @@ public class SegmentMetadataClientTest {
         }).when(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L, ""));
         client.truncateSegment(123L);
         Mockito.verify(connection).send(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L, ""));
+    }
+    
+    @Test(timeout = 10000)
+    public void testSeal() throws Exception {
+        Segment segment = new Segment("scope", "testSeal", 4);
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
+        @Cleanup
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        @Cleanup
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(endpoint, connection);
+        @Cleanup
+        SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
+        client.getConnection();
+        ReplyProcessor processor = cf.getProcessor(endpoint);
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                processor.process(new WireCommands.SegmentSealed(1, segment.getScopedName()));
+                return null;
+            }
+        }).when(connection).send(new WireCommands.SealSegment(1, segment.getScopedName(), ""));
+        client.sealSegment();
+        Mockito.verify(connection).send(new WireCommands.SealSegment(1, segment.getScopedName(), ""));
     }  
+
+    
 
     @Test(timeout = 10000)
     public void testGetProperty() throws Exception {

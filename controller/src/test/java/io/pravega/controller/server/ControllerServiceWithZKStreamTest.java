@@ -444,7 +444,7 @@ public class ControllerServiceWithZKStreamTest {
         Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, segmentsToSeal, keyRanges, start)
                 .get();
         AtomicBoolean done = new AtomicBoolean(false);
-        Futures.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch())
+        Futures.loop(() -> !done.get(), () -> Futures.delayedFuture(() -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch()), 1000, executor)
                 .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
     }
 }

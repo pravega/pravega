@@ -280,6 +280,7 @@ public class ReaderGroupStateManager {
 
     private void fetchUpdatesIfNeeded() {
         if (!fetchStateTimer.hasRemaining()) {
+            log.debug("Update group state for reader {}", readerId);
             sync.fetchUpdates();
             long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
             fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
@@ -398,7 +399,7 @@ public class ReaderGroupStateManager {
         checkpointTimer.reset(Duration.ofMillis(automaticCpInterval));
         return state.getCheckpointForReader(readerId);
     }
-    
+
     void checkpoint(String checkpointName, PositionInternal lastPosition) throws ReinitializationRequiredException {
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
         sync.updateState((state, updates) -> {
@@ -412,6 +413,10 @@ public class ReaderGroupStateManager {
         if (reinitRequired.get()) {
             throw new ReinitializationRequiredException();
         }
+    }
+
+    boolean isCheckpointSilent(String atCheckpoint) {
+        return sync.getState().getCheckpointState().isCheckpointSilent(atCheckpoint);
     }
 
     public String getOrRefreshDelegationTokenFor(Segment segmentId) {

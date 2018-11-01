@@ -14,7 +14,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.util.RetryHelper;
 import lombok.Lombok;
 import lombok.SneakyThrows;
@@ -129,7 +128,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
 
     @VisibleForTesting
     CompletableFuture<Void> process() {
-        return zkStoreHelper.setData(guardPath, new Data<>(new byte[0], latestVersion.get()))
+        return zkStoreHelper.setData(guardPath, new Data(new byte[0], new Version.IntVersion(latestVersion.get())))
                 .thenComposeAsync(r -> {
                     // If we reach here, we were able to update the guard and have loose exclusive rights on batch update.
                     // Note: Each change of guard will guarantee at least one batch internal cycle before another instance is able
@@ -163,7 +162,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
     @VisibleForTesting
     CompletableFuture<Void> fetchVersion() {
         return zkStoreHelper.getData(guardPath)
-                .thenAccept(data -> latestVersion.set(data.getVersion()));
+                .thenAccept(data -> latestVersion.set(data.getVersion().asIntVersion().getIntValue()));
     }
 
     @SneakyThrows(Exception.class)

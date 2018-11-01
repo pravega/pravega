@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.task;
 
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -25,8 +24,9 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.tables.EpochTransitionRecord;
-import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaggedResource;
@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -93,7 +94,7 @@ public class TaskTest {
     private final StreamMetadataTasks streamMetadataTasks;
     private final SegmentHelper segmentHelperMock;
     private final CuratorFramework cli;
-    private ImmutableMap<Long, AbstractMap.SimpleEntry<Double, Double>> segmentsCreated;
+    private Map<Long, Map.Entry<Double, Double>> segmentsCreated;
     private final RequestTracker requestTracker = new RequestTracker(true);
 
     public TaskTest() throws Exception {
@@ -136,24 +137,31 @@ public class TaskTest {
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Long> sealedSegments = Collections.singletonList(1L);
-        EpochTransitionRecord response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
+        VersionedMetadata<EpochTransitionRecord> versioned = streamStore.submitScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, null, executor).get();
+        EpochTransitionRecord response = versioned.getObject();
         segmentsCreated = response.getNewSegmentsWithRange();
-        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStore.scaleCreateNewSegments(SCOPE, stream1, false, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), null, executor).get();
+        VersionedMetadata<State> state = streamStore.getVersionedState(SCOPE, stream1, null, executor).join();
+        state = streamStore.updateVersionedState(SCOPE, stream1, State.SCALING, state, null, executor).get();
+        versioned = streamStore.startScale(SCOPE, stream1, false, versioned, state, null, executor).join();
+        streamStore.scaleCreateNewEpochs(SCOPE, stream1, versioned, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned, null, executor).get();
+        streamStore.completeScale(SCOPE, stream1, versioned, null, executor).join();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
         List<Long> sealedSegments1 = Arrays.asList(0L, 1L, 2L);
-        response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
+        versioned = streamStore.submitScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, null, null, executor).get();
+        response = versioned.getObject();
         segmentsCreated = response.getNewSegmentsWithRange();
-        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        state = streamStore.getVersionedState(SCOPE, stream2, null, executor).join();
+        state = streamStore.updateVersionedState(SCOPE, stream2, State.SCALING, state, null, executor).get();
+        versioned = streamStore.startScale(SCOPE, stream2, false, versioned, state, null, executor).join();
+        streamStore.scaleCreateNewEpochs(SCOPE, stream2, versioned, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).get();
+        streamStore.completeScale(SCOPE, stream2, versioned, null, executor).join();
         streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         // endregion
     }
@@ -170,7 +178,7 @@ public class TaskTest {
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
         CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
-        assertTrue(status.equals(CreateStreamStatus.Status.STREAM_EXISTS));
+        assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, status);
         streamStore.createScope(SCOPE);
         CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
