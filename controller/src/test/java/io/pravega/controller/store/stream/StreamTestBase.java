@@ -16,8 +16,11 @@ import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
@@ -37,10 +40,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -55,18 +61,24 @@ public abstract class StreamTestBase {
 
     abstract void createScope(String scope);
 
-    abstract PersistentStreamBase getStream(String scope, String stream);
+    abstract PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize);
 
-    private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber) {
+    private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber,
+                                              int chunkSize, int shardSize) {
         createScope("scope");
 
-        PersistentStreamBase stream = getStream(scope, name);
+        PersistentStreamBase stream = getStream(scope, name, chunkSize, shardSize);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(name)
                                                         .scalingPolicy(ScalingPolicy.fixed(numOfSegments)).build();
         stream.create(config, time, startingSegmentNumber)
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
 
         return stream;
+    }
+    
+    private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber) {
+        return createStream(scope, name, time, numOfSegments, startingSegmentNumber, HistoryTimeSeries.HISTORY_CHUNK_SIZE, 
+                SealedSegmentsMapShard.SHARD_SIZE);
     }
 
     private void scaleStream(Stream stream, long time, List<Long> sealedSegments,
@@ -89,7 +101,20 @@ public abstract class StreamTestBase {
                                              .thenApply(z -> y.getId())).join();
     }
 
-    @Test
+    private void rollTransactions(Stream stream, long time, int epoch, int activeEpoch, Map<Long, Long> txnSizeMap, Map<Long, Long> activeSizeMap) {
+        stream.startCommittingTransactions(epoch)
+                                        .thenCompose(ctr ->
+                                                stream.getVersionedState()
+                                                      .thenCompose(state -> stream.updateVersionedState(state, State.COMMITTING_TXN))
+                                                .thenCompose(state -> stream.startRollingTxn(activeEpoch, ctr)
+                                                        .thenCompose(ctr2 -> stream.rollingTxnCreateDuplicateEpochs(txnSizeMap, time, ctr2)
+                                                        .thenCompose(v -> stream.completeRollingTxn(activeSizeMap, ctr2))
+                                                                .thenCompose(v -> stream.completeCommittingTransactions(ctr2))
+                                        )))
+              .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
+    }
+
+    @Test(timeout = 30000L)
     public void testCreateStream() {
         PersistentStreamBase stream = createStream("scope", "stream", System.currentTimeMillis(), 2, 0);
 
@@ -111,7 +136,7 @@ public abstract class StreamTestBase {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void testSegmentQueriesDuringScale() {
         // start scale and perform `getSegment`, `getActiveEpoch` and `getEpoch` during different phases of scale
         int startingSegmentNumber = new Random().nextInt(20);
@@ -185,7 +210,7 @@ public abstract class StreamTestBase {
         assertEquals(segment.getKeyEnd(), 1.0, 0);
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void predecessorAndSuccessorTest() {
         // multiple rows in history table, find predecessor
         // - more than one predecessor
@@ -390,7 +415,7 @@ public abstract class StreamTestBase {
         assertTrue(successorsWithPredecessors.isEmpty());
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void scaleInputValidityTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
         String name = "stream" + startingSegmentNumber;
@@ -571,7 +596,7 @@ public abstract class StreamTestBase {
         return stream.getEpochTransition().join();
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void segmentQueriesDuringRollingTxn() {
         // start scale and perform `getSegment`, `getActiveEpoch` and `getEpoch` during different phases of scale
         int startingSegmentNumber = new Random().nextInt(2000);
@@ -634,7 +659,7 @@ public abstract class StreamTestBase {
         stream.completeCommittingTransactions(ctr).join();
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void truncationTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
         // epoch 0 --> 0, 1
@@ -811,6 +836,364 @@ public abstract class StreamTestBase {
         return span.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
     }
 
+    // region multiple chunks test
+    private PersistentStreamBase createScaleAndRollStreamForMultiChunkTests(String name, String scope, int startingSegmentNumber, Supplier<Long> time) {
+        createScope(scope);
+        PersistentStreamBase stream = createStream(scope, name, time.get(), 5, startingSegmentNumber, 2, 2);
+        UUID txnId = createAndCommitTransaction(stream, 0, 0L);
+        // scale the stream 5 times so that over all we have 6 epochs and hence 3 chunks.  
+        for (int i = 0; i < 5; i++) {
+            Segment first = stream.getActiveSegments().join().get(0);
+            ArrayList<Long> sealedSegments = Lists.newArrayList(first.segmentId());
+            List<Map.Entry<Double, Double>> newRanges = new LinkedList<>();
+            newRanges.add(new AbstractMap.SimpleEntry<>(first.getKeyStart(), first.getKeyEnd()));
+            Map<Long, Long> sealedSizeMap = new HashMap<>();
+            sealedSizeMap.put(first.segmentId(), 100L);
+            scaleStream(stream, time.get(), sealedSegments, newRanges, sealedSizeMap);
+        }
+
+        EpochRecord activeEpoch = stream.getActiveEpoch(true).join();
+        // now roll transaction so that we have 2 more epochs added for overall 8 epochs and 4 chunks 
+        Map<Long, Long> map1 = stream.getEpochRecord(0).join().getSegmentIds().stream()
+                                     .collect(Collectors.toMap(x -> computeSegmentId(StreamSegmentNameUtils.getSegmentNumber(x),
+                                             activeEpoch.getEpoch() + 1), x -> 100L));
+        Map<Long, Long> map2 = activeEpoch.getSegmentIds().stream()
+                                     .collect(Collectors.toMap(x -> x, x -> 100L));
+
+        rollTransactions(stream, time.get(), 0, activeEpoch.getEpoch(), map1, map2);
+
+        // scale the stream 5 times so that over all we have 13 epochs and hence 7 chunks.  
+        for (int i = 0; i < 5; i++) {
+            Segment first = stream.getActiveSegments().join().get(0);
+            ArrayList<Long> sealedSegments = Lists.newArrayList(first.segmentId());
+            List<Map.Entry<Double, Double>> newRanges = new LinkedList<>();
+            newRanges.add(new AbstractMap.SimpleEntry<>(first.getKeyStart(), first.getKeyEnd()));
+            Map<Long, Long> sealedSizeMap = new HashMap<>();
+            sealedSizeMap.put(first.segmentId(), 100L);
+            scaleStream(stream, time.get(), sealedSegments, newRanges, sealedSizeMap);
+        }
+        return stream;
+    }
+
+    /**
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
+     */
+    @Test(timeout = 30000L)
+    public void testFetchEpochs() {
+        String scope = "fetchEpoch";
+        String name = "fetchEpoch";
+        PersistentStreamBase stream = createScaleAndRollStreamForMultiChunkTests(name, scope, new Random().nextInt(2000), System::currentTimeMillis);
+
+        List<EpochRecord> epochs = stream.fetchEpochs(0, 12, true).join();
+        assertEquals(13, epochs.size());
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 0));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 1));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 2));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 3));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 4));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 5));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 6));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 7));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 8));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 9));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 10));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 11));
+        assertTrue(epochs.stream().anyMatch(x -> x.getEpoch() == 12));
+        
+        epochs = stream.fetchEpochs(12, 13, true).join();
+        assertEquals(1, epochs.size());
+        assertEquals(stream.getEpochRecord(12).join(), epochs.get(0));
+
+        // now try to fetch an epoch that will fall in a chunk that does not exist
+        AssertExtensions.assertThrows("", stream.fetchEpochs(12, 14, true), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+    }
+
+    /**
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
+     */
+    @Test(timeout = 30000L)
+    public void testFindEpochAtTime() {
+        String scope = "findEpochsAtTime";
+        String name = "findEpochsAtTime";
+        AtomicLong timeFunc = new AtomicLong(100L);
+        PersistentStreamBase stream = createScaleAndRollStreamForMultiChunkTests(name, scope, new Random().nextInt(2000), timeFunc::incrementAndGet);
+        List<EpochRecord> epochs = stream.fetchEpochs(0, 12, true).join();
+        int epoch = stream.findEpochAtTime(0L, true).join();
+        assertEquals(0, epoch);
+        epoch = stream.findEpochAtTime(101L, true).join();
+        assertEquals(0, epoch);
+        epoch = stream.findEpochAtTime(102L, true).join();
+        assertEquals(1, epoch);
+        epoch = stream.findEpochAtTime(103L, true).join();
+        assertEquals(2, epoch);
+        epoch = stream.findEpochAtTime(104L, true).join();
+        assertEquals(3, epoch);
+        epoch = stream.findEpochAtTime(105L, true).join();
+        assertEquals(4, epoch);
+        epoch = stream.findEpochAtTime(106L, true).join();
+        assertEquals(5, epoch);
+        epoch = stream.findEpochAtTime(107L, true).join();
+        assertEquals(6, epoch);
+        epoch = stream.findEpochAtTime(108L, true).join();
+        assertEquals(7, epoch);
+        epoch = stream.findEpochAtTime(109L, true).join();
+        assertEquals(8, epoch);
+        epoch = stream.findEpochAtTime(110L, true).join();
+        assertEquals(9, epoch);
+        epoch = stream.findEpochAtTime(111L, true).join();
+        assertEquals(10, epoch);
+        epoch = stream.findEpochAtTime(112L, true).join();
+        assertEquals(11, epoch);
+        epoch = stream.findEpochAtTime(113L, true).join();
+        assertEquals(12, epoch);
+        epoch = stream.findEpochAtTime(114L, true).join();
+        assertEquals(12, epoch);
+        epoch = stream.findEpochAtTime(1000L, true).join();
+        assertEquals(12, epoch);
+    }
+
+    /**
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
+     */
+    @Test(timeout = 30000L)
+    public void testSealedSegmentSizesMapShards() {
+        String scope = "sealedSizeTest";
+        String name = "sealedSizeTest";
+        int startingSegmentNumber = new Random().nextInt(2000);
+        PersistentStreamBase stream = createScaleAndRollStreamForMultiChunkTests(name, scope, startingSegmentNumber, System::currentTimeMillis);
+        SealedSegmentsMapShard shard0 = stream.getSealedSegmentSizeMapShard(0).join();
+        // 5 segments created in epoch 0 and 1 segment in epoch 1
+        assertTrue(shard0.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 0 || getEpoch(x) == 1));
+        assertEquals(5, shard0.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 0).collect(Collectors.toList()).size());
+        assertEquals(1, shard0.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 1).collect(Collectors.toList()).size());
+
+        // 1 segment created in epoch 2 and 1 segment in epoch 3
+        SealedSegmentsMapShard shard1 = stream.getSealedSegmentSizeMapShard(1).join();
+        assertTrue(shard1.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 2 || getEpoch(x) == 3));
+        assertEquals(1, shard1.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 2).collect(Collectors.toList()).size());
+        assertEquals(1, shard1.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 3).collect(Collectors.toList()).size());
+
+        // 1 segment created in epoch 3 and 1 segment in epoch 4
+        SealedSegmentsMapShard shard2 = stream.getSealedSegmentSizeMapShard(2).join();
+        assertTrue(shard2.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 4 || getEpoch(x) == 5));
+        assertEquals(1, shard2.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 4).collect(Collectors.toList()).size());
+        assertEquals(1, shard2.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 5).collect(Collectors.toList()).size());
+
+        // rolling transaction, 10 segments created across two epochs mapped to the shard
+        SealedSegmentsMapShard shard3 = stream.getSealedSegmentSizeMapShard(3).join();
+        assertTrue(shard3.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 6 || getEpoch(x) == 7));
+        assertEquals(5, shard3.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 6).collect(Collectors.toList()).size());
+        assertEquals(5, shard3.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 7).collect(Collectors.toList()).size());
+
+        // 1 segment created in epoch 8 and 1 segment in epoch 9 but they are not sealed yet
+        SealedSegmentsMapShard shard4 = stream.getSealedSegmentSizeMapShard(4).join();
+        assertTrue(shard4.getSealedSegmentsSizeMap().isEmpty());
+
+        // 1 segment created in epoch 10 and 1 segment in epoch 11 but they are not sealed yet
+        SealedSegmentsMapShard shard5 = stream.getSealedSegmentSizeMapShard(5).join();
+        assertTrue(shard5.getSealedSegmentsSizeMap().isEmpty());
+
+        // 1 segment created in epoch 12 but nothing is sealed yet
+        SealedSegmentsMapShard shard6 = stream.getSealedSegmentSizeMapShard(6).join();
+        assertTrue(shard6.getSealedSegmentsSizeMap().isEmpty());
+
+        // now seal all of them again
+        EpochRecord activeEpoch = stream.getActiveEpoch(true).join();
+        List<Map.Entry<Double, Double>> newRanges = new LinkedList<>();
+        newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        Map<Long, Long> sealedSizeMap = new HashMap<>();
+        activeEpoch.getSegments().forEach(x -> sealedSizeMap.put(x.segmentId(), 100L));
+        scaleStream(stream, System.currentTimeMillis(), Lists.newArrayList(activeEpoch.getSegmentIds()), newRanges, sealedSizeMap);
+
+        // 1 segment created in epoch 8 and 1 segment in epoch 9 
+        shard4 = stream.getSealedSegmentSizeMapShard(4).join();
+        assertTrue(shard4.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 8 || getEpoch(x) == 9));
+        assertEquals(1, shard4.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 8).collect(Collectors.toList()).size());
+        assertEquals(1, shard4.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 9).collect(Collectors.toList()).size());
+
+        // 1 segment created in epoch 10 and 1 segment in epoch 11 
+        shard5 = stream.getSealedSegmentSizeMapShard(5).join();
+        assertTrue(shard5.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 10 || getEpoch(x) == 11));
+        assertEquals(1, shard5.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 10).collect(Collectors.toList()).size());
+        assertEquals(1, shard5.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 11).collect(Collectors.toList()).size());
+
+        // 1 segment created in epoch 12 
+        shard6 = stream.getSealedSegmentSizeMapShard(6).join();
+        assertTrue(shard6.getSealedSegmentsSizeMap().keySet().stream().allMatch(x -> getEpoch(x) == 12));
+        assertEquals(1, shard6.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 12).collect(Collectors.toList()).size());
+
+    }
+
+    /**
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
+     */
+    @Test(timeout = 30000L)
+    public void testStreamCutsWithMultipleChunks() {
+        String scope = "streamCutTest";
+        String name = "streamCutTest";
+        int startingSegmentNumber = new Random().nextInt(2000);
+        PersistentStreamBase stream = createScaleAndRollStreamForMultiChunkTests(name, scope, startingSegmentNumber, System::currentTimeMillis);
+
+        EpochRecord epoch0 = stream.getEpochRecord(0).join(); // 0, 1, 2, 3, 4
+        EpochRecord epoch1 = stream.getEpochRecord(1).join(); // 5, 1, 2, 3, 4
+        EpochRecord epoch2 = stream.getEpochRecord(2).join(); // 5, 6, 2, 3, 4
+        EpochRecord epoch3 = stream.getEpochRecord(3).join(); // 5, 6, 7, 3, 4
+        EpochRecord epoch4 = stream.getEpochRecord(4).join(); // 5, 6, 7, 8, 4
+        EpochRecord epoch5 = stream.getEpochRecord(5).join(); // 5, 6, 7, 8, 9
+        EpochRecord epoch6 = stream.getEpochRecord(6).join(); // 0`, 1`, 2`, 3`, 4`
+        EpochRecord epoch7 = stream.getEpochRecord(7).join(); // 5`, 6`, 7`, 8`, 9`
+        EpochRecord epoch8 = stream.getEpochRecord(8).join(); // 10, 6`, 7`, 8`, 9`
+        EpochRecord epoch9 = stream.getEpochRecord(9).join(); // 10, 11, 7`, 8`, 9`
+        EpochRecord epoch10 = stream.getEpochRecord(10).join(); // 10, 11, 12, 8`, 9`
+        EpochRecord epoch11 = stream.getEpochRecord(11).join(); // 10, 11, 12, 13, 9` 
+        EpochRecord epoch12 = stream.getEpochRecord(12).join(); // 10, 11, 12, 13, 14
+                
+        List<Map.Entry<Double, Double>> keyRanges = epoch0.getSegments().stream()
+                                                          .map(x -> new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd()))
+                                                          .collect(Collectors.toList());
+        
+        // create a streamCut1 using 0, 6, 7, 8, 9`
+        HashMap<Long, Long> streamCut1 = new HashMap<>();
+        // segment 0 from epoch 0 // sealed in epoch 1
+        streamCut1.put(epoch0.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(0).getKey(), keyRanges.get(0).getValue())).findAny().get().segmentId(), 10L);
+        // segment 6 from epoch 2 // sealed in epoch 6
+        streamCut1.put(epoch2.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(1).getKey(), keyRanges.get(1).getValue())).findAny().get().segmentId(), 10L);
+        // segment 7 from epoch 3 // sealed in epoch 6
+        streamCut1.put(epoch3.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(2).getKey(), keyRanges.get(2).getValue())).findAny().get().segmentId(), 10L);
+        // segment 8 from epoch 5 // sealed in epoch 6
+        streamCut1.put(epoch5.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(3).getKey(), keyRanges.get(3).getValue())).findAny().get().segmentId(), 10L);
+        // segment 9` from epoch 7 // created in epoch 7
+        streamCut1.put(epoch7.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(4).getKey(), keyRanges.get(4).getValue())).findAny().get().segmentId(), 10L);
+        Map<StreamSegmentRecord, Integer> span1 = stream.computeStreamCutSpan(streamCut1).join();
+        
+        assertEquals(0, span1.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 0)
+                            .findAny().get().getValue().intValue());
+        assertEquals(5, span1.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 6)
+                            .findAny().get().getValue().intValue());
+        assertEquals(5, span1.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 7)
+                            .findAny().get().getValue().intValue());
+        assertEquals(5, span1.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 8)
+                            .findAny().get().getValue().intValue());
+        assertEquals(7, span1.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 9)
+                            .findAny().get().getValue().intValue());
+
+        // create a streamCut2 5, 6`, 12, 8`, 14
+        HashMap<Long, Long> streamCut2 = new HashMap<>();
+        // segment 5 from epoch 1 // sealed in epoch 6 
+        streamCut2.put(epoch1.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(0).getKey(), keyRanges.get(0).getValue())).findAny().get().segmentId(), 10L);
+        // segment 6` from epoch 7 // sealed in epoch 9
+        streamCut2.put(epoch7.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(1).getKey(), keyRanges.get(1).getValue())).findAny().get().segmentId(), 10L);
+        // segment 12 from epoch 10 // never sealed
+        streamCut2.put(epoch10.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(2).getKey(), keyRanges.get(2).getValue())).findAny().get().segmentId(), 10L);
+        // segment 8` from epoch 7 // sealed in epoch 11
+        streamCut2.put(epoch7.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(3).getKey(), keyRanges.get(3).getValue())).findAny().get().segmentId(), 10L);
+        // segment 14 from epoch 12 // never sealed
+        streamCut2.put(epoch12.getSegments().stream().filter(x -> x.overlaps(keyRanges.get(4).getKey(), keyRanges.get(4).getValue())).findAny().get().segmentId(), 10L);
+        Map<StreamSegmentRecord, Integer> span2 = stream.computeStreamCutSpan(streamCut2).join();
+        
+        assertEquals(5, span2.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 5)
+                            .findAny().get().getValue().intValue());
+        assertEquals(8, span2.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 6)
+                            .findAny().get().getValue().intValue());
+        assertEquals(12, span2.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 12)
+                            .findAny().get().getValue().intValue());
+        assertEquals(10, span2.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 8)
+                            .findAny().get().getValue().intValue());
+        assertEquals(12, span2.entrySet().stream()
+                            .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 14)
+                            .findAny().get().getValue().intValue());
+
+        Set<StreamSegmentRecord> segmentsBetween = stream.segmentsBetweenStreamCutSpans(span1, span2).join();
+        Set<Long> segmentIdsBetween = segmentsBetween.stream().map(x -> x.segmentId()).collect(Collectors.toSet());
+        // create a streamCut1 using 0, 6, 7, 8, 9`
+        // create a streamCut2 5, 6`, 12, 8`, 14
+
+        // 0, 5, 6, 1`, 6`, 7, 2`, 7`, 12, 8, 3`, 8`, 9`, 14
+        Set<Long> expected = new HashSet<>();
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 0, 0));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 5, 1));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 6, 2));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 1, 6));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 6, 7));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 7, 3));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 2, 6));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 7, 7));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 12, 10));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 8, 4));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 3, 6));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 8, 7));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 9, 7));
+        expected.add(StreamSegmentNameUtils.computeSegmentId(startingSegmentNumber + 14, 12));
+        assertEquals(expected, segmentIdsBetween);
+
+        // Note: all sealed segments have sizes 100L. So expected size = 1400 - 10x5 - 90 x 5 = 900
+
+        long sizeBetween = stream.sizeBetweenStreamCuts(streamCut1, streamCut2, segmentsBetween).join();
+        assertEquals(900L, sizeBetween);
+    }
+    // endregion
+    
     /*
      Segment mapping of stream8 used for the below tests.
 
@@ -828,7 +1211,7 @@ public abstract class StreamTestBase {
      |       |   3  |       |       |
      +-------+------+----------------
      */
-    @Test
+    @Test(timeout = 30000L)
     public void testStreamCutSegmentsBetween() {
         int startingSegmentNumber = new Random().nextInt(2000);
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
