@@ -62,7 +62,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +76,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -720,18 +718,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(long segmentId, UUID fromId, UUID toId, Duration timeout) {
         return this.attributeIndex.forSegment(segmentId, timeout)
                 .thenApplyAsync(index -> {
-                    // Get an iterator of eligible Attributes from the Metadata. While doing so, make sure we get a copy
-                    // of those attributes since SegmentMetadata.getAttributes() returns a view on top of its inner data
-                    // structures which change very frequently.
-                    val metadataAttributes = this.metadata.getStreamSegmentMetadata(segmentId)
-                            .getSnapshot()
-                            .getAttributes().entrySet().stream()
-                            .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
-                            .sorted(Comparator.comparing(Map.Entry::getKey, UUID::compareTo))
-                            .iterator();
-
-                    val baseIterator = index.iterator(fromId, toId, timeout);
-                    return new MixedAttributeIterator(baseIterator, metadataAttributes);
+                    AttributeMixer mixer = new AttributeMixer(this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
+                    return index.iterator(fromId, toId, timeout).apply(mixer::mix);
                 }, this.executor);
     }
 

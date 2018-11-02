@@ -340,10 +340,17 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     @Override
     public AsyncIterator<Iterator<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
         ensureInitialized();
-        return this.index.iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout)
-                .apply(pageEntries -> pageEntries.stream()
-                        .map(e -> (Map.Entry<UUID, Long>) new AbstractMap.SimpleImmutableEntry<>(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
-                        .iterator());
+        return this.index
+                .iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout)
+                .apply(pageEntries -> {
+                    if (pageEntries == null) {
+                        return null;
+                    }
+                    return pageEntries.stream()
+                                      .map(e -> (Map.Entry<UUID, Long>) new AbstractMap.SimpleImmutableEntry<>(
+                                              deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                                      .iterator();
+                });
     }
 
     //endregion

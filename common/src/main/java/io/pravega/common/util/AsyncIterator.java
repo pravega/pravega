@@ -65,6 +65,6 @@ public interface AsyncIterator<T> {
      * @return A new AsyncIterator with the converter applied.
      */
     default <V> AsyncIterator<V> apply(Function<T, V> converter) {
-        return () -> getNext().thenApply(input -> input == null ? null : converter.apply(input));
+        return () -> getNext().thenApply(converter);
     }
 }
