@@ -34,13 +34,10 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.PrimitiveIterator;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -116,7 +113,7 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
 
         double delta = 1.0 / NUM_SEGMENTS;
         for (int i = 0; i < NUM_SEGMENTS - 1; i++) {
-            newRanges.put(delta * i, (delta * (i + 1)));
+            newRanges.put(delta * i, delta * (i + 1));
         }
         newRanges.put(delta * (NUM_SEGMENTS - 1), 1.0);
         
