@@ -53,11 +53,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public abstract class StreamTestBase {
-    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
-
     @Rule
     public Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
-
+    
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
+    
     @Before
     public abstract void setup() throws Exception;
 
@@ -877,19 +877,20 @@ public abstract class StreamTestBase {
     }
 
     /**
-     *         epoch0 = 0, 1, 2, 3, 4
-     *         epoch1 = 5, 1, 2, 3, 4
-     *         epoch2 = 5, 6, 2, 3, 4
-     *         epoch3 = 5, 6, 7, 3, 4
-     *         epoch4 = 5, 6, 7, 8, 4
-     *         epoch5 = 5, 6, 7, 8, 9
-     *         epoch6 = 0`, 1`, 2`, 3`, 4`
-     *         epoch7 = 5`, 6`, 7`, 8`, 9`
-     *         epoch8 = 10, 6`, 7`, 8`, 9`
-     *         epoch9 = 10, 11, 7`, 8`, 9`
-     *         epoch10 = 10, 11, 12, 8`, 9`
-     *         epoch11 = 10, 11, 12, 13, 9` 
-     *         epoch12 = 10, 11, 12, 13, 14
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
      */
     @Test
     public void testFetchEpochs() {
@@ -922,19 +923,20 @@ public abstract class StreamTestBase {
     }
 
     /**
-     *         epoch0 = 0, 1, 2, 3, 4
-     *         epoch1 = 5, 1, 2, 3, 4
-     *         epoch2 = 5, 6, 2, 3, 4
-     *         epoch3 = 5, 6, 7, 3, 4
-     *         epoch4 = 5, 6, 7, 8, 4
-     *         epoch5 = 5, 6, 7, 8, 9
-     *         epoch6 = 0`, 1`, 2`, 3`, 4`
-     *         epoch7 = 5`, 6`, 7`, 8`, 9`
-     *         epoch8 = 10, 6`, 7`, 8`, 9`
-     *         epoch9 = 10, 11, 7`, 8`, 9`
-     *         epoch10 = 10, 11, 12, 8`, 9`
-     *         epoch11 = 10, 11, 12, 13, 9` 
-     *         epoch12 = 10, 11, 12, 13, 14
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
      */
     @Test
     public void testFindEpochAtTime() {
@@ -978,19 +980,20 @@ public abstract class StreamTestBase {
     }
 
     /**
-     *         epoch0 = 0, 1, 2, 3, 4
-     *         epoch1 = 5, 1, 2, 3, 4
-     *         epoch2 = 5, 6, 2, 3, 4
-     *         epoch3 = 5, 6, 7, 3, 4
-     *         epoch4 = 5, 6, 7, 8, 4
-     *         epoch5 = 5, 6, 7, 8, 9
-     *         epoch6 = 0`, 1`, 2`, 3`, 4`
-     *         epoch7 = 5`, 6`, 7`, 8`, 9`
-     *         epoch8 = 10, 6`, 7`, 8`, 9`
-     *         epoch9 = 10, 11, 7`, 8`, 9`
-     *         epoch10 = 10, 11, 12, 8`, 9`
-     *         epoch11 = 10, 11, 12, 13, 9` 
-     *         epoch12 = 10, 11, 12, 13, 14
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
      */
     @Test
     public void testSealedSegmentSizesMapShards() {
@@ -1060,7 +1063,23 @@ public abstract class StreamTestBase {
         assertEquals(1, shard6.getSealedSegmentsSizeMap().keySet().stream().filter(x -> getEpoch(x) == 12).collect(Collectors.toList()).size());
 
     }
-    
+
+    /**
+     * Stream history.
+     * epoch0 = 0, 1, 2, 3, 4
+     * epoch1 = 5, 1, 2, 3, 4
+     * epoch2 = 5, 6, 2, 3, 4
+     * epoch3 = 5, 6, 7, 3, 4
+     * epoch4 = 5, 6, 7, 8, 4
+     * epoch5 = 5, 6, 7, 8, 9
+     * epoch6 = 0`, 1`, 2`, 3`, 4`
+     * epoch7 = 5`, 6`, 7`, 8`, 9`
+     * epoch8 = 10, 6`, 7`, 8`, 9`
+     * epoch9 = 10, 11, 7`, 8`, 9`
+     * epoch10 = 10, 11, 12, 8`, 9`
+     * epoch11 = 10, 11, 12, 13, 9` 
+     * epoch12 = 10, 11, 12, 13, 14
+     */
     @Test
     public void testStreamCutsWithMultipleChunks() {
         String scope = "streamCutTest";
@@ -1145,7 +1164,6 @@ public abstract class StreamTestBase {
         assertEquals(12, span2.entrySet().stream()
                             .filter(x -> x.getKey().getSegmentNumber() == startingSegmentNumber + 14)
                             .findAny().get().getValue().intValue());
-
 
         Set<StreamSegmentRecord> segmentsBetween = stream.segmentsBetweenStreamCutSpans(span1, span2).join();
         Set<Long> segmentIdsBetween = segmentsBetween.stream().map(x -> x.segmentId()).collect(Collectors.toSet());
