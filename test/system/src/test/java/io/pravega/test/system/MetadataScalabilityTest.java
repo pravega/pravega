@@ -34,6 +34,8 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -47,17 +49,21 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+/**
+ * This test creates a stream with 50000 segments and then rapidly scales it 1010 times.  
+ */
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MetadataScalabilityTest extends AbstractScaleTests {
     private static final String STREAM_NAME = "metadataScalability";
-
+    private static final int NUM_SEGMENTS = 50000;
     private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
-                                                                         .streamName(STREAM_NAME).scalingPolicy(ScalingPolicy.fixed(5)).build();
+                                                                         .streamName(STREAM_NAME)
+                                                                         .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
     private static final int TOTAL_NUMBER_OF_SCALES_TO_PERFORM = 1010;
-    //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
+    
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(30 * 60);
+    public Timeout globalTimeout = Timeout.seconds(60 * 60);
 
     private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
 
@@ -107,11 +113,13 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         createWriters(clientFactory, 6, SCOPE, STREAM_NAME);
         
         Map<Double, Double> newRanges = new HashMap<>();
-        newRanges.put(0.0, 0.2);
-        newRanges.put(0.2, 0.4);
-        newRanges.put(0.4, 0.6);
-        newRanges.put(0.6, 0.8);
-        newRanges.put(0.8, 1.0);
+
+        double delta = 1.0 / NUM_SEGMENTS;
+        for (int i = 0; i < NUM_SEGMENTS - 1; i++) {
+            newRanges.put(delta * i, (delta * (i + 1)));
+        }
+        newRanges.put(delta * (NUM_SEGMENTS - 1), 1.0);
+        
         // manually scale the stream TOTAL_NUMBER_OF_SCALES_TO_PERFORM times
         Stream stream = new StreamImpl(SCOPE, STREAM_NAME);
         AtomicInteger counter = new AtomicInteger(0);
@@ -135,27 +143,22 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                 .thenCompose(r -> {
                     // try TOTAL_NUMBER_OF_SCALES_TO_PERFORM randomly generated stream cuts and truncate stream at those 
                     // stream cuts. 
-                    AtomicInteger index1 = new AtomicInteger(1);
-                    AtomicInteger index2 = new AtomicInteger(1);
-                    AtomicInteger index3 = new AtomicInteger(1);
-                    AtomicInteger index4 = new AtomicInteger(1);
-                    AtomicInteger index5 = new AtomicInteger(1);
-                    return Futures.loop(() -> counter.decrementAndGet() > 0, () -> {
+                    List<AtomicInteger> indexes = new LinkedList<>();
+                    Random rand = new Random();
+                    for (int i = 0; i < NUM_SEGMENTS; i++) {
+                        indexes.add(new AtomicInteger(1));
+                    }
+                    return Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < TOTAL_NUMBER_OF_SCALES_TO_PERFORM), () -> {
                         // randomly generate a stream cut. 
-                        // Note: From epoch 1 till epoch TOTAL_NUMBER_OF_SCALES_TO_PERFORM each epoch is made up of 5 segments
+                        // Note: From epoch 1 till epoch TOTAL_NUMBER_OF_SCALES_TO_PERFORM each epoch is made up of 50k segments
                         // and the range is statically partitioned evenly. 
-                        // So a random, correct streamcut would be choosing 5 disjoint segments from 5 random epochs. 
+                        // So a random, correct streamcut would be choosing 50k disjoint segments from 50k random epochs. 
                         Map<Segment, Long> map = new HashMap<>();
-                        index1.set(index1.get() + new Random().nextInt(TOTAL_NUMBER_OF_SCALES_TO_PERFORM + 1 - index1.get()));
-                        index2.set(index2.get() + new Random().nextInt(TOTAL_NUMBER_OF_SCALES_TO_PERFORM + 1 - index2.get()));
-                        index3.set(index3.get() + new Random().nextInt(TOTAL_NUMBER_OF_SCALES_TO_PERFORM + 1 - index3.get()));
-                        index4.set(index4.get() + new Random().nextInt(TOTAL_NUMBER_OF_SCALES_TO_PERFORM + 1 - index4.get()));
-                        index5.set(index5.get() + new Random().nextInt(TOTAL_NUMBER_OF_SCALES_TO_PERFORM + 1 - index5.get()));
-                        map.put(listOfEpochs.get(index1.get()).get(0), 0L);
-                        map.put(listOfEpochs.get(index2.get()).get(1), 0L);
-                        map.put(listOfEpochs.get(index3.get()).get(2), 0L);
-                        map.put(listOfEpochs.get(index4.get()).get(3), 0L);
-                        map.put(listOfEpochs.get(index5.get()).get(4), 0L);
+                        for (int i = 0; i < NUM_SEGMENTS - 1; i++) {
+                            AtomicInteger index = indexes.get(i);
+                            index.set(index.get() + rand.nextInt(TOTAL_NUMBER_OF_SCALES_TO_PERFORM + 1 - index.get()));
+                            map.put(listOfEpochs.get(index.get()).get(i), 0L);
+                        }
 
                         StreamCut cut = new StreamCutImpl(stream, map);
                         return controller.truncateStream(SCOPE, STREAM_NAME, cut).
