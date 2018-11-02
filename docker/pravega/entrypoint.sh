@@ -12,6 +12,7 @@
 set -eo pipefail
 
 dir=$( cd "$( dirname "$0" )" && pwd )
+
 # Adds a system property if the value is not empty
 add_system_property() {
     local name=$1
@@ -120,8 +121,37 @@ configure_standalone() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
+k8_service_info() {
+  local namespace=$1
+  local service_name=$2
+  local jsonpath=$3
+  local bearer=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+  local cacert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+  retval=$( curl --cacert ${cacert} -H "Authorization: Bearer ${bearer}" https://kubernetes/api/v1/namespaces/${namespace}/services/${service_name} | jq -rM "${jsonpath}" )
+  echo "$retval"
+}
+
+configure_kubernetes() {
+    service_type=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".spec.type" )
+    if [ ${service_type} == "LoadBalancer" ]; then
+      export PUBLISHED_ADDRESS=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".status.loadBalancer.ingress[].ip" )
+      export PUBLISHED_PORT=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".spec.ports[].port" )
+      while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
+      do
+          echo "LoadBalancer external address and port could not be obtained. Waiting 30 seconds and trying again..."
+          sleep 30
+          export PUBLISHED_ADDRESS=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".status.loadBalancer.ingress[].ip" )
+          export PUBLISHED_PORT=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".spec.ports[].port" )
+      done
+    fi
+}
+
 if [ ${WAIT_FOR} ];then
     ${dir}/wait_for
+fi
+
+if [ -d "/var/run/secrets/kubernetes.io" ]; then
+  configure_kubernetes
 fi
 
 case $1 in
