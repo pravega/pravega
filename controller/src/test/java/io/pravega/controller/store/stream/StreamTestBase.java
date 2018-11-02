@@ -23,9 +23,7 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -41,7 +39,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -53,8 +50,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public abstract class StreamTestBase {
-    @Rule
-    public Timeout globalTimeout = new Timeout(60, TimeUnit.SECONDS);
     
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
     
@@ -114,7 +109,7 @@ public abstract class StreamTestBase {
     }
 
 
-    @Test
+    @Test(timeout = 30000L)
     public void testCreateStream() {
         PersistentStreamBase stream = createStream("scope", "stream", System.currentTimeMillis(), 2, 0);
 
@@ -136,7 +131,7 @@ public abstract class StreamTestBase {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void testSegmentQueriesDuringScale() {
         // start scale and perform `getSegment`, `getActiveEpoch` and `getEpoch` during different phases of scale
         int startingSegmentNumber = new Random().nextInt(20);
@@ -210,7 +205,7 @@ public abstract class StreamTestBase {
         assertEquals(segment.getKeyEnd(), 1.0, 0);
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void predecessorAndSuccessorTest() {
         // multiple rows in history table, find predecessor
         // - more than one predecessor
@@ -415,7 +410,7 @@ public abstract class StreamTestBase {
         assertTrue(successorsWithPredecessors.isEmpty());
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void scaleInputValidityTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
         String name = "stream" + startingSegmentNumber;
@@ -596,7 +591,7 @@ public abstract class StreamTestBase {
         return stream.getEpochTransition().join();
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void segmentQueriesDuringRollingTxn() {
         // start scale and perform `getSegment`, `getActiveEpoch` and `getEpoch` during different phases of scale
         int startingSegmentNumber = new Random().nextInt(2000);
@@ -659,7 +654,7 @@ public abstract class StreamTestBase {
         stream.completeCommittingTransactions(ctr).join();
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void truncationTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
         // epoch 0 --> 0, 1
@@ -892,7 +887,7 @@ public abstract class StreamTestBase {
      * epoch11 = 10, 11, 12, 13, 9` 
      * epoch12 = 10, 11, 12, 13, 14
      */
-    @Test
+    @Test(timeout = 30000L)
     public void testFetchEpochs() {
         String scope = "fetchEpoch";
         String name = "fetchEpoch";
@@ -938,7 +933,7 @@ public abstract class StreamTestBase {
      * epoch11 = 10, 11, 12, 13, 9` 
      * epoch12 = 10, 11, 12, 13, 14
      */
-    @Test
+    @Test(timeout = 30000L)
     public void testFindEpochAtTime() {
         String scope = "findEpochsAtTime";
         String name = "findEpochsAtTime";
@@ -995,7 +990,7 @@ public abstract class StreamTestBase {
      * epoch11 = 10, 11, 12, 13, 9` 
      * epoch12 = 10, 11, 12, 13, 14
      */
-    @Test
+    @Test(timeout = 30000L)
     public void testSealedSegmentSizesMapShards() {
         String scope = "sealedSizeTest";
         String name = "sealedSizeTest";
@@ -1080,7 +1075,7 @@ public abstract class StreamTestBase {
      * epoch11 = 10, 11, 12, 13, 9` 
      * epoch12 = 10, 11, 12, 13, 14
      */
-    @Test
+    @Test(timeout = 30000L)
     public void testStreamCutsWithMultipleChunks() {
         String scope = "streamCutTest";
         String name = "streamCutTest";
@@ -1212,7 +1207,7 @@ public abstract class StreamTestBase {
      |       |   3  |       |       |
      +-------+------+----------------
      */
-    @Test
+    @Test(timeout = 30000L)
     public void testStreamCutSegmentsBetween() {
         int startingSegmentNumber = new Random().nextInt(2000);
         List<AbstractMap.SimpleEntry<Double, Double>> newRanges;
