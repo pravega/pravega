@@ -114,7 +114,6 @@ public abstract class StreamTestBase {
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
     }
 
-
     @Test(timeout = 30000L)
     public void testCreateStream() {
         PersistentStreamBase stream = createStream("scope", "stream", System.currentTimeMillis(), 2, 0);
