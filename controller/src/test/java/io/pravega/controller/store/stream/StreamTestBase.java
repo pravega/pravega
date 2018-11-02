@@ -51,7 +51,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public abstract class StreamTestBase {
-    
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
 
     @Before

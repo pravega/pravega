@@ -74,18 +74,13 @@ public abstract class PersistentStreamBase implements Stream {
     private final AtomicInteger historyChunkSize;
     private final AtomicInteger shardSize;
 
-    PersistentStreamBase(final String scope, final String name) {
-        this(scope, name, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SHARD_SIZE);
-    }
-    
-    @VisibleForTesting
     PersistentStreamBase(final String scope, final String name, int historyChunkSize, int shardSize) {
         this.scope = scope;
         this.name = name;
         this.historyChunkSize = new AtomicInteger(historyChunkSize);
         this.shardSize = new AtomicInteger(shardSize);
     }
-    
+
     @Override
     public String getScope() {
         return this.scope;

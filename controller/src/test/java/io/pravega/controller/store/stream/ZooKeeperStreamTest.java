@@ -48,7 +48,7 @@ public class ZooKeeperStreamTest extends StreamTestBase {
     void createScope(String scope) {
         store.createScope(scope).join();
     }
-    
+
     @Override
     PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize) {
         return new ZKStream(scope, stream, storeHelper, () -> 0, chunkSize, shardSize);
