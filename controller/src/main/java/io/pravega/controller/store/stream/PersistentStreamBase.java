@@ -9,8 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -55,26 +55,29 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.controller.store.stream.records.HistoryTimeSeries.HISTORY_CHUNK_SIZE;
-import static io.pravega.controller.store.stream.records.SealedSegmentsMapShard.SHARD_SIZE;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {
-
     private final String scope;
     private final String name;
+    private final AtomicInteger historyChunkSize;
+    private final AtomicInteger shardSize;
 
-    PersistentStreamBase(final String scope, final String name) {
+    PersistentStreamBase(final String scope, final String name, int historyChunkSize, int shardSize) {
         this.scope = scope;
         this.name = name;
+        this.historyChunkSize = new AtomicInteger(historyChunkSize);
+        this.shardSize = new AtomicInteger(shardSize);
     }
 
     @Override
@@ -338,14 +341,14 @@ public abstract class PersistentStreamBase implements Stream {
         // fetch history index and find epochs corresponding to "from" and "to"
         // fetch "from epoch" from epoch record
         // fetch epochs from history timeseries.
-        CompletableFuture<Integer> fromEpoch = findEpochAtTime(from);
-        CompletableFuture<Integer> toEpoch = findEpochAtTime(to);
+        CompletableFuture<Integer> fromEpoch = findEpochAtTime(from, false);
+        CompletableFuture<Integer> toEpoch = findEpochAtTime(to, false);
         CompletableFuture<List<EpochRecord>> records =
                 CompletableFuture.allOf(fromEpoch, toEpoch)
                                  .thenCompose(x -> {
                                      // fetch epochs will fetch it from history time series. 
                                      // this will be efficient if fromEpoch and toEpoch are near each other.
-                                     return fetchEpochs(fromEpoch.join(), toEpoch.join());
+                                     return fetchEpochs(fromEpoch.join(), toEpoch.join(), false);
                                  });
         return records.thenApply(this::mapToScaleMetadata);
     }
@@ -518,7 +521,8 @@ public abstract class PersistentStreamBase implements Stream {
                                 });
     }
 
-    private CompletableFuture<Set<StreamSegmentRecord>> segmentsBetweenStreamCutSpans(Map<StreamSegmentRecord, Integer> spanFrom,
+    @VisibleForTesting
+    CompletableFuture<Set<StreamSegmentRecord>> segmentsBetweenStreamCutSpans(Map<StreamSegmentRecord, Integer> spanFrom,
                                                                                       Map<StreamSegmentRecord, Integer> spanTo) {
         int toLow = Collections.min(spanTo.values());
         int toHigh = Collections.max(spanTo.values());
@@ -526,7 +530,7 @@ public abstract class PersistentStreamBase implements Stream {
         int fromHigh = Collections.max(spanFrom.values());
         Set<StreamSegmentRecord> segments = new HashSet<>();
 
-        return fetchEpochs(fromLow, toHigh)
+        return fetchEpochs(fromLow, toHigh, true)
                 .thenAccept(epochs -> {
                     epochs.forEach(epoch -> {
                         // for epochs that cleanly lie between from.high and to.low epochs we can include all segments present in them
@@ -550,10 +554,11 @@ public abstract class PersistentStreamBase implements Stream {
                 }).thenApply(x -> segments);
     }
 
-    private CompletableFuture<Long> sizeBetweenStreamCuts(Map<Long, Long> streamCutFrom, Map<Long, Long> streamCutTo,
+    @VisibleForTesting
+    CompletableFuture<Long> sizeBetweenStreamCuts(Map<Long, Long> streamCutFrom, Map<Long, Long> streamCutTo,
                                                           Set<StreamSegmentRecord> segmentsInBetween) {
         Map<Integer, List<StreamSegmentRecord>> shards =
-                segmentsInBetween.stream().collect(Collectors.groupingBy(x -> x.getSegmentNumber() / SHARD_SIZE));
+                segmentsInBetween.stream().collect(Collectors.groupingBy(x -> getShardNumber(x.segmentId())));
         return Futures.allOfWithResults(
                 shards.entrySet().stream()
                       .map(entry -> getSealedSegmentSizeMapShard(entry.getKey())
@@ -594,13 +599,14 @@ public abstract class PersistentStreamBase implements Stream {
                       });
     }
 
-    private CompletableFuture<Map<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
+    @VisibleForTesting
+    CompletableFuture<Map<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
         long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
         int epochLow = StreamSegmentNameUtils.getEpoch(oldest);
         int epochHigh = StreamSegmentNameUtils.getEpoch(mostRecent);
 
-        return fetchEpochs(epochLow, epochHigh).thenApply(epochs ->  {
+        return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
             Map<StreamSegmentRecord, Integer> resultSet = new HashMap<>();
             for (int i = epochHigh - epochLow; i >= 0; i--) {
@@ -750,11 +756,11 @@ public abstract class PersistentStreamBase implements Stream {
                     if (currentEpoch.getEpoch() < versionedMetadata.getObject().getNewEpoch()) {
                         EpochTransitionRecord epochTransition = versionedMetadata.getObject();
                         // time
-                        Long time = Math.max(epochTransition.getTime(), currentEpoch.getCreationTime() + 1);
+                        long time = Math.max(epochTransition.getTime(), currentEpoch.getCreationTime() + 1);
                         // new segments
                         List<StreamSegmentRecord> newSegments =
                                 epochTransition.getNewSegmentsWithRange().entrySet().stream()
-                                               .map(x -> newSegmentRecord(x.getKey(), epochTransition.getTime(), x.getValue().getKey(), x.getValue().getValue()))
+                                               .map(x -> newSegmentRecord(x.getKey(), time, x.getValue().getKey(), x.getValue().getValue()))
                                                .collect(Collectors.toList());
                         // sealed segments
                         List<StreamSegmentRecord> sealedSegments =
@@ -791,8 +797,8 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private CompletableFuture<Void> updateHistoryTimeSeries(HistoryTimeSeriesRecord record) {
-        int historyChunk = record.getEpoch() / HISTORY_CHUNK_SIZE;
-        boolean isFirst = record.getEpoch() % HISTORY_CHUNK_SIZE == 0;
+        int historyChunk = record.getEpoch() / historyChunkSize.get();
+        boolean isFirst = record.getEpoch() % historyChunkSize.get() == 0;
 
         if (isFirst) {
             return createHistoryTimeSeriesChunk(historyChunk, record);
@@ -907,7 +913,7 @@ public abstract class PersistentStreamBase implements Stream {
                                     activeEpochRecord.getSegments().stream()
                                                           .map(x -> newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
                                                                   committingTxnRecord.getNewActiveEpoch()),
-                                                                  timeStamp, x.getKeyStart(), x.getKeyEnd()))
+                                                                  timeStamp + 1, x.getKeyStart(), x.getKeyEnd()))
                                                           .collect(Collectors.toList());
 
                             EpochRecord duplicateTxnEpoch = EpochRecord.builder().epoch(committingTxnRecord.getNewTxnEpoch())
@@ -918,7 +924,7 @@ public abstract class PersistentStreamBase implements Stream {
                             EpochRecord duplicateActiveEpoch = EpochRecord.builder().epoch(committingTxnRecord.getNewActiveEpoch())
                                                                           .referenceEpoch(activeEpochRecord.getReferenceEpoch())
                                                                           .segments(duplicateActiveSegments)
-                                                                          .creationTime(timeStamp).build();
+                                                                          .creationTime(timeStamp + 1).build();
 
                             HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
                                     HistoryTimeSeriesRecord.builder().epoch(duplicateTxnEpoch.getEpoch())
@@ -928,7 +934,7 @@ public abstract class PersistentStreamBase implements Stream {
                             HistoryTimeSeriesRecord timeSeriesRecordActiveEpoch =
                                     HistoryTimeSeriesRecord.builder().epoch(duplicateActiveEpoch.getEpoch())
                                                            .referenceEpoch(duplicateActiveEpoch.getReferenceEpoch())
-                                                           .creationTime(timeStamp).build();
+                                                           .creationTime(timeStamp + 1).build();
                             return createEpochRecord(duplicateTxnEpoch)
                                     .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordTxnEpoch))
                                     .thenCompose(x -> createEpochRecord(duplicateActiveEpoch))
@@ -1422,13 +1428,24 @@ public abstract class PersistentStreamBase implements Stream {
         return createSealedSegmentSizesMapShardDataIfAbsent(shardNumber, shard.toBytes());
     }
 
-    private CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shard) {
-        return getSealedSegmentSizesMapShardData(shard).thenApply(x -> SealedSegmentsMapShard.fromBytes(x.getData()));
+    @VisibleForTesting
+    CompletableFuture<SealedSegmentsMapShard> getSealedSegmentSizeMapShard(int shard) {
+        return getSealedSegmentSizesMapShardData(shard)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof DataNotFoundException) {
+                            return SealedSegmentsMapShard.builder().shardNumber(shard).sealedSegmentsSizeMap(Collections.emptyMap()).build();
+                        } 
+                        throw new CompletionException(e);
+                    } else {
+                        return SealedSegmentsMapShard.fromBytes(r.getData());
+                    }
+                });
     }
 
     private CompletableFuture<Void> updateSealedSegmentSizes(Map<Long, Long> sealedSegmentSizes) {
         Map<Integer, List<Long>> shards = sealedSegmentSizes.keySet().stream()
-                                                            .collect(Collectors.groupingBy(x -> StreamSegmentNameUtils.getSegmentNumber(x) / SHARD_SIZE));
+                                                            .collect(Collectors.groupingBy(this::getShardNumber));
         return Futures.allOf(shards.entrySet().stream().map(x -> {
             int shard = x.getKey();
             List<Long> segments = x.getValue();
@@ -1440,6 +1457,10 @@ public abstract class PersistentStreamBase implements Stream {
                         return updateSealedSegmentSizesMapShardData(shard, new Data(mapShard.toBytes(), y.getVersion()));
                     }));
         }).collect(Collectors.toList()));
+    }
+
+    private int getShardNumber(long segmentId) {
+        return StreamSegmentNameUtils.getEpoch(segmentId) / shardSize.get();
     }
 
     private Map<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
@@ -1460,32 +1481,34 @@ public abstract class PersistentStreamBase implements Stream {
         return segmentRecords.stream().map(this::transform).collect(Collectors.toSet());
     }
     
-    private CompletableFuture<List<EpochRecord>> fetchEpochs(int fromEpoch, int toEpoch) {
+    @VisibleForTesting
+    CompletableFuture<List<EpochRecord>> fetchEpochs(int fromEpoch, int toEpoch, boolean ignoreCache) {
         // fetch history time series chunk corresponding to from.
         // read entries till either last entry or till to
         // if to is not in this chunk fetch the next chunk and read till to
         // keep doing this until all records till to have been read.
         // keep computing history record from history time series by applying delta on previous.
-        return getActiveEpochRecord(false)
-                .thenApply(currentEpoch -> currentEpoch.getEpoch() / HISTORY_CHUNK_SIZE)
+        return getActiveEpochRecord(ignoreCache)
+                .thenApply(currentEpoch -> currentEpoch.getEpoch() / historyChunkSize.get())
                 .thenCompose(latestChunkNumber -> Futures.allOfWithResults(
-                        IntStream.range(fromEpoch / HISTORY_CHUNK_SIZE, toEpoch / HISTORY_CHUNK_SIZE + 1)
+                        IntStream.range(fromEpoch / historyChunkSize.get(), toEpoch / historyChunkSize.get() + 1)
                                  .mapToObj(i -> {
-                                     int firstEpoch = i * HISTORY_CHUNK_SIZE > fromEpoch ? i * HISTORY_CHUNK_SIZE : fromEpoch;
+                                     int firstEpoch = i * historyChunkSize.get() > fromEpoch ? i * historyChunkSize.get() : fromEpoch;
+
                                      boolean ignoreCached = i >= latestChunkNumber;
-                                     return getEpochsFromHistoryChunk(i, fromEpoch, toEpoch, firstEpoch, ignoreCached);
+                                     return getEpochsFromHistoryChunk(i, firstEpoch, toEpoch, ignoreCached);
                                  }).collect(Collectors.toList())))
                 .thenApply(c -> c.stream().flatMap(Collection::stream).collect(Collectors.toList()));
     }
 
-    private CompletableFuture<List<EpochRecord>> getEpochsFromHistoryChunk(int chunk, int fromEpoch, int toEpoch, int firstEpoch, boolean ignoreCached) {
+    private CompletableFuture<List<EpochRecord>> getEpochsFromHistoryChunk(int chunk, int firstEpoch, int toEpoch, boolean ignoreCached) {
         return getEpochRecord(firstEpoch)
                 .thenCompose(first -> getHistoryTimeSeriesChunk(chunk, ignoreCached)
                         .thenCompose(x -> {
                             List<CompletableFuture<EpochRecord>> identity = new ArrayList<>();
                             identity.add(CompletableFuture.completedFuture(first));
                             return Futures.allOfWithResults(x.getHistoryRecords().stream()
-                                                             .filter(r -> r.getEpoch() > fromEpoch && r.getEpoch() <= toEpoch)
+                                                             .filter(r -> r.getEpoch() > firstEpoch && r.getEpoch() <= toEpoch)
                                                              .reduce(identity, (r, s) -> {
                                                                  CompletableFuture<EpochRecord> next = newEpochRecord(r.get(r.size() - 1),
                                                                          s.getEpoch(), s.getReferenceEpoch(), s.getSegmentsCreated(),
@@ -1508,6 +1531,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                           final Collection<Long> sealedSegments, final long time) {
         if (epoch == referenceEpoch) {
             return lastRecordFuture.thenApply(lastRecord -> {
+                assert lastRecord.getEpoch() == epoch - 1;
                 List<StreamSegmentRecord> segments = new LinkedList<>(lastRecord.getSegments());
                 segments.removeIf(x -> sealedSegments.contains(x.segmentId()));
                 segments.addAll(createdSegments);
@@ -1528,10 +1552,11 @@ public abstract class PersistentStreamBase implements Stream {
                                   .keyStart(low).keyEnd(high).build();
     }
 
-    private CompletableFuture<Integer> findEpochAtTime(long timestamp) {
-        return getActiveEpoch(false)
-                .thenCompose(activeEpoch -> searchEpochAtTime(0, activeEpoch.getEpoch() / HISTORY_CHUNK_SIZE,
-                        x -> x == activeEpoch.getEpoch() / HISTORY_CHUNK_SIZE, timestamp)
+    @VisibleForTesting
+    CompletableFuture<Integer> findEpochAtTime(long timestamp, boolean ignoreCached) {
+        return getActiveEpoch(ignoreCached)
+                .thenCompose(activeEpoch -> searchEpochAtTime(0, activeEpoch.getEpoch() / historyChunkSize.get(),
+                        x -> x == activeEpoch.getEpoch() / historyChunkSize.get(), timestamp)
                         .thenApply(epoch -> {
                             if (epoch == -1) {
                                 if (timestamp > activeEpoch.getCreationTime()) {
@@ -1554,14 +1579,14 @@ public abstract class PersistentStreamBase implements Stream {
             return CompletableFuture.completedFuture(-1);
         }
 
-        return getHistoryTimeSeriesChunk(middle, ignoreCached.apply(middle))
+        return getHistoryTimeSeriesChunk(middle, ignoreCached.test(middle))
                 .thenCompose(chunk -> {
                     List<HistoryTimeSeriesRecord> historyRecords = chunk.getHistoryRecords();
                     long rangeLow = historyRecords.get(0).getScaleTime();
                     long rangeHigh = historyRecords.get(historyRecords.size() - 1).getScaleTime();
                     if (timestamp >= rangeLow && timestamp <= rangeHigh) {
                         // found
-                        int index = CollectionHelpers.findGreatestLowerBound(historyRecords, x -> Long.compare(x.getScaleTime(), timestamp));
+                        int index = CollectionHelpers.findGreatestLowerBound(historyRecords, x -> Long.compare(timestamp, x.getScaleTime()));
                         assert index >= 0;
                         return CompletableFuture.completedFuture(historyRecords.get(index).getEpoch());
                     } else if (timestamp < rangeLow) {
@@ -1574,7 +1599,14 @@ public abstract class PersistentStreamBase implements Stream {
 
     private CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunk(int chunkNumber, boolean ignoreCached) {
         return getHistoryTimeSeriesChunkData(chunkNumber, ignoreCached)
-                .thenApply(x -> HistoryTimeSeries.fromBytes(x.getData()));
+                .thenCompose(x -> {
+                    HistoryTimeSeries timeSeries = HistoryTimeSeries.fromBytes(x.getData());
+                    // we should only retrieve the chunk from cache once the chunk is full to capacity and hence immutable. 
+                    if (!ignoreCached && timeSeries.getHistoryRecords().size() < historyChunkSize.get()) {
+                        return getHistoryTimeSeriesChunk(chunkNumber, true);
+                    }
+                    return CompletableFuture.completedFuture(timeSeries);
+                });
     }
 
     // region abstract methods
