@@ -50,10 +50,6 @@ public class InMemoryStream extends PersistentStreamBase {
     @GuardedBy("lock")
     private Map<Integer, Data> epochRecords = new HashMap<>();
     @GuardedBy("lock")
-    private Data historyIndexRoot;
-    @GuardedBy("lock")
-    private Map<Integer, Data> historyIndexLeaves = new HashMap<>();
-    @GuardedBy("lock")
     private Map<Integer, Data> historyTimeSeries = new HashMap<>();
     @GuardedBy("lock")
     private Data retentionSet;;
