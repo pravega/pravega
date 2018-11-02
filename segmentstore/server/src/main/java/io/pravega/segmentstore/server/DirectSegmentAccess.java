@@ -9,9 +9,11 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -130,4 +132,13 @@ public interface DirectSegmentAccess {
      * failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> truncate(long offset, Duration timeout);
+
+    /**
+     * TODO: javadoc
+     * @param fromId
+     * @param toId
+     * @param timeout
+     * @return
+     */
+    CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(UUID fromId, UUID toId, Duration timeout);
 }

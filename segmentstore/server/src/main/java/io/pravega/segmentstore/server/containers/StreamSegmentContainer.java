@@ -19,6 +19,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
@@ -61,6 +62,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +77,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -714,6 +717,24 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         });
     }
 
+    private CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(long segmentId, UUID fromId, UUID toId, Duration timeout) {
+        return this.attributeIndex.forSegment(segmentId, timeout)
+                .thenApplyAsync(index -> {
+                    // Get an iterator of eligible Attributes from the Metadata. While doing so, make sure we get a copy
+                    // of those attributes since SegmentMetadata.getAttributes() returns a view on top of its inner data
+                    // structures which change very frequently.
+                    val metadataAttributes = this.metadata.getStreamSegmentMetadata(segmentId)
+                            .getSnapshot()
+                            .getAttributes().entrySet().stream()
+                            .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
+                            .sorted(Comparator.comparing(Map.Entry::getKey, UUID::compareTo))
+                            .iterator();
+
+                    val baseIterator = index.iterator(fromId, toId, timeout);
+                    return new MixedAttributeIterator(baseIterator, metadataAttributes);
+                }, this.executor);
+    }
+
     /**
      * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,
      * regardless of the trigger (eviction or deletion).
@@ -826,6 +847,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("truncateStreamSegment", this.segmentId);
             return StreamSegmentContainer.this.truncate(this.segmentId, offset, timeout);
+        }
+
+        @Override
+        public CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+            ensureRunning();
+            logRequest("attributeIterator", this.segmentId, fromId, toId);
+            return StreamSegmentContainer.this.attributeIterator(this.segmentId, fromId, toId, timeout);
         }
     }
 

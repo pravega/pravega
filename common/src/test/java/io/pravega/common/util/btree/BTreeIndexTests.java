@@ -112,7 +112,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the remove() method using multiple keys at once..
+     * Tests the remove() method using multiple keys at once.
      */
     @Test
     public void testRemoveBulk() {
@@ -195,16 +195,18 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to iterate through keys using iterator().
+     * Tests the ability to iterate through entries using {@link BTreeIndex#iterator}.
      */
     @Test
-    public void testIterateKeys() {
+    public void testIterator() {
         final int count = 1000;
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
         index.put(entries, TIMEOUT).join();
+
+        // Sort the entries after we insert them. We want to make sure we get them back in sorted order.
         sort(entries);
 
         for (int i = 0; i < entries.size() / 2; i++) {
@@ -366,9 +368,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
     private int getKeyCount(BTreeIndex index) {
         val minKey = new byte[KEY_LENGTH];
-        Arrays.fill(minKey, Byte.MIN_VALUE);
+        Arrays.fill(minKey, ByteArrayComparator.MIN_VALUE);
         val maxKey = new byte[KEY_LENGTH];
-        Arrays.fill(maxKey, Byte.MAX_VALUE);
+        Arrays.fill(maxKey, ByteArrayComparator.MAX_VALUE);
 
         val count = new AtomicInteger();
         index.iterator(new ByteArraySegment(minKey), true, new ByteArraySegment(maxKey), true, TIMEOUT)

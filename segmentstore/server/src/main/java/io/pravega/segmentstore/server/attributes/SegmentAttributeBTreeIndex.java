@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -36,10 +37,12 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -334,6 +337,15 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                 null);
     }
 
+    @Override
+    public AsyncIterator<Iterator<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
+        ensureInitialized();
+        return this.index.iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout)
+                .apply(pageEntries -> pageEntries.stream()
+                        .map(e -> (Map.Entry<UUID, Long>) new AbstractMap.SimpleImmutableEntry<>(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                        .iterator());
+    }
+
     //endregion
 
     //region Helpers
@@ -396,13 +408,23 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     }
 
     private ByteArraySegment serializeKey(UUID key) {
+        // Keys are serialized using Unsigned Longs. This ensures that they will be stored in the Attribute Index in their
+        // natural order (i.e., the same as the one done by UUID.compare()).
         byte[] result = new byte[KEY_LENGTH];
-        BitConverter.writeLong(result, 0, key.getMostSignificantBits());
-        BitConverter.writeLong(result, Long.BYTES, key.getLeastSignificantBits());
+        BitConverter.writeUnsignedLong(result, 0, key.getMostSignificantBits());
+        BitConverter.writeUnsignedLong(result, Long.BYTES, key.getLeastSignificantBits());
         return new ByteArraySegment(result);
     }
 
+    private UUID deserializeKey(ByteArraySegment key) {
+        Preconditions.checkArgument(key.getLength() == KEY_LENGTH, "Unexpected key length.");
+        long msb = BitConverter.readUnsignedLong(key, 0);
+        long lsb = BitConverter.readUnsignedLong(key, Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
     private ByteArraySegment serializeValue(long value) {
+        // Values are not sorted, so we can use the simpler serialization.
         byte[] result = new byte[VALUE_LENGTH];
         BitConverter.writeLong(result, 0, value);
         return new ByteArraySegment(result);

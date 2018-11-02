@@ -9,8 +9,10 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.util.AsyncIterator;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -58,4 +60,15 @@ public interface AttributeIndex {
      * @return A CompletableFuture that, when completed, indicates that the operation completed successfully.
      */
     CompletableFuture<Void> seal(Duration timeout);
+
+    /**
+     * Returns an {@link AsyncIterator} that will iterate through all Attributes between the given ranges. The Attributes
+     * will be returned in ascending order, based on the {@link UUID#compareTo} ordering.
+     *
+     * @param fromId       A UUID representing the Attribute Id to begin the iteration at. This is an inclusive value.
+     * @param toId         A UUID representing the Attribute Id to end the iteration at. This is an inclusive value.
+     * @param fetchTimeout Timeout for every index fetch.
+     * @return A new {@link AsyncIterator} that will iterate through the given Attribute range.
+     */
+    AsyncIterator<Iterator<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout);
 }
