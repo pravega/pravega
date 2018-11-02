@@ -62,6 +62,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static io.pravega.controller.store.stream.records.SealedSegmentsMapShard.SHARD_SIZE;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.toMap;
@@ -74,18 +75,17 @@ public abstract class PersistentStreamBase implements Stream {
     private final AtomicInteger shardSize;
 
     PersistentStreamBase(final String scope, final String name) {
+        this(scope, name, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SHARD_SIZE);
+    }
+    
+    @VisibleForTesting
+    PersistentStreamBase(final String scope, final String name, int historyChunkSize, int shardSize) {
         this.scope = scope;
         this.name = name;
-        historyChunkSize = new AtomicInteger(HistoryTimeSeries.HISTORY_CHUNK_SIZE);
-        shardSize = new AtomicInteger(SealedSegmentsMapShard.SHARD_SIZE);
+        this.historyChunkSize = new AtomicInteger(historyChunkSize);
+        this.shardSize = new AtomicInteger(shardSize);
     }
-
-    @VisibleForTesting
-    void setHistoryChunkAndSealedSizeMapShardSizes(int historyChunkSize, int shardSize) {
-        this.historyChunkSize.set(historyChunkSize);
-        this.shardSize.set(shardSize);
-    }
-
+    
     @Override
     public String getScope() {
         return this.scope;

@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
@@ -52,7 +53,7 @@ import static org.junit.Assert.assertTrue;
 public abstract class StreamTestBase {
     
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
-    
+
     @Before
     public abstract void setup() throws Exception;
 
@@ -61,18 +62,24 @@ public abstract class StreamTestBase {
 
     abstract void createScope(String scope);
 
-    abstract PersistentStreamBase getStream(String scope, String stream);
+    abstract PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize);
 
-    private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber) {
+    private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber,
+                                              int chunkSize, int shardSize) {
         createScope("scope");
 
-        PersistentStreamBase stream = getStream(scope, name);
+        PersistentStreamBase stream = getStream(scope, name, chunkSize, shardSize);
         StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(name)
                                                         .scalingPolicy(ScalingPolicy.fixed(numOfSegments)).build();
         stream.create(config, time, startingSegmentNumber)
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
 
         return stream;
+    }
+    
+    private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber) {
+        return createStream(scope, name, time, numOfSegments, startingSegmentNumber, HistoryTimeSeries.HISTORY_CHUNK_SIZE, 
+                SealedSegmentsMapShard.SHARD_SIZE);
     }
 
     private void scaleStream(Stream stream, long time, List<Long> sealedSegments,
@@ -834,8 +841,7 @@ public abstract class StreamTestBase {
     // region multiple chunks test
     private PersistentStreamBase createScaleAndRollStreamForMultiChunkTests(String name, String scope, int startingSegmentNumber, Supplier<Long> time) {
         createScope(scope);
-        PersistentStreamBase stream = createStream(scope, name, time.get(), 5, startingSegmentNumber);
-        stream.setHistoryChunkAndSealedSizeMapShardSizes(2, 2);
+        PersistentStreamBase stream = createStream(scope, name, time.get(), 5, startingSegmentNumber, 2, 2);
         UUID txnId = createAndCommitTransaction(stream, 0, 0L);
         // scale the stream 5 times so that over all we have 6 epochs and hence 3 chunks.  
         for (int i = 0; i < 5; i++) {

@@ -16,6 +16,8 @@ import com.google.common.cache.CacheBuilder;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.util.Config;
@@ -87,8 +89,18 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @VisibleForTesting
+    InMemoryStream(String scope, String name, int chunkSize, int shardSize) {
+        this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis(), chunkSize, shardSize);
+    }
+
+    @VisibleForTesting
     InMemoryStream(String scope, String name, long completedTxnTTL) {
-        super(scope, name);
+        this(scope, name, completedTxnTTL, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE);
+    }
+
+    @VisibleForTesting
+    InMemoryStream(String scope, String name, long completedTxnTTL, int chunkSize, int shardSize) {
+        super(scope, name, chunkSize, shardSize);
         completedTxns = CacheBuilder.newBuilder()
                                     .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
     }
