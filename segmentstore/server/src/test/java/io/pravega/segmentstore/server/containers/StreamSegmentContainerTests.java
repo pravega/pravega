@@ -36,6 +36,7 @@ import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.ContainerOfflineException;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.server.OperationLogFactory;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -112,6 +113,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -451,6 +453,55 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         Attributes.NULL_ATTRIBUTE_VALUE, (long) sp.getAttributes().get(missingAttributeId));
             }
         }
+
+        localContainer.stopAsync().awaitTerminated();
+    }
+
+    /**
+     * Tests the ability to run attribute iterators over all or a subset of attributes in a segment.
+     */
+    @Test
+    public void testAttributeIterators() throws Exception {
+        final List<UUID> sortedAttributes = IntStream.range(0, 100).mapToObj(i -> new UUID(i, i)).sorted().collect(Collectors.toList());
+        final Map<UUID, Long> expectedValues = sortedAttributes.stream().collect(Collectors.toMap(id -> id, UUID::getMostSignificantBits));
+        final TestContainerConfig containerConfig = new TestContainerConfig();
+        containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
+
+        @Cleanup
+        TestContext context = new TestContext();
+        OperationLogFactory localDurableLogFactory = new DurableLogFactory(FREQUENT_TRUNCATIONS_DURABLE_LOG_CONFIG, context.dataLogFactory, executorService());
+        @Cleanup
+        MetadataCleanupContainer localContainer = new MetadataCleanupContainer(CONTAINER_ID, containerConfig, localDurableLogFactory,
+                context.readIndexFactory, context.attributeIndexFactory, context.writerFactory, context.storageFactory, executorService());
+        localContainer.startAsync().awaitRunning();
+
+        // 1. Create the Segment.
+        String segmentName = getSegmentName(0);
+        localContainer.createStreamSegment(segmentName, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val segment1 = localContainer.forSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // 2. Set some initial attribute values and verify in-memory iterator.
+        Collection<AttributeUpdate> attributeUpdates = sortedAttributes
+                .stream()
+                .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Replace, expectedValues.get(attributeId)))
+                .collect(Collectors.toList());
+        segment1.updateAttributes(attributeUpdates, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkAttributeIterators(segment1, sortedAttributes, expectedValues);
+
+        // 3. Force these segments out of memory and verify out-of-memory iterator.
+        localContainer.triggerMetadataCleanup(Collections.singleton(segmentName)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val segment2 = localContainer.forSegment(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkAttributeIterators(segment2, sortedAttributes, expectedValues);
+
+        // 4. Update some values, and verify mixed iterator.
+        attributeUpdates.clear();
+        for (int i = 0; i < sortedAttributes.size(); i += 3) {
+            UUID attributeId = sortedAttributes.get(i);
+            expectedValues.put(attributeId, expectedValues.get(attributeId) + 1);
+            attributeUpdates.add(new AttributeUpdate(attributeId, AttributeUpdateType.Replace, expectedValues.get(attributeId)));
+        }
+        segment2.updateAttributes(attributeUpdates, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        checkAttributeIterators(segment2, sortedAttributes, expectedValues);
 
         localContainer.stopAsync().awaitTerminated();
     }
@@ -1751,6 +1802,28 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected deleted (from getActiveSegments) for segment " + sp.getName(), expectedSp.isDeleted(), sp.isDeleted());
             SegmentMetadataComparer.assertSameAttributes("Unexpected attributes (from getActiveSegments) for segment " + sp.getName(),
                     expectedSp.getAttributes(), sp);
+        }
+    }
+
+    private void checkAttributeIterators(DirectSegmentAccess segment, List<UUID> sortedAttributes, Map<UUID, Long> allExpectedValues) throws Exception {
+        int skip = sortedAttributes.size() / 10;
+        for (int i = 0; i < sortedAttributes.size() / 2; i += skip) {
+            UUID fromId = sortedAttributes.get(i);
+            UUID toId = sortedAttributes.get(sortedAttributes.size() - i - 1);
+            val expectedValues = allExpectedValues
+                    .entrySet().stream()
+                    .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            val actualValues = new HashMap<UUID, Long>();
+            val iterator = segment.attributeIterator(fromId, toId, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            iterator.forEachRemaining(batch ->
+                    batch.forEach((id, value) -> {
+                        Assert.assertFalse("Duplicate key found.", actualValues.containsKey(id));
+                        actualValues.put(id, value);
+                    }), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            AssertExtensions.assertMapEquals("Unexpected iterator result.", expectedValues, actualValues);
         }
     }
 
