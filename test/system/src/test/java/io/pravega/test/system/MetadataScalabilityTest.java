@@ -34,6 +34,7 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -108,7 +109,7 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
 
         ClientFactory clientFactory = getClientFactory();
         ControllerImpl controller = getController();
-        createWriters(clientFactory, 6, SCOPE, STREAM_NAME);
+        // createWriters(clientFactory, 6, SCOPE, STREAM_NAME);
 
         Map<Double, Double> newRanges = new HashMap<>();
 
@@ -125,15 +126,19 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= SCALES_TO_PERFORM,
                 () -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
                                 .thenCompose(segments -> {
-                                    listOfEpochs.add(Lists.newArrayList(segments.getSegments().stream().sorted(Comparator.comparingLong(Segment::getSegmentId)).collect(Collectors.toList())));
+                                    ArrayList<Segment> sorted = Lists.newArrayList(segments.getSegments().stream()
+                                                                                           .sorted(Comparator.comparingLong(Segment::getSegmentId))
+                                                                                           .collect(Collectors.toList()));
+                                    log.info("found segments in epoch = {}", sorted);
+                                    listOfEpochs.add(sorted);
                                     // note: with SCALES_TO_PERFORM < NUM_SEGMENTS, we can use the segment number as the index
                                     // into the range map
                                     List<Long> segmentsToSeal = segments.getSegments().stream().map(Segment::getSegmentId).collect(Collectors.toList());
                                     return controller.scaleStream(stream, segmentsToSeal, newRanges, executorService)
                                                      .getFuture()
                                                      .thenAccept(scaleStatus -> {
+                                                log.info("scale stream for epoch {} completed with status {}", counter.get(), scaleStatus);
                                                 assert scaleStatus;
-                                                log.debug("scale stream status for epoch {} completed", counter.get());
                                             });
                                 }), executorService);
 
@@ -159,13 +164,15 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                         }
 
                         StreamCut cut = new StreamCutImpl(stream, map);
+                        log.info("truncating stream at {}", map);
                         return controller.truncateStream(SCOPE, STREAM_NAME, cut).
                                 thenCompose(truncated -> {
-                                    // we will just validate that a non empty value is returned.  
+                                    log.info("stream truncated successfully at {}", cut);
                                     assert truncated;
+                                    // we will just validate that a non empty value is returned. 
                                     return controller.getSuccessors(cut)
                                             .thenAccept(successors -> {
-                                                log.debug("Successors for streamcut {} are {}", cut, successors);
+                                                log.info("Successors for streamcut {} are {}", cut, successors);
                                             });
                                 });
                     }, executorService);
