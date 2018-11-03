@@ -35,7 +35,6 @@ import org.junit.runner.RunWith;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.AbstractMap;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
