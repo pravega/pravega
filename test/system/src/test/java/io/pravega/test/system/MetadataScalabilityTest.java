@@ -47,9 +47,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
- * This test creates a stream with 50000 segments and then rapidly scales it 1010 times.  
+ * This test creates a stream with 50 segments and then rapidly scales it 1010 times.  
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -110,37 +111,29 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         ClientFactory clientFactory = getClientFactory();
         ControllerImpl controller = getController();
         createWriters(clientFactory, 6, SCOPE, STREAM_NAME);
-        
-        List<Map.Entry<Double, Double>> ranges = new LinkedList<>();
+
+        Map<Double, Double> newRanges = new HashMap<>();
 
         double delta = 1.0 / NUM_SEGMENTS;
-        for (int i = 0; i < NUM_SEGMENTS - 1; i++) {
-            ranges.add(new AbstractMap.SimpleEntry<>(delta * i, delta * (i + 1)));
+        for (int i = 0; i < NUM_SEGMENTS; i++) {
+            newRanges.put(delta * i, delta * (i + 1));
         }
-        ranges.add(new AbstractMap.SimpleEntry<>(delta * (NUM_SEGMENTS - 1), 1.0));
         
         // manually scale the stream SCALES_TO_PERFORM times
         Stream stream = new StreamImpl(SCOPE, STREAM_NAME);
         AtomicInteger counter = new AtomicInteger(0);
         List<List<Segment>> listOfEpochs = new LinkedList<>();
         
-        // pick the lowest segment number and scale/replace it with equivalent segment.
-        // segment number `i` is sealed in scale `i` which creates epoch `i+1` and new segment created is
-        // epoch=i+1, segmentNumber = `NUM_SEGMENTS + i`
         CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= SCALES_TO_PERFORM,
                 () -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
                                 .thenCompose(segments -> {
-                                    listOfEpochs.add(Lists.newArrayList(segments.getSegments()));
-                                    Segment min = segments.getSegments().stream().min(Comparator.comparingLong(Segment::getSegmentId)).get();
+                                    listOfEpochs.add(Lists.newArrayList(segments.getSegments().stream().sorted(Comparator.comparingLong(Segment::getSegmentId)).collect(Collectors.toList())));
                                     // note: with SCALES_TO_PERFORM < NUM_SEGMENTS, we can use the segment number as the index
                                     // into the range map
-                                    int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(min.getSegmentId());
-                                    Map<Double, Double> newRanges = new HashMap<>();
-                                    Map.Entry<Double, Double> entry = ranges.get(segmentNumber);
-                                    newRanges.put(entry.getKey(), entry.getValue());
-                                    return controller.scaleStream(stream, Lists.newArrayList(min.getSegmentId()), newRanges, executorService)
-                                                                    .getFuture()
-                                            .thenAccept(scaleStatus -> {
+                                    List<Long> segmentsToSeal = segments.getSegments().stream().map(Segment::getSegmentId).collect(Collectors.toList());
+                                    return controller.scaleStream(stream, segmentsToSeal, newRanges, executorService)
+                                                     .getFuture()
+                                                     .thenAccept(scaleStatus -> {
                                                 assert scaleStatus;
                                                 log.debug("scale stream status for epoch {} completed", counter.get());
                                             });
@@ -155,15 +148,15 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                     for (int i = 0; i < NUM_SEGMENTS; i++) {
                         indexes.add(new AtomicInteger(1));
                     }
-                    return Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < SCALES_TO_PERFORM), () -> {
+                    return Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < SCALES_TO_PERFORM - 1), () -> {
                         // randomly generate a stream cut. 
                         // Note: From epoch 1 till epoch SCALES_TO_PERFORM each epoch is made up of 50k segments
                         // and the range is statically partitioned evenly. 
                         // So a random, correct streamcut would be choosing NUM_SEGMENTS disjoint segments from NUM_SEGMENTS random epochs. 
                         Map<Segment, Long> map = new HashMap<>();
-                        for (int i = 0; i < NUM_SEGMENTS - 1; i++) {
+                        for (int i = 0; i < NUM_SEGMENTS; i++) {
                             AtomicInteger index = indexes.get(i);
-                            index.set(index.get() + rand.nextInt(SCALES_TO_PERFORM + 1 - index.get()));
+                            index.set(index.get() + rand.nextInt(SCALES_TO_PERFORM - index.get()));
                             map.put(listOfEpochs.get(index.get()).get(i), 0L);
                         }
 
