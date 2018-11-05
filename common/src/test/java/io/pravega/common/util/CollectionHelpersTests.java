@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import io.pravega.test.common.AssertExtensions;
 import java.util.AbstractMap;
@@ -18,12 +19,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import lombok.Data;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Unit tests for the CollectionHelpers class.
@@ -82,6 +88,21 @@ public class CollectionHelpersTests {
             m.add(maxSearchElement, Integer.toString(maxSearchElement));
             allValues.put(maxSearchElement, Integer.toString(maxSearchElement));
         }
+    }
+
+    @Test
+    public void testSearchGLB() {
+        List<TestElement> list = Lists.newArrayList(new TestElement(10L), new TestElement(30L), new TestElement(75L), 
+                new TestElement(100L), new TestElement(152L), new TestElement(200L), new TestElement(400L), new TestElement(700L));
+
+        int index = CollectionHelpers.findGreatestLowerBound(list, x -> Long.compare(0L, x.getElement()));
+        assertEquals(index, -1);
+        index = CollectionHelpers.findGreatestLowerBound(list, x -> Long.compare(29, x.getElement()));
+        assertEquals(index, 0);
+        index = CollectionHelpers.findGreatestLowerBound(list, x -> Long.compare(100L, x.getElement()));
+        assertEquals(index, 3);
+        index = CollectionHelpers.findGreatestLowerBound(list, x -> Long.compare(Long.MAX_VALUE, x.getElement()));
+        assertEquals(index, 7);
     }
 
     /**
@@ -174,5 +195,10 @@ public class CollectionHelpersTests {
         public String getValue(int position) {
             return this.entries.get(position).getValue();
         }
+    }
+    
+    @Data
+    private static class TestElement {
+        private final long element;
     }
 }

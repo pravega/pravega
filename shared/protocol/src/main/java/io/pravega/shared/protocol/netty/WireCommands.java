@@ -396,7 +396,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.write(data.array(), data.arrayOffset(), data.readableBytes());
+            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -430,6 +430,13 @@ public final class WireCommands {
             byte[] msg = new byte[eventLength];
             in.readFully(msg);
             return new Event(wrappedBuffer(msg));            
+        }
+        
+        public ByteBuf getAsByteBuf() {
+            ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
+            header.writeInt(type.getCode());
+            header.writeInt(data.readableBytes());
+            return Unpooled.wrappedBuffer(header, data);
         }
     }
 
@@ -514,7 +521,7 @@ public final class WireCommands {
                 out.writeInt(0);
             } else {
                 out.writeInt(data.readableBytes());
-                out.write(data.array(), data.arrayOffset(), data.readableBytes());
+                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
             }
             out.writeInt(numEvents);
             out.writeLong(lastEventNumber);

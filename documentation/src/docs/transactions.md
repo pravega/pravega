@@ -14,7 +14,7 @@ Pravega Transactions.
 
 Instructions for running the sample applications can be found in the[ Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/v0.3.0/pravega-client-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
 Concepts](pravega-concepts.md)) before continuing reading this page.
@@ -25,7 +25,7 @@ We have written a couple of applications, ConsoleReader and ConsoleWriter that
 help illustrate reading and writing data with Pravega and in particular to
 illustrate the Transaction facility in the Pravega programming model.  You can
 find those applications
-[here](https://github.com/pravega/pravega-samples/tree/v0.3.0/pravega-client-examples/src/main/java/io/pravega/example/consolerw).
+[here](https://github.com/pravega/pravega-samples/tree/v0.4.0/pravega-client-examples/src/main/java/io/pravega/example/consolerw).
 
 ### ConsoleReader
 

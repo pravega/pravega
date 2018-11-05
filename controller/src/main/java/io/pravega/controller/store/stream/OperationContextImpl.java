@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream;
 
 import lombok.Getter;
 
-class OperationContextImpl implements OperationContext {
+class OperationContextImpl<T> implements OperationContext {
 
     @Getter
     private final Stream stream;

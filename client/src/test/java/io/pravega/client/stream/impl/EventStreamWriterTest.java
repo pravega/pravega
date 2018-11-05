@@ -9,6 +9,8 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -22,8 +24,10 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.mock.MockSegmentIoStreams;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +41,8 @@ import java.util.function.Consumer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -48,6 +54,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 public class EventStreamWriterTest extends ThreadPooledTestSuite {
+    
+    private Level originalLevel;
+    
+    @Before
+    public void setup() throws Exception {
+        originalLevel = ResourceLeakDetector.getLevel();
+        ResourceLeakDetector.setLevel(Level.PARANOID);
+    }
+
+    @After
+    public void teardown() {
+        ResourceLeakDetector.setLevel(originalLevel);
+    }
     
     @Test
     public void testWrite() {
@@ -130,6 +149,22 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         private final ArrayList<PendingEvent> unacked = new ArrayList<>();
         private boolean sealed = false;
  
+        private ByteBuffer getAcked(int index) {
+            PendingEvent event = acked.get(index);
+            if (event == null) {
+                return null;
+            }
+            return event.getData().slice().skipBytes(WireCommands.TYPE_PLUS_LENGTH_SIZE).nioBuffer();
+        }
+        
+        private ByteBuffer getUnacked(int index) {
+            PendingEvent event = unacked.get(index);
+            if (event == null) {
+                return null;
+            }
+            return event.getData().slice().skipBytes(WireCommands.TYPE_PLUS_LENGTH_SIZE).nioBuffer();
+        }
+        
         private void invokeSealedCallBack() {
             if (callBackForSealed != null) {
                 callBackForSealed.accept(segment);
@@ -259,8 +294,8 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
 
         assertEquals(1, outputStream2.acked.size());
         assertEquals(1, outputStream2.unacked.size());
-        assertEquals("Foo", serializer.deserialize(outputStream2.acked.get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream2.unacked.get(0).getData()));
+        assertEquals("Foo", serializer.deserialize(outputStream2.getAcked(0)));
+        assertEquals("Bar", serializer.deserialize(outputStream2.getUnacked(0)));
     }
 
     @Test
@@ -306,17 +341,17 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
 
         assertEquals(2, outputStream1.unacked.size());
-        assertEquals("Foo", serializer.deserialize(outputStream1.unacked.get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream1.unacked.get(1).getData()));
+        assertEquals("Foo", serializer.deserialize(outputStream1.getUnacked(0)));
+        assertEquals("Bar", serializer.deserialize(outputStream1.getUnacked(1)));
 
         outputStream1.invokeSealedCallBack(); // simulate a segment sealed callback.
         writer.writeEvent(routingKey, "TestData");
         //This time the actual handleLogSealed is invoked and the resend method resends data to outputStream2.
         assertEquals(2, outputStream2.acked.size());
-        assertEquals("Foo", serializer.deserialize(outputStream2.acked.get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream2.acked.get(1).getData()));
+        assertEquals("Foo", serializer.deserialize(outputStream2.getAcked(0)));
+        assertEquals("Bar", serializer.deserialize(outputStream2.getAcked(1)));
         assertEquals(1, outputStream2.unacked.size());
-        assertEquals("TestData", serializer.deserialize(outputStream2.unacked.get(0).getData()));
+        assertEquals("TestData", serializer.deserialize(outputStream2.getUnacked(0)));
 
     }
 
@@ -725,10 +760,10 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
 
         assertEquals(0, outputStream2.acked.size());
         assertEquals(1, outputStream2.unacked.size());
-        assertEquals("Foo", serializer.deserialize(outputStream2.unacked.get(0).getData()));
+        assertEquals("Foo", serializer.deserialize(outputStream2.getUnacked(0)));
         assertEquals(1, outputStream3.acked.size());
         assertEquals(1, outputStream3.unacked.size());
-        assertEquals("Foo", serializer.deserialize(outputStream3.acked.get(0).getData()));
-        assertEquals("Bar", serializer.deserialize(outputStream3.unacked.get(0).getData()));
+        assertEquals("Foo", serializer.deserialize(outputStream3.getAcked(0)));
+        assertEquals("Bar", serializer.deserialize(outputStream3.getUnacked(0)));
     }
 }

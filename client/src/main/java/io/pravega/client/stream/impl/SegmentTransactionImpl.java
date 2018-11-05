@@ -44,7 +44,7 @@ final class SegmentTransactionImpl<Type> implements SegmentTransaction<Type> {
         checkFailed();
         ByteBuffer buffer = serializer.serialize(event);
         CompletableFuture<Void> ack = new CompletableFuture<Void>();
-        PendingEvent pendingEvent = new PendingEvent(null, buffer, ack);
+        PendingEvent pendingEvent = PendingEvent.withHeader(null, buffer, ack);
         synchronized (lock) {
             out.write(pendingEvent);
             outstanding.addLast(ack);

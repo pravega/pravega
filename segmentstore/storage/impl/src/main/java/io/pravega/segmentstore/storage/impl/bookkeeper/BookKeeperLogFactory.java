@@ -145,6 +145,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
         if (this.config.isTLSEnabled()) {
             config = (ClientConfiguration) config.setTLSProvider("OpenSSL");
             config = config.setTLSTrustStore(this.config.getTlsTrustStore());
+            config.setTLSTrustStorePasswordPath(this.config.getTlsTrustStorePasswordPath());
         }
 
         if (this.config.getBkLedgerPath().isEmpty()) {

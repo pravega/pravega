@@ -16,13 +16,15 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
+import io.pravega.client.byteStream.ByteStreamClient;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -157,7 +159,7 @@ public class ClientFactoryImpl implements ClientFactory {
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentInputStream in = inFactory.createInputStreamForSegment(segment);
+        EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
         // Segment sealed is not expected for Revisioned Stream Client.
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
@@ -189,6 +191,11 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public BatchClient createBatchClient() {
         return new BatchClientImpl(controller, connectionFactory);
+    }
+    
+    @Override
+    public ByteStreamClient createByteStreamClient() {
+        return new ByteStreamClientImpl(scope, controller, inFactory, outFactory, metaFactory);
     }
 
     @Override
