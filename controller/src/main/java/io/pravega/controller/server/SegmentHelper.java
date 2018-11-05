@@ -20,7 +20,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.stream.tables.TableHelper;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -376,7 +376,7 @@ public class SegmentHelper {
     private String getTransactionName(String scope, String stream, long segmentId, UUID txId) {
         // Transaction segments are created against a logical primary such that all transaction segments become mergeable.
         // So we will erase secondary id while creating transaction's qualified name.
-        long generalizedSegmentId = TableHelper.generalizedSegmentId(segmentId, txId);
+        long generalizedSegmentId = RecordHelper.generalizedSegmentId(segmentId, txId);
 
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, generalizedSegmentId);
         return getTransactionNameFromId(qualifiedName, txId);

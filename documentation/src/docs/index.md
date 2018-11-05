@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Pravega Overview
 
-Pravega is an open source storage primitive implementing **Streams** for continuous and unbounded data. A Pravega stream is a durable, elastic, append-only, unbounded sequence of bytes that has good performance and strong consistency.  
+Pravega is a storage system that exposes **Stream** as the main primitive for continuous and unbounded data. A Pravega stream is a durable, elastic, append-only, unbounded sequence of bytes having good performance and strong consistency.  
 
 Read [Pravega Concepts](pravega-concepts.md) for more details.
 
@@ -19,7 +19,7 @@ Read [Pravega Concepts](pravega-concepts.md) for more details.
 
 -   **Auto Scaling:** Pravega automatically changes the parallelism of the individual data streams to accommodate fluctuations in data ingestion rate.
 
--   **Distributed Computing Primitive:** Pravega is not only a great storage service for data streams. It can also be used as a durable, consistent messaging service across processes. Even more, Pravega provides unique abstractions that make it easy for users to build advanced services, such as distributed consensus and leader election.
+-   **Distributed Computing Primitive:** Pravega is not only a great storage service for data streams, it can also be used as a durable and consistent messaging service across processes. Pravega provides unique abstractions, which aids the users to build advanced services, like distributed consensus and leader election.
 
 -   **Write Performance:** Pravega shrinks write latency to milliseconds, and seamlessly scales to handle high throughput reads and writes from thousands of concurrent clients, making it ideal for IoT and other time sensitive applications.
 
@@ -39,7 +39,7 @@ The latest Pravega releases can be found on the [Github Release](https://github.
 
 ## Quick Start
 
-Read [Getting Started](getting-started.md) page for more information, and also visit [sample-apps](https://github.com/pravega/pravega-samples) repo for more applications.
+Read [Getting Started](getting-started.md) page for more information, and also visit [Pravega samples](https://github.com/pravega/pravega-samples) repository for more applications.
 
 ## Frequently Asked Questions
 
@@ -52,21 +52,20 @@ Pravega can be installed locally or in a distributed environment. The installati
 ## Pravega Security, Role-based access control and TLS
 
  Pravega supports encryption of all communication channels and pluggable role-based access control. For more information please refer to the following:
-1. [TLS](security/pravega-security-encryption.md)
-2. [Authorization, authentication and RBAC](security/pravega-security-authorization-authentication.md)
 
+1. [TLS](security/pravega-security-encryption.md)
+2. [Authorization, Authentication and RBAC](security/pravega-security-authorization-authentication.md)
 
 ## Support
 
-Don’t hesitate to ask! Contact the developers and community on the [mailing lists](https://groups.google.com/forum/#!forum/pravega-users) or on [slack](https://pravega-io.slack.com/) if you need any help.
-Please open an issue in [Github
-Issues](https://github.com/pravega/pravega/issues) if you find a bug.
+Don’t hesitate to ask! Contact the developers and community on the [Slack](https://pravega-io.slack.com/) or email at security@pravega.io if you need any help.
+Please open an issue in [Github Issues](https://github.com/pravega/pravega/issues) if you find a bug.
 
 ## Contributing
 
-Become one of the contributors! We thrive to build a welcoming and open
+Become one of the **contributors!** We thrive to build a welcoming and open
 community for anyone who wants to use the system or contribute to it.
-We describe how to contribute to Pravega [here](contributing.md)! You can see the roadmap document [here](roadmap.md).
+Please check the [Contributions Guidelines](contributing.md) to quickly understand on how to contribute to Pravega? You can see the [Roadmap](roadmap.md) document for more information.
 
 ## About
 

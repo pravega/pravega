@@ -11,6 +11,7 @@ package io.pravega.local;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.auth.ZKTLSUtils;
+import com.google.common.base.Strings;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -136,6 +137,10 @@ public class InProcPravegaCluster implements AutoCloseable {
 
             //For SegmentStore
             Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
+
+            //Check TLS related parameters
+            Preconditions.checkState(!enableTls || (!Strings.isNullOrEmpty(this.keyFile) && !Strings.isNullOrEmpty(this.certFile)),
+                    "TLS parameters not set");
 
             if (this.isInMemStorage) {
                 this.isInProcHDFS = false;

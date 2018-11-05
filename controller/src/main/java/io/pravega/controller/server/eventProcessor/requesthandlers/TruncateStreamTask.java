@@ -14,8 +14,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.tables.State;
-import io.pravega.controller.store.stream.tables.StreamTruncationRecord;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -61,31 +62,34 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         String stream = request.getStream();
         long requestId = request.getRequestId();
 
-        return streamMetadataStore.getTruncationRecord(scope, stream, true, context, executor)
-                .thenCompose(property -> {
-                    if (!property.isUpdating()) {
-                        // if the state is TRUNCATING but the truncation record is not updating, we should reset the state to ACTIVE.
-                        return streamMetadataStore.resetStateConditionally(scope, stream, State.TRUNCATING, context, executor)
-                                .thenRun(() -> {
+        return streamMetadataStore.getVersionedState(scope, stream, context, executor)
+                .thenCompose(versionedState -> streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
+                        .thenCompose(versionedMetadata -> {
+                            if (!versionedMetadata.getObject().isUpdating()) {
+                                if (versionedState.getObject().equals(State.TRUNCATING)) {
+                                    return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE,
+                                            versionedState, context, executor));
+                                } else {
                                     throw new TaskExceptions.StartException("Truncate Stream not started yet.");
-                                });
-                    } else {
-                        return processTruncate(scope, stream, property, context, this.streamMetadataTasks.retrieveDelegationToken(), requestId);
-                    }
-                });
+                                }
+                            } else {
+                                return processTruncate(scope, stream, versionedMetadata, versionedState, context, requestId);
+                            }
+                        }));
     }
 
-    private CompletableFuture<Void> processTruncate(String scope, String stream, StreamTruncationRecord truncationRecord,
-                                                    OperationContext context, String delegationToken, long requestId) {
-        log.info(requestId, "Truncating stream {}/{} at stream cut: {}", scope,
-                stream, truncationRecord.getStreamCut());
-        return Futures.toVoid(streamMetadataStore.setState(scope, stream, State.TRUNCATING, context, executor)
-                .thenCompose(x -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken, requestId))
-                .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken, requestId))
-                .thenCompose(x -> streamMetadataStore.getSizeTillStreamCut(scope, stream, truncationRecord.getStreamCut(), context, executor))
-                .thenAccept(truncatedSize -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), truncatedSize))
-                .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, context, executor))
-                .thenCompose(x -> streamMetadataStore.setState(scope, stream, State.ACTIVE, context, executor)));
+    private CompletableFuture<Void> processTruncate(String scope, String stream, VersionedMetadata<StreamTruncationRecord> versionedTruncationRecord,
+                                                    VersionedMetadata<State> versionedState, OperationContext context, long requestId) {
+        String delegationToken = this.streamMetadataTasks.retrieveDelegationToken();
+        StreamTruncationRecord truncationRecord = versionedTruncationRecord.getObject();
+        log.info(requestId, "Truncating stream {}/{} at stream cut: {}", scope, stream, truncationRecord.getStreamCut());
+        return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.TRUNCATING, versionedState, context, executor)
+                .thenCompose(update -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken, requestId)
+                        .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken, requestId))
+                        .thenAccept(x -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), 
+                                versionedTruncationRecord.getObject().getSizeTill()))
+                        .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, versionedTruncationRecord, context, executor))
+                        .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, update, context, executor))));
     }
 
     private CompletableFuture<Void> notifyDeleteSegments(String scope, String stream, Set<Long> segmentsToDelete,

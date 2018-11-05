@@ -9,13 +9,14 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -47,7 +49,7 @@ public class ReaderGroupStateTest {
     @Before
     public void setup() {
         readerState = new ReaderGroupState("stream", revision, readerConf,
-                getOffsetMap(1L, Arrays.asList("S1", "S2")), Collections.emptyMap());
+                                           getOffsetMap(asList("S1", "S2"), 1L), Collections.emptyMap());
     }
     
 
@@ -84,9 +86,9 @@ public class ReaderGroupStateTest {
     public void getPositionsForLastCompletedCheckpointSuccess() throws Exception {
         CheckpointState chkPointState = readerState.getCheckpointState();
         chkPointState.beginNewCheckpoint("chk1",
-                ImmutableSet.of("r1", "r2"), getOffsetMap(0L, Arrays.asList("S1", "S2")));
-        chkPointState.readerCheckpointed("chk1", "r1", getOffsetMap(1L, singletonList("S1")));
-        chkPointState.readerCheckpointed("chk1", "r2", getOffsetMap(2L, singletonList("S2")));
+                ImmutableSet.of("r1", "r2"), getOffsetMap(asList("S1", "S2"), 0L));
+        chkPointState.readerCheckpointed("chk1", "r1", getOffsetMap(singletonList("S1"), 1L));
+        chkPointState.readerCheckpointed("chk1", "r2", getOffsetMap(singletonList("S2"), 2L));
 
         Optional<Map<Stream, Map<Segment, Long>>> latestPosition = readerState.getPositionsForLastCompletedCheckpoint();
         assertTrue(latestPosition.isPresent());
@@ -100,16 +102,16 @@ public class ReaderGroupStateTest {
 
         //incomplete checkpoint.
         chkPointState.beginNewCheckpoint("incompletechkpoint",
-                ImmutableSet.of("r1", "r2"), getOffsetMap(0L, Arrays.asList("S1", "S2")));
-        chkPointState.readerCheckpointed("incompletechkpoint", "r1", getOffsetMap(1L, singletonList("S1")));
+                ImmutableSet.of("r1", "r2"), getOffsetMap(asList("S1", "S2"), 0L));
+        chkPointState.readerCheckpointed("incompletechkpoint", "r1", getOffsetMap(singletonList("S1"), 1L));
 
         Optional<Map<Stream, Map<Segment, Long>>> latestPosition = readerState.getPositionsForLastCompletedCheckpoint();
         assertFalse("Incomplete checkpoint", latestPosition.isPresent());
 
         chkPointState.beginNewCheckpoint("chk1",
-                ImmutableSet.of("r1", "r2"), getOffsetMap(0L, Arrays.asList("S1", "S2")));
-        chkPointState.readerCheckpointed("chk1", "r1", getOffsetMap(3L, singletonList("S1")));
-        chkPointState.readerCheckpointed("chk1", "r2", getOffsetMap(3L, singletonList("S2")));
+                ImmutableSet.of("r1", "r2"), getOffsetMap(asList("S1", "S2"), 0L));
+        chkPointState.readerCheckpointed("chk1", "r1", getOffsetMap(singletonList("S1"), 3L));
+        chkPointState.readerCheckpointed("chk1", "r2", getOffsetMap(singletonList("S2"), 3L));
 
         latestPosition = readerState.getPositionsForLastCompletedCheckpoint();
         assertTrue(latestPosition.isPresent());
@@ -133,6 +135,48 @@ public class ReaderGroupStateTest {
         assertEquals(configuredStreams, readerState.getStreamNames());
     }
 
+    @Test
+    public void getStreamCutsForCompletedCheckpoint() {
+        // Begin Checkpoint.
+        CheckpointState chkPointState = readerState.getCheckpointState();
+        chkPointState.beginNewCheckpoint("chk1",
+                                         ImmutableSet.of("r1", "r2"), getOffsetMap(asList("S1", "S2"), 0L));
+
+        // Simulate checkpointing for every reader.
+        Map<Segment, Long> s1OffsetMap = getOffsetMap(singletonList("S1"), 1L);
+        Map<Segment, Long> s2OffsetMap = getOffsetMap(singletonList("S2"), 2L);
+        chkPointState.readerCheckpointed("chk1", "r1", s1OffsetMap);
+        chkPointState.readerCheckpointed("chk1", "r2", s2OffsetMap);
+
+        // Expected streamCuts.
+        Map<Stream, StreamCut> expectedStreamCuts = ImmutableMap.<Stream, StreamCut>builder()
+                .put(getStream("S1"), new StreamCutImpl(getStream("S1"), s1OffsetMap))
+                .put(getStream("S2"), new StreamCutImpl(getStream("S2"), s2OffsetMap))
+                .build();
+
+        // invoke and verify.
+        Optional<Map<Stream, StreamCut>> streamCuts = readerState.getStreamCutsForCompletedCheckpoint("chk1");
+        assertTrue(streamCuts.isPresent());
+        assertEquals(expectedStreamCuts, streamCuts.get());
+    }
+
+    @Test
+    public void getStreamCutsForCompletedCheckpointMultipleScope() {
+
+        // Begin checkpoint.
+        Map<Segment, Long> offsetMap = getOffsetMap(asList("scope1", "scope2"), asList("s1", "s2"), 0L);
+        CheckpointState chkPointState = readerState.getCheckpointState();
+        chkPointState.beginNewCheckpoint("chk1", ImmutableSet.of("r1"), offsetMap);
+        chkPointState.readerCheckpointed("chk1", "r1", getOffsetMap(asList("scope1", "scope2"), asList("s1", "s2"), 99L));
+
+        Map<Stream, StreamCut> expectedStreamCuts = getStreamCutMap(asList("scope1", "scope2"), asList("s1", "s2"), 99L);
+
+        // invoke and verify.
+        Optional<Map<Stream, StreamCut>> streamCuts = readerState.getStreamCutsForCompletedCheckpoint("chk1");
+        assertTrue(streamCuts.isPresent());
+        assertEquals(expectedStreamCuts, streamCuts.get());
+    }
+
     private Segment getSegment(String streamName) {
         return new Segment(SCOPE, streamName, 0);
     }
@@ -141,9 +185,24 @@ public class ReaderGroupStateTest {
         return new StreamImpl(SCOPE, streamName);
     }
 
-    private Map<Segment, Long> getOffsetMap(Long offset, List<String> names) {
+    private Map<Segment, Long> getOffsetMap(List<String> streamNames, long offset) {
+       return getOffsetMap(Collections.singletonList(SCOPE), streamNames, offset);
+    }
+
+    private Map<Segment, Long> getOffsetMap(List<String> scopes, List<String> streams, long offset) {
         Map<Segment, Long> offsetMap = new HashMap<>();
-        names.forEach(name -> offsetMap.put(getSegment(name), offset));
+        scopes.forEach(scope -> streams.forEach(stream -> offsetMap.put(new Segment(scope, stream, 0), offset)));
         return offsetMap;
+
+    }
+
+    private Map<Stream, StreamCut> getStreamCutMap(List<String> scopes, List<String> streams, long offset) {
+        Map<Stream, StreamCut> map = new HashMap<>();
+        scopes.forEach(scope -> streams.forEach(stream -> map.put(Stream.of(scope, stream),
+                                                                  new StreamCutImpl(Stream.of(scope, stream),
+                                                                                    getOffsetMap(singletonList(scope),
+                                                                                                 singletonList(stream),
+                                                                                                 offset)))));
+        return map;
     }
 }

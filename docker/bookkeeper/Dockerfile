@@ -8,11 +8,14 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
-FROM openjdk:8-jre
+FROM openjdk:8-jre-alpine
 MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
 
-RUN apt-get update \
-&&  apt-get install -y wget unzip \
+RUN apk add --update \
+    bash \
+    wget \
+    unzip \
+&&  rm -rf /var/cache/apk/* \
 &&  mkdir -p /opt \
 &&  cd /opt
 

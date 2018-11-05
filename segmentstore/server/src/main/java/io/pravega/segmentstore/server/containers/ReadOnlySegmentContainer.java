@@ -17,7 +17,9 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
 import io.pravega.common.util.AsyncMap;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -49,6 +51,10 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     static final int MAX_READ_AT_ONCE_BYTES = 4 * 1024 * 1024;
     private static final int CONTAINER_ID = Integer.MAX_VALUE; // So that it doesn't collide with any other real Container Id.
     private static final int CONTAINER_EPOCH = 1; // This guarantees that any write operations should be fenced out if attempted.
+    private static final Retry.RetryAndThrowExceptionally<StreamSegmentNotExistsException, RuntimeException> READ_RETRY = Retry
+            .withExpBackoff(30, 10, 4)
+            .retryingOn(StreamSegmentNotExistsException.class)
+            .throwingOn(RuntimeException.class);
 
     private final AsyncMap<String, SegmentState> stateStore;
     private final SegmentStateMapper segmentStateMapper;
@@ -128,16 +134,15 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
-                .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage));
+        return READ_RETRY.run(() -> getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
+                .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage)));
     }
 
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout);
+        return READ_RETRY.run(() -> this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout));
     }
-
 
     //endregion
 

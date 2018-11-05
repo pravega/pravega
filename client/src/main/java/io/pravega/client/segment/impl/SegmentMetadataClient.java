@@ -53,6 +53,11 @@ public interface SegmentMetadataClient extends AutoCloseable {
      */
     abstract void truncateSegment(long offset);
     
+    /**
+     * Seals the segment so that no more writes can go to it.
+     */
+    abstract void sealSegment();
+    
     @Override
     abstract void close();
     

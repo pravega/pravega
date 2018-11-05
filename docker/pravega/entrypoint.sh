@@ -9,6 +9,8 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
+set -eo pipefail
+
 dir=$( cd "$( dirname "$0" )" && pwd )
 # Adds a system property if the value is not empty
 add_system_property() {
@@ -138,4 +140,3 @@ standalone)
     exit 1
     ;;
 esac
-

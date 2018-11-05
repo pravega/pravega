@@ -93,8 +93,8 @@ public class SealedSegmentsMapShard {
     }
 
     @Synchronized
-    public long getSize(long segmentId) {
-        return sealedSegmentsSizeMap.get(segmentId);
+    public Long getSize(long segmentId) {
+        return sealedSegmentsSizeMap.getOrDefault(segmentId, null);
     }
 
     @Synchronized

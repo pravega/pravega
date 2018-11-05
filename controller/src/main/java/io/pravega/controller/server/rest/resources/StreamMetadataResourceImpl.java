@@ -703,7 +703,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             return;
         }
 
-        controllerService.getScaleRecords(scopeName, streamName).thenApply(listScaleMetadata -> {
+        controllerService.getScaleRecords(scopeName, streamName, from, to).thenApply(listScaleMetadata -> {
             Iterator<ScaleMetadata> metadataIterator = listScaleMetadata.iterator();
             List<ScaleMetadata> finalScaleMetadataList = new ArrayList<ScaleMetadata>();
 
