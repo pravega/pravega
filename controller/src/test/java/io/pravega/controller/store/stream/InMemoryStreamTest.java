@@ -26,7 +26,7 @@ public class InMemoryStreamTest extends StreamTestBase {
     }
 
     @Override
-    PersistentStreamBase getStream(String scope, String stream) {
-        return new InMemoryStream(scope, stream);
+    PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize) {
+        return new InMemoryStream(scope, stream, chunkSize, shardSize);
     }
 }
