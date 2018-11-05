@@ -59,7 +59,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
-    private final ConcurrentDependentProcessor<ContainerKeyCache.CacheKey, List<Long>> conditionalUpdateProcessor;
+    private final ConcurrentDependentProcessor<ContainerKeyCache.CacheKey> conditionalUpdateProcessor;
     private final RecoveryTracker recoveryTracker;
     private final AtomicBoolean closed;
 

@@ -225,7 +225,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             check(keyInfo, tableStore);
 
             // Delete all.
-            val deletions = segmentNames.stream().map(s -> tableStore.deleteSegment(s, TIMEOUT)).collect(Collectors.toList());
+            val deletions = segmentNames.stream().map(s -> tableStore.deleteSegment(s, false, TIMEOUT)).collect(Collectors.toList());
             Futures.allOf(deletions).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             log.info("Finished Phase 4");

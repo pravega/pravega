@@ -22,7 +22,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.contracts.tables.UpdateListener;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -105,7 +104,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val tableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.segment().getMetadata());
         Assert.assertFalse("Expecting Writer Table Processors for table segment.", tableSegmentProcessors.isEmpty());
 
-        context.ext.deleteSegment(SEGMENT_NAME, TIMEOUT).join();
+        context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
     }
 
@@ -132,14 +131,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "entryIterator() is implemented.",
                 () -> context.ext.entryIterator(SEGMENT_NAME, null, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "registerListener() is implemented.",
-                () -> context.ext.registerListener(UpdateListener.builder().build(), TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "unregisterListener() is implemented.",
-                () -> context.ext.unregisterListener(UpdateListener.builder().build()),
                 ex -> ex instanceof UnsupportedOperationException);
     }
 
