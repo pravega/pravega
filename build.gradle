@@ -633,6 +633,9 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
+        // https://mvnrepository.com/artifact/io.kubernetes/client-java
+        compile group: 'io.kubernetes', name: 'client-java', version: '3.0.0'
+
     }
     //disable the default test task.
     test {
