@@ -17,7 +17,6 @@ import java.util.Map;
 import org.junit.Test;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
