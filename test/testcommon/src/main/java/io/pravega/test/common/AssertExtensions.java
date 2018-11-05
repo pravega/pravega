@@ -371,7 +371,7 @@ public class AssertExtensions {
      * @return The result of the blockingFunction.
      * @param <ResultT> The result of the blockingFunction.
      */
-    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, Runnable unblocker) {
+    public static <ResultT> ResultT assertBlocks(Callable<ResultT> blockingFunction, RunnableWithException unblocker) {
         final AtomicReference<ResultT> result = new AtomicReference<>(null);
         final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
@@ -393,7 +393,11 @@ public class AssertExtensions {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-        unblocker.run();
+        try {
+            unblocker.run();
+        } catch (Exception e) {
+            throw new RuntimeException("Blocking call threw an exception", e);
+        }
         try {
             isBlocked.acquire();
             t.join();
@@ -414,7 +418,7 @@ public class AssertExtensions {
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      */
-    public static void assertBlocks(RunnableWithException blockingFunction, Runnable unblocker) {
+    public static void assertBlocks(RunnableWithException blockingFunction, RunnableWithException unblocker) {
         final AtomicReference<Throwable> exception = new AtomicReference<>(null);
         final Semaphore isBlocked = new Semaphore(0);
         Thread t = new Thread(new Runnable() {
@@ -441,7 +445,11 @@ public class AssertExtensions {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-        unblocker.run();
+        try {
+            unblocker.run();
+        } catch (Exception e) {
+            throw new RuntimeException("Blocking call threw an exception", e);
+        }
         try {
             if (!isBlocked.tryAcquire(2000, TimeUnit.MILLISECONDS)) {
                 RuntimeException e = new RuntimeException("Failed to unblock");

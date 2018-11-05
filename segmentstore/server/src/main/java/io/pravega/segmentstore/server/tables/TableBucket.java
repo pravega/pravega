@@ -24,8 +24,7 @@ import lombok.NonNull;
  * full path to the Table Bucket itself (for example, if an existing path points to another Key, however the Key used
  * to generate this only partially shares that path but is not otherwise in the table, then we'll have a partial path).
  *
- * If the node path is complete (getLastNode() != null && getLastNode.isIndexNode() == false), then this points to a real
- * bucket, and means the following:
+ * If the node path is complete ({@link #isPartial()} returns false), then this points to a real bucket, and means the following:
  * - getLastNode().getValue() points to an Offset within the Segment where the latest value for any Key in this Bucket is
  * written.
  * - During a read: the sought value is either at the given offset or will need to be located by means of backpointers (not stored here).

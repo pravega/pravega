@@ -13,9 +13,11 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import lombok.val;
  * Represents an update to a Table Bucket.
  */
 @RequiredArgsConstructor
+@NotThreadSafe
 class BucketUpdate {
     //region Members
 
@@ -68,14 +71,14 @@ class BucketUpdate {
      * Gets a collection of {@link KeyInfo} instances recorded in this Bucket Update.
      */
     Collection<KeyInfo> getExistingKeys() {
-        return this.existingKeys.values();
+        return Collections.unmodifiableCollection(this.existingKeys.values());
     }
 
     /**
      * Gets a collection of {@link KeyUpdate} instances recorded in this Bucket Update.
      */
     Collection<KeyUpdate> getKeyUpdates() {
-        return this.updatedKeys.values();
+        return Collections.unmodifiableCollection(this.updatedKeys.values());
     }
 
     /**

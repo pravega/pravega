@@ -14,6 +14,8 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -250,7 +252,8 @@ public class ControllerRestApiTest {
         URI controllerUri = SETUP_UTILS.getControllerUri();
         @Cleanup("shutdown")
         InlineExecutor inlineExecutor = new InlineExecutor();
-        try (StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor))) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(createController(controllerUri, inlineExecutor), cf)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
@@ -307,8 +310,8 @@ public class ControllerRestApiTest {
         assertEquals("Get readergroup name", readerGroupName1, readerGroupProperty.getReaderGroupName());
         assertEquals("Get readergroup scope name", testScope, readerGroupProperty.getScopeName());
         assertEquals("Get readergroup streams size", 2, readerGroupProperty.getStreamList().size());
-        assertTrue(readerGroupProperty.getStreamList().contains(testStream1));
-        assertTrue(readerGroupProperty.getStreamList().contains(testStream2));
+        assertTrue(readerGroupProperty.getStreamList().contains(Stream.of(testScope, testStream1).getScopedName()));
+        assertTrue(readerGroupProperty.getStreamList().contains(Stream.of(testScope, testStream2).getScopedName()));
         assertEquals("Get readergroup onlinereaders size", 2, readerGroupProperty.getOnlineReaderIds().size());
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader1));
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader2));

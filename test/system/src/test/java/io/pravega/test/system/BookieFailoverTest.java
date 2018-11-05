@@ -73,43 +73,10 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
      */
     @Environment
     public static void initialize() throws MarathonException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega controller service details: {}", conUris);
-
-        //4.start segmentstore
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
@@ -166,12 +133,10 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         readerGroupManager = ReaderGroupManager.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
-
     @After
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -179,8 +144,6 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
         readerGroupManager.close();
         ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
     }
-
-
 
     @Test
     public void bookieFailoverTest() throws ExecutionException, InterruptedException {

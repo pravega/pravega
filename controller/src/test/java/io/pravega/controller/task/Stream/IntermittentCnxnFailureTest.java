@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
@@ -49,6 +50,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -69,6 +71,7 @@ public class IntermittentCnxnFailureTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private SegmentHelper segmentHelperMock;
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {
@@ -89,9 +92,8 @@ public class IntermittentCnxnFailureTest {
                 anyString(), anyString(), anyInt(), any());
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
                 streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
@@ -138,7 +140,7 @@ public class IntermittentCnxnFailureTest {
 
         // Mock createSegment to return success.
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyInt(), any(), any(), any(), any(), anyLong());
 
         AtomicBoolean result = new AtomicBoolean(false);
         Retry.withExpBackoff(10, 10, 4)

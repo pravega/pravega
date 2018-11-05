@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;

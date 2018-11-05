@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -24,9 +23,9 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
-import lombok.extern.slf4j.Slf4j;
-
+import io.pravega.shared.metrics.MetricsProvider;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Entry point of controller server.
@@ -42,6 +41,7 @@ public class Main {
 
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
+                    .secureConnectionToZooKeeper(Config.SECURE_ZK)
                     .namespace("pravega/" + Config.CLUSTER_NAME)
                     .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                     .maxRetries(Config.ZK_MAX_RETRIES)

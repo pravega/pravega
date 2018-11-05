@@ -38,18 +38,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.io.IOUtils;
 
 /**
  * A {@link WriterSegmentProcessor} that handles the asynchronous indexing of Table Entries.
  */
+@Slf4j
 public class WriterTableProcessor implements WriterSegmentProcessor {
     //region Members
 
@@ -59,6 +62,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private final OperationAggregator aggregator;
     private final AtomicLong lastAddedOffset;
     private final AtomicBoolean closed;
+    private final String traceObjectId;
 
     //endregion
 
@@ -77,6 +81,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.aggregator = new OperationAggregator(this.indexWriter.getLastIndexedOffset(this.connector.getMetadata()));
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
+        this.traceObjectId = String.format("TableProcessor[%d-%d]", this.connector.getMetadata().getContainerId(), this.connector.getMetadata().getId());
+
     }
 
     //endregion
@@ -87,6 +93,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
             this.connector.close();
+            log.info("{}: Closed.", this.traceObjectId);
         }
     }
 
@@ -128,6 +135,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             // all Table Entries are indexed or none), so it is safe to compare this with the first offset of the append.
             this.aggregator.add(append);
             this.lastAddedOffset.set(append.getLastStreamSegmentOffset());
+            log.debug("{}: Add {} (State={}).", this.traceObjectId, operation, this.aggregator);
+        } else {
+            log.debug("{}: Skipped {} (State={}).", this.traceObjectId, operation, this.aggregator);
         }
     }
 
@@ -163,6 +173,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     // Update the Last Indexed Offset and then notify the connector.
                     this.aggregator.setLastIndexedOffset(lastIndexedOffset);
                     this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
+                    log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
                     return new WriterFlushResult();
                 });
     }
@@ -212,14 +223,19 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private CompletableFuture<Long> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
+        log.debug("{}: Flush.ReadFromSegment {} UpdateKeys(s).", this.traceObjectId, keyUpdates.getUpdates().size());
 
         // Group keys by their assigned TableBucket (whether existing or not), then fetch all existing keys
         // for each such bucket and finally (reindex) update the bucket.
         return this.indexWriter
                 .groupByBucket(keyUpdates.getUpdates(), segment, timer)
                 .thenComposeAsync(bucketUpdates -> fetchExistingKeys(bucketUpdates, segment, timer)
-                                .thenComposeAsync(v -> this.indexWriter.updateBuckets(bucketUpdates, segment,
-                                        this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(), timer.getRemaining()),
+                                .thenComposeAsync(v -> {
+                                            logBucketUpdates(bucketUpdates);
+                                            return this.indexWriter.updateBuckets(bucketUpdates, segment,
+                                                    this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
+                                                    timer.getRemaining());
+                                        },
                                         this.executor)
                                 .thenApply(ignored -> keyUpdates.getLastIndexedOffset()),
                         this.executor);
@@ -240,6 +256,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                             + "Most likely it does not conform to an append boundary.  Existing value: %s.",
                     tableIndexOffset, this.connector.getMetadata().getId(), this.aggregator.getLastIndexedOffset()));
         }
+
+        log.info("{}: ReconcileTableIndexOffset (State={}).", this.traceObjectId, this.aggregator);
     }
 
     private boolean canRetryFlushException(Throwable ex) {
@@ -378,6 +396,20 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 },
                 offset::set,
                 this.executor);
+    }
+
+    private void logBucketUpdates(Collection<BucketUpdate> bucketUpdates) {
+        if (!log.isTraceEnabled()) {
+            // Do not bother to generate log messages if TRACE is not enabled.
+            return;
+        }
+        log.trace("{}: Updating {} TableBucket(s).", this.traceObjectId, bucketUpdates.size());
+        bucketUpdates.forEach(bu -> log.trace("{}: TableBucket [Offset={}, {}]: ExistingKeys=[{}], Updates=[{}].",
+                bu.getBucketOffset(),
+                bu.getBucket(),
+                bu.getExistingKeys().stream().map(Object::toString).collect(Collectors.joining("; ")),
+                bu.getKeyUpdates().stream().map(Object::toString).collect(Collectors.joining("; ")))
+        );
     }
 
     //endregion

@@ -19,6 +19,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -129,11 +130,11 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
 
     @Data
     private class TxnData {
-        private final int version;
+        private final Version version;
         private final long maxExecutionTimeExpiry;
         private final Timeout timeout;
 
-        TxnData(final String scope, final String stream, final UUID txnId, final int version,
+        TxnData(final String scope, final String stream, final UUID txnId, final Version version,
                 final long lease, final long maxExecutionTimeExpiry) {
             this.version = version;
             this.maxExecutionTimeExpiry = maxExecutionTimeExpiry;
@@ -141,7 +142,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             this.timeout = hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
         }
 
-        public TxnData updateLease(final String scope, final String stream, final UUID txnId, int version, final long lease) {
+        public TxnData updateLease(final String scope, final String stream, final UUID txnId, Version version, final long lease) {
             return new TxnData(scope, stream, txnId, version, lease, this.maxExecutionTimeExpiry);
         }
     }
@@ -186,7 +187,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public void addTxn(final String scope, final String stream, final UUID txnId, final int version,
+    public void addTxn(final String scope, final String stream, final UUID txnId, final Version version,
                        final long lease, final long maxExecutionTimeExpiry) {
 
         if (this.isRunning()) {
@@ -207,7 +208,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, int version, long lease) {
+    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, Version version, long lease) {
 
         if (!this.isRunning()) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build();

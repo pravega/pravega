@@ -17,6 +17,7 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.tables.hashing.HashConfig;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -38,6 +39,36 @@ import lombok.val;
 
 /**
  * Provides read-only access to a Hash Array Mapped Tree implementation over Extended Attributes.
+ *
+ * Index Structure:
+ * - The index is organized as a collection of {@link TableBucket} instances.
+ * - Each {@link TableBucket} corresponds to exactly one {@link KeyHash}, and may contain one or more entries.
+ * - A Table Key may occur at most once in a {@link TableBucket}.
+ * - Multiple Table Keys in the same {@link TableBucket} are linked by means of Backpointers.
+ * - Both {@link TableBucket}s and Backpointers are stored in the Segment's Extended Attributes, as described below.
+ *
+ * {@link TableBucket} Extended Attribute Implementation:
+ * - The {@link KeyHash} is made up of N parts (based on the {@link HashConfig} used to construct it. Define them as H[1..N]
+ * - H[1] is 16 bytes long, with its first bit ignored. H[2..N] are 12 bytes long each.
+ * - H[1] is the only one required.
+ * - H[i] (1&lt;i&lte;n) is only used if there exist at least one other {@link TableBucket} which shares H[1..i-1] with this one.
+ * - Examples:
+ * -- If only H[1] is required: {1}{H[1]} -> {SegmentOffset}
+ * -- If H[1] to H[3] are required:: {1}{H[1]} -> {N1}; {01}{N1}{H[2]} -> {N2}; {01}{N2}{H[3]} -> {SegmentOffset}
+ * -- If a second {@link TableBucket} shares H[1] and H[2], but not H[3] (it has H'[3]), we'll insert: {01}{N2}{H'[3]} -> {SegmentOffset2}
+ * -- {A}{B} represents a bitwise concatenation of the values {A} and {B}
+ * -- {SegmentOffset} is the offset of the (latest) Table Entry which belongs to the respective {@link TableBucket}
+ *
+ * Backpointers Extended Attribute Implementation:
+ * - Backpointers are used to resolve collisions for those Table Entries whose Keys have the same {@link KeyHash} value.
+ * -- In this case, we have exhausted all the {@link KeyHash}'s parts and can no longer disambiguate the {@link TableBucket}s.
+ * - Backpointers are links from the Offset of a Table Entry to the Offset of a previous Table Entry in the same {@link TableBucket}.
+ * -- They begin from the {@link TableBucket}'s SegmentOffset (see above) and are chained up until there are no more Table
+ * Entries to link
+ * -- They are similar to a singly linked list beginning from the last Table Entry in a {@link TableBucket}.
+ * - Backpointers are represented as:
+ * -- {64-bit-0s}{SourceOffset} -> {PreviousOffset}
+ * -- {64-bit-0s} is a number made of 64 0 bits (i.e., a Long with a value of 0).
  */
 class IndexReader {
     //region Members
@@ -203,6 +234,8 @@ class IndexReader {
 
     //endregion
 
+    //region HashBucketBuilderPair
+
     @RequiredArgsConstructor
     private class HashBucketBuilderPair {
         final KeyHash keyHash;
@@ -235,4 +268,6 @@ class IndexReader {
             return true;
         }
     }
+
+    //endregion
 }

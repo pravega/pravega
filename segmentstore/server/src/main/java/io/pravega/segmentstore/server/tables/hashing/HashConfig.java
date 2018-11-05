@@ -17,6 +17,7 @@ import org.apache.commons.lang3.tuple.Pair;
  * Key Hashing Configuration.
  */
 public class HashConfig {
+    private static final byte IGNORE_LEADING_BIT_MASK = (byte) 0x7F; // When applied to a hash, clears the Most Significant Bit.
     private final int[] endByteOffsets;
 
     private HashConfig(int[] endByteOffsets) {
@@ -69,5 +70,17 @@ public class HashConfig {
 
         int start = index == 0 ? 0 : this.endByteOffsets[index - 1];
         return Pair.of(start, this.endByteOffsets[index]);
+    }
+
+    /**
+     * Applies a mask to the given hash in order to conform it to the rules defined in this {@link HashConfig} instance.
+     * In particular, it clears the first bit of the hash, as that is going to be ignored anyway when constructing the
+     * Index and is best if the Hash doesn't contain it in the first place.
+     *
+     * @param hash A byte array representing the hash to modify.
+     */
+    void applyHashMask(byte[] hash) {
+        Preconditions.checkArgument(hash.length >= getMinHashLengthBytes(), "Invalid hash length.");
+        hash[0] &= IGNORE_LEADING_BIT_MASK;
     }
 }

@@ -23,7 +23,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the ConcurrentDependentProcessor class.
@@ -31,6 +33,9 @@ import org.junit.Test;
 public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
     private static final int SHORT_TIMEOUT_MILLIS = 50;
     private static final int TIMEOUT_MILLIS = 10000;
+
+    @Rule
+    public Timeout globalTimeout = new Timeout(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
@@ -45,7 +50,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
         final int key1 = 1;
         final int key2 = 2;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer, Integer>(executorService());
+        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
         val toRun1 = new CompletableFuture<Integer>();
         val result1 = proc.add(Collections.singleton(key1), () -> toRun1);
 
@@ -74,7 +79,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
         final int key = 1;
         final int count = 10000;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer, Integer>(executorService());
+        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
         val running = new AtomicBoolean(false);
         val previousRun = new AtomicReference<CompletableFuture<Integer>>();
         val results = new ArrayList<CompletableFuture<Integer>>();
@@ -116,7 +121,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
         final int key2 = 2;
         final int key3 = 3;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer, Integer>(executorService());
+        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
 
         // We setup two individual tasks to begin with.
         val toRun1 = new CompletableFuture<Integer>();
@@ -176,7 +181,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
     public void testClose() {
         final int key = 1;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer, Integer>(executorService());
+        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
         val toRun = new CompletableFuture<Integer>();
         val result = proc.add(Collections.singleton(key), () -> toRun);
 

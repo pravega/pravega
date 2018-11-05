@@ -12,6 +12,7 @@ package io.pravega.controller.server.rest;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.auth.JKSHelper;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
@@ -25,6 +26,8 @@ import javax.ws.rs.core.UriBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.glassfish.grizzly.GrizzlyFuture;
 import org.glassfish.grizzly.http.server.HttpServer;
+import org.glassfish.grizzly.ssl.SSLContextConfigurator;
+import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.server.ServerProperties;
@@ -34,6 +37,8 @@ import org.glassfish.jersey.server.ServerProperties;
  */
 @Slf4j
 public class RESTServer extends AbstractIdleService {
+
+    private static final long MAX_PASSWORD_LENGTH = 4 * 1024 * 1024;
 
     private final String objectId;
     private final RESTServerConfig restServerConfig;
@@ -68,7 +73,15 @@ public class RESTServer extends AbstractIdleService {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         try {
             log.info("Starting REST server listening on port: {}", this.restServerConfig.getPort());
-            httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
+            if (restServerConfig.isTlsEnabled()) {
+                SSLContextConfigurator contextConfigurator = new SSLContextConfigurator();
+                contextConfigurator.setKeyStoreFile(restServerConfig.getKeyFilePath());
+                contextConfigurator.setKeyStorePass(JKSHelper.loadPasswordFrom(restServerConfig.getKeyFilePasswordPath()));
+                httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true,
+                        new SSLEngineConfigurator(contextConfigurator, false, false, false));
+            } else {
+                httpServer = GrizzlyHttpServerFactory.createHttpServer(baseUri, resourceConfig, true);
+            }
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }

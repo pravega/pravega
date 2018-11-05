@@ -36,11 +36,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
  * Provides read-write access to a Hash Array Mapped Tree implementation over Extended Attributes.
+ * See {@link IndexReader} for a description of the Index Structure.
  */
+@Slf4j
 class IndexWriter extends IndexReader {
     //region Members
 
@@ -150,8 +153,11 @@ class IndexWriter extends IndexReader {
 
         if (attributeUpdates.isEmpty()) {
             // We haven't made any updates.
+            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, No Changes.", segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset);
             return CompletableFuture.completedFuture(0);
         } else {
+            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, InitialTableNodeId={}, CurrentTableNodeId={}, UpdateCount={}.",
+                    segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, initialTableNodeId, currentTableNodeId, attributeUpdates.size());
             final int result = currentTableNodeId - initialTableNodeId;
             return segment.updateAttributes(attributeUpdates, timeout)
                           .thenApply(v -> result);

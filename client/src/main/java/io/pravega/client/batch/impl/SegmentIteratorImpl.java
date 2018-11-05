@@ -12,9 +12,9 @@ package io.pravega.client.batch.impl;
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.Serializer;
@@ -31,7 +31,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
     @Getter
     private final long startingOffset;
     private final long endingOffset;
-    private final SegmentInputStream input;
+    private final EventSegmentReader input;
 
     public SegmentIteratorImpl(SegmentInputStreamFactory factory, Segment segment,
             Serializer<T> deserializer, long startingOffset, long endingOffset) {
@@ -39,7 +39,7 @@ public class SegmentIteratorImpl<T> implements SegmentIterator<T> {
         this.deserializer = deserializer;
         this.startingOffset = startingOffset;
         this.endingOffset = endingOffset;
-        input = factory.createInputStreamForSegment(segment);
+        input = factory.createEventReaderForSegment(segment);
         input.setOffset(startingOffset);        
     }
 

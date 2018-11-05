@@ -19,6 +19,7 @@ import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -27,6 +28,18 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -40,22 +53,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
-import lombok.val;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * This class encapsulates the state machine of a reader group. The class represents the full state,
  * and each of the nested classes are state transitions that can occur.
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Slf4j
 public class ReaderGroupState implements Revisioned {
 
     private static final long ASSUMED_LAG_MILLIS = 30000;
@@ -214,11 +222,11 @@ public class ReaderGroupState implements Revisioned {
         Set<String> result = new HashSet<>();
         for (Map<Segment, Long> segments : assignedSegments.values()) {
             for (Segment segment : segments.keySet()) {
-                result.add(segment.getStreamName());
+                result.add(segment.getScopedStreamName());
             }
         }
         for (Segment segment : unassignedSegments.keySet()) {
-            result.add(segment.getStreamName());
+            result.add(segment.getScopedStreamName());
         }
         return result;
     }
@@ -236,6 +244,16 @@ public class ReaderGroupState implements Revisioned {
     @Synchronized
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         return checkpointState.getPositionsForCompletedCheckpoint(checkpointId);
+    }
+
+    @Synchronized
+    Optional<Map<Stream, StreamCut>> getStreamCutsForCompletedCheckpoint(final String checkpointId) {
+        final Optional<Map<Segment, Long>> positionMap = Optional.ofNullable(checkpointState.getPositionsForCompletedCheckpoint(checkpointId));
+
+        return positionMap.map(map -> map.entrySet().stream()
+                                         .collect(groupingBy(o -> o.getKey().getStream(),
+                                                             collectingAndThen(toMap(Entry::getKey, Entry::getValue),
+                                                                               x -> new StreamCutImpl(x.keySet().stream().findAny().get().getStream(), x)))));
     }
 
     @Synchronized
@@ -282,7 +300,7 @@ public class ReaderGroupState implements Revisioned {
         sb.append(" }");
         return sb.toString();
     }
-    
+
     @Data
     @Builder
     @RequiredArgsConstructor
@@ -362,16 +380,16 @@ public class ReaderGroupState implements Revisioned {
                 endSegments = state.endSegments;
             }
         }
-        
+
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
             return new ReaderGroupState(scopedStreamName, config, revision, checkpointState, distanceToTail,
                                         futureSegments, assignedSegments, unassignedSegments, endSegments);
         }
-        
+
         @VisibleForTesting
         static class CompactReaderGroupStateBuilder implements ObjectBuilder<CompactReaderGroupState> {
-            
+
         }
         
         static class CompactReaderGroupStateSerializer extends VersionedSerializer.WithBuilder<CompactReaderGroupState, CompactReaderGroupStateBuilder> {
@@ -827,11 +845,18 @@ public class ReaderGroupState implements Revisioned {
         @Override
         void update(ReaderGroupState state) {
             state.checkpointState.readerCheckpointed(checkpointId, readerId, positions);
-
-            // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
-            final Map<Segment, Long> readerPositions = state.assignedSegments.get(readerId);
-            for (Entry<Segment, Long> entry : positions.entrySet()) {
-                readerPositions.replace(entry.getKey(), entry.getValue());
+            /*
+             * Update the assignedSegments only for normal Checkpoints. This should not be updated
+             * for silent Checkpoints as it would cause a different offset to be used when the reader goes
+             * offline. The current contract is that last checkpointed offset or the provided position will
+             * be used when {@link io.pravega.client.stream.ReaderGroup#readerOffline(String, Position)} is invoked.
+             */
+            if (!state.checkpointState.isCheckpointSilent(checkpointId)) {
+                // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
+                final Map<Segment, Long> readerPositions = state.assignedSegments.get(readerId);
+                for (Entry<Segment, Long> entry : positions.entrySet()) {
+                    readerPositions.replace(entry.getKey(), entry.getValue());
+                }
             }
         }
         
@@ -875,7 +900,7 @@ public class ReaderGroupState implements Revisioned {
     static class CreateCheckpoint extends ReaderGroupStateUpdate {
         @Getter
         private final String checkpointId;
-        
+
         CreateCheckpoint() {
             this(UUID.randomUUID().toString());
         }
@@ -962,7 +987,7 @@ public class ReaderGroupState implements Revisioned {
             }
         }
     }
-    
+
     public static class ReaderGroupInitSerializer
             extends VersionedSerializer.MultiType<InitialUpdate<ReaderGroupState>> {
         @Override

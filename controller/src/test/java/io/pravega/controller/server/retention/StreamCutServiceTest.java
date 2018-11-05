@@ -16,6 +16,7 @@ import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
@@ -50,6 +51,7 @@ public abstract class StreamCutServiceTest {
     StreamMetadataTasks streamMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
     private String hostId;
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {
@@ -65,8 +67,8 @@ public abstract class StreamCutServiceTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory,
-               AuthHelper.getDisabledAuthHelper());
-        service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor);
+               AuthHelper.getDisabledAuthHelper(), requestTracker);
+        service = new StreamCutService(3, hostId, streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         service.startAsync();
         service.awaitRunning();
     }

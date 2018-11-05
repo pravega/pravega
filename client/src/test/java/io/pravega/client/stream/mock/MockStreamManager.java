@@ -12,6 +12,7 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
@@ -37,12 +38,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
+    @Getter
     private final ConnectionFactoryImpl connectionFactory;
     private final MockController controller;
     @Getter
@@ -68,6 +71,11 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        throw new NotImplementedException("getStreamInfo");
+    }
+
+    @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
         NameUtils.validateUserStreamName(streamName);
         if (config == null) {
@@ -77,13 +85,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
-
-        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .build()),
-                RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.createStream(config), RuntimeException::new);
     }
 
     @Override
@@ -96,12 +98,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
                                         .build();
         }
 
-        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .build()),
-                RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.updateStream(config), RuntimeException::new);
     }
 
     @Override
@@ -113,11 +110,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                  .scope(scope)
-                                                                                  .streamName(streamName)
-                                                                                  .scalingPolicy(config.getScalingPolicy())
-                                                                                  .build()),
+        Futures.getAndHandleExceptions(controller.createStream(config),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }

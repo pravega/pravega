@@ -22,23 +22,29 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.tables.HistoryRecord;
-import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -55,7 +61,10 @@ import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -64,6 +73,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -79,11 +91,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class ScaleRequestHandlerTest {
     private final String scope = "scope";
@@ -103,6 +111,8 @@ public class ScaleRequestHandlerTest {
     private CuratorFramework zkClient;
     private ClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
+
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {
@@ -133,7 +143,7 @@ public class ScaleRequestHandlerTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(ClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper());
+                executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper());
@@ -169,7 +179,8 @@ public class ScaleRequestHandlerTest {
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(),
+                1, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
 
         // verify that one scaleOp event is written into the stream
@@ -203,7 +214,8 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 4);
 
         // process first scale down event. it should only mark the segment as cold
-        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, four, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent = new AutoScaleEvent(scope, stream, four, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleDownEvent)));
         assertTrue(writer.queue.isEmpty());
 
@@ -212,7 +224,8 @@ public class ScaleRequestHandlerTest {
         assertTrue(activeSegments.size() == 4);
         assertTrue(streamStore.isCold(scope, stream, four, null, executor).join());
 
-        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, three, AutoScaleEvent.DOWN, System.currentTimeMillis(), 0, false);
+        AutoScaleEvent scaleDownEvent2 = new AutoScaleEvent(scope, stream, three, AutoScaleEvent.DOWN, System.currentTimeMillis(),
+                0, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleDownEvent2)));
         assertTrue(streamStore.isCold(scope, stream, three, null, executor).join());
 
@@ -244,7 +257,8 @@ public class ScaleRequestHandlerTest {
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
         assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), true, System.currentTimeMillis()))));
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis()))));
+        activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
         assertTrue(activeSegments.stream().anyMatch(z -> z.segmentId() == five));
@@ -269,18 +283,18 @@ public class ScaleRequestHandlerTest {
                 null, executor).join();
         streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
 
-        HistoryRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        EpochRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(0, epochZero.getEpoch());
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L, 1L, 2L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis())).join();
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
-        HistoryRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        EpochRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(1, epochOne.getEpoch());
 
         // 4. create transaction -> verify that this is created on new epoch
@@ -294,12 +308,18 @@ public class ScaleRequestHandlerTest {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
-        HistoryRecord epochTwo = streamStore.getEpoch(scope, stream, 2, null, executor).join();
-        HistoryRecord epochThree = streamStore.getEpoch(scope, stream, 3, null, executor).join();
+        EpochRecord epochTwo = streamStore.getEpoch(scope, stream, 2, null, executor).join();
+        EpochRecord epochThree = streamStore.getEpoch(scope, stream, 3, null, executor).join();
         assertEquals(0, epochTwo.getReferenceEpoch());
+        assertEquals(epochZero.getSegments().size(), epochTwo.getSegments().size());
+        assertEquals(epochZero.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
+                epochTwo.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
         assertEquals(1, epochThree.getReferenceEpoch());
+        assertEquals(epochOne.getSegments().size(), epochThree.getSegments().size());
+        assertEquals(epochOne.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()),
+                epochThree.getSegments().stream().map(x -> StreamSegmentNameUtils.getSegmentNumber(x.segmentId())).collect(Collectors.toSet()));
 
-        HistoryRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        EpochRecord activeEpoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(epochThree, activeEpoch);
 
         // 6. commit on new epoch. This should happen on duplicate of new epoch successfully
@@ -339,30 +359,31 @@ public class ScaleRequestHandlerTest {
                 null, executor).join();
         streamStore.sealTransaction(scope, stream, txnData2.getId(), true, Optional.empty(), null, executor).join();
 
-        HistoryRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        EpochRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(0, epochZero.getEpoch());
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)), false, System.currentTimeMillis())).join();
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)),
+                false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
-        streamStore.startScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-        System.currentTimeMillis(), false, null, executor).join();
+        streamStore.submitScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
+        System.currentTimeMillis(), null, null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnIdOldEpoch, null, executor).join();
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
-        // 6. run scale. this should fail in scaleCreateNewSegments with IllegalArgumentException with epochTransitionConsistent
+        // 6. run scale. this should fail in scaleCreateNewEpochs with IllegalArgumentException with epochTransitionConsistent
         AssertExtensions.assertThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-                false, System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
+                false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
         state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
@@ -396,20 +417,21 @@ public class ScaleRequestHandlerTest {
                 null, executor).join();
         streamStore.sealTransaction(scope, stream, txnData2.getId(), true, Optional.empty(), null, executor).join();
 
-        HistoryRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        EpochRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(0, epochZero.getEpoch());
 
         // 2. start scale
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)), false, System.currentTimeMillis())).join();
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 0.25), new AbstractMap.SimpleEntry<>(0.25, 0.5)),
+                false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
         State state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
-        streamStore.startScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-        System.currentTimeMillis(), false, null, executor).join();
+        streamStore.submitScale(scope, stream, Lists.newArrayList(1L), Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
+        System.currentTimeMillis(), null, null, executor).join();
 
         // 5. commit on old epoch. this should roll over.
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
@@ -419,14 +441,365 @@ public class ScaleRequestHandlerTest {
         // 6. run scale against old record but with manual scale flag set to true. This should be migrated to new epoch and processed.
         requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
-                true, System.currentTimeMillis())).join();
+                true, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         state = streamStore.getState(scope, stream, false, null, executor).join();
         assertEquals(State.ACTIVE, state);
-        HistoryRecord epoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
+        EpochRecord epoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(4, epoch.getEpoch());
     }
 
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 30000)
+    public void testConcurrentIdempotentManualScaleRequest() {
+        Map<String, Integer> map = new HashMap<>();
+        map.put("startScale", 0);
+        map.put("scaleCreateNewEpochs", 0);
+        map.put("scaleSegmentsSealed", 0);
+        map.put("completeScale", 0);
+        map.put("updateVersionedState", 1);
+
+        concurrentIdenticalScaleRun("stream0", "updateVersionedState", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        map.put("startScale", 1);
+        concurrentIdenticalScaleRun("stream1", "startScale", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        map.put("scaleCreateNewEpochs", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
+        concurrentIdenticalScaleRun("stream2", "scaleCreateNewEpochs", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+        
+        concurrentIdenticalScaleRun("stream4", "scaleSegmentsSealed", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        concurrentIdenticalScaleRun("stream5", "completeScale", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, true,
+                e -> Exceptions.unwrap(e) instanceof IllegalStateException, map);
+    }
+    
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 30000)
+    public void testConcurrentIdempotentAutoScaleRequest() {
+        Map<String, Integer> map = new HashMap<>();
+        map.put("startScale", 0);
+        map.put("scaleCreateNewEpochs", 0);
+        map.put("scaleSegmentsSealed", 0);
+        map.put("completeScale", 0);
+        map.put("updateVersionedState", 1);
+
+        // second scale should complete scale.
+        // when first scale resumes it should fail with write conflict in its attempt to update state.
+        concurrentIdenticalScaleRun("autostream0", "updateVersionedState", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        map.put("startScale", 1);
+        // second scale should complete scale.
+        // when first scale resumes start scale should attempt to discard epoch transition and in its attempt fail and 
+        // throw write conflict
+        concurrentIdenticalScaleRun("autostream1", "startScale", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        map.put("scaleCreateNewEpochs", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
+        // second scale should complete scale.
+        // when first scale resumes both scaleCreateNewEpochs and scalesealedSegments should succeed (idempotent with no changes)
+        // and complete scale should fail with write conflict
+        concurrentIdenticalScaleRun("autostream2", "scaleCreateNewEpochs", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        // second scale should complete scale.
+        // when first scale resumes scalesealedSegments should succeed (idempotent with no changes)
+        // and complete scale should fail with write conflict
+        concurrentIdenticalScaleRun("autostream4", "scaleSegmentsSealed", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        // second scale should find epoch transition to be inconsistent and reset it.
+        // when first scale resumes it should attempt to update epoch transition and fail with write conflict
+        concurrentIdenticalScaleRun("autostream5", "completeScale", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, true, 
+                e -> Exceptions.unwrap(e) instanceof IllegalStateException, map);
+    }
+    
+    private void concurrentIdenticalScaleRun(String stream, String func, boolean isManual,
+                                             Predicate<Throwable> firstExceptionPredicate,
+                                             boolean expectFailureOnSecondJob,
+                                             Predicate<Throwable> secondExceptionPredicate,
+                                             Map<String, Integer> invocationCount) {
+        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
+        
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+        
+        ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L), 
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
+        if (isManual) {
+            streamStore1.submitScale(scope, stream, Lists.newArrayList(0L),
+                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
+        }
+        
+        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+
+        ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
+        ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
+        
+        setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
+        
+        // the processing will stall at start scale
+        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        signal.join();
+        
+        // let this run to completion. this should succeed 
+        if (!expectFailureOnSecondJob) {
+            scaleRequestHandler2.execute(event).join();
+        } else {
+            AssertExtensions.assertThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
+                    secondExceptionPredicate);
+        }
+        // verify that scale is complete
+        // now complete wait latch.
+        wait.complete(null);
+        
+        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("completeScale"))).completeScale(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("updateVersionedState"))).updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
+        
+        // validate scale done
+        VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
+        assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
+        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+        assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+    }
+
+    private void setMockLatch(StreamMetadataStore store, StreamMetadataStore spied, 
+                             String func, CompletableFuture<Void> signal, CompletableFuture<Void> waitOn) {
+        switch (func) {
+            case "startScale" : doAnswer(x -> {
+                signal.complete(null);
+                waitOn.join();
+                return store.startScale(x.getArgument(0), x.getArgument(1),
+                        x.getArgument(2), x.getArgument(3),
+                        x.getArgument(4), x.getArgument(5), x.getArgument(6));
+            }).when(spied).startScale(anyString(), anyString(), anyBoolean(), any(),  any(), any(), any());
+            break;
+            case "scaleCreateNewEpochs" : doAnswer(x -> {
+                signal.complete(null);
+                waitOn.join();
+                return store.scaleCreateNewEpochs(x.getArgument(0), x.getArgument(1),
+                        x.getArgument(2), x.getArgument(3), x.getArgument(4));
+            }).when(spied).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
+                break;
+            case "scaleSegmentsSealed" : doAnswer(x -> {
+                signal.complete(null);
+                waitOn.join();
+                return store.scaleSegmentsSealed(x.getArgument(0), x.getArgument(1),
+                        x.getArgument(2), x.getArgument(3), x.getArgument(4), x.getArgument(5));
+            }).when(spied).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
+                break;
+            case "completeScale" : doAnswer(x -> {
+                signal.complete(null);
+                waitOn.join();
+                return store.completeScale(x.getArgument(0), x.getArgument(1),
+                        x.getArgument(2), x.getArgument(3), x.getArgument(4));
+            }).when(spied).completeScale(anyString(), anyString(), any(), any(), any());
+                break;
+            case "updateVersionedState" : doAnswer(x -> {
+                signal.complete(null);
+                waitOn.join();
+                return store.updateVersionedState(x.getArgument(0), x.getArgument(1),
+                        x.getArgument(2), x.getArgument(3), x.getArgument(4), x.getArgument(5));
+            }).when(spied).updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
+                break;
+            default:
+                break;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 30000)
+    public void testConcurrentDistinctManualScaleRequest() {
+        Map<String, Integer> map = new HashMap<>();
+        map.put("startScale", 0);
+        map.put("scaleCreateNewEpochs", 0);
+        map.put("scaleSegmentsSealed", 0);
+        map.put("completeScale", 0);
+        map.put("updateVersionedState", 1);
+
+        concurrentDistinctScaleRun("stream0", "updateVersionedState", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+
+        map.put("startScale", 1);
+        concurrentDistinctScaleRun("stream1", "startScale", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+
+        map.put("scaleCreateNewEpochs", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
+        concurrentDistinctScaleRun("stream2", "scaleCreateNewEpochs", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+        
+        concurrentDistinctScaleRun("stream4", "scaleSegmentsSealed", true,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test(timeout = 30000)
+    public void testConcurrentDistinctAutoScaleRequest() {
+        Map<String, Integer> map = new HashMap<>();
+        map.put("startScale", 0);
+        map.put("scaleCreateNewEpochs", 0);
+        map.put("scaleSegmentsSealed", 0);
+        map.put("completeScale", 0);
+        map.put("updateVersionedState", 1);
+
+        concurrentDistinctScaleRun("autostream0", "updateVersionedState", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+
+        map.put("startScale", 1);
+        concurrentDistinctScaleRun("autostream1", "startScale", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+
+        map.put("scaleCreateNewEpochs", 1);
+        map.put("scaleSegmentsSealed", 1);
+        map.put("completeScale", 1);
+        concurrentDistinctScaleRun("autostream2", "scaleCreateNewEpochs", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+
+        concurrentDistinctScaleRun("autostream4", "scaleSegmentsSealed", false,
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
+    }
+
+    // concurrent run of scale 1 intermixed with scale 2 
+    private void concurrentDistinctScaleRun(String stream, String funcToWaitOn, boolean isManual,
+                                    Predicate<Throwable> firstExceptionPredicate,
+                                    Map<String, Integer> invocationCount) {
+        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        CompletableFuture<Void> wait = new CompletableFuture<>();
+        CompletableFuture<Void> signal = new CompletableFuture<>();
+
+        ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
+        if (isManual) {
+            streamStore1.submitScale(scope, stream, Lists.newArrayList(0L),
+                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
+        }
+
+        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+
+        ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
+        ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
+
+        setMockLatch(streamStore1, streamStore1Spied, funcToWaitOn, signal, wait);
+
+        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        signal.join();
+
+        // let this run to completion. this should succeed 
+        scaleRequestHandler2.execute(event).join();
+
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), isManual, System.currentTimeMillis(), System.currentTimeMillis());
+        if (isManual) {
+            streamStore1.submitScale(scope, stream, Lists.newArrayList(one),
+                    Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
+        }
+
+        scaleRequestHandler2.execute(event2).join();
+        
+        // now complete wait latch.
+        wait.complete(null);
+
+        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("completeScale"))).completeScale(anyString(), anyString(), any(), any(), any());
+        verify(streamStore1Spied, times(invocationCount.get("updateVersionedState"))).updateVersionedState(anyString(), anyString(), any(), any(), any(), any());
+
+        // validate scale done
+        VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
+        assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
+        assertEquals(4, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(2, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+        assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+    }
+
+    @Test
+    public void testScaleStateReset() {
+        ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        String stream = "testResetState";
+        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRange = new ArrayList<>();
+        newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        
+        // start with manual scale
+        ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
+                newRange, true, System.currentTimeMillis(), System.currentTimeMillis());
+        streamStore.submitScale(scope, stream, Lists.newArrayList(0L),
+                new ArrayList<>(newRange), System.currentTimeMillis(), null, null, executor).join();
+        
+        // perform scaling
+        scaleRequestHandler.execute(event).join();
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(1, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+        
+        // now set the state to SCALING
+        this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
+        
+        // rerun same manual scaling job. It should fail with StartException but after having reset the state to active
+        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event),
+                e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        // verify that state is reset
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(1, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+
+        // run scale 2.. this time auto scale
+        ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
+                newRange, false, System.currentTimeMillis(), System.currentTimeMillis());
+        scaleRequestHandler.execute(event2).join();
+        this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
+
+        // rerun same auto scaling job. 
+        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event2),
+                e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(2, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+
+        // now set the state to SCALING and run a new scaling job. This should succeed.
+        this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
+
+        long two = StreamSegmentNameUtils.computeSegmentId(2, 2);
+        ScaleOpEvent event3 = new ScaleOpEvent(scope, stream, Lists.newArrayList(two), newRange, false,
+                System.currentTimeMillis(), System.currentTimeMillis());
+        scaleRequestHandler.execute(event3).join();
+        assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
+        assertEquals(3, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
+    } 
+    
     @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
@@ -442,7 +815,8 @@ public class ScaleRequestHandlerTest {
 
         when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
 
-        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1), AutoScaleEvent.UP, System.currentTimeMillis(), 1, false);
+        AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1),
+                AutoScaleEvent.UP, System.currentTimeMillis(), 1, false, System.currentTimeMillis());
         assertTrue(Futures.await(multiplexer.process(scaleUpEvent)));
 
         reset(streamStore);

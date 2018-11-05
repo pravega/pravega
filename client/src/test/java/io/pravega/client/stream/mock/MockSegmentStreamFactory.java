@@ -11,6 +11,7 @@ package io.pravega.client.stream.mock;
 
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
@@ -46,17 +47,32 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
-        return createInputStreamForSegment(segment);
-    }
-
-    @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
         return getMockStream(segment);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
+        return createEventReaderForSegment(segment);
+    }
+
+    @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
+        return getMockStream(segment);
+    }
+
+    @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
         return getMockStream(segment);
     }
 
@@ -65,8 +81,4 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
         return getMockStream(segment);
     }
 
-    @Override
-    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
-        return getMockStream(segment);
-    }
 }

@@ -18,7 +18,6 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -76,21 +75,5 @@ public abstract class SegmentContainerCollection {
         }
 
         return resultFuture;
-    }
-
-    @SneakyThrows(ContainerNotFoundException.class)
-    protected <T> T invokeSync(String streamSegmentName, Function<SegmentContainer, T> toInvoke,
-                           String methodName, Object... logArgs) {
-        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
-
-        int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
-        SegmentContainer container = this.segmentContainerRegistry.getContainer(containerId);
-
-        T result = toInvoke.apply(container);
-        if (log.isTraceEnabled()) {
-            LoggerHelpers.traceLeave(log, methodName, traceId, result);
-        }
-
-        return result;
     }
 }
