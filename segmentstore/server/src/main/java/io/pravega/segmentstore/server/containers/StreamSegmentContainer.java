@@ -19,6 +19,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
@@ -135,7 +136,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.executor = executor;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
-        this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage, this.durableLog);
+        this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.attributeIndex, this.storage, this::createWriterProcessors);
         shutdownWhenStopped(this.writer, "Writer");
         this.stateStore = new SegmentStateStore(this.storage, this.executor);
@@ -714,6 +715,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         });
     }
 
+    private CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(long segmentId, UUID fromId, UUID toId, Duration timeout) {
+        return this.attributeIndex.forSegment(segmentId, timeout)
+                .thenApplyAsync(index -> {
+                    AttributeMixer mixer = new AttributeMixer(this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
+                    return index.iterator(fromId, toId, timeout).apply(mixer::mix);
+                }, this.executor);
+    }
+
     /**
      * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,
      * regardless of the trigger (eviction or deletion).
@@ -826,6 +835,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("truncateStreamSegment", this.segmentId);
             return StreamSegmentContainer.this.truncate(this.segmentId, offset, timeout);
+        }
+
+        @Override
+        public CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+            ensureRunning();
+            logRequest("attributeIterator", this.segmentId, fromId, toId);
+            return StreamSegmentContainer.this.attributeIterator(this.segmentId, fromId, toId, timeout);
         }
     }
 

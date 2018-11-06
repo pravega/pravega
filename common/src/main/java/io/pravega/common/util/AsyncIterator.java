@@ -8,11 +8,14 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.common.util;
+
 import io.pravega.common.concurrent.Futures;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
+
 /**
  * Defines an Iterator for which every invocation results in an async call with a delayed response.
  *
@@ -51,5 +54,17 @@ public interface AsyncIterator<T> {
                         consumer.accept(e);
                     }
                 }, executor);
+    }
+
+    /**
+     * Returns a new AsyncIterator instance wrapping this one that will have a different element type.
+     *
+     * @param converter A Function that will convert {@link T} to {@link V}, which will be invoked after every call to
+     *                  {@link #getNext()} to transform the original input into the desired type.
+     * @param <V>       New Element type.
+     * @return A new AsyncIterator with the converter applied.
+     */
+    default <V> AsyncIterator<V> apply(Function<T, V> converter) {
+        return () -> getNext().thenApply(converter);
     }
 }
