@@ -50,6 +50,18 @@ public abstract class KeyHasher {
     public abstract KeyHash hash(@NonNull ArrayView key);
 
     /**
+     * Creates a new {@link KeyHash} using the given hash data.
+     *
+     * @param hashData An {@link ArrayView} containing the hash data (NOTE: this will be used as-is, and won't be rehashed).
+     * @return A new {@link KeyHash}.
+     */
+    public KeyHash wrap(@NonNull byte[] hashData) {
+        Preconditions.checkArgument(hashData.length >= this.config.getMinHashLengthBytes(),
+                "Given hashData has insufficient bytes.");
+        return new KeyHash(hashData, this.config);
+    }
+
+    /**
      * Gets a value indicating the number of Hash Parts this KeyHasher generates (based on the given {@link HashConfig}).
      */
     public int getHashPartCount() {

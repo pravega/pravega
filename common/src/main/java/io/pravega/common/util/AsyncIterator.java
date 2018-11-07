@@ -67,4 +67,16 @@ public interface AsyncIterator<T> {
     default <V> AsyncIterator<V> apply(Function<T, V> converter) {
         return () -> getNext().thenApply(converter);
     }
+
+    /**
+     * Returns a new AsyncIterator instance wrapping this one that will have a different element type.
+     *
+     * @param converter A Function that will convert {@link T} to a CompletableFuture of {@link V}, which will be invoked
+     *                  after every call to {@link #getNext()} to transform the original input into the desired type.
+     * @param <V>       New Element type.
+     * @return A new AsyncIterator with the converter applied.
+     */
+    default <V> AsyncIterator<V> compose(Function<T, CompletableFuture<V>> converter, Executor executor) {
+        return () -> getNext().thenComposeAsync(converter, executor);
+    }
 }

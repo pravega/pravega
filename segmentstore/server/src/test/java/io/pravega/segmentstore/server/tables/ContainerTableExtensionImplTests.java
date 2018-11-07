@@ -124,14 +124,6 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 "seal() is implemented.",
                 () -> context.ext.seal(SEGMENT_NAME, TIMEOUT),
                 ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "keyIterator() is implemented.",
-                () -> context.ext.keyIterator(SEGMENT_NAME, null, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
-        AssertExtensions.assertThrows(
-                "entryIterator() is implemented.",
-                () -> context.ext.entryIterator(SEGMENT_NAME, null, TIMEOUT),
-                ex -> ex instanceof UnsupportedOperationException);
     }
 
     /**

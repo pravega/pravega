@@ -11,7 +11,6 @@ package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -181,55 +180,16 @@ public interface TableStore {
     CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout);
 
     /**
-     * Creates a new Iterator over all the {@link TableKey}s in the given Table Segment.
+     * Begins the creation of a new Iterator over all the the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to iterate over.
-     * @param state       An {@link IteratorState} that can be used to resume a previously interrupted iteration. This
-     *                    can be obtained by invoking {@link IteratorItem#getState()}.
      * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the {@link TableKey} instances in the given Table Segment. If the operation failed, the Future will be
-     * failed with the causing exception. Notable exceptions:
+     * @return A CompletableFuture that, when completed, will return an {@link IteratorBuilder} that can be used to construct
+     * an Iterator over the given Table Segment. If the operation failed, the Future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorState state, Duration timeout);
-
-    /**
-     * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
-     *
-     * @param segmentName The name of the Table Segment to iterate over.
-     * @param state       An {@link IteratorState} that can be used to resume a previously interrupted iteration. This
-     *                    can be obtained by invoking {@link IteratorItem#getState()}.
-     * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the {@link TableEntry} instances in the given Table Segment. If the operation failed, the Future will be
-     * failed with the causing exception. Notable exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * </ul>
-     */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState state, Duration timeout);
-
-    /**
-     * Defines an iteration result that is returned by the {@link AsyncIterator} when invoking
-     * {@link #entryIterator(String, IteratorState, Duration)} or {@link #keyIterator(String, IteratorState, Duration)} .
-     */
-    interface IteratorItem<T> {
-        /**
-         * Gets an {@link IteratorState} that can be used to reinvoke {@link #entryIterator(String, IteratorState, Duration)}
-         * or {@link #keyIterator(String, IteratorState, Duration)} if a previous iteration has been interrupted (by losing
-         * the pointer to the {@link AsyncIterator}), system restart, etc.
-         */
-        IteratorState getState();
-
-        /**
-         * Gets a List of items that are contained in this instance. The items in this list are not necessarily related
-         * to each other, nor are they guaranteed to be in any particular order.
-         */
-        List<T> getEntries();
-    }
+    CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout);
 }

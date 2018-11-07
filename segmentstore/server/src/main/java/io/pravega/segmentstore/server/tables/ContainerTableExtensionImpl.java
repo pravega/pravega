@@ -18,7 +18,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.tables.IteratorState;
+import io.pravega.segmentstore.contracts.tables.IteratorBuilder;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.CacheManager;
@@ -31,6 +32,7 @@ import io.pravega.segmentstore.server.tables.hashing.HashConfig;
 import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.CacheFactory;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -238,17 +240,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(@NonNull String segmentName, IteratorState continuationToken,
-                                                                                Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("keyIterator");
-    }
-
-    @Override
-    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(@NonNull String segmentName, IteratorState continuationToken,
-                                                                                    Duration timeout) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("entryIterator");
+    public CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout) {
+        return this.segmentContainer.forSegment(segmentName, timeout).thenApply(TableIteratorBuilder::new);
     }
 
     //endregion
@@ -273,6 +266,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         byte[] s = new byte[serializationLength];
         serializer.accept(toCommit, s);
         return segment.append(s, null, timeout);
+    }
+
+    private CompletableFuture<IteratorItem<TableKey>> getAllKeys(IteratorItem<TableBucket> bucketIterator) {
+        // TODO
+        throw new UnsupportedOperationException("implement me");
+    }
+
+    private CompletableFuture<IteratorItem<TableEntry>> getAllEntries(IteratorItem<TableBucket> bucketIterator) {
+        // TODO
+        throw new UnsupportedOperationException("implement me");
     }
 
     //endregion
@@ -347,6 +350,39 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         CompletableFuture<List<TableEntry>> getResultFutures() {
             return Futures.allOfWithResults(this.resultFutures);
+        }
+    }
+
+    //endregion
+
+    //region TableIteratorBuilder
+
+    /**
+     * Helps build Iterators over TableKeys or TableEntries.
+     */
+    @RequiredArgsConstructor
+    private class TableIteratorBuilder implements IteratorBuilder {
+        private final DirectSegmentAccess segment;
+        private IteratorState state;
+
+        @Override
+        public IteratorBuilder fromState(byte[] serializedState) throws IOException {
+            this.state = IteratorState.deserialize(serializedState);
+            return this;
+        }
+
+        @Override
+        public AsyncIterator<IteratorItem<TableKey>> keyIterator() {
+            return newBucketIterator().compose(ContainerTableExtensionImpl.this::getAllKeys, executor);
+        }
+
+        @Override
+        public AsyncIterator<IteratorItem<TableEntry>> entryIterator() {
+            return newBucketIterator().compose(ContainerTableExtensionImpl.this::getAllEntries, executor);
+        }
+
+        private AsyncIterator<IteratorItem<TableBucket>> newBucketIterator() {
+            return new TableBucketIterator(segment, keyIndex, state, executor);
         }
     }
 
