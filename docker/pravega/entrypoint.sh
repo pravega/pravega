@@ -127,7 +127,7 @@ kubernetes_service_info() {
     local podname=$(cat /etc/podinfo/podname)
     local bearer=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
     local cacert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-    retval=$( curl --cacert ${cacert} -H "Authorization: Bearer ${bearer}" https://kubernetes/api/v1/namespaces/${namespace}/services/${podname} 2> /dev/null | jq -rM "${jsonpath}" )
+    retval=$( curl --cacert ${cacert} -H "Authorization: Bearer ${bearer}" https://kubernetes/api/v1/namespaces/${namespace}/services/${podname} 2> /dev/null | jq -rM "${jsonpath}" 2> /dev/null )
     echo "$retval"
 }
 
@@ -157,7 +157,6 @@ configure_kubernetes() {
 if [ ${WAIT_FOR} ];then
     ${dir}/wait_for
 fi
-
 
 case $1 in
 controller)
