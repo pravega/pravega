@@ -121,28 +121,36 @@ configure_standalone() {
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }
 
-k8_service_info() {
-  local namespace=$1
-  local service_name=$2
-  local jsonpath=$3
-  local bearer=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-  local cacert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-  retval=$( curl --cacert ${cacert} -H "Authorization: Bearer ${bearer}" https://kubernetes/api/v1/namespaces/${namespace}/services/${service_name} | jq -rM "${jsonpath}" )
-  echo "$retval"
+kubernetes_service_info() {
+    local jsonpath=$1
+    local namespace=$(cat /etc/podinfo/namespace)
+    local podname=$(cat /etc/podinfo/podname)
+    local bearer=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+    local cacert="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    retval=$( curl --cacert ${cacert} -H "Authorization: Bearer ${bearer}" https://kubernetes/api/v1/namespaces/${namespace}/services/${podname} 2> /dev/null | jq -rM "${jsonpath}" )
+    echo "$retval"
 }
 
 configure_kubernetes() {
-    service_type=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".spec.type" )
-    if [ ${service_type} == "LoadBalancer" ]; then
-      export PUBLISHED_ADDRESS=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".status.loadBalancer.ingress[].ip" )
-      export PUBLISHED_PORT=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".spec.ports[].port" )
-      while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
-      do
-          echo "LoadBalancer external address and port could not be obtained. Waiting 30 seconds and trying again..."
-          sleep 30
-          export PUBLISHED_ADDRESS=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".status.loadBalancer.ingress[].ip" )
-          export PUBLISHED_PORT=$( k8_service_info "default" "pravega-pravega-segmentstore-0" ".spec.ports[].port" )
-      done
+    if [ -d "/var/run/secrets/kubernetes.io" ] && [ ! -z ${K8_EXTERNAL_ACCESS} ]; then
+        echo "Running in a Kubernetes environment and managed by the Pravega Operator with external access enabled"
+        echo "Trying to obtain the external service endpoint..."
+
+        service_type=$( kubernetes_service_info ".spec.type" )
+        if [ ${service_type} == "LoadBalancer" ]; then
+            export PUBLISHED_ADDRESS=$( kubernetes_service_info ".status.loadBalancer.ingress[].ip" )
+            export PUBLISHED_PORT=$( kubernetes_service_info ".spec.ports[].port" )
+            while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
+            do
+                echo "LoadBalancer external address and port could not be obtained. Waiting 30 seconds and trying again..."
+                sleep 30
+                export PUBLISHED_ADDRESS=$( kubernetes_service_info ".status.loadBalancer.ingress[].ip" )
+                export PUBLISHED_PORT=$( kubernetes_service_info ".spec.ports[].port" )
+            done
+            echo "Found external service endpoint: ${PUBLISHED_ADDRESS}:${PUBLISHED_PORT}"
+        else
+            echo "Service type is ${service_type}. Skipping published endpoint configuration..."
+        fi
     fi
 }
 
@@ -150,9 +158,6 @@ if [ ${WAIT_FOR} ];then
     ${dir}/wait_for
 fi
 
-if [ -d "/var/run/secrets/kubernetes.io" ]; then
-  configure_kubernetes
-fi
 
 case $1 in
 controller)
@@ -160,6 +165,7 @@ controller)
     exec /opt/pravega/bin/pravega-controller
     ;;
 segmentstore)
+    configure_kubernetes
     configure_tier2
     configure_segmentstore
     exec /opt/pravega/bin/pravega-segmentstore
