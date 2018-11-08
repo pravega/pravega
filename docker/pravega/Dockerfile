@@ -14,6 +14,8 @@ RUN apk add --update \
     nfs-utils \
     libc6-compat \
     python \
+    jq \
+    curl \
   && rm -rf /var/cache/apk/*
 
 EXPOSE 9090 9091 10000 12345
