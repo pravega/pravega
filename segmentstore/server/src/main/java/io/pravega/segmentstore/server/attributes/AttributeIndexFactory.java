@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.attributes;
 
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.storage.Storage;
 
 /**
@@ -22,8 +21,7 @@ public interface AttributeIndexFactory {
      *
      * @param containerMetadata The Segment Container's Metadata.
      * @param storage           The Storage to read from and write to.
-     * @param operationLog      An OperationLog to durably store the Attribute Segment's properties.
      * @return A new instance of a class implementing ContainerAttributeIndex.
      */
-    ContainerAttributeIndex createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage, OperationLog operationLog);
+    ContainerAttributeIndex createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage);
 }

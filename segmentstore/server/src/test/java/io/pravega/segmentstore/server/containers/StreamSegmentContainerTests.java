@@ -169,9 +169,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     private static final AttributeIndexConfig DEFAULT_ATTRIBUTE_INDEX_CONFIG = AttributeIndexConfig
             .builder()
-            .with(AttributeIndexConfig.UPDATE_COUNT_THRESHOLD_SNAPSHOT, 50)
+            .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, 2 * 1024)
             .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 1000)
-            .with(AttributeIndexConfig.READ_BLOCK_SIZE, 1000)
             .build();
 
     private static final WriterConfig DEFAULT_WRITER_CONFIG = WriterConfig

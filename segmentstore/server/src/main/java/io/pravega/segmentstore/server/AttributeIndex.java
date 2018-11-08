@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server;
 
-import io.pravega.common.util.AsyncMap;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -19,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Defines an index for a Segment's Extended Attributes.
  */
-public interface AttributeIndex extends AsyncMap<UUID, Long> {
+public interface AttributeIndex {
     /**
      * Atomically inserts a collection of attributes into the index (either all Attributes are inserted or none are).
      *
