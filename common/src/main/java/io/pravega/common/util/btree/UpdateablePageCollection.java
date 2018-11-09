@@ -50,7 +50,6 @@ class UpdateablePageCollection extends PageCollection {
 
     //region Operations
 
-
     /**
      * Inserts a new PageWrapper into this PageCollection.
      *
@@ -83,7 +82,6 @@ class UpdateablePageCollection extends PageCollection {
         page.setOffset(PagePointer.NO_OFFSET);
     }
 
-
     /**
      * Indicates that any modifications to the given PageWrapper have completed.
      *
@@ -103,7 +101,6 @@ class UpdateablePageCollection extends PageCollection {
         page.setOffset(pageOffset);
         this.pageByOffset.put(page.getOffset(), page);
     }
-
 
     /**
      * Collects the offsets of all removed (deleted) pages.
