@@ -52,9 +52,9 @@ public final class MetricsNames {
     public static final String CACHE_GENERATION_SPREAD = "segmentstore.cache.gen";
 
     // DurableDataLog (Tier1) stats
-    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency_ms"; // Including Queue
-    public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency_ms";  // Exclusively the write to BK.
-    public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";
+    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency_ms";   // Including Queue
+    public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency_ms";               // Exclusively the write to BK.
+    public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                      // Dynamic Counter
     public static final String BK_WRITE_QUEUE_SIZE = "segmentstore.bookkeeper.write_queue_size";
     public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.bookkeeper.write_queue_fill";
     public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.bookkeeper_ledger_count";
@@ -94,9 +94,9 @@ public final class MetricsNames {
 
     // Metrics in Controller
     // Stream request counts (Static)
-    public static final String CREATE_STREAM = "controller.stream.created";    // Histogram
-    public static final String SEAL_STREAM = "controller.stream.sealed";       // Histogram
-    public static final String DELETE_STREAM = "controller.stream.deleted";    // Histogram
+    public static final String CREATE_STREAM = "controller.stream.created"; // Dynamic Counter
+    public static final String SEAL_STREAM = "controller.stream.sealed";    // Dynamic Counter
+    public static final String DELETE_STREAM = "controller.stream.deleted"; // Dynamic Counter
 
     // Transaction request Operations (Dynamic)
     public static final String CREATE_TRANSACTION = "controller.transactions.created";   // Dynamic Counter

@@ -33,8 +33,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.metrics.StatsProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -73,10 +71,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
-    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
-    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
-    private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
     protected final int bucketCount;
@@ -149,7 +143,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor)
                     .thenApply(result -> {
                         if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
-                            CREATE_STREAM.reportSuccessValue(1);
+                            DYNAMIC_LOGGER.incCounterValue(MetricsNames.CREATE_STREAM, 1);
                             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
                             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
                                     configuration.getScalingPolicy().getMinNumSegments());
@@ -174,7 +168,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .thenCompose(v -> withCompletion(s.delete(), executor))
                 .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)))
                 .thenApply(result -> {
-                    DELETE_STREAM.reportSuccessValue(1);
+                    DYNAMIC_LOGGER.incCounterValue(MetricsNames.DELETE_STREAM, 1);
                     DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));
                     DYNAMIC_LOGGER.freezeGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name));
                     DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_SPLITS, scope, name));
@@ -339,7 +333,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
         return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenAccept(result -> {
-            SEAL_STREAM.reportSuccessValue(1);
+            DYNAMIC_LOGGER.incCounterValue(MetricsNames.SEAL_STREAM, 1);
             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
         });
     }
