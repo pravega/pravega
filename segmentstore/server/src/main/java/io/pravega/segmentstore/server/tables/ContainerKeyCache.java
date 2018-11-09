@@ -20,6 +20,7 @@ import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -167,7 +168,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 CacheEntry entry = this.cacheEntries.computeIfAbsent(cacheKey, key -> new CacheEntry(cacheKey, generation));
 
                 // Queue up the update (so we process it outside of this lock), which should also update backpointers as well.
-                result.add(() -> updateEntryAndBackpointers(segmentId, entry, item.getHash(), cacheSegmentOffset, generation));
+                result.add(() -> updateEntry(segmentId, entry, item.getHash(), cacheSegmentOffset, generation));
             }
         }
 
@@ -308,29 +309,46 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Records a new Backpointer for the given segment, but only if the Segment is registered (via {@link #updateSegmentIndexOffset}
-     * or {@link #updateSegmentIndexOffsetIfMissing} and only if fromOffset is beyond the Segment's Last Indexed Offset.
+     * Gets a list of Hashes representing the unindexed Keys.
      *
-     * @param segmentId  The Id of the Segment to get Backpointer for.
-     * @param fromOffset The source offset of the Backpointer.
-     * @param toOffset   The target offset of the Backpointer.
+     * @param segmentId The Id of the Segment to get Hashes for.
+     * @return The list.
+     */
+    List<HashedArray> getTailHashes(long segmentId) {
+        SegmentIndexTail tail;
+        synchronized (this.cacheEntries) {
+            tail = this.indexTails.getOrDefault(segmentId, null);
+        }
+
+        return tail == null ? Collections.emptyList() : tail.getEntries();
+    }
+
+    /**
+     * Records a new Tail Entry (Backpointer and Hash) for the given segment, but only if the Segment is registered
+     * (via {@link #updateSegmentIndexOffset} or {@link #updateSegmentIndexOffsetIfMissing} and only if offset is beyond
+     * the Segment's Last Indexed Offset.
+     *
+     * @param segmentId      The Id of the Segment to record the Tail Entry.
+     * @param offset         The Entry's offset.
+     * @param previousOffset The previous offset for this Entry.
+     * @param itemHash       A {@link HashedArray} representing the Entry's Key Hash.
      */
     @VisibleForTesting
-    void recordBackpointer(long segmentId, long fromOffset, long toOffset) {
+    void recordTailEntry(long segmentId, long offset, long previousOffset, HashedArray itemHash) {
         SegmentIndexTail tail;
         synchronized (this.cacheEntries) {
             tail = this.indexTails.getOrDefault(segmentId, null);
         }
 
         if (tail != null) {
-            tail.recordBackpointer(fromOffset, toOffset);
+            tail.recordTailEntry(offset, previousOffset, itemHash);
         }
     }
 
-    private long updateEntryAndBackpointers(long segmentId, CacheEntry entry, HashedArray itemHash, long cacheSegmentOffset, int generation) {
+    private long updateEntry(long segmentId, CacheEntry entry, HashedArray itemHash, long cacheSegmentOffset, int generation) {
         UpdateCacheResult ucr = entry.updateIfNewer(itemHash, cacheSegmentOffset, generation);
         if (ucr.getPreviousOffset() >= 0) {
-            recordBackpointer(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset());
+            recordTailEntry(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset(), itemHash);
         }
 
         return ucr.getCurrentOffset();
@@ -607,11 +625,14 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         private long lastIndexedOffset;
         @GuardedBy("this")
         private final HashMap<Long, Long> backpointers;
+        @GuardedBy("this")
+        private final HashMap<HashedArray, Long> entries;
 
         SegmentIndexTail(long currentLastIndexedOffset) {
             Preconditions.checkArgument(currentLastIndexedOffset >= 0, "currentLastIndexedOffset must be a non-negative number.");
             this.lastIndexedOffset = currentLastIndexedOffset;
             this.backpointers = new HashMap<>();
+            this.entries = new HashMap<>();
         }
 
         /**
@@ -623,6 +644,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                     "currentLastIndexedOffset must be at least the current value");
             this.lastIndexedOffset = currentLastIndexedOffset;
             this.backpointers.keySet().removeIf(sourceOffset -> sourceOffset < currentLastIndexedOffset);
+            this.entries.values().removeIf(offset -> offset < currentLastIndexedOffset);
         }
 
         /**
@@ -635,10 +657,11 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         /**
          * Records a new backpointer between the two offsets, but only if the sourceOffset is beyond {@link #getLastIndexedOffset()}.
          */
-        synchronized void recordBackpointer(long sourceOffset, long targetOffset) {
-            Preconditions.checkArgument(sourceOffset > targetOffset, "sourceOffset must be greater than targetOffset");
-            if (sourceOffset >= this.lastIndexedOffset) {
-                this.backpointers.put(sourceOffset, targetOffset);
+        synchronized void recordTailEntry(long offset, long previousOffset, HashedArray itemHash) {
+            Preconditions.checkArgument(offset > previousOffset, "offset must be greater than previousOffset");
+            if (offset >= this.lastIndexedOffset) {
+                this.backpointers.put(offset, previousOffset);
+                this.entries.put(itemHash, offset);
             }
         }
 
@@ -649,9 +672,16 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             return this.backpointers.getOrDefault(sourceOffset, -1L);
         }
 
+        /**
+         * Gets a list of all Entry Hashes in the this Index Tail.
+         */
+        synchronized List<HashedArray> getEntries() {
+            return new ArrayList<>(this.entries.keySet());
+        }
+
         @Override
         public synchronized String toString() {
-            return String.format("LIO = %s, Backpointers = %s.", this.lastIndexedOffset, this.backpointers.size());
+            return String.format("LIO = %s, Backpointers = %s, Entries = %s.", this.lastIndexedOffset, this.backpointers.size(), this.entries.size());
         }
     }
 

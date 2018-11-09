@@ -8,12 +8,15 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server.tables;
+
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.test.common.AssertExtensions;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.BiFunction;
@@ -43,25 +46,77 @@ public class AttributeCalculatorTests {
             } else {
                 r.nextBytes(hashBuffer);
             }
+
             UUID result = ac.getPrimaryHashAttributeKey(new ByteArraySegment(hashBuffer));
             Assert.assertEquals("Unexpected first bit.", 1, result.getMostSignificantBits() >>> shiftBits);
             Assert.assertFalse("Not expecting Core Attribute collisions.", Attributes.isCoreAttribute(result));
+
             // MSB is the first 8 bytes in the hash, with the first bit replaced by 1.
             long expectedMsb = BitConverter.readLong(hashBuffer, 0) & AttributeCalculator.ONE_BIT_MASK | (1L << shiftBits);
             if (expectedMsb == Long.MIN_VALUE) {
                 // Core Attribute collision.
                 expectedMsb++;
             }
+
             // LSB is the remaining 8 bytes in the hash.
             long expectedLsb = BitConverter.readLong(hashBuffer, Long.BYTES);
             Assert.assertEquals("Unexpected MSB.", expectedMsb, result.getMostSignificantBits());
             Assert.assertEquals("Unexpected LSB.", expectedLsb, result.getLeastSignificantBits());
+
+            // Test the reverse: UUID -> buffer.
+            val primaryHash = ac.getPrimaryHash(result);
+            val key2 = ac.getPrimaryHashAttributeKey(primaryHash);
+            Assert.assertEquals("Unexpected result after deconstructing and reconstructing Primary Hash", result, key2);
+            val primaryHash2 = ac.getPrimaryHash(result);
+            AssertExtensions.assertArrayEquals("Unexpected hash result after Primary Hash reconstruction.",
+                    primaryHash.array(), primaryHash.arrayOffset(), primaryHash2.array(), primaryHash2.arrayOffset(), primaryHash.getLength());
         }
+
         // Verify we cannot accept bad arguments.
         AssertExtensions.assertThrows(
                 "getPrimaryHashAttributeKey accepted an input of the wrong length.",
                 () -> ac.getPrimaryHashAttributeKey(new ByteArraySegment(hashBuffer, 0, AttributeCalculator.PRIMARY_HASH_LENGTH - 1)),
                 ex -> ex instanceof IllegalArgumentException);
+    }
+
+    /**
+     * Test the {@link AttributeCalculator#getNextPrimaryHashAttributeKey} method.
+     */
+    @Test
+    public void testGetNextPrimaryHashAttributeKey() {
+        val testData = ImmutableMap.<UUID, UUID>builder()
+                // LSB is not MAX, so that is all that needs to be incremented.
+                .put(new UUID(toPH(1L), 0L), new UUID(toPH(1L), 1L))
+                // LSB is not MAX.
+                .put(new UUID(toPH(-1L), -1L), new UUID(toPH(-1L), 0L))
+                // MSB is MAX, so all that needs changing is LSB.
+                .put(new UUID(toPH(Long.MAX_VALUE), Long.MIN_VALUE), new UUID(toPH(Long.MAX_VALUE), Long.MIN_VALUE + 1))
+                .build();
+        val noNextValue = Collections.singletonList(new UUID(toPH(Long.MAX_VALUE), Long.MAX_VALUE));
+        val invalidValues = Arrays.asList(new UUID(Long.MIN_VALUE, Long.MIN_VALUE), new UUID(0L, 0L));
+
+        val ac = new AttributeCalculator();
+        for (val id : noNextValue) {
+            val actual = ac.getNextPrimaryHashAttributeKey(id);
+            Assert.assertNull("Not expecting a next value for " + id, actual);
+        }
+
+        for (val e : testData.entrySet()) {
+            val expected = e.getValue();
+            val actual = ac.getNextPrimaryHashAttributeKey(e.getKey());
+            Assert.assertEquals("Unexpected next value for " + e.getKey(), expected, actual);
+        }
+
+        for (val e : invalidValues) {
+            AssertExtensions.assertThrows(
+                    "Invalid input was accepted.",
+                    () -> ac.getNextPrimaryHashAttributeKey(e),
+                    ex -> ex instanceof IllegalArgumentException);
+        }
+    }
+
+    private long toPH(long v) {
+        return v | AttributeCalculator.PRIMARY_HASH_SET;
     }
 
     /**

@@ -15,6 +15,7 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
 import java.util.function.Function;
 import lombok.NonNull;
 
@@ -52,11 +53,11 @@ public abstract class KeyHasher {
     /**
      * Creates a new {@link KeyHash} using the given hash data.
      *
-     * @param hashData An {@link ArrayView} containing the hash data (NOTE: this will be used as-is, and won't be rehashed).
+     * @param hashData A {@link HashedArray} containing the hash data (NOTE: this will be used as-is, and won't be rehashed).
      * @return A new {@link KeyHash}.
      */
-    public KeyHash wrap(@NonNull byte[] hashData) {
-        Preconditions.checkArgument(hashData.length >= this.config.getMinHashLengthBytes(),
+    public KeyHash wrap(@NonNull HashedArray hashData) {
+        Preconditions.checkArgument(hashData.getLength() >= this.config.getMinHashLengthBytes(),
                 "Given hashData has insufficient bytes.");
         return new KeyHash(hashData, this.config);
     }

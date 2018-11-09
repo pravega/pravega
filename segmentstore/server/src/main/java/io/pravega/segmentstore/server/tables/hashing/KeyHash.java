@@ -34,11 +34,28 @@ public class KeyHash extends HashedArray implements Iterable<ArrayView> {
      */
     KeyHash(byte[] hash, @NonNull HashConfig config) {
         super(hash);
-        this.parts = new ByteArraySegment[config.getHashCount()];
-        for (int i = 0; i < this.parts.length; i++) {
+        this.parts = parse(config);
+    }
+
+    /**
+     * Creates a new instance of the KeyHash class.
+     *
+     * @param hash   The raw hash.
+     * @param config Hash Configuration.
+     */
+    KeyHash(HashedArray hash, @NonNull HashConfig config) {
+        super(hash);
+        this.parts = parse(config);
+    }
+
+    private ByteArraySegment[] parse(HashConfig config) {
+        ByteArraySegment[] parts = new ByteArraySegment[config.getHashCount()];
+        for (int i = 0; i < parts.length; i++) {
             Pair<Integer, Integer> offset = config.getOffsets(i);
-            this.parts[i] = new ByteArraySegment(hash, offset.getLeft(), offset.getRight() - offset.getLeft());
+            parts[i] = this.subSegment(offset.getLeft(), offset.getRight() - offset.getLeft());
         }
+
+        return parts;
     }
 
     /**

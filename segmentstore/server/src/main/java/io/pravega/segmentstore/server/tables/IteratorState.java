@@ -14,6 +14,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.IOException;
 import lombok.Builder;
 import lombok.Getter;
@@ -31,12 +32,12 @@ class IteratorState {
     private static final Serializer SERIALIZER = new Serializer();
 
     /**
-     * Gets the KeyHash of the last TableBucket contained in the iteration so far. When sorted lexicographically, all
-     * TableBuckets with KeyHashes smaller than or equal to this one have been included.
+     * Gets the Primary Hash of the last TableBucket contained in the iteration so far. When sorted lexicographically, all
+     * TableBuckets with Primary Hashes smaller than or equal to this one have been included.
      * If null, indicates there are no more items left in the iteration.
      */
     @Getter
-    private final byte[] lastBucketHash;
+    private final ByteArraySegment lastPrimaryHash;
 
     static IteratorState deserialize(byte[] data) throws IOException {
         return SERIALIZER.deserialize(data);
@@ -48,7 +49,7 @@ class IteratorState {
      * @return True if the iteration has reached an end, false otherwise.
      */
     public boolean isEnd() {
-        return this.lastBucketHash == null;
+        return this.lastPrimaryHash == null;
     }
 
     /**
@@ -84,12 +85,13 @@ class IteratorState {
 
         private void read00(RevisionDataInput revisionDataInput, IteratorStateBuilder builder) throws IOException {
             byte[] hash = revisionDataInput.readArray();
-            builder.lastBucketHash(hash.length == 0 ? null : hash);
+            builder.lastPrimaryHash(hash.length == 0 ? null : new ByteArraySegment(hash));
         }
 
         private void write00(IteratorState state, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.length(revisionDataOutput.getCollectionLength(state.lastBucketHash == null ? 0 : state.lastBucketHash.length, 1));
-            revisionDataOutput.writeArray(state.lastBucketHash);
+            revisionDataOutput.length(revisionDataOutput.getCollectionLength(
+                    state.lastPrimaryHash == null ? 0 : state.lastPrimaryHash.getLength(), 1));
+            revisionDataOutput.writeArray(state.lastPrimaryHash);
         }
     }
 

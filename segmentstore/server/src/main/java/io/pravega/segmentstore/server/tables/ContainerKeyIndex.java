@@ -14,6 +14,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ConcurrentDependentProcessor;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
@@ -391,6 +392,20 @@ class ContainerKeyIndex implements AutoCloseable {
     void notifyIndexOffsetChanged(long segmentId, long indexOffset) {
         this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
         this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
+    }
+
+    /**
+     * Gets a list of {@link HashedArray} instances representing KeyHashes for not-yet-indexed keys. These are updates
+     * that have been accepted and written to the Segment but not yet indexed (persisted via the {@link IndexWriter}).
+     *
+     * @param segment A {@link DirectSegmentAccess} representing the Segment for which to get the Unindexed Key Hashes.
+     * @return A CompletableFuture that, when completed, will contain the desired result. This Future will wait on any
+     * Segment-specific recovery to complete before executing.
+     */
+    CompletableFuture<List<HashedArray>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return this.recoveryTracker.waitIfNeeded(segment,
+                () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
     }
 
     //endregion

@@ -17,6 +17,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorBuilder;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -241,7 +242,9 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout) {
-        return this.segmentContainer.forSegment(segmentName, timeout).thenApply(TableIteratorBuilder::new);
+        return this.segmentContainer.forSegment(segmentName, timeout)
+                .thenComposeAsync(segment -> this.keyIndex.getUnindexedKeyHashes(segment)
+                        .thenApply(unindexedKeyHashes -> new TableIteratorBuilder(segment, unindexedKeyHashes)), this.executor);
     }
 
     //endregion
@@ -363,6 +366,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @RequiredArgsConstructor
     private class TableIteratorBuilder implements IteratorBuilder {
         private final DirectSegmentAccess segment;
+        private final List<HashedArray> unindexedKeyHashes;
         private IteratorState state;
 
         @Override
@@ -382,7 +386,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         private AsyncIterator<IteratorItem<TableBucket>> newBucketIterator() {
-            return new TableBucketIterator(segment, keyIndex, state, executor);
+            return new TableBucketIterator(segment, unindexedKeyHashes, hasher, state, executor);
         }
     }
 

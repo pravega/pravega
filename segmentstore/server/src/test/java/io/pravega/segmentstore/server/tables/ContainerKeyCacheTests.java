@@ -307,17 +307,19 @@ public class ContainerKeyCacheTests {
      * Tests the ability to record and purge backpointers.
      */
     @Test
-    public void testBackpointers() {
+    public void testTailEntries() {
         final long segmentId = 1L;
         final int count = 30;
+        val rnd = new Random(0);
         @Cleanup
         val cacheFactory = new InMemoryCacheFactory();
         @Cleanup
         val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
 
-        // First, try to record a backpointer without the segment being registered.
-        keyCache.recordBackpointer(segmentId, 2, 1);
+        // First, try to record an entry without the segment being registered.
+        keyCache.recordTailEntry(segmentId, 2, 1, KEY_HASHER.hash(newTableKey(rnd).getKey()));
         Assert.assertEquals("Not expecting a backpointer to be recorded.", -1L, keyCache.getBackpointer(0L, 2));
+        Assert.assertTrue("Not expecting any tail entries to be recorded.", keyCache.getTailHashes(0L).isEmpty());
 
         // Register the segment.
         keyCache.updateSegmentIndexOffset(segmentId, 0L);
@@ -326,12 +328,23 @@ public class ContainerKeyCacheTests {
             return 0L;
         });
 
-        // Record backpointers.
+        // Record entries.
+        val expectedHashes = new HashMap<HashedArray, Long>();
+        HashedArray last = null;
         for (int i = 1; i < count; i++) {
-            keyCache.recordBackpointer(segmentId, i, i - 1);
+            // We change the hash every other update; we want to verify that it doesn't include it multiple times and
+            // that the correct offset is recorded.
+            HashedArray hash = i % 2 == 0 ? last : KEY_HASHER.hash(newTableKey(rnd).getKey());
+            keyCache.recordTailEntry(segmentId, i, i - 1, hash);
+            expectedHashes.put(hash, (long) i);
+            last = hash;
         }
 
-        // Gradually increment the Last Indexed Offset of the segment to verify backpointers are cleaned up.
+        val tailHashes = keyCache.getTailHashes(segmentId);
+        AssertExtensions.assertContainsSameElements("Unexpected Tail Hashes.", expectedHashes.keySet(), tailHashes,
+                (h1, h2) -> h1.equals(h2) ? 0 : 1);
+
+        // Gradually increment the Last Indexed Offset of the segment to verify entries are cleaned up.
         for (int lio = 0; lio < count; lio++) {
             keyCache.updateSegmentIndexOffset(segmentId, lio);
             for (int i = 0; i < count; i++) {
@@ -339,12 +352,19 @@ public class ContainerKeyCacheTests {
                 long actualValue = keyCache.getBackpointer(segmentId, i);
                 Assert.assertEquals("Unexpected backpointer value after LIO = " + lio, expectedValue, actualValue);
             }
+
+            long cutoff = lio;
+            expectedHashes.values().removeIf(offset -> offset < cutoff);
+            val actualTailHashes = keyCache.getTailHashes(segmentId);
+            AssertExtensions.assertContainsSameElements("Unexpected Tail Hashes.", expectedHashes.keySet(), actualTailHashes,
+                    (h1, h2) -> h1.equals(h2) ? 0 : 1);
         }
 
         // Unregister the segment.
         keyCache.updateSegmentIndexOffset(segmentId, -1L);
-        keyCache.recordBackpointer(segmentId, 2, 1);
+        keyCache.recordTailEntry(segmentId, 2, 1, KEY_HASHER.hash(newTableKey(rnd).getKey()));
         Assert.assertEquals("Not expecting a backpointer to be recorded.", -1L, keyCache.getBackpointer(0L, 2));
+        Assert.assertTrue("Not expecting any tail entries to be recorded.", keyCache.getTailHashes(0L).isEmpty());
     }
 
     private long batchInsert(long insertOffset, ContainerKeyCache keyCache, HashMap<TestKey, ContainerKeyCache.GetResult> expectedResult, Random rnd) {
