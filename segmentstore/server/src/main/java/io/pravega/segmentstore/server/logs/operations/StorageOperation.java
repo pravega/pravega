@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import io.pravega.segmentstore.server.SegmentOperation;
+
 /**
  * Log Operation that deals with Storage Operations. This is generally the direct result of an external operation.
  */

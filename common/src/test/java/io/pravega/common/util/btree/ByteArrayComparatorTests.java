@@ -22,9 +22,9 @@ import org.junit.Test;
  * Unit tests for the ByteArrayComparator class.
  */
 public class ByteArrayComparatorTests {
-    private static final int COUNT = 100;
+    private static final int COUNT = 1000;
     private static final int BYTES = 4;
-    private static final int MAX_BYTE_VALUE = COUNT / BYTES;
+    private static final int MAX_BYTE_VALUE = 127;
 
     /**
      * Tests comparing raw byte arrays.

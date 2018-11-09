@@ -56,8 +56,8 @@ public class SegmentHelperTest {
     public void createSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Boolean> retVal = helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+                0, ScalingPolicy.fixed(2), new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -69,8 +69,8 @@ public class SegmentHelperTest {
     public void truncateSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Boolean> retVal = helper.truncateSegment("", "", 0L, 0L,
-                new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+                new MockHostControllerStore(), factory, "", System.nanoTime());
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -83,8 +83,8 @@ public class SegmentHelperTest {
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Boolean> retVal = helper.deleteSegment("", "", 0L, new MockHostControllerStore(),
-                factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+                factory, "", System.nanoTime());
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -96,8 +96,8 @@ public class SegmentHelperTest {
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Boolean> retVal = helper.sealSegment("", "", 0L,
-                new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+                new MockHostControllerStore(), factory, "", System.nanoTime());
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -110,7 +110,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<UUID> retVal = helper.createTransaction("", "", 0L, new UUID(0, 0L),
                 new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -123,7 +123,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
                 new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -136,7 +136,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, new UUID(0, 0L),
                 new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -148,8 +148,8 @@ public class SegmentHelperTest {
     public void updatePolicy() {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
-                new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+                new MockHostControllerStore(), factory, "", System.nanoTime());
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException
@@ -162,7 +162,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L,
                 new MockHostControllerStore(), factory, "");
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0));
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof WireCommandFailedException

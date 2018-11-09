@@ -10,7 +10,7 @@
 version: '2'
 services:
   zookeeper:
-    image: jplock/zookeeper:3.5.2-alpha
+    image: zookeeper:3.5.4-beta
     ports:
       - "2181:2181"
 
@@ -87,6 +87,7 @@ services:
     command: segmentstore
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183,hdfs:8020
+      TIER2_STORAGE: "HDFS"
       HDFS_REPLICATION: 1
       HDFS_URL: ${HOST_IP}:8020
       ZK_URL: zookeeper:2181

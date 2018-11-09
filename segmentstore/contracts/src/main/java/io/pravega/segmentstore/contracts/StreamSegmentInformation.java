@@ -65,7 +65,7 @@ public class StreamSegmentInformation implements SegmentProperties {
         this.sealed = sealed;
         this.deleted = deleted;
         this.lastModified = lastModified == null ? new ImmutableDate() : lastModified;
-        this.attributes = getAttributes(attributes);
+        this.attributes = createAttributes(attributes);
     }
 
     /**
@@ -93,7 +93,7 @@ public class StreamSegmentInformation implements SegmentProperties {
                 getStartOffset(), getLength(), isSealed(), isDeleted());
     }
 
-    private static Map<UUID, Long> getAttributes(Map<UUID, Long> input) {
+    private static Map<UUID, Long> createAttributes(Map<UUID, Long> input) {
         return input == null || input.size() == 0 ? Collections.emptyMap() : Collections.unmodifiableMap(input);
     }
 }

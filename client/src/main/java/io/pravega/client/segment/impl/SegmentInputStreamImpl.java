@@ -10,12 +10,10 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
-import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CircularBuffer;
-import io.pravega.shared.protocol.netty.InvalidMessageException;
-import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
@@ -44,8 +42,6 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     private final int minReadLength;
     @GuardedBy("$lock")
     private final CircularBuffer buffer;
-    @GuardedBy("$lock")
-    private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
     @GuardedBy("$lock")
     private long offset;
     @GuardedBy("$lock")
@@ -82,11 +78,13 @@ class SegmentInputStreamImpl implements SegmentInputStream {
         log.trace("SetOffset {}", offset);
         Preconditions.checkArgument(offset >= 0);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
+        if (offset > this.offset) {
+            receivedTruncated = false;
+        }
         if (offset != this.offset) {
             this.offset = offset;
             buffer.clear();
             receivedEndOfSegment = false;
-            receivedTruncated = false;
             outstandingRequest = null;        
         }
     }
@@ -98,68 +96,36 @@ class SegmentInputStreamImpl implements SegmentInputStream {
     }
 
     /**
-     * @see SegmentInputStream#read()
+     * @see SegmentInputStream#read(ByteBuffer, long)
      */
     @Override
     @Synchronized
-    public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
+    public int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
-        long originalOffset = offset;
-        long traceId = LoggerHelpers.traceEnter(log, "read", getSegmentId(), originalOffset, timeout);
-        boolean success = false;
-        try {
-            ByteBuffer result = readEventData(timeout);
-            success = true;
-            return result;
-        } finally {
-            LoggerHelpers.traceLeave(log, "read", traceId, getSegmentId(), originalOffset, timeout);
-            if (!success) {
-                outstandingRequest = null;
-                offset = originalOffset;
-                buffer.clear();
-            }
-        }
-    }
-
-    private ByteBuffer readEventData(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         if (this.offset >= this.endOffset) {
             log.debug("All events up to the configured end offset:{} have been read", endOffset);
             throw new EndOfSegmentException(END_OFFSET_REACHED);
         }
-        fillBuffer();
+        if (outstandingRequest == null) {
+            fillBuffer();
+        }
         if (receivedTruncated) {
             throw new SegmentTruncatedException();
         }
-        while (buffer.dataAvailable() < WireCommands.TYPE_PLUS_LENGTH_SIZE) {
-            if (buffer.dataAvailable() == 0 && receivedEndOfSegment) {
+        while (buffer.dataAvailable() == 0) {
+            if (receivedEndOfSegment) {
                 throw new EndOfSegmentException();
             }
             Futures.await(outstandingRequest, timeout);
             if (!outstandingRequest.isDone()) {
-                return null;
+                return 0;
             }
             handleRequest();
         }
-        headerReadingBuffer.clear();
-        offset += buffer.read(headerReadingBuffer);
-        headerReadingBuffer.flip();
-        int type = headerReadingBuffer.getInt();
-        int length = headerReadingBuffer.getInt();
-        if (type != WireCommandType.EVENT.getCode()) {
-            throw new InvalidMessageException("Event was of wrong type: " + type);
-        }
-        if (length < 0 || length > WireCommands.MAX_WIRECOMMAND_SIZE) {
-            throw new InvalidMessageException("Event of invalid length: " + length);
-        }
-        ByteBuffer result = ByteBuffer.allocate(length);
-        offset += buffer.read(result);
-        while (result.hasRemaining()) {
-            issueRequestIfNeeded();
-            handleRequest();
-            offset += buffer.read(result);
-        }
-        result.flip();
-        return result;
+        
+        int read = buffer.read(toFill);
+        offset += read;
+        return read;
     }
 
     private boolean dataWaitingToGoInBuffer() {
@@ -239,7 +205,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public void fillBuffer() {
+    public CompletableFuture<Void> fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         try {      
@@ -249,14 +215,25 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             }
         } catch (SegmentTruncatedException e) {
             log.warn("Encountered exception filling buffer", e);
+            return CompletableFuture.completedFuture(null);
         }
+        return outstandingRequest == null ? CompletableFuture.completedFuture(null) : outstandingRequest.thenRun(Runnables.doNothing());
     }
     
     @Override
     @Synchronized
-    public boolean isSegmentReady() {
-        boolean result = receivedEndOfSegment || receivedTruncated || buffer.dataAvailable() > 0 || (outstandingRequest != null && outstandingRequest.isDone());
-        log.trace("isSegmentReady {} on segment {} status is {}", result, getSegmentId(), this);
+    public int bytesInBuffer() {
+        int result = buffer.dataAvailable();
+        boolean atEnd = receivedEndOfSegment || receivedTruncated || (outstandingRequest != null && outstandingRequest.isCompletedExceptionally());
+        if (outstandingRequest != null && Futures.isSuccessful(outstandingRequest)) {
+            SegmentRead request = outstandingRequest.join();
+            result += request.getData().remaining();
+            atEnd |= request.isEndOfSegment();
+        }
+        if (result <= 0 && atEnd) {
+           result = -1;
+        }
+        log.trace("bytesInBuffer {} on segment {} status is {}", result, getSegmentId(), this);        
         return result;
     }
 

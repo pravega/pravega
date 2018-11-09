@@ -9,11 +9,13 @@
  */
 package io.pravega.controller.store.client;
 
-
-import io.pravega.common.Exceptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
+import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.auth.ZKTLSUtils;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -25,6 +27,7 @@ import org.apache.zookeeper.ZooKeeper;
 /**
  * Factory method for store clients.
  */
+@Slf4j
 public class StoreClientFactory {
 
     public static StoreClient createStoreClient(final StoreClientConfig storeClientConfig) {
@@ -49,6 +52,9 @@ public class StoreClientFactory {
     }
 
     private static CuratorFramework createZKClient(ZKClientConfig zkClientConfig) {
+        if (zkClientConfig.isSecureConnectionToZooKeeper()) {
+            ZKTLSUtils.setSecureZKClientProperties(zkClientConfig.getTrustStorePath(), JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
+        }
         //Create and initialize the curator client framework.
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
                 .connectString(zkClientConfig.getConnectionString())

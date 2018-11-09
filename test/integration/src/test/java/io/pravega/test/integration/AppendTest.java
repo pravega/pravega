@@ -54,6 +54,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -128,7 +129,7 @@ public class AppendTest {
         assertEquals(uuid, setup.getWriterId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                                                      new Append(segment, uuid, data.readableBytes(), data, null));
+                                                      new Append(segment, uuid, data.readableBytes(), new Event(data)));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
         assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
@@ -153,13 +154,13 @@ public class AppendTest {
 
         data.retain();
         DataAppended ack = (DataAppended) sendRequest(channel,
-                new Append(segment, uuid, 1, data, null));
+                new Append(segment, uuid, 1, new Event(data)));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(1, ack.getEventNumber());
         assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
 
         DataAppended ack2 = (DataAppended) sendRequest(channel,
-                new Append(segment, uuid, 2, data, null));
+                new Append(segment, uuid, 2, new Event(data)));
         assertEquals(uuid, ack2.getWriterId());
         assertEquals(2, ack2.getEventNumber());
         assertEquals(1, ack2.getPreviousEventNumber());
@@ -220,7 +221,7 @@ public class AppendTest {
         @Cleanup
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
         CompletableFuture<Void> ack = new CompletableFuture<>();
-        out.write(new PendingEvent(null, ByteBuffer.wrap(testString.getBytes()), ack));
+        out.write(PendingEvent.withHeader(null, ByteBuffer.wrap(testString.getBytes()), ack));
         ack.get(5, TimeUnit.SECONDS);
     }
     

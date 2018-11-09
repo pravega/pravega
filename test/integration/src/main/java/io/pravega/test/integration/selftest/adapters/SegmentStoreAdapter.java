@@ -10,6 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -24,6 +25,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
@@ -278,6 +280,21 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     StreamSegmentStore getStreamSegmentStore() {
         return this.streamSegmentStore;
+    }
+
+    //endregion
+
+    //region SingletonStorageFactoryCreator
+    private static class SingletonStorageFactoryCreator implements StorageFactoryCreator {
+        @Override
+        public String getName() {
+            return "SingletonStorageFactory";
+        }
+
+        @Override
+        public SingletonStorageFactory createFactory(ConfigSetup setup, ScheduledExecutorService executor) {
+            return new SingletonStorageFactory(executor);
+        }
     }
 
     //endregion

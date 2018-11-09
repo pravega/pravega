@@ -379,69 +379,14 @@ class BTreePage {
             return;
         }
 
-        // Keep track of new keys to be added along with the offset (in the original page) where they would have belonged.
-        val newEntries = new ArrayList<Map.Entry<Integer, PageEntry>>();
-
-        // Process all the Entries, in order (by Key).
-        int lastPos = 0;
-        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
-        while (entryIterator.hasNext()) {
-            val e = entryIterator.next();
-            if (e.getKey().getLength() != this.config.keyLength || e.getValue().getLength() != this.config.valueLength) {
-                throw new IllegalDataFormatException("Found an entry with unexpected Key or Value length.");
-            }
-
-            // Figure out if this entry exists already.
-            val searchResult = search(e.getKey(), lastPos);
-            if (searchResult.isExactMatch()) {
-                // Keys already exists: update in-place.
-                setValueAtPosition(searchResult.getPosition(), e.getValue());
-            } else {
-                // This entry's key does not exist. We need to remember it for later. Since this was not an exact match,
-                // binary search returned the position where it should have been.
-                int dataIndex = searchResult.getPosition() * this.config.entryLength;
-                newEntries.add(new AbstractMap.SimpleImmutableEntry<>(dataIndex, e));
-            }
-
-            // Remember the last position so we may resume the next search from there.
-            lastPos = searchResult.position;
-        }
-
+        // Apply the in-place updates and collect the new entries to be added.
+        val newEntries = applyUpdates(entries);
         if (newEntries.isEmpty()) {
             // Nothing else to change. We've already updated the keys in-place.
             return;
         }
 
-        int newCount = getCount() + newEntries.size();
-
-        // If we have extra entries: allocate new buffer of the correct size and start copying from the old one.
-        // We cannot reuse the existing buffer because we need more space.
-        val newPage = new BTreePage(this.config, new ByteArraySegment(new byte[DATA_OFFSET + newCount * this.config.entryLength + FOOTER_LENGTH]), false);
-        newPage.formatHeaderAndFooter(newCount, getHeaderId());
-        int readIndex = 0;
-        int writeIndex = 0;
-        for (val e : newEntries) {
-            int entryIndex = e.getKey();
-            if (entryIndex > readIndex) {
-                // Copy from source.
-                int length = entryIndex - readIndex;
-                assert length % this.config.entryLength == 0;
-                newPage.data.copyFrom(this.data, readIndex, writeIndex, length);
-                writeIndex += length;
-            }
-
-            // Write new Entry.
-            PageEntry entryContents = e.getValue();
-            newPage.setEntryAtIndex(writeIndex, entryContents);
-            writeIndex += this.config.entryLength;
-            readIndex = entryIndex;
-        }
-
-        if (readIndex < this.data.getLength()) {
-            // Copy the last part that we may have missed.
-            int length = this.data.getLength() - readIndex;
-            newPage.data.copyFrom(this.data, readIndex, writeIndex, length);
-        }
+        val newPage = insertNewEntries(newEntries);
 
         // Make sure we swap all the segments with those from the new page. We need to release all pointers to our
         // existing buffers.
@@ -468,52 +413,11 @@ class BTreePage {
             return;
         }
 
-        // Process all Keys, in order, record the position of any matches.
-        int lastPos = 0;
-        int initialCount = getCount();
-        val removedPositions = new ArrayList<Integer>();
-        val keyIterator = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
-        while (keyIterator.hasNext() && removedPositions.size() < initialCount) {
-            val key = keyIterator.next();
-            if (key.getLength() != this.config.keyLength) {
-                throw new IllegalDataFormatException("Found a key with unexpected length.");
-            }
-
-            val sr = search(key, lastPos);
-            if (!sr.exactMatch) {
-                // Key does not exist.
-                continue;
-            }
-
-            removedPositions.add(sr.getPosition());
-            lastPos = sr.getPosition() + 1;
-        }
-
+        // Locate the positions of the Keys to remove.
+        val removedPositions = searchPositions(keys);
         if (removedPositions.size() > 0) {
-            // Remember the new count now, before we mess around with things.
-            int newCount = initialCount - removedPositions.size();
-
-            // Trim away the data buffer, move the footer back and trim the contents buffer.
-            int writeIndex = removedPositions.get(0) * this.config.entryLength;
-            removedPositions.add(initialCount); // Add a sentinel at the end to make this easier.
-            for (int i = 1; i < removedPositions.size(); i++) {
-                int removedPos = removedPositions.get(i);
-                int prevRemovedPos = removedPositions.get(i - 1);
-                int readIndex = (prevRemovedPos + 1) * this.config.entryLength;
-                int readLength = removedPos * this.config.entryLength - readIndex;
-                if (readLength == 0) {
-                    // Nothing to do now.
-                    continue;
-                }
-
-                // Copy the data.
-                this.data.copyFrom(this.data, readIndex, writeIndex, readLength);
-                writeIndex += readLength;
-            }
-
-            // Trim away the data buffer, move the footer back and trim the contents buffer.
-            assert writeIndex == (initialCount - removedPositions.size() + 1) * this.config.entryLength : "unexpected number of bytes remaining";
-            shrink(newCount);
+            // Remove them.
+            removePositions(removedPositions);
         }
     }
 
@@ -569,6 +473,154 @@ class BTreePage {
 
         // Return an inexact search result with the position where the sought key would have been.
         return new SearchResult(startPos, false);
+    }
+
+    /**
+     * Gets a list of positions where the given Keys exist.
+     *
+     * @param keys A Collection of ByteArraySegment instances representing the Keys to search.
+     * @return A sorted List of Positions representing locations in this BTreePage where the given Keys exist. Keys that
+     * do not exist in this BTreePage will not be included.
+     */
+    private List<Integer> searchPositions(Collection<ByteArraySegment> keys) {
+        int maxCount = getCount();
+        int lastPos = 0;
+        val positions = new ArrayList<Integer>();
+        val keyIterator = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
+        while (keyIterator.hasNext() && positions.size() < maxCount) {
+            val key = keyIterator.next();
+            if (key.getLength() != this.config.keyLength) {
+                throw new IllegalDataFormatException("Found a key with unexpected length.");
+            }
+
+            val sr = search(key, lastPos);
+            if (!sr.exactMatch) {
+                // Key does not exist.
+                continue;
+            }
+
+            positions.add(sr.getPosition());
+            lastPos = sr.getPosition() + 1;
+        }
+
+        return positions;
+    }
+
+    /**
+     * Removes the given positions from this BTreePage.
+     *
+     * @param removedPositions A Sorted List of Positions to remove.
+     */
+    private void removePositions(List<Integer> removedPositions) {
+        // Remember the new count now, before we mess around with things.
+        int initialCount = getCount();
+        int newCount = initialCount - removedPositions.size();
+
+        // Trim away the data buffer, move the footer back and trim the contents buffer.
+        int prevRemovedPos = removedPositions.get(0);
+        int writeIndex = prevRemovedPos * this.config.entryLength;
+        removedPositions.add(initialCount); // Add a sentinel at the end to make this easier.
+        for (int i = 1; i < removedPositions.size(); i++) {
+            int removedPos = removedPositions.get(i);
+            assert removedPos > prevRemovedPos : "removedPositions is not sorted";
+            int readIndex = (prevRemovedPos + 1) * this.config.entryLength;
+            int readLength = removedPos * this.config.entryLength - readIndex;
+            prevRemovedPos = removedPos;
+            if (readLength == 0) {
+                // Nothing to do now.
+                continue;
+            }
+
+            // Copy the data.
+            this.data.copyFrom(this.data, readIndex, writeIndex, readLength);
+            writeIndex += readLength;
+        }
+
+        // Trim away the data buffer, move the footer back and trim the contents buffer.
+        assert writeIndex == (initialCount - removedPositions.size() + 1) * this.config.entryLength : "unexpected number of bytes remaining";
+        shrink(newCount);
+    }
+
+    /**
+     * Updates (in-place) the contents of this BTreePage with the given entries for those Keys that already exist. For
+     * all the new Keys, collects them into a List and calculates the offset where they would have to be inserted.
+     *
+     * @param entries A Collection of PageEntries to update.
+     * @return A sorted List of Map.Entry instances (Offset -> PageEntry) indicating the new PageEntry instances to insert
+     * and at which offset.
+     */
+    private List<Map.Entry<Integer, PageEntry>> applyUpdates(Collection<PageEntry> entries) {
+        // Keep track of new keys to be added along with the offset (in the original page) where they would have belonged.
+        val newEntries = new ArrayList<Map.Entry<Integer, PageEntry>>();
+
+        // Process all the Entries, in order (by Key).
+        int lastPos = 0;
+        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
+        while (entryIterator.hasNext()) {
+            val e = entryIterator.next();
+            if (e.getKey().getLength() != this.config.keyLength || e.getValue().getLength() != this.config.valueLength) {
+                throw new IllegalDataFormatException("Found an entry with unexpected Key or Value length.");
+            }
+
+            // Figure out if this entry exists already.
+            val searchResult = search(e.getKey(), lastPos);
+            if (searchResult.isExactMatch()) {
+                // Keys already exists: update in-place.
+                setValueAtPosition(searchResult.getPosition(), e.getValue());
+            } else {
+                // This entry's key does not exist. We need to remember it for later. Since this was not an exact match,
+                // binary search returned the position where it should have been.
+                int dataIndex = searchResult.getPosition() * this.config.entryLength;
+                newEntries.add(new AbstractMap.SimpleImmutableEntry<>(dataIndex, e));
+            }
+
+            // Remember the last position so we may resume the next search from there.
+            lastPos = searchResult.position;
+        }
+
+        return newEntries;
+    }
+
+    /**
+     * Inserts the new PageEntry instances at the given offsets.
+     *
+     * @param newEntries A sorted List of Map.Entry instances (Offset -> PageEntry) indicating the new PageEntry instances
+     *                   to insert and at which offset.
+     * @return A new BTreePage instance with the updated contents.
+     */
+    private BTreePage insertNewEntries(List<Map.Entry<Integer, PageEntry>> newEntries) {
+        int newCount = getCount() + newEntries.size();
+
+        // If we have extra entries: allocate new buffer of the correct size and start copying from the old one.
+        // We cannot reuse the existing buffer because we need more space.
+        val newPage = new BTreePage(this.config, new ByteArraySegment(new byte[DATA_OFFSET + newCount * this.config.entryLength + FOOTER_LENGTH]), false);
+        newPage.formatHeaderAndFooter(newCount, getHeaderId());
+        int readIndex = 0;
+        int writeIndex = 0;
+        for (val e : newEntries) {
+            int entryIndex = e.getKey();
+            if (entryIndex > readIndex) {
+                // Copy from source.
+                int length = entryIndex - readIndex;
+                assert length % this.config.entryLength == 0;
+                newPage.data.copyFrom(this.data, readIndex, writeIndex, length);
+                writeIndex += length;
+            }
+
+            // Write new Entry.
+            PageEntry entryContents = e.getValue();
+            newPage.setEntryAtIndex(writeIndex, entryContents);
+            writeIndex += this.config.entryLength;
+            readIndex = entryIndex;
+        }
+
+        if (readIndex < this.data.getLength()) {
+            // Copy the last part that we may have missed.
+            int length = this.data.getLength() - readIndex;
+            newPage.data.copyFrom(this.data, readIndex, writeIndex, length);
+        }
+
+        return newPage;
     }
 
     /**

@@ -131,7 +131,7 @@ public class SegmentSelectorTest {
         SegmentOutputStream s0Writer = Mockito.mock(SegmentOutputStream.class);
         SegmentOutputStream s1Writer = Mockito.mock(SegmentOutputStream.class);
         when(s0Writer.getUnackedEventsOnSeal())
-                .thenReturn(ImmutableList.of(new PendingEvent("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
+                .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
 
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))

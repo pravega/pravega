@@ -15,7 +15,8 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * A Collection of BTreePages, indexed by Offset that can be used for any operation that does not modify the index.
+ * A Collection of BTreePages, indexed by Offset. This can serve as a cache for any operation (but should not be used
+ * cross-operations).
  */
 @ThreadSafe
 class PageCollection {

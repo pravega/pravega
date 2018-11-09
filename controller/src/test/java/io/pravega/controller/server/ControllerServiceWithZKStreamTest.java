@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -25,6 +26,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -83,6 +85,8 @@ public class ControllerServiceWithZKStreamTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
 
+    private RequestTracker requestTracker = new RequestTracker(true);
+
     @Before
     public void setup() {
         try {
@@ -103,9 +107,9 @@ public class ControllerServiceWithZKStreamTest {
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, false, "");
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelperMock, executor, "host", connectionFactory, false, "");
+                segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executor),
@@ -440,7 +444,7 @@ public class ControllerServiceWithZKStreamTest {
         Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, segmentsToSeal, keyRanges, start)
                 .get();
         AtomicBoolean done = new AtomicBoolean(false);
-        Futures.loop(() -> !done.get(), () -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch())
+        Futures.loop(() -> !done.get(), () -> Futures.delayedFuture(() -> consumer.checkScale(SCOPE, STREAM, scaleStatus.getEpoch()), 1000, executor)
                 .thenAccept(x -> done.set(x.getStatus().equals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS))), executor).get();
     }
 }

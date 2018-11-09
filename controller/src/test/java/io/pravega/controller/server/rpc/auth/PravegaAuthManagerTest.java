@@ -108,8 +108,8 @@ public class PravegaAuthManagerTest {
         manager.authenticateAndAuthorize("hi", credentials("invalid", ""), AuthHandler.Permissions.READ));
 
         //Specify a valid method but malformed parameters for password interceptor.
-        assertThrows(AuthenticationException.class, () ->
-        manager.authenticateAndAuthorize("hi", credentials(AuthConstants.BASIC, ""), AuthHandler.Permissions.READ));
+        assertThrows(IllegalArgumentException.class, () ->
+        manager.authenticateAndAuthorize("hi", credentials(AuthConstants.BASIC, ":"), AuthHandler.Permissions.READ));
 
         //Specify a valid method but incorrect password for password interceptor.
         assertThrows(AuthenticationException.class, () ->

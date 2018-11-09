@@ -23,20 +23,24 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     @VisibleForTesting
-    protected final SharedStorage baseStorage;
+    protected SharedStorage baseStorage;
     @VisibleForTesting
-    protected final ScheduledExecutorService executor;
+    protected ScheduledExecutorService executor;
 
     public InMemoryStorageFactory(ScheduledExecutorService executor) {
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.baseStorage = new SharedStorage();
-        this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
+        initialize();
+    }
+
+    public InMemoryStorageFactory() {
+
     }
 
     @Override
     public Storage createStorageAdapter() {
         return new AsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
     }
+
 
     @Override
     public void close() {
@@ -52,6 +56,11 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
     @VisibleForTesting
     public static Storage newStorage(Executor executor) {
         return new AsyncStorageWrapper(new InMemoryStorage(), executor);
+    }
+
+    public void initialize() {
+            this.baseStorage = new InMemoryStorageFactory.SharedStorage();
+            this.baseStorage.initializeInternal(1); // InMemoryStorage does not use epochs.
     }
 
     //region SharedStorage

@@ -11,9 +11,9 @@ package io.pravega.client.state.impl;
 
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
@@ -45,7 +45,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     private final Segment segment;
     @GuardedBy("lock")
-    private final SegmentInputStream in;
+    private final EventSegmentReader in;
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     @GuardedBy("lock")
@@ -88,7 +88,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
-            PendingEvent event = new PendingEvent(null, serialized, ack);
+            PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
             log.trace("Unconditionally writing: {}", value);
             synchronized (lock) {
                 out.write(event);
@@ -185,7 +185,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
+        meta.truncateSegment(newStart.asImpl().getOffsetInSegment());
     }
 
     @Override

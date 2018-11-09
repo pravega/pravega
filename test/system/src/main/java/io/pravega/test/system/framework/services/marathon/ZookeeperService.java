@@ -28,7 +28,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 @Slf4j
 public class ZookeeperService extends MarathonBasedService {
 
-    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.2-alpha";
+    private static final String ZK_IMAGE = "zookeeper:3.5.4-beta";
     private int instances = 1;
     private double cpu = 1.0;
     private double mem = 1024.0;
