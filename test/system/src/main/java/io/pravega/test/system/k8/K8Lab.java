@@ -182,8 +182,6 @@ public class K8Lab {
             System.out.printf("===> %s : %s, %s%n ", item.type, item.object.getMetadata().getName(), item.object.getStatus());
         }
         return null;
-        List l = new ArrayList();
-        l.ge
     }
 
     private static void listAllPods() throws ApiException {

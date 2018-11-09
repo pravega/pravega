@@ -1,0 +1,277 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.test.system.framework.kubernetes;
+
+import com.google.gson.reflect.TypeToken;
+import io.kubernetes.client.ApiCallback;
+import io.kubernetes.client.ApiClient;
+import io.kubernetes.client.ApiException;
+import io.kubernetes.client.Configuration;
+import io.kubernetes.client.apis.CoreV1Api;
+import io.kubernetes.client.models.V1ContainerState;
+import io.kubernetes.client.models.V1ContainerStateTerminated;
+import io.kubernetes.client.models.V1ContainerStatus;
+import io.kubernetes.client.models.V1Namespace;
+import io.kubernetes.client.models.V1ObjectMeta;
+import io.kubernetes.client.models.V1Pod;
+import io.kubernetes.client.models.V1PodBuilder;
+import io.kubernetes.client.models.V1PodList;
+import io.kubernetes.client.models.V1PodStatus;
+import io.kubernetes.client.util.Config;
+import io.kubernetes.client.util.Watch;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.Retry;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.ws.rs.core.Response;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
+public class K8Client {
+
+
+    private static final String PRETTY_PRINT = null;
+    private static final int DEFAULT_TIMEOUT_SECONDS = 60; // timeout of http client.
+    private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
+    private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
+    private final ApiClient client;
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "pravega-k8-client");
+    private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
+
+
+    public K8Client() throws IOException {
+        this.client = Config.defaultClient();
+        client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS); //TODO finalize the time out.
+        Configuration.setDefaultApiClient(this.client);
+    }
+
+    public V1Namespace createNamespace(final String namespace) throws ApiException {
+        CoreV1Api api = new CoreV1Api();
+        try {
+            V1Namespace existing = api.readNamespace(namespace, PRETTY_PRINT, Boolean.FALSE, Boolean.FALSE);
+            if (existing != null) {
+                log.info("Namespace {} already exists, ignoring namespace create operation.", namespace);
+                return existing;
+            }
+        } catch (ApiException ignore) {
+            // ignore exception and proceed with Namespace creation.
+        }
+
+        V1Namespace body = new V1Namespace();
+        // Set the required api version and kind of resource
+        body.setApiVersion("v1");
+        body.setKind("Namespace");
+
+        // Setup the standard object metadata
+        V1ObjectMeta meta = new V1ObjectMeta();
+        meta.setName(namespace);
+        body.setMetadata(meta);
+
+        return api.createNamespace(body, PRETTY_PRINT);
+    }
+
+    public CompletableFuture<V1Namespace> createNameSpace(final String namespace) throws ApiException {
+        // Namespace create operation on an already existing namespace causes K8 to stop responding, use the blocking version of api.
+        V1Namespace body = new V1Namespace();
+
+        // Set the required api version and kind of resource
+        body.setApiVersion("v1");
+        body.setKind("Namespace");
+
+        // Setup the standard object metadata
+        V1ObjectMeta meta = new V1ObjectMeta();
+        meta.setName(namespace);
+        body.setMetadata(meta);
+
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Namespace> callback = new K8AsyncCallback<>("createNamespace");
+
+        api.createNamespaceAsync(body, PRETTY_PRINT, callback);
+        return callback.getFuture()
+                       .whenComplete((r, t) -> {
+                           if (t instanceof ApiException) {
+                               ApiException e = (ApiException) t;
+                               if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                                   log.info("Namespace {} already present, ignoring the exception.", namespace);
+                               }
+                           }
+                       });
+    }
+
+    public CompletableFuture<V1Pod> deployPod(final String namespace, final V1Pod pod) throws ApiException {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1Pod> callback = new K8AsyncCallback<>("createPod");
+        api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, callback);
+
+        return callback.getFuture()
+                       .whenComplete((r, t) -> {
+                           if (t instanceof ApiException) {
+                               ApiException e = (ApiException) t;
+                               if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                                   log.info("Pod {} is already running in namespace {}, ignoring the exception.",
+                                            pod.getMetadata().getName(), namespace);
+                               }
+                           }
+                       });
+    }
+
+    public CompletableFuture<V1PodStatus> getStatusOfPod(final String namespace, final String podName) throws IOException, ApiException {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
+        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, "POD_NAME=" + podName, null,
+                                   null, null, false, callback);
+        return callback.getFuture()
+                       .thenApply(v1PodList -> {
+                           Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().equals(podName) &&
+                                   v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
+                           return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + podName));
+                       });
+    }
+
+    public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName)
+            throws IOException, ApiException {
+
+        CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
+
+        Retry.RetryAndThrowConditionally retryConfig = retryWithBackoff
+                .retryWhen(t -> {
+                    Throwable ex = Exceptions.unwrap(t);
+                    if (ex.getCause() instanceof IOException) {
+                        log.warn("Exception while fetching status of pod, will attempt a retry", ex.getCause());
+                        return true;
+                    }
+                    log.error("Exception while fetching status of pod", ex);
+                    return false;
+                });
+        CompletableFuture<Void> r = retryConfig.runAsync(() -> CompletableFuture.supplyAsync(() -> {
+            Optional<V1ContainerStateTerminated> state = createAWatchAndReturnOnTermination(namespace, podName);
+            if (state.isPresent()) {
+                future.complete(state.get());
+            } else {
+                throw new RuntimeException("Watch did not return terminated state for pod " + podName);
+            }
+            return null;
+        }), executor);
+        return future;
+
+    }
+
+    @SneakyThrows({ApiException.class, IOException.class})
+    private Optional<V1ContainerStateTerminated> createAWatchAndReturnOnTermination(String namespace, String podName) {
+        CoreV1Api api = new CoreV1Api();
+        @Cleanup
+        Watch<V1Pod> watch = Watch.createWatch(
+                client,
+                api.listNamespacedPodCall(namespace, PRETTY_PRINT, null, null, true, "POD_NAME=" + podName, null,
+                                          null, null, Boolean.TRUE, null, null),
+                new TypeToken<Watch.Response<V1Pod>>() {
+                }.getType());
+
+        for (Watch.Response<V1Pod> v1PodResponse : watch) {
+
+            List<V1ContainerStatus> containerStatuses = v1PodResponse.object.getStatus().getContainerStatuses();
+            if (containerStatuses.size() == 0) {
+                log.error("Invalid State, atleast 1 container should be part of the pod {}/{}", namespace, podName);
+                throw new IllegalStateException("Invalid pod state " + podName);
+            }
+            // We check only the first container as there is only one container in the pod.
+            V1ContainerState containerStatus = containerStatuses.get(0).getState();
+            log.debug("Current container status is {}", containerStatus);
+            if (containerStatus.getTerminated() != null) {
+                log.info("Pod {}/{} has terminated", namespace, podName);
+                return Optional.of(containerStatus.getTerminated());
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static class K8AsyncCallback<T> implements ApiCallback<T> {
+        private final String method;
+        private T result = null;
+        private final CompletableFuture<T> future = new CompletableFuture<>();
+
+        public K8AsyncCallback(String method) {
+            this.method = method;
+        }
+
+        @Override
+        public void onFailure(ApiException e, int responseCode, Map<String, List<String>> responseHeaders) {
+            log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+            future.completeExceptionally(e);
+        }
+
+        @Override
+        public void onSuccess(T t, int i, Map<String, List<String>> map) {
+            log.info("Method {} completed successfully with response code {} and value {}", method, i, t);
+            future.complete(t);
+        }
+
+        @Override
+        public void onUploadProgress(long bytesWritten, long contentLength, boolean done) {
+            log.debug("UploadProgress callback invoked bytesWritten:{} for contentLength: {} done: {}", bytesWritten,
+                      contentLength, done);
+        }
+
+        @Override
+        public void onDownloadProgress(long bytesRead, long contentLength, boolean done) {
+            log.debug("DownloadProgress callback invoked, bytesRead: {} for contentLength: {} done: {}", bytesRead,
+                      contentLength, done);
+        }
+
+        public CompletableFuture<T> getFuture() {
+            return future;
+        }
+    }
+
+
+    public static void main(String[] args) throws IOException, ApiException {
+        K8Client client = new K8Client();
+
+        String namespace = "test123";
+        client.createNamespace(namespace);
+
+        //        String testPodName = "test2";
+        //        CoreV1Api api = new CoreV1Api();
+        //        V1Pod pod = new V1PodBuilder()
+        //                .withNewMetadata().withName(testPodName).withLabels(ImmutableMap.of("POD_NAME", testPodName)).endMetadata()
+        //                .withNewSpec().addNewContainer()
+        //                .withName(testPodName)
+        //                .withImage("openjdk:8-jre-alpine")
+        //                .withImagePullPolicy("IfNotPresent")
+        ////                .withCommand("/bin/sh", "-c", "wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml",
+        ////                             "java -version",
+        ////                             "/bin/sh"
+        ////                )
+        //                .withCommand("/bin/sh")
+        //                .withArgs("-c", "sleep 60;wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml;java -version;" +
+        //                        "echo ./maven-metadata.xml")
+        //                .endContainer()
+        //                .withRestartPolicy("Never")
+        //                .endSpec().build();
+        //
+        //        log.info("Create a Pod");
+        //        CompletableFuture<V1Pod> pod1 = client.deployPod(namespace, pod);
+        //        Futures.await(pod1);
+        //        client.waitUntilPodCompletes(namespace, testPodName).join();
+        //
+        //        Futures.await(client.getStatusOfPod(namespace, testPodName));
+
+
+    }
+}
