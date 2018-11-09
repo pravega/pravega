@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
  */
 public final class Attributes {
     /**
+    /**
      * Defines an attribute value that denotes a missing value.
      */
     public static final long NULL_ATTRIBUTE_VALUE = Long.MIN_VALUE; //This is the same as WireCommands.NULL_ATTRIBUTE_VALUE
@@ -60,14 +61,16 @@ public final class Attributes {
     public static final UUID ROLLOVER_SIZE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 4);
 
     /**
-     * Defines an attribute that is used to store the offset within the Attribute sub-segment where the last Snapshot begins.
+     * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
+     * Attribute Snapshot Location.
      */
-    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
+    private static final UUID RETIRED_1 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
 
     /**
-     * Defines an attribute that is used to store the length (in bytes) of the last Attribute Snapshot.
+     * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
+     * Attribute Snapshot Length.
      */
-    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_LENGTH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
+    private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
      * Defines an attribute that is used to store the next TableNodeId.
