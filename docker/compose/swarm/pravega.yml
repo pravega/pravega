@@ -41,6 +41,8 @@ services:
     environment:
       WAIT_FOR: bookkeeper:3181,${HDFS_URL:-hdfs:8020}
       HDFS_URL: hdfs://${HDFS_URL:-hdfs:8020}
+      TIER2_STORAGE: HDFS
+      HDFS_REPLICATION: 1
       ZK_URL: ${ZK_URL:-zookeeper:2181}
       CONTROLLER_URL: tcp://controller:9090
       JAVA_OPTS: |
