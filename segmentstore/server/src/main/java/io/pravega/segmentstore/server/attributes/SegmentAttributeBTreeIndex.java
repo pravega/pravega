@@ -123,7 +123,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
-        this.index = BTreeIndex.builder()
+        this.index = BTreeIndex.internalStateBuilder()
                                .keyLength(KEY_LENGTH)
                                .valueLength(VALUE_LENGTH)
                                .maxPageSize(this.config.getMaxIndexPageSize())
@@ -283,7 +283,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         }
 
         Collection<PageEntry> entries = values.entrySet().stream().map(this::serialize).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.put(entries, tm), timeout);
+        return executeConditionally(tm -> this.index.update(entries, tm), timeout);
     }
 
     @Override
@@ -333,8 +333,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             return CompletableFuture.completedFuture(null);
         }
 
-        Collection<ByteArraySegment> serializedKeys = keys.stream().map(this::serializeKey).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.remove(serializedKeys, tm), timeout);
+        Collection<PageEntry> serializedKeys = keys.stream().map(key -> new PageEntry(serializeKey(key), null)).collect(Collectors.toList());
+        return executeConditionally(tm -> this.index.update(serializedKeys, tm), timeout);
     }
 
     @Override

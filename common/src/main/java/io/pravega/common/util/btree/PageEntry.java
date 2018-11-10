@@ -28,11 +28,15 @@ public class PageEntry {
     /**
      * The Value.
      */
-    @NonNull
     private final ByteArraySegment value;
+
+    boolean hasValue() {
+        return this.value != null;
+    }
 
     @Override
     public String toString() {
-        return String.format("KeyLength = %s, ValueLength = %s", this.key.getLength(), this.value.getLength());
+        return String.format("KeyLength = %s, ValueLength = %s", this.key.getLength(),
+                this.value == null ? "[NO VALUE]" : this.value.getLength());
     }
 }

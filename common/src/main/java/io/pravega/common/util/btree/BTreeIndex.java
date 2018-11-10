@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -242,43 +241,29 @@ public abstract class BTreeIndex {
     }
 
     /**
-     * Inserts or updates the given Page Entries into the index.
+     * Inserts, updates or removes the given Page Entries into the index. If {@link PageEntry#getValue()} is null, then
+     * the page entry is removed, otherwise it is added.
      *
      * @param entries A Collection of Page Entries to insert. The collection need not be sorted.
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate that the entries have been inserted
+     * @return A CompletableFuture that, when completed normally, will indicate that the index updates have been applied
      * successfully and will contain the current version of the index (any modifications to the index will result in a
      * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
      */
-    public CompletableFuture<Long> put(@NonNull Collection<PageEntry> entries, @NonNull Duration timeout) {
+    public CompletableFuture<Long> update(@NonNull Collection<PageEntry> entries, @NonNull Duration timeout) {
         ensureInitialized();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
-        // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-insert
+        // Process the Entries in sorted order (by key); this makes the operation more efficient as we can batch-update
         // entries belonging to the same page.
-        val toInsert = entries.stream()
+        val toUpdate = entries.stream()
                               .sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
                               .iterator();
-        return performUpdate(toInsert, PageEntry::getKey, BTreePage::update, timer);
-    }
-
-    /**
-     * Removes the given Keys and their associated values from the Index.
-     *
-     * @param keys    A Collection of Keys to remove. The collection need not be sorted.
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate that the entries have been removed
-     * successfully and will contain the current version of the index (any modifications to the index will result in a
-     * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
-     */
-    public CompletableFuture<Long> remove(@NonNull Collection<ByteArraySegment> keys, @NonNull Duration timeout) {
-        ensureInitialized();
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-
-        // Process the keys in sorted order; this makes the operation more efficient as we can batch-delete keys belonging
-        // to the same page.
-        val toDelete = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
-        return performUpdate(toDelete, key -> key, BTreePage::delete, timer);
+        return applyUpdates(toUpdate, timer)
+                .thenComposeAsync(pageCollection -> loadSmallestOffsetPage(pageCollection, timer)
+                                .thenRun(() -> processModifiedPages(pageCollection))
+                                .thenComposeAsync(v -> writePages(pageCollection, timer.getRemaining()), this.executor),
+                        this.executor);
     }
 
     /**
@@ -305,60 +290,33 @@ public abstract class BTreeIndex {
     //region Helpers
 
     /**
-     * Executes the given updates on the index and persists the changes to the external data source.
-     * @param updates An Iterator of the updates to execute. The Iterator must return the updates in sorted order (by key).
-     * @param getKey  A Function that, when applied to an Update, will return the Key which it updates.
-     * @param action  A BiConsumer that, when applied to a BTreePage and a Collection of actions that need to operate on
-     *                that page, will apply the actions to that BTreePage.
-     * @param timer   Timer for the operation.
-     * @param <T>     Type of the action to execute.
-     * @return A CompletableFuture that, when completed normally, will indicate that the updates have been applied
-     * successfully and will contain the current version of the index (any modifications to the index will result in a
-     * larger version value). If the operation failed, the Future will be completed with the appropriate exception.
-     */
-    private <T> CompletableFuture<Long> performUpdate(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
-                                                      BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
-        return applyUpdates(updates, getKey, action, timer)
-                .thenComposeAsync(
-                        pageCollection -> loadSmallestOffsetPage(pageCollection, timer)
-                                .thenRun(() -> processModifiedPages(pageCollection))
-                                .thenComposeAsync(v -> writePages(pageCollection, timer.getRemaining()), this.executor),
-                        this.executor);
-    }
-
-    /**
      * Executes the given updates on the index. Loads up any necessary BTreePage instances in memory but does not persist
      * the changes to the external data source, nor does it reassign offsets to the modified pages, perform splits, etc.
      *
-     * @param updates An Iterator of the updates to execute. The Iterator must return the updates in sorted order (by key).
-     * @param getKey  A Function that, when applied to an Update, will return the Key which it updates.
-     * @param action  A BiConsumer that, when applied to a BTreePage and a Collection of actions that need to operate on
-     *                that page, will apply the actions to that BTreePage.
+     * @param updates An Iterator of the PageEntry instances to insert, update or remove. The Iterator must return the
+     *                updates in sorted order (by key).
      * @param timer   Timer for the operation.
-     * @param <T>     Type of the action to execute.
      * @return A CompletableFuture that will contain a PageCollection with all touched pages.
      */
-    private <T> CompletableFuture<UpdateablePageCollection> applyUpdates(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
-                                                                         BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
+    private CompletableFuture<UpdateablePageCollection> applyUpdates(Iterator<PageEntry> updates, TimeoutTimer timer) {
         UpdateablePageCollection pageCollection = new UpdateablePageCollection(this.state.get().length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
-        val lastPageUpdates = new ArrayList<T>();
+        val lastPageUpdates = new ArrayList<PageEntry>();
         return Futures.loop(
                 updates::hasNext,
                 () -> {
                     // Locate the page where the update is to be executed. Do not apply it yet as it is more efficient
                     // to bulk-apply multiple at once. Collect all updates for each Page, and only apply them once we have
                     // "moved on" to another page.
-                    T next = updates.next();
-                    val key = getKey.apply(next);
-                    return locatePage(key, pageCollection, timer)
+                    PageEntry next = updates.next();
+                    return locatePage(next.getKey(), pageCollection, timer)
                             .thenAccept(page -> {
                                 PageWrapper last = lastPage.get();
                                 if (page != last) {
                                     // This key goes to a different page than the one we were looking at.
                                     if (last != null) {
                                         // Commit the outstanding updates.
-                                        action.accept(last.getPage(), lastPageUpdates);
+                                        last.getPage().update(lastPageUpdates);
                                     }
 
                                     // Update the pointers.
@@ -374,7 +332,7 @@ public abstract class BTreeIndex {
                       .thenApplyAsync(v -> {
                           // We need not forget to apply the last batch of updates from the last page.
                           if (lastPage.get() != null) {
-                              action.accept(lastPage.get().getPage(), lastPageUpdates);
+                              lastPage.get().getPage().update(lastPageUpdates);
                           }
                           return pageCollection;
                       }, this.executor);
@@ -579,7 +537,7 @@ public abstract class BTreeIndex {
     private void processParentPage(PageWrapper parentPage, PageModificationContext context) {
         if (context.getDeletedPageKey() != null) {
             // We have a deleted page. Remove its pointer from the parent.
-            parentPage.getPage().delete(Collections.singleton(context.getDeletedPageKey()));
+            parentPage.getPage().update(Collections.singletonList(new PageEntry(context.getDeletedPageKey(), null)));
             parentPage.markNeedsFirstKeyUpdate();
         } else {
             // Update parent page's child pointers for modified pages.
