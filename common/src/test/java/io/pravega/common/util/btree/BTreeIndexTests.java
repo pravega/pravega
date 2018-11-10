@@ -326,6 +326,79 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         check("Expected recovered index to reflect changes now", index3, entries2, 0);
     }
 
+    /**
+     * Tests the BTreeIndex using an external store for the IndexState.
+     */
+    @Test
+    public void testExternalState() {
+        final int count = 100;
+        val ds = new DataSource();
+        val updateStateCount = new AtomicInteger(0);
+        val fetchStateCount = new AtomicInteger(0);
+        val state = new AtomicReference<BTreeIndex.IndexState>();
+        ExternalStateBTreeIndex.WritePages writePages = (pageContents, obsoleteOffsets, truncateOffset, rootOffset, rootLength, timeout) ->
+                ds.write(pageContents, obsoleteOffsets, truncateOffset, timeout)
+                  .thenApply(indexLength -> {
+                      state.set(new BTreeIndex.IndexState(indexLength, rootOffset, rootLength));
+                      updateStateCount.incrementAndGet();
+                      return indexLength;
+                  });
+
+        val index = BTreeIndex.externalStateBuilder()
+                              .maxPageSize(MAX_PAGE_SIZE)
+                              .keyLength(KEY_LENGTH)
+                              .valueLength(VALUE_LENGTH)
+                              .readPage(ds::read)
+                              .writePages(writePages)
+                              .getState(timeout -> CompletableFuture.supplyAsync(() -> {
+                                  fetchStateCount.incrementAndGet();
+                                  return state.get();
+                              }, executorService()))
+                              .executor(executorService())
+                              .build();
+        index.initialize(TIMEOUT).join();
+        Assert.assertEquals("Expected one state fetch.", 1, fetchStateCount.get());
+        val entries = generate(count);
+        sort(entries);
+        index.put(entries, TIMEOUT).join();
+        Assert.assertEquals("Expected one state update after bulk insert.", 1, updateStateCount.get());
+
+        // Delete every 1/3 of the keys
+        val toDelete = new ArrayList<ByteArraySegment>();
+        val expectedEntries = new ArrayList<PageEntry>(entries);
+        check("Unexpected index contents.", index, expectedEntries, 0);
+
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            boolean delete = i % 3 == 0;
+            if (delete) {
+                // Delete about 1/3 of the entries.
+                toDelete.add(expectedEntries.get(i).getKey());
+                expectedEntries.remove(i);
+            }
+        }
+
+        // Perform the deletions
+        index.remove(toDelete, TIMEOUT).join();
+
+        // Verify final result.
+        check("Unexpected index contents.", index, expectedEntries, 0);
+        Assert.assertEquals("Expected two state update after bulk update.", 2, updateStateCount.get());
+        Assert.assertEquals("Not expecting more than one state fetch.", 1, fetchStateCount.get());
+
+        // Verify with a clean slate; BTreeIndex should fetch the state from the external data source.
+        val idx2 = BTreeIndex.externalStateBuilder()
+                             .maxPageSize(MAX_PAGE_SIZE)
+                             .keyLength(KEY_LENGTH)
+                             .valueLength(VALUE_LENGTH)
+                             .readPage(ds::read)
+                             .writePages(writePages)
+                             .getState(timeout -> CompletableFuture.supplyAsync(state::get, executorService()))
+                             .executor(executorService())
+                             .build();
+        idx2.initialize(TIMEOUT).join();
+        check("Unexpected index contents after recovery.", idx2, expectedEntries, 0);
+    }
+
     private void testDelete(int count, int deleteBatchSize) {
         final int checkEvery = count / 10; // checking is very expensive; we don't want to do it every time.
         val ds = new DataSource();
@@ -451,8 +524,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         return new PageEntry(key, newValue);
     }
 
-    private BTreeIndex.BTreeIndexBuilder defaultBuilder(DataSource ds) {
-        return BTreeIndex.builder()
+    private BTreeIndex.Builder defaultBuilder(DataSource ds) {
+        return BTreeIndex.internalStateBuilder()
                 .maxPageSize(MAX_PAGE_SIZE)
                 .keyLength(KEY_LENGTH)
                 .valueLength(VALUE_LENGTH)

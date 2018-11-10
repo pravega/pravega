@@ -34,7 +34,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -103,17 +102,14 @@ import lombok.val;
  */
 @NotThreadSafe
 @Slf4j
-public class BTreeIndex {
+public abstract class BTreeIndex {
     //region Members
 
     private static final int INDEX_VALUE_LENGTH = Long.BYTES + Short.BYTES + Long.BYTES; // Offset, PageLength, MinOffset.
-    private static final int FOOTER_LENGTH = Long.BYTES + Integer.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
+    protected final ReadPage read;
     private final BTreePage.Config indexPageConfig;
     private final BTreePage.Config leafPageConfig;
-    private final ReadPage read;
-    private final WritePages write;
-    private final GetLength getLength;
     private final AtomicReference<IndexState> state;
     private final Executor executor;
 
@@ -128,22 +124,35 @@ public class BTreeIndex {
      * @param keyLength   The length, in bytes, of the index Keys.
      * @param valueLength The length, in bytes, of the index Values.
      * @param readPage    A Function that reads the contents of a page from an external data source.
-     * @param writePages  A Function that writes contents of one or more contiguous pages to an external data source.
-     * @param getLength   A Function that returns the length of the index, in bytes, as stored in an external data source.
      * @param executor    Executor for async operations.
      */
-    @Builder
-    public BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull ReadPage readPage, @NonNull WritePages writePages,
-                      @NonNull GetLength getLength, @NonNull Executor executor) {
+    BTreeIndex(int maxPageSize, int keyLength, int valueLength, @NonNull ReadPage readPage, @NonNull Executor executor) {
         this.read = readPage;
-        this.write = writePages;
-        this.getLength = getLength;
         this.executor = executor;
 
         // BTreePage.Config validates the arguments so we don't need to.
         this.indexPageConfig = new BTreePage.Config(keyLength, INDEX_VALUE_LENGTH, maxPageSize, true);
         this.leafPageConfig = new BTreePage.Config(keyLength, valueLength, maxPageSize, false);
         this.state = new AtomicReference<>();
+    }
+
+    /**
+     * Creates a {@link BTreeIndex.Builder} for a {@link BTreeIndex} which stores its {@link IndexState} externally.
+     *
+     * @return A new instance of the {@link ExternalStateBTreeIndex.ExternalBuilder} class.
+     */
+    public static ExternalStateBTreeIndex.ExternalBuilder externalStateBuilder() {
+        return new ExternalStateBTreeIndex.ExternalBuilder();
+    }
+
+    /**
+     * Creates a {@link BTreeIndex.Builder} for a {@link BTreeIndex} which stores its {@link IndexState} internally,
+     * alongside with the index data. No external data source is required to store the state.
+     *
+     * @return A new instance of the {@link InternalStateBTreeIndex.InternalBuilder} class.
+     */
+    public static InternalStateBTreeIndex.InternalBuilder internalStateBuilder() {
+        return new InternalStateBTreeIndex.InternalBuilder();
     }
 
     //endregion
@@ -181,43 +190,7 @@ public class BTreeIndex {
             log.warn("Reinitializing.");
         }
 
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.getLength
-                .apply(timer.getRemaining())
-                .thenCompose(length -> {
-                    if (length <= FOOTER_LENGTH) {
-                        // Empty index.
-                        setState(length, PagePointer.NO_OFFSET, 0);
-                        return CompletableFuture.completedFuture(null);
-                    }
-
-                    long footerOffset = getFooterOffset(length);
-                    return this.read
-                            .apply(footerOffset, FOOTER_LENGTH, timer.getRemaining())
-                            .thenAccept(footer -> initialize(footer, footerOffset, length));
-                });
-    }
-
-    /**
-     * Initializes the BTreeIndex using information from the given footer.
-     *
-     * @param footer       A ByteArraySegment representing the footer that was written with the last update.
-     * @param footerOffset The offset within the data source where the footer is located at.
-     * @param indexLength  The length of the index, in bytes, in the data source.
-     */
-    private void initialize(ByteArraySegment footer, long footerOffset, long indexLength) {
-        if (footer.getLength() != FOOTER_LENGTH) {
-            throw new IllegalDataFormatException(String.format("Wrong footer length. Expected %s, actual %s.", FOOTER_LENGTH, footer.getLength()));
-        }
-
-        long rootPageOffset = getRootPageOffset(footer);
-        int rootPageLength = getRootPageLength(footer);
-        if (rootPageOffset + rootPageLength > footerOffset) {
-            throw new IllegalDataFormatException(String.format("Wrong footer information. RootPage Offset (%s) + Length (%s) exceeds Footer Offset (%s).",
-                    rootPageOffset, rootPageLength, footerOffset));
-        }
-
-        setState(indexLength, rootPageOffset, rootPageLength);
+        return fetchIndexState(timeout).thenAccept(this.state::set);
     }
 
     /**
@@ -244,12 +217,13 @@ public class BTreeIndex {
      *
      * @param keys    A list of ByteArraySegments representing the keys to look up.
      * @param timeout Timeout for the operation.
+     * @param <T>     Type of the keys. Must derive from {@link ByteArraySegment}.
      * @return A CompletableFuture that, when completed normally, will contain a List with ByteArraySegments representing
      * the values associated with the given keys. The values in this list will be in the same order as the given Keys, so
      * they can be matched to their sought keys by their index. If the operation failed, the Future
      * will be completed with the appropriate exception.
      */
-    public CompletableFuture<List<ByteArraySegment>> get(@NonNull List<ByteArraySegment> keys, @NonNull Duration timeout) {
+    public <T extends ByteArraySegment> CompletableFuture<List<ByteArraySegment>> get(@NonNull List<T> keys, @NonNull Duration timeout) {
         if (keys.size() == 1) {
             // Shortcut for single key.
             return get(keys.get(0), timeout).thenApply(Collections::singletonList);
@@ -812,12 +786,15 @@ public class BTreeIndex {
         // Write a footer with information about locating the root page.
         Preconditions.checkArgument(lastPage != null && lastPage.getParent() == null, "Last page to be written is not the root page");
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
-        pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
+        ByteArraySegment footerPage = createFooterPage(lastPage.getOffset(), lastPage.getPage().getLength());
+        if (footerPage != null) {
+            pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, createFooterPage(lastPage.getOffset(), lastPage.getPage().getLength())));
 
-        // Collect the old footer's offset, as it will be replaced by a more recent value.
-        long oldFooterOffset = getFooterOffset(state.length);
-        if (oldFooterOffset >= 0) {
-            oldOffsets.add(oldFooterOffset);
+            // Also collect the old footer's offset, as it will be replaced by a more recent value.
+            long oldFooterOffset = getFooterOffset(state.length);
+            if (oldFooterOffset >= 0) {
+                oldOffsets.add(oldFooterOffset);
+            }
         }
 
         // Collect the offsets of removed pages. These are no longer needed.
@@ -828,8 +805,8 @@ public class BTreeIndex {
         int rootLength = lastPage.getPage().getContents().getLength();
         long rootMinOffset = lastPage.getMinOffset();
         assert rootMinOffset >= 0 : "root.MinOffset not set";
-        return this.write.apply(pages, oldOffsets, rootMinOffset, timeout)
-                         .thenApply(indexLength -> setState(indexLength, rootOffset, rootLength).length);
+        return writeInternal(pages, oldOffsets, rootMinOffset, rootOffset, rootLength, timeout)
+                .thenApply(indexLength -> setState(indexLength, rootOffset, rootLength).length);
     }
 
     private IndexState setState(long length, long rootPageOffset, int rootPageLength) {
@@ -839,28 +816,57 @@ public class BTreeIndex {
         return s;
     }
 
-    private long getFooterOffset(long indexLength) {
-        return indexLength - FOOTER_LENGTH;
-    }
-
-    private ByteArraySegment getFooter(long rootPageOffset, int rootPageLength) {
-        byte[] result = new byte[FOOTER_LENGTH];
-        BitConverter.writeLong(result, 0, rootPageOffset);
-        BitConverter.writeInt(result, Long.BYTES, rootPageLength);
-        return new ByteArraySegment(result);
-    }
-
-    private long getRootPageOffset(ByteArraySegment footer) {
-        return BitConverter.readLong(footer, 0);
-    }
-
-    private int getRootPageLength(ByteArraySegment footer) {
-        return BitConverter.readInt(footer, Long.BYTES);
-    }
-
     private void ensureInitialized() {
         Preconditions.checkArgument(isInitialized(), "BTreeIndex is not initialized.");
     }
+
+    //endregion
+
+    //region Abstract Methods
+
+    /**
+     * When overridden in a derived class, this method will retrieve the {@link IndexState} from wherever it is stored.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the {@link IndexState}.
+     */
+    protected abstract CompletableFuture<IndexState> fetchIndexState(Duration timeout);
+
+    /**
+     * When overridden in a derived class, this method will atomically persist the given Pages and the {@link IndexState}
+     * (which will need to be constructed using the new index length).
+     *
+     * @param pageContents    An ordered List of Offset-ByteArraySegments pairs representing the contents of the
+     *                        individual pages mapped to their assigned Offsets.
+     * @param obsoleteOffsets A Collection of offsets for Pages that are no longer relevant.
+     * @param truncateOffset  An offset within the external data source before which there is no useful data anymore.
+     * @param rootOffset      The new offset of the root page.
+     * @param rootLength      The new root page length.
+     * @param timeout         Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the new length of the index.
+     */
+    protected abstract CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> pageContents,
+                                                             Collection<Long> obsoleteOffsets, long truncateOffset,
+                                                             long rootOffset, int rootLength, Duration timeout);
+
+    /**
+     * When overridden in a derived class, will generate a {@link ByteArraySegment} that will be added to the list of
+     * pages to be persisted (invoked in {@link #writePages}). If it returns null, no such page will be added.
+     *
+     * @param rootPageOffset The offset of the root page.
+     * @param rootPageLength The length of the root page.
+     * @return A {@link ByteArraySegment} or null.
+     */
+    protected abstract ByteArraySegment createFooterPage(long rootPageOffset, int rootPageLength);
+
+    /**
+     * When overridden in a derived class, this will calculate the offset of the Footer Page. If {@link #createFooterPage}
+     * returns null, this method will not be invoked at all.
+     *
+     * @param indexLength The index length on which to base the calculation.
+     * @return The offset of the Footer Page.
+     */
+    protected abstract long getFooterOffset(long indexLength);
 
     //endregion
 
@@ -885,7 +891,7 @@ public class BTreeIndex {
     //region IndexState
 
     @RequiredArgsConstructor
-    private static class IndexState {
+    static class IndexState {
         private final long length;
         private final long rootPageOffset;
         private final int rootPageLength;
@@ -899,14 +905,6 @@ public class BTreeIndex {
     //endregion
 
     //region Functional Interfaces
-
-    /**
-     * Defines a method that, when invoked, returns the Length of the Index in the external data source.
-     */
-    @FunctionalInterface
-    public interface GetLength {
-        CompletableFuture<Long> apply(Duration timeout);
-    }
 
     /**
      * Defines a method that, when invoked, reads the contents of a single BTreePage from the external data source.
@@ -925,31 +923,89 @@ public class BTreeIndex {
         CompletableFuture<ByteArraySegment> apply(long offset, int length, Duration timeout);
     }
 
-    /**
-     * Defines a method that, when invoked, writes the contents of contiguous BTreePages to the external data source.
-     */
-    @FunctionalInterface
-    public interface WritePages {
-        /**
-         * Persists the contents of multiple, contiguous Pages to an external data source.
-         *
-         * @param pageContents    An ordered List of Offset-ByteArraySegments pairs representing the contents of the
-         *                        individual pages mapped to their assigned Offsets. The list is ordered by Offset (Keys).
-         *                        All entries should be contiguous (an entry's offset is equal to the previous entry's
-         *                        offset + the previous entry's length).
-         * @param obsoleteOffsets A Collection of offsets for Pages that are no longer relevant. It should be safe to evict
-         *                        these from any caching structure involved, however the data should not be removed from
-         *                        the data source.
-         * @param truncateOffset  An offset within the external data source before which there is no useful data anymore.
-         *                        Any data prior to this offset can be safely truncated out (as long as subsequent offsets
-         *                        are preserved and do not "shift" downwards - i.e., we have consistent reads).
-         * @param timeout         Timeout for the operation.
-         * @return A CompletableFuture that, when completed, will contain the current length (in bytes) of the index in the
-         * external data source.
-         */
-        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Collection<Long> obsoleteOffsets,
-                                      long truncateOffset, Duration timeout);
-    }
+    //endregion
 
+    //region Builder
+
+    /**
+     * Base Builder for a {@link BTreeIndex}.
+     *
+     * @param <T> Builder Type.
+     */
+    static abstract class Builder<T extends Builder> {
+        protected int maxPageSize;
+        protected int keyLength;
+        protected int valueLength;
+        protected BTreeIndex.ReadPage readPage;
+        protected Executor executor;
+
+        /**
+         * Creates a new instance of the {@link BTreeIndex} class using the information supplied to this builder.
+         *
+         * @return A new {@link BTreeIndex}.
+         */
+        public abstract BTreeIndex build();
+
+        /**
+         * Returns this object. This is needed in order to have all the setter methods return an object of the correct
+         * type (as opposed from the base type).
+         */
+        protected abstract T getThis();
+
+        /**
+         * Sets the maximum page size for the {@link BTreeIndex}.
+         *
+         * @param maxPageSize The maximum page size.
+         * @return This object.
+         */
+        public T maxPageSize(int maxPageSize) {
+            this.maxPageSize = maxPageSize;
+            return getThis();
+        }
+
+        /**
+         * Sets the length (in bytes) of all keys for this {@link BTreeIndex}.
+         *
+         * @param keyLength The length of all keys.
+         * @return This object.
+         */
+        public T keyLength(int keyLength) {
+            this.keyLength = keyLength;
+            return getThis();
+        }
+
+        /**
+         * Sets the length (in bytes) of the all values for this {@link BTreeIndex}.
+         *
+         * @param valueLength The length of the value field.
+         * @return This object.
+         */
+        public T valueLength(int valueLength) {
+            this.valueLength = valueLength;
+            return getThis();
+        }
+
+        /**
+         * Sets the {@link ReadPage} function that can be used to fetch pages from the external data source.
+         *
+         * @param readPage The function to set.
+         * @return This object.
+         */
+        public T readPage(ReadPage readPage) {
+            this.readPage = readPage;
+            return getThis();
+        }
+
+        /**
+         * Sets the Executor for this {@link BTreeIndex}.
+         *
+         * @param executor The Executor to set.
+         * @return This object.
+         */
+        public T executor(Executor executor) {
+            this.executor = executor;
+            return getThis();
+        }
+    }
     //endregion
 }
