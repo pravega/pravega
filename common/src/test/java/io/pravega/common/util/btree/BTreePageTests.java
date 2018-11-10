@@ -456,7 +456,7 @@ public class BTreePageTests {
     }
 
     private List<PageEntry> toDelete(List<ByteArraySegment> keys) {
-        return keys.stream().map(k -> new PageEntry(k, null)).collect(Collectors.toList());
+        return keys.stream().map(PageEntry::noValue).collect(Collectors.toList());
     }
 
     private ByteArraySegment serializeInt(int value) {

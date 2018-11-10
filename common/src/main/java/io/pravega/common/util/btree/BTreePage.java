@@ -370,7 +370,9 @@ class BTreePage {
      * * May overflow (a split may be necessary)
      * * Will have all entries sorted by Key
      *
-     * @param entries The Entries to insert or update. This collection must be sorted by {@link PageEntry#getKey()}.
+     * @param entries The Entries to insert or update. This List must be sorted by {@link PageEntry#getKey()}.
+     * @throws IllegalDataFormatException If any of the entries do not conform to the Key/Value size constraints.
+     * @throws IllegalArgumentException   If the entries are not sorted by {@link PageEntry#getKey()}.
      */
     void update(@NonNull List<PageEntry> entries) {
         if (entries.isEmpty()) {
@@ -452,10 +454,13 @@ class BTreePage {
 
     /**
      * Updates (in-place) the contents of this BTreePage with the given entries for those Keys that already exist. For
-     * all the new Keys, collects them into a List and calculates the offset where they would have to be inserted.
+     * all the new or deleted Keys, collects them into a List and calculates the offset where they would have to be
+     * inserted at or removed from.
      *
-     * @param entries A Collection of PageEntries to update.
-     * @return An {@link ChangeInfo} object.
+     * @param entries A List of PageEntries to update, in sorted order by {@link PageEntry#getKey()}.
+     * @return A {@link ChangeInfo} object.
+     * @throws IllegalDataFormatException If any of the entries do not conform to the Key/Value size constraints.
+     * @throws IllegalArgumentException   If the entries are not sorted by {@link PageEntry#getKey()}.
      */
     private ChangeInfo applyUpdates(List<PageEntry> entries) {
         // Keep track of new keys to be added along with the offset (in the original page) where they would have belonged.
@@ -620,6 +625,9 @@ class BTreePage {
 
     //region ChangeInfo
 
+    /**
+     * Keeps track of updates that would result in structural changes to the Page.
+     */
     @RequiredArgsConstructor
     private static class ChangeInfo {
         /**
@@ -627,7 +635,13 @@ class BTreePage {
          * remove and at which offset.
          */
         private final List<Map.Entry<Integer, PageEntry>> changes;
+        /**
+         * The number of insertions.
+         */
         private final int insertCount;
+        /**
+         * The number of removals.
+         */
         private final int deleteCount;
     }
 

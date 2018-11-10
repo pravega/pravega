@@ -151,7 +151,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             boolean update = i % 2 == 0;
             if (delete && !update) {
                 // Delete about 1/3 of the entries.
-                toUpdate.add(new PageEntry(expectedEntries.get(i).getKey(), null));
+                toUpdate.add(PageEntry.noValue(expectedEntries.get(i).getKey()));
                     expectedEntries.remove(i);
             }
 
@@ -367,7 +367,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             boolean delete = i % 3 == 0;
             if (delete) {
                 // Delete about 1/3 of the entries.
-                toDelete.add(new PageEntry(expectedEntries.get(i).getKey(), null));
+                toDelete.add(PageEntry.noValue(expectedEntries.get(i).getKey()));
                 expectedEntries.remove(i);
             }
         }
@@ -407,7 +407,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         while (firstIndex < count) {
             int batchSize = Math.min(deleteBatchSize, count - firstIndex);
             val toDelete = entries.subList(firstIndex, firstIndex + batchSize)
-                                  .stream().map(e -> new PageEntry(e.getKey(), null)).collect(Collectors.toList());
+                    .stream().map(e -> PageEntry.noValue(e.getKey())).collect(Collectors.toList());
             long retVal = index.update(toDelete, TIMEOUT).join();
             AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
 

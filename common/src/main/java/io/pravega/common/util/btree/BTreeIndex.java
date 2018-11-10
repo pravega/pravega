@@ -537,7 +537,7 @@ public abstract class BTreeIndex {
     private void processParentPage(PageWrapper parentPage, PageModificationContext context) {
         if (context.getDeletedPageKey() != null) {
             // We have a deleted page. Remove its pointer from the parent.
-            parentPage.getPage().update(Collections.singletonList(new PageEntry(context.getDeletedPageKey(), null)));
+            parentPage.getPage().update(Collections.singletonList(PageEntry.noValue(context.getDeletedPageKey())));
             parentPage.markNeedsFirstKeyUpdate();
         } else {
             // Update parent page's child pointers for modified pages.
