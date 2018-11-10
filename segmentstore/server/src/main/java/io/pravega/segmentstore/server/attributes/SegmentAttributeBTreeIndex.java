@@ -68,7 +68,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     /**
      * For Attribute Segment Appends, we want to write conditionally based on the offset, and retry the operation if
-     * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to put().
+     * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to update().
      */
     private static final Retry.RetryAndThrowBase<Exception> UPDATE_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
@@ -76,7 +76,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             .throwingOn(Exception.class);
 
     /**
-     * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Calls to get() and update() can execute concurrently, which means we can have concurrent reads and writes from/to the
      * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
      * if we stumble upon a segment truncation.
      */
@@ -275,7 +275,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     //region AttributeIndex Implementation
 
     @Override
-    public CompletableFuture<Void> put(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
+    public CompletableFuture<Void> update(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
         ensureInitialized();
         if (values.isEmpty()) {
             // Nothing to do.
@@ -323,18 +323,6 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                 })
                 .exceptionally(this::handleIndexOperationException);
 
-    }
-
-    @Override
-    public CompletableFuture<Void> remove(@NonNull Collection<UUID> keys, @NonNull Duration timeout) {
-        ensureInitialized();
-        if (keys.isEmpty()) {
-            // Nothing to do.
-            return CompletableFuture.completedFuture(null);
-        }
-
-        Collection<PageEntry> serializedKeys = keys.stream().map(key -> new PageEntry(serializeKey(key), null)).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.update(serializedKeys, tm), timeout);
     }
 
     @Override
@@ -415,7 +403,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         return new ByteArraySegment(result);
     }
 
-    private ByteArraySegment serializeValue(long value) {
+    private ByteArraySegment serializeValue(Long value) {
+        if (value == null) {
+            // Deletion.
+            return null;
+        }
+
         byte[] result = new byte[VALUE_LENGTH];
         BitConverter.writeLong(result, 0, value);
         return new ByteArraySegment(result);
