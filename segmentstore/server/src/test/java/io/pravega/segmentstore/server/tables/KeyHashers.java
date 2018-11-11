@@ -31,12 +31,12 @@ class KeyHashers {
     static final KeyHasher COLLISION_HASHER = KeyHasher.custom(KeyHashers::hashWithCollisions);
 
     /**
-     * 64-byte Hasher using {@link #HASH_CONFIG} and generating the same hash for all values.
+     * Hasher generating the same hash for all values.
      */
-    static final KeyHasher CONSTANT_HASHER = KeyHasher.custom(KeyHashers::hashConstant, HASH_CONFIG);
+    static final KeyHasher CONSTANT_HASHER = KeyHasher.custom(KeyHashers::hashConstant);
 
-    private static byte[] hashConstant(ArrayView arrayView) {
-        return new byte[HASH_CONFIG.getMinHashLengthBytes()];
+    private static byte[] hashConstant(ArrayView ignored) {
+        return new byte[KeyHasher.HASH_SIZE_BYTES];
     }
 
     private static byte[] hashWithCollisions(ArrayView arrayView) {

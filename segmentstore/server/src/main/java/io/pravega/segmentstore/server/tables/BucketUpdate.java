@@ -9,19 +9,15 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.HashedArray;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
-import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import lombok.val;
 
 /**
  * Represents an update to a Table Bucket.

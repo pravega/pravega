@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -209,7 +210,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, GetResultBuilder builder,
-                                                    Map<KeyHash, Long> bucketOffsets, TimeoutTimer timer) {
+                                                    Map<UUID, Long> bucketOffsets, TimeoutTimer timer) {
         val bucketReader = TableBucketReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
         int resultSize = builder.getHashes().size();
         for (int i = 0; i < resultSize; i++) {
@@ -317,7 +318,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
          * Sought keys's hashes, in the same order as the keys.
          */
         @Getter
-        private final List<KeyHash> hashes;
+        private final List<UUID> hashes;
 
         /**
          * A list of Futures with the results for each key, in the same order as the keys.

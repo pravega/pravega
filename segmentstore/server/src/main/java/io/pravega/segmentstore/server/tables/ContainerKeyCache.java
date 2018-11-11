@@ -16,7 +16,6 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.util.ArrayList;
@@ -24,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -154,7 +154,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * @param batch       An TableKeyBatch containing items whose Cache Entries need updating.
      * @param batchOffset Offset in the Segment where the first item in the TableKeyBatch has been written to.
      * @return A List of offsets for each item in the TableKeyBatch (in the same order) of where the latest value for that
-     * item's Key exists now. See {@link #includeExistingKey(long, HashedArray, long)} return doc for interpreting these values.
+     * item's Key exists now. See {@link #includeExistingKey} return doc for interpreting these values.
      */
     List<Long> includeUpdateBatch(long segmentId, TableKeyBatch batch, long batchOffset) {
         val result = new ArrayList<Supplier<Long>>(batch.getItems().size());
@@ -184,7 +184,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * new (un-indexed) keys.
      *
      * @param segmentId     The Segment Id.
-     * @param keyHash       A {@link HashedArray} representing the Key Hash to look up.
+     * @param keyHash       A UUID representing the Key Hash to look up.
      * @param segmentOffset The segment offset where this Key has its latest value. If positive, it indicates that the latest
      *                      value for the key is located here. If negative, it indicates that the Key has been removed and
      *                      the absolute value of this argument indicates the offset where the Key's removal is recorded.
@@ -192,7 +192,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * If this value does not equal segmentOffset, it means some other concurrent update changed this value, and that
      * value prevailed. This value could be negative (see segmentOffset doc).
      */
-    long includeExistingKey(long segmentId, HashedArray keyHash, long segmentOffset) {
+    long includeExistingKey(long segmentId, UUID keyHash, long segmentOffset) {
         Preconditions.checkArgument(segmentOffset >= 0, "segmentOffset must be non-negative.");
         CacheKey key = new CacheKey(segmentId, keyHash);
         CacheEntry entry;
@@ -212,13 +212,13 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Looks up a {@link KeyHash} cached offset for the given Segment.
+     * Looks up a cached offset for the given Segment.
      *
      * @param segmentId The Id of the Segment to look up for.
-     * @param keyHash   A {@link HashedArray} representing the Key Hash to look up.
+     * @param keyHash   A UUID representing the Key Hash to look up.
      * @return A {@link GetResult} representing the sought result.
      */
-    GetResult get(long segmentId, HashedArray keyHash) {
+    GetResult get(long segmentId, UUID keyHash) {
         CacheKey key = new CacheKey(segmentId, keyHash);
         CacheEntry entry;
         int generation;
@@ -327,7 +327,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
     }
 
-    private long updateEntryAndBackpointers(long segmentId, CacheEntry entry, HashedArray itemHash, long cacheSegmentOffset, int generation) {
+    private long updateEntryAndBackpointers(long segmentId, CacheEntry entry, UUID itemHash, long cacheSegmentOffset, int generation) {
         UpdateCacheResult ucr = entry.updateIfNewer(itemHash, cacheSegmentOffset, generation);
         if (ucr.getPreviousOffset() >= 0) {
             recordBackpointer(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset());
@@ -358,7 +358,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         private final long segmentId;
         private final int keyHashGroup;
 
-        CacheKey(long segmentId, HashedArray hash) {
+        CacheKey(long segmentId, UUID hash) {
             this.segmentId = segmentId;
             this.keyHashGroup = hash.hashCode();
         }
@@ -396,6 +396,8 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      */
     private class CacheEntry {
         private static final int HEADER_LENGTH = Integer.BYTES;
+        private static final int HASH_LENGTH = KeyHasher.HASH_SIZE_BYTES;
+        private static final int ENTRY_LENGTH = HEADER_LENGTH + HASH_LENGTH + VALUE_SERIALIZATION_LENGTH;
         private final CacheKey key;
         @GuardedBy("this")
         private int generation;
@@ -441,7 +443,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          *                          only be updated if at least one Attribute Value is fetched (cache hit).
          * @return See {@link ContainerKeyCache#get} return doc.
          */
-        GetResult get(HashedArray keyHash, int currentGeneration) {
+        GetResult get(UUID keyHash, int currentGeneration) {
             byte[] data = ContainerKeyCache.this.cache.get(this.key);
             int offset = locate(keyHash, data);
             if (offset >= 0) {
@@ -463,11 +465,11 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          * than the existing value.
          *
          * @param keyHash           The Key Hash to update.
-         * @param segmentOffset     See {@link ContainerKeyCache#includeExistingKey(long, HashedArray, long)} segmentOffset.
+         * @param segmentOffset     See {@link ContainerKeyCache#includeExistingKey} segmentOffset.
          * @param currentGeneration The current Cache Generation (from the Cache Manager).
          * @return See {@link ContainerKeyCache#includeExistingKey} return doc.
          */
-        synchronized UpdateCacheResult updateIfNewer(HashedArray keyHash, long segmentOffset, int currentGeneration) {
+        synchronized UpdateCacheResult updateIfNewer(UUID keyHash, long segmentOffset, int currentGeneration) {
             val decodedSegmentOffset = decodeValue(segmentOffset);
             byte[] entryData = ContainerKeyCache.this.cache.get(this.key);
             int entryOffset = locate(keyHash, entryData);
@@ -475,11 +477,11 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             if (entryOffset < 0) {
                 // No match. Need to create a new array, copy any existing data and add new Cache Value.
                 if (entryData == null) {
-                    entryData = new byte[HEADER_LENGTH + keyHash.getLength() + VALUE_SERIALIZATION_LENGTH];
+                    entryData = new byte[ENTRY_LENGTH];
                     entryOffset = HEADER_LENGTH;
                 } else {
                     byte[] newData;
-                    newData = new byte[entryData.length + keyHash.getLength() + VALUE_SERIALIZATION_LENGTH];
+                    newData = new byte[entryData.length + HASH_LENGTH + VALUE_SERIALIZATION_LENGTH];
                     System.arraycopy(entryData, 0, newData, 0, entryData.length);
                     entryOffset = entryData.length;
                     entryData = newData;
@@ -489,9 +491,8 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 int count = BitConverter.readInt(entryData, 0);
                 BitConverter.writeInt(entryData, 0, count + 1);
 
-                // Write the Key at the latest offset.
-                keyHash.copyTo(entryData, entryOffset, keyHash.getLength());
-                entryOffset += keyHash.getLength();
+                // Write the Key Hash at the latest offset.
+                entryOffset += serializeHash(entryData, entryOffset, keyHash);
             } else {
                 // We found a match. Verify if we can update it (needs to be newer than an offset for an existing entry).
                 existingOffset = decodeValue(deserializeCacheValue(entryData, entryOffset));
@@ -521,28 +522,28 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
          * @param data    The array to look into.
          * @return The offset of the CacheValue associated with the KeyHash, or -1 if not found.
          */
-        private int locate(HashedArray keyHash, byte[] data) {
+        private int locate(UUID keyHash, byte[] data) {
             if (data != null && data.length > 0) {
                 int count = BitConverter.readInt(data, 0);
                 int offset = Integer.BYTES;
-                byte[] keyHashArray = keyHash.array();
-                int keyHashLength = keyHash.getLength();
+                byte[] keyHashArray = new byte[HASH_LENGTH];
+                serializeHash(keyHashArray, 0, keyHash);
                 for (int i = 0; i < count; i++) {
                     // Check if the sought key matches the key at this index.
                     boolean match = true;
-                    for (int j = 0; j < keyHashLength; j++) {
-                        if (keyHashArray[keyHash.arrayOffset() + j] != data[offset + j]) {
+                    for (int j = 0; j < HASH_LENGTH; j++) {
+                        if (keyHashArray[j] != data[offset + j]) {
                             match = false;
                             break;
                         }
                     }
 
                     if (match) {
-                        return offset + keyHash.getLength(); // We return the offset of the value, not the key.
+                        return offset + HASH_LENGTH; // We return the offset of the value, not the key.
                     }
 
                     // No match; skip to the next entry.
-                    offset += keyHash.getLength() + VALUE_SERIALIZATION_LENGTH;
+                    offset += HASH_LENGTH + VALUE_SERIALIZATION_LENGTH;
                 }
             }
 
@@ -556,6 +557,12 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         private void serializeCacheValue(long value, byte[] target, int targetOffset) {
             BitConverter.writeLong(target, targetOffset, value);
         }
+
+        private int serializeHash(byte[] target, int targetOffset, UUID hash) {
+            BitConverter.writeLong(target, targetOffset, hash.getMostSignificantBits());
+            BitConverter.writeLong(target, targetOffset + Long.BYTES, hash.getLeastSignificantBits());
+            return 2 * Long.BYTES;
+        }
     }
 
     //endregion
@@ -563,7 +570,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     //region Other Helper classes
 
     /**
-     * Result from {@link #get(long, HashedArray)}.
+     * Result from {@link #get(long, UUID)}.
      */
     @Data
     static class GetResult {
