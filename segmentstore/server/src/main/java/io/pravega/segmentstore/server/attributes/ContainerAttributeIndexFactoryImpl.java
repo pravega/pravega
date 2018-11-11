@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.attributes;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.OperationLog;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import java.util.concurrent.ScheduledExecutorService;
@@ -43,7 +42,7 @@ public class ContainerAttributeIndexFactoryImpl implements AttributeIndexFactory
     }
 
     @Override
-    public ContainerAttributeIndexImpl createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage, OperationLog operationLog) {
-        return new ContainerAttributeIndexImpl(containerMetadata, storage, operationLog, this.cacheFactory, this.cacheManager, this.config, this.executor);
+    public ContainerAttributeIndexImpl createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage) {
+        return new ContainerAttributeIndexImpl(containerMetadata, storage, this.cacheFactory, this.cacheManager, this.config, this.executor);
     }
 }

@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
