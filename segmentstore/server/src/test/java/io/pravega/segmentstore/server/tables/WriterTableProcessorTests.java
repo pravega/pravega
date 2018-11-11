@@ -26,8 +26,6 @@ import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -37,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -218,8 +217,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         @Cleanup
         val context = new TestContext(hasher);
         val batches = generateAndPopulateEntries(context);
-        val allKeys = new HashMap<HashedArray, KeyHash>(); // All keys, whether added or removed.
+        val allKeys = new HashMap<HashedArray, UUID>(); // All keys, whether added or removed.
 
+        int i = 0;
         for (val batch : batches) {
             for (val op : batch.operations) {
                 context.processor.add(op);
@@ -247,7 +247,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, KeyHash> allKeys, TestContext context) throws Exception {
+    private void checkIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, UUID> allKeys, TestContext context) throws Exception {
         // Get all the buckets associated with the given keys.
         val timer = new TimeoutTimer(TIMEOUT);
         val bucketsByHash = context.indexReader.locateBuckets(allKeys.values(), context.segmentMock, timer)

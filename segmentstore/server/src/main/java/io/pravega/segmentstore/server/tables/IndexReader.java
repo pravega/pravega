@@ -13,25 +13,19 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.tables.hashing.HashConfig;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -42,53 +36,27 @@ import lombok.val;
  *
  * Index Structure:
  * - The index is organized as a collection of {@link TableBucket} instances.
- * - Each {@link TableBucket} corresponds to exactly one {@link KeyHash}, and may contain one or more entries.
+ * - Each {@link TableBucket} corresponds to exactly one Key Hash, and may contain one or more entries.
  * - A Table Key may occur at most once in a {@link TableBucket}.
  * - Multiple Table Keys in the same {@link TableBucket} are linked by means of Backpointers.
  * - Both {@link TableBucket}s and Backpointers are stored in the Segment's Extended Attributes, as described below.
  *
  * {@link TableBucket} Extended Attribute Implementation:
- * - The {@link KeyHash} is made up of N parts (based on the {@link HashConfig} used to construct it. Define them as H[1..N]
- * - H[1] is 16 bytes long, with its first bit ignored. H[2..N] are 12 bytes long each.
- * - H[1] is the only one required.
- * - H[i] (1&lt;i&lte;n) is only used if there exist at least one other {@link TableBucket} which shares H[1..i-1] with this one.
- * - Examples:
- * -- If only H[1] is required: {1}{H[1]} -> {SegmentOffset}
- * -- If H[1] to H[3] are required:: {1}{H[1]} -> {N1}; {01}{N1}{H[2]} -> {N2}; {01}{N2}{H[3]} -> {SegmentOffset}
- * -- If a second {@link TableBucket} shares H[1] and H[2], but not H[3] (it has H'[3]), we'll insert: {01}{N2}{H'[3]} -> {SegmentOffset2}
- * -- {A}{B} represents a bitwise concatenation of the values {A} and {B}
- * -- {SegmentOffset} is the offset of the (latest) Table Entry which belongs to the respective {@link TableBucket}
+ * - The Key Hash (a {@link UUID}) is used as a direct Extended Attribute entry. The {@link KeyHasher}, when generating
+ * this value, resolves any collisions with core attributes or Backpointer attributes.
+ * - The value of this attribute is the Segment Offset of the Table Entry with the highest offset of the {@link TableBucket}.
  *
  * Backpointers Extended Attribute Implementation:
- * - Backpointers are used to resolve collisions for those Table Entries whose Keys have the same {@link KeyHash} value.
- * -- In this case, we have exhausted all the {@link KeyHash}'s parts and can no longer disambiguate the {@link TableBucket}s.
+ * - Backpointers are used to resolve collisions for those Table Entries whose Keys have the same Key Hash.
  * - Backpointers are links from the Offset of a Table Entry to the Offset of a previous Table Entry in the same {@link TableBucket}.
- * -- They begin from the {@link TableBucket}'s SegmentOffset (see above) and are chained up until there are no more Table
- * Entries to link
- * -- They are similar to a singly linked list beginning from the last Table Entry in a {@link TableBucket}.
- * - Backpointers are represented as:
- * -- {64-bit-0s}{SourceOffset} -> {PreviousOffset}
- * -- {64-bit-0s} is a number made of 64 0 bits (i.e., a Long with a value of 0).
+ * -- They begin from the {@link TableBucket}'s SegmentOffset and are chained up until there are no more Table Entries left.
  */
+@RequiredArgsConstructor
 class IndexReader {
     //region Members
 
+    @NonNull
     protected final ScheduledExecutorService executor;
-    protected final AttributeCalculator attributeCalculator;
-
-    //endregion
-
-    //region Constructor
-
-    /**
-     * Creates a new instance of the IndexReader class.
-     *
-     * @param executor An Executor to use for async tasks.
-     */
-    IndexReader(@NonNull ScheduledExecutorService executor) {
-        this.executor = executor;
-        this.attributeCalculator = new AttributeCalculator();
-    }
 
     //endregion
 
@@ -105,51 +73,18 @@ class IndexReader {
     }
 
     /**
-     * Gets the current value of the {@link Attributes#TABLE_NODE_ID} attribute from the given {@link SegmentProperties}.
+     * Locates the {@link TableBucket}s for the given Key Hashes in the given Segment's Extended Attribute Index.
      *
-     * @param segmentInfo The {@link SegmentProperties} to examine.
-     * @return The value.
-     * @throws IllegalStateException If the stored value is missing, negative, or exceeds {@link AttributeCalculator#MAX_NODE_ID}.
-     */
-    int getTableNodeId(SegmentProperties segmentInfo) {
-        long value = segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_NODE_ID, -1L);
-        Preconditions.checkState(value >= 0 && value <= AttributeCalculator.MAX_NODE_ID,
-                "Illegal TABLE_NODE_ID. Must be non-negative and at most %s; found %s", AttributeCalculator.MAX_NODE_ID, value);
-        return (int) value;
-    }
-
-    /**
-     * Locates the {@link TableBucket}s for the given {@link KeyHash}es in the given Segment's Extended Attribute Index.
-     *
-     * @param keyHashes A Collection of {@link KeyHash}es to look up {@link TableBucket}s for.
+     * @param keyHashes A Collection of Key Hashes to look up {@link TableBucket}s for.
      * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.
      * @param timer     Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the requested Bucket information.
      */
-    CompletableFuture<Map<KeyHash, TableBucket>> locateBuckets(Collection<KeyHash> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
-        val toFetch = keyHashes.stream()
-                               .map(HashBucketBuilderPair::new)
-                               .collect(Collectors.toList());
-        val result = new HashMap<KeyHash, TableBucket>();
-        return Futures.loop(
-                () -> !toFetch.isEmpty(),
-                () -> fetchNextNodes(toFetch, segment, timer)
-                        .thenRun(() -> {
-                            val newToFetch = new ArrayList<HashBucketBuilderPair>();
-                            toFetch.forEach(b -> {
-                                val last = b.builder.getLastNode();
-                                if (last != null && last.isIndexNode() && b.moveNext()) {
-                                    newToFetch.add(b);
-                                } else {
-                                    result.put(b.keyHash, b.builder.build());
-                                }
-                            });
-
-                            toFetch.clear();
-                            toFetch.addAll(newToFetch);
-                        }),
-                this.executor)
-                      .thenApply(v -> result);
+    CompletableFuture<Map<UUID, TableBucket>> locateBuckets(Collection<UUID> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+        return segment
+                .getAttributes(keyHashes, false, timer.getRemaining())
+                .thenApply(attributes -> attributes.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> new TableBucket(e.getKey(), e.getValue()))));
     }
 
     /**
@@ -161,7 +96,7 @@ class IndexReader {
      * @return A CompletableFuture that, when completed, will contain the backpointer offset, or -1 if no such pointer exists.
      */
     CompletableFuture<Long> getBackpointerOffset(long offset, DirectSegmentAccess segment, Duration timeout) {
-        UUID key = this.attributeCalculator.getBackpointerAttributeKey(offset);
+        UUID key = getBackpointerAttributeKey(offset);
         return segment.getAttributes(Collections.singleton(key), false, timeout)
                       .thenApply(attributes -> {
                           long result = attributes.getOrDefault(key, Attributes.NULL_ATTRIBUTE_VALUE);
@@ -181,12 +116,8 @@ class IndexReader {
      */
     @VisibleForTesting
     CompletableFuture<List<Long>> getBucketOffsets(TableBucket bucket, DirectSegmentAccess segment, TimeoutTimer timer) {
-        if (bucket.isPartial()) {
-            return CompletableFuture.completedFuture(Collections.emptyList());
-        }
-
         val result = new ArrayList<Long>();
-        AtomicLong offset = new AtomicLong(getOffset(bucket.getLastNode()));
+        AtomicLong offset = new AtomicLong(bucket.getSegmentOffset());
         return Futures.loop(
                 () -> offset.get() >= 0,
                 () -> {
@@ -199,74 +130,28 @@ class IndexReader {
     }
 
     /**
-     * Extracts the SegmentOffset from the given non-index Node.
+     * Generates a 16-byte UUID that encodes the given Offset as a Backpointer (to some other offset).
+     * Format {0(64)}{Offset}
+     * - MSB is 0
+     * - LSB is Offset.
      *
-     * @param node The Node to extract from.
-     * @return The SegmentOffset.
+     * @param offset The offset to generate a backpointer from.
+     * @return A UUID representing the Attribute Key.
      */
-    long getOffset(TableBucket.Node node) {
-        Preconditions.checkArgument(!node.isIndexNode(), "Cannot extract offset from an Index Node");
-        return this.attributeCalculator.extractValue(node.getValue());
+    protected UUID getBackpointerAttributeKey(long offset) {
+        Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
+        return new UUID(TableBucket.BACKPOINTER_PREFIX, offset);
     }
 
-    private CompletableFuture<Void> fetchNextNodes(Collection<HashBucketBuilderPair> builders, DirectSegmentAccess segment, TimeoutTimer timer) {
-        // Fetch the node from the Segment's attributes, but we really shouldn't be caching the value, as it will only
-        // slow the retrieval down (it needs to be queued up in the Segment Container's processing queue, etc.) and it
-        // provides little value. For pure retrievals, the Key Hash itself will be cached alongside with its offset,
-        // while for updates, this value may be changed anyway, at which point it will be cached.
-        val toFetch = builders.stream().collect(Collectors.groupingBy(HashBucketBuilderPair::getCurrentKey));
-        return segment
-                .getAttributes(toFetch.keySet(), false, timer.getRemaining())
-                .thenAcceptAsync(attributes -> builders.forEach(b -> {
-                    long nodeValue = attributes.getOrDefault(b.getCurrentKey(), Attributes.NULL_ATTRIBUTE_VALUE);
-                    if (nodeValue == Attributes.NULL_ATTRIBUTE_VALUE) {
-                        // Found an index node that does not have any sub-branches for this hash.
-                        b.builder.node(null);
-                    } else {
-                        // We found a sub-node, record it.
-                        b.builder.node(new TableBucket.Node(
-                                this.attributeCalculator.isIndexNodePointer(nodeValue),
-                                b.getCurrentKey(),
-                                this.attributeCalculator.extractValue(nodeValue)));
-                    }
-                }), this.executor);
-    }
-
-    //endregion
-
-    //region HashBucketBuilderPair
-
-    @RequiredArgsConstructor
-    private class HashBucketBuilderPair {
-        final KeyHash keyHash;
-        final Iterator<ArrayView> hashIterator;
-        final TableBucket.TableBucketBuilder builder;
-        final AtomicReference<UUID> currentKey;
-
-        HashBucketBuilderPair(KeyHash keyHash) {
-            this.keyHash = keyHash;
-            this.hashIterator = keyHash.iterator();
-            this.builder = TableBucket.builder();
-            this.currentKey = new AtomicReference<>();
-            moveNext();
-        }
-
-        UUID getCurrentKey() {
-            return this.currentKey.get();
-        }
-
-        boolean moveNext() {
-            if (!this.hashIterator.hasNext()) {
-                this.currentKey.set(null);
-                return false;
-            }
-
-            val lastNode = this.builder.getLastNode();
-            this.currentKey.set(lastNode == null
-                    ? attributeCalculator.getPrimaryHashAttributeKey(this.hashIterator.next())
-                    : attributeCalculator.getSecondaryHashAttributeKey(this.hashIterator.next(), (int) lastNode.getValue()));
-            return true;
-        }
+    /**
+     * Determines if the given Attribute Key is Backpointer.
+     *
+     * @param key The Key to test.
+     * @return True if backpointer, false otherwise.
+     */
+    @VisibleForTesting
+    static boolean isBackpointerAttributeKey(UUID key) {
+        return key.getMostSignificantBits() == TableBucket.BACKPOINTER_PREFIX;
     }
 
     //endregion

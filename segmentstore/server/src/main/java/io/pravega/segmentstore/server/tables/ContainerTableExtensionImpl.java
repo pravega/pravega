@@ -12,8 +12,6 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorState;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -24,8 +22,6 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
-import io.pravega.segmentstore.server.tables.hashing.HashConfig;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
 import java.util.Collection;
@@ -44,7 +40,6 @@ import lombok.RequiredArgsConstructor;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
-    private static final HashConfig HASH_CONFIG = HashConfig.of(16, 12, 12, 12, 12);
     private final SegmentContainer segmentContainer;
     private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
@@ -69,7 +64,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.segmentContainer = segmentContainer;
         this.cacheManager = cacheManager;
         this.executor = executor;
-        this.hasher = KeyHasher.sha512(HASH_CONFIG);
+        this.hasher = KeyHasher.sha256();
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
     }
@@ -94,7 +89,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        if (!metadata.getAttributes().containsKey(Attributes.TABLE_NODE_ID)) {
+        if (!metadata.getAttributes().containsKey(Attributes.TABLE_INDEX_OFFSET)) {
             // Not a Table Segment; nothing to do.
             return Collections.emptyList();
         }
@@ -109,9 +104,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentContainer.createStreamSegment(segmentName,
-                Collections.singleton(new AttributeUpdate(Attributes.TABLE_NODE_ID, AttributeUpdateType.None, 1)),
-                timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, IndexWriter.generateInitialTableAttributes(), timeout);
     }
 
     @Override
