@@ -14,6 +14,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -92,8 +94,20 @@ class ZKStream extends PersistentStreamBase {
         this(scopeName, streamName, storeHelper, () -> 0);
     }
 
+    @VisibleForTesting
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize) {
+        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize);
+    }
+
+    @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier) {
-        super(scopeName, streamName);
+        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE);
+    }
+    
+    @VisibleForTesting
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
+             int chunkSize, int shardSize) {
+        super(scopeName, streamName, chunkSize, shardSize);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
