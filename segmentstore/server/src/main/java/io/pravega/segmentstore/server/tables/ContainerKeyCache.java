@@ -309,12 +309,12 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Gets a list of Hashes representing the unindexed Keys.
+     * Gets a list of Key Hashes representing the unindexed Keys.
      *
      * @param segmentId The Id of the Segment to get Hashes for.
      * @return The list.
      */
-    List<HashedArray> getTailHashes(long segmentId) {
+    List<UUID> getTailHashes(long segmentId) {
         SegmentIndexTail tail;
         synchronized (this.cacheEntries) {
             tail = this.indexTails.getOrDefault(segmentId, null);
@@ -331,10 +331,10 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * @param segmentId      The Id of the Segment to record the Tail Entry.
      * @param offset         The Entry's offset.
      * @param previousOffset The previous offset for this Entry.
-     * @param itemHash       A {@link HashedArray} representing the Entry's Key Hash.
+     * @param itemHash       A UUID representing the Entry's Key Hash.
      */
     @VisibleForTesting
-    void recordTailEntry(long segmentId, long offset, long previousOffset, HashedArray itemHash) {
+    void recordTailEntry(long segmentId, long offset, long previousOffset, UUID itemHash) {
         SegmentIndexTail tail;
         synchronized (this.cacheEntries) {
             tail = this.indexTails.getOrDefault(segmentId, null);
@@ -345,7 +345,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
     }
 
-    private long updateEntryAndBackpointers(long segmentId, CacheEntry entry, UUID itemHash, long cacheSegmentOffset, int generation) {
+    private long updateEntry(long segmentId, CacheEntry entry, UUID itemHash, long cacheSegmentOffset, int generation) {
         UpdateCacheResult ucr = entry.updateIfNewer(itemHash, cacheSegmentOffset, generation);
         if (ucr.getPreviousOffset() >= 0) {
             recordTailEntry(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset(), itemHash);
@@ -633,7 +633,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         @GuardedBy("this")
         private final HashMap<Long, Long> backpointers;
         @GuardedBy("this")
-        private final HashMap<HashedArray, Long> entries;
+        private final HashMap<UUID, Long> entries;
 
         SegmentIndexTail(long currentLastIndexedOffset) {
             Preconditions.checkArgument(currentLastIndexedOffset >= 0, "currentLastIndexedOffset must be a non-negative number.");
@@ -664,7 +664,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         /**
          * Records a new backpointer between the two offsets, but only if the sourceOffset is beyond {@link #getLastIndexedOffset()}.
          */
-        synchronized void recordTailEntry(long offset, long previousOffset, HashedArray itemHash) {
+        synchronized void recordTailEntry(long offset, long previousOffset, UUID itemHash) {
             Preconditions.checkArgument(offset > previousOffset, "offset must be greater than previousOffset");
             if (offset >= this.lastIndexedOffset) {
                 this.backpointers.put(offset, previousOffset);
@@ -682,7 +682,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         /**
          * Gets a list of all Entry Hashes in the this Index Tail.
          */
-        synchronized List<HashedArray> getEntries() {
+        synchronized List<UUID> getEntries() {
             return new ArrayList<>(this.entries.keySet());
         }
 

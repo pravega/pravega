@@ -39,7 +39,6 @@ class TableBucketIterator implements AsyncIterator<IteratorItem<TableBucket>> {
     private final AtomicReference<IteratorState> state;
     private final ScheduledExecutorService executor;
     private final Duration fetchTimeout;
-    private final AttributeCalculator attributeCalculator;
     private final ArrayDeque<UnindexedKey> unindexedKeys;
 
     TableBucketIterator(@NonNull DirectSegmentAccess segment, @NonNull List<HashedArray> unindexedKeyHashes, @NonNull KeyHasher hasher,
@@ -48,7 +47,6 @@ class TableBucketIterator implements AsyncIterator<IteratorItem<TableBucket>> {
         this.state = new AtomicReference<>(initialState);
         this.executor = executor;
         this.fetchTimeout = fetchTimeout;
-        this.attributeCalculator = new AttributeCalculator();
         this.unindexedKeys = getUnindexedKeys(unindexedKeyHashes, hasher);
     }
 
