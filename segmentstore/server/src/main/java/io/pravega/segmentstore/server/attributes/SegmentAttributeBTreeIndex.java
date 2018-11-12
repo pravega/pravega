@@ -21,6 +21,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.common.util.btree.PageEntry;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -123,7 +124,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
-        this.index = BTreeIndex.internalStateBuilder()
+        this.index = BTreeIndex.builder()
                                .keyLength(KEY_LENGTH)
                                .valueLength(VALUE_LENGTH)
                                .maxPageSize(this.config.getMaxIndexPageSize())
@@ -404,7 +405,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     }
 
     private ByteArraySegment serializeValue(Long value) {
-        if (value == null) {
+        if (value == null || value == Attributes.NULL_ATTRIBUTE_VALUE) {
             // Deletion.
             return null;
         }
