@@ -16,8 +16,6 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -75,26 +73,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 123456, ir.getLastIndexedOffset(si));
     }
 
-    /**
-     * Tests the {@link IndexReader#getOffset(TableBucket.Node)} method.
-     */
-    @Test
-    public void testGetOffset() {
-        long validValue = 1L;
-        val ir = newReader();
-        val ac = new AttributeCalculator();
-        AssertExtensions.assertThrows(
-                "getOffset() accepted an Index node.",
-                () -> ir.getOffset(new TableBucket.Node(true, UUID.randomUUID(), validValue)),
-                ex -> ex instanceof IllegalArgumentException);
-
-        // We generate a data node but purposefully assign it an Index Node value, since that actually encodes the value
-        // slightly differently and we want to make sure the getOffset() method calls the correct APIs to decode it.
-        val dataNode = new TableBucket.Node(false, UUID.randomUUID(), ac.getIndexNodeAttributeValue(validValue));
-        val offset = ir.getOffset(dataNode);
-        Assert.assertEquals("Unexpected result from getOffset().", validValue, offset);
-    }
-
     //endregion
 
     //region IndexWriter specific tests
@@ -106,8 +84,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     public void testGenerateInitialTableAttributes() {
         val updates = IndexWriter.generateInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-        Assert.assertEquals("Unexpected number of updates generated.", 2, values.size());
-        Assert.assertEquals("Unexpected value for TableNodeID.", 0L, (long) values.get(Attributes.TABLE_NODE_ID));
+        Assert.assertEquals("Unexpected number of updates generated.", 1, values.size());
         Assert.assertEquals("Unexpected value for TableIndexOffset.", 0L, (long) values.get(Attributes.TABLE_INDEX_OFFSET));
     }
 
@@ -118,13 +95,11 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     public void testGroupByBucket() {
         int bucketCount = 5;
         int hashesPerBucket = 5;
-        val hashToBuckets = new HashMap<KeyHash, TableBucket>();
+        val hashToBuckets = new HashMap<UUID, TableBucket>();
         val bucketsToKeys = new HashMap<TableBucket, ArrayList<BucketUpdate.KeyUpdate>>();
         val rnd = new Random(0);
         for (int i = 0; i < bucketCount; i++) {
-            val bucket = TableBucket.builder()
-                                    .node(new TableBucket.Node(false, UUID.randomUUID(), i))
-                                    .build();
+            val bucket = new TableBucket(UUID.randomUUID(), i);
 
             // Keep track of all KeyUpdates for this bucket.
             val keyUpdates = new ArrayList<BucketUpdate.KeyUpdate>();
@@ -132,7 +107,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
             // Generate keys, and record them where needed.
             for (int j = 0; j < hashesPerBucket; j++) {
-                byte[] key = new byte[KeyHashers.HASH_CONFIG.getMinHashLengthBytes() * 4];
+                byte[] key = new byte[KeyHasher.HASH_SIZE_BYTES * 4];
                 keyUpdates.add(new BucketUpdate.KeyUpdate(new HashedArray(key), i * hashesPerBucket + j, true));
                 rnd.nextBytes(key);
                 hashToBuckets.put(KeyHashers.DEFAULT_HASHER.hash(key), bucket);
@@ -325,15 +300,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // Since we removed all nodes, we are not expecting any collisions left, so no backpointers.
         checkNoBackpointers(segment);
 
-        // Verify that all surviving nodes are index nodes. We do this by figuring out how many times we incremented
-        // TABLE_NODE_ID, accounting for the fact that we have number of non-index attributes too and that it starts
-        // at some predefined value.
-        val initialAttribs = IndexWriter.generateInitialTableAttributes();
-        int expectedAttributeCount = w.getTableNodeId(segment.getInfo())
-                + initialAttribs.size()
-                - (int) initialAttribs.stream().filter(a -> a.getAttributeId() == Attributes.TABLE_NODE_ID).findFirst().get().getValue();
+        // Verify that all surviving attributes are the core indexing attributes.
+        val initialAttributeCount = IndexWriter.generateInitialTableAttributes().size();
         int attributeCount = segment.getAttributeCount();
-        Assert.assertEquals("Unexpected number of nodes left after complete removal.", expectedAttributeCount, attributeCount);
+        Assert.assertEquals("Unexpected number of nodes left after complete removal.", initialAttributeCount, attributeCount);
     }
 
     private void testUpdateAndRemove(KeyHasher hasher) {
@@ -422,10 +392,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
 
         // Apply the updates.
-        int prevNodeId = w.getTableNodeId(segment.getInfo());
         val attrCount = w.updateBuckets(bucketUpdates, segment, firstKeyOffset, postIndexOffset, TIMEOUT).join();
-        int newIndexNodeCount = w.getTableNodeId(segment.getInfo()) - prevNodeId;
-        Assert.assertEquals("Unexpected number of index nodes added.", newIndexNodeCount, (int) attrCount);
+        AssertExtensions.assertGreaterThan("Expected at least one attribute to be modified.", 0, attrCount);
 
         // Record the key as being updated.
         oldOffsets.forEach(existingKeys::remove);
@@ -458,7 +426,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             val bucket = buckets.get(hash);
             Assert.assertNotNull("No bucket found for hash " + hash, bucket);
             boolean allDeleted = keys.stream().allMatch(k -> k.getOffset() == NO_OFFSET);
-            Assert.assertEquals("Only expecting partial bucket when all its keys are deleted " + hash, allDeleted, bucket.isPartial());
+            Assert.assertNotEquals("Only expecting inexistent bucket when all its keys are deleted " + hash, allDeleted, bucket.exists());
             val bucketOffsets = w.getBucketOffsets(bucket, segment, timer).join();
 
             // Verify that we didn't return too many or too few keys.
@@ -490,8 +458,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     }
 
     private void checkNoBackpointers(SegmentMock segment) {
-        val ac = new AttributeCalculator();
-        int count = segment.getAttributeCount((id, value) -> ac.isBackpointerAttributeKey(id) && value != Attributes.NULL_ATTRIBUTE_VALUE);
+        int count = segment.getAttributeCount((id, value) -> IndexReader.isBackpointerAttributeKey(id) && value != Attributes.NULL_ATTRIBUTE_VALUE);
         Assert.assertEquals("Not expecting any backpointers.", 0, count);
     }
 
@@ -550,15 +517,15 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      * IndexWriter where the locateBuckets method has been overridden to return specific values.
      */
     private static class CustomLocateBucketIndexer extends IndexWriter {
-        private final Map<KeyHash, TableBucket> buckets;
+        private final Map<UUID, TableBucket> buckets;
 
-        CustomLocateBucketIndexer(KeyHasher keyHasher, ScheduledExecutorService executor, Map<KeyHash, TableBucket> buckets) {
+        CustomLocateBucketIndexer(KeyHasher keyHasher, ScheduledExecutorService executor, Map<UUID, TableBucket> buckets) {
             super(keyHasher, executor);
             this.buckets = buckets;
         }
 
         @Override
-        public CompletableFuture<Map<KeyHash, TableBucket>> locateBuckets(Collection<KeyHash> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+        public CompletableFuture<Map<UUID, TableBucket>> locateBuckets(Collection<UUID> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
             return CompletableFuture.completedFuture(
                     keyHashes.stream().collect(Collectors.toMap(k -> k, buckets::get)));
         }

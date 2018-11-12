@@ -9,6 +9,7 @@
  */
 package io.pravega.common.hash;
 
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.Random;
@@ -69,6 +70,16 @@ public class HashHelperTest {
             byte[] r = new byte[16];
             rnd.nextBytes(r);
             return r;
+        });
+    }
+
+    @Test
+    public void testHashToBucketByteArrayView() {
+        val rnd = new Random(0);
+        testBucketUniformity(HashHelper::hashToBucket, () -> {
+            byte[] r = new byte[16];
+            rnd.nextBytes(r);
+            return new ByteArraySegment(r);
         });
     }
 

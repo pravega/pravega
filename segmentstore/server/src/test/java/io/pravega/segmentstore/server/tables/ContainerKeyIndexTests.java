@@ -21,8 +21,6 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -35,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -281,8 +280,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
         val keys = generateUnversionedKeys(BATCH_SIZE, context);
         val offset = new AtomicLong();
-        val hashes = new ArrayList<KeyHash>();
-        val keysWithOffsets = new HashMap<KeyHash, KeyWithOffset>();
+        val hashes = new ArrayList<UUID>();
+        val keysWithOffsets = new HashMap<UUID, KeyWithOffset>();
         for (val k : keys) {
             val hash = HASHER.hash(k.getKey());
             hashes.add(hash);
@@ -336,8 +335,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
         val keys = generateUnversionedKeys(BATCH_SIZE, context);
         val offset = new AtomicLong();
-        val hashes = new ArrayList<KeyHash>();
-        val keysWithOffsets = new HashMap<KeyHash, KeyWithOffset>();
+        val hashes = new ArrayList<UUID>();
+        val keysWithOffsets = new HashMap<UUID, KeyWithOffset>();
         for (val k : keys) {
             val hash = HASHER.hash(k.getKey());
             hashes.add(hash);
@@ -434,10 +433,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof ObjectClosedException);
     }
 
-    private void checkKeyOffsets(List<KeyHash> allHashes, Map<KeyHash, KeyWithOffset> offsets, Map<KeyHash, Long> bucketOffsets) {
+    private void checkKeyOffsets(List<UUID> allHashes, Map<UUID, KeyWithOffset> offsets, Map<UUID, Long> bucketOffsets) {
         Assert.assertEquals("Unexpected number of results found.", allHashes.size(), bucketOffsets.size());
         for (int i = 0; i < allHashes.size(); i++) {
-            KeyHash hash = allHashes.get(i);
+            UUID hash = allHashes.get(i);
             KeyWithOffset ko = offsets.get(hash);
             long expectedValue = ko == null ? TableKey.NOT_EXISTS : ko.offset;
             Assert.assertEquals("Unexpected offset at index " + i, expectedValue, (long) bucketOffsets.get(hash));
@@ -473,10 +472,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val highestUpdateHashes = sortedUpdates.get(sortedUpdates.size() - 1).batch
                 .getItems().stream().map(TableKeyBatch.Item::getHash).collect(Collectors.toList());
 
-        Map<KeyHash, Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
+        Map<UUID, Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
         for (int updateId = sortedUpdates.size() - 1; updateId >= 0; updateId--) {
             // Generate the expected backpointers.
-            Map<KeyHash, Long> expectedBackpointers = new HashMap<>();
+            Map<UUID, Long> expectedBackpointers = new HashMap<>();
             if (updateId == 0) {
                 // For the first update, we do not expect any.
                 backpointerSources.keySet().forEach(k -> expectedBackpointers.put(k, -1L));
@@ -491,7 +490,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             }
 
             // Fetch the actual values.
-            Map<KeyHash, Long> actualBackpointers = backpointerSources
+            Map<UUID, Long> actualBackpointers = backpointerSources
                     .entrySet().stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> context.index.getBackpointerOffset(context.segment, e.getValue(), TIMEOUT).join()));
 

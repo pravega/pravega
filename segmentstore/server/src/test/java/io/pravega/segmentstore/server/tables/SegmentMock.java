@@ -114,7 +114,8 @@ class SegmentMock implements DirectSegmentAccess {
         return CompletableFuture.supplyAsync(() -> {
             synchronized (this) {
                 return attributeIds.stream()
-                                   .collect(Collectors.toMap(id -> id, id -> this.metadata.getAttributes().getOrDefault(id, Attributes.NULL_ATTRIBUTE_VALUE)));
+                        .distinct()
+                        .collect(Collectors.toMap(id -> id, id -> this.metadata.getAttributes().getOrDefault(id, Attributes.NULL_ATTRIBUTE_VALUE)));
             }
         }, this.executor);
     }

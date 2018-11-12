@@ -12,13 +12,12 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -37,7 +36,6 @@ public class ContainerKeyCacheTests {
     private static final int SEGMENT_COUNT = 3;
     private static final int KEYS_PER_SEGMENT = 1000;
     private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
-    private static final int SIMPLE_HASH_LENGTH = 64; // We use this to test sub-grouping inside the Cache Entry.
     private static final int HASH_HASHCODE_BUCKETS = 10; // This sub-groups the KeyHashes into smaller buckets (to test grouping).
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
@@ -58,7 +56,7 @@ public class ContainerKeyCacheTests {
         for (int i = 0; i < KEYS_PER_SEGMENT; i++) {
             // We reuse the same key hash across multiple "segments", to make sure that segmentId does indeed partition
             // the cache.
-            val keyHash = newSimpleHash(rnd);
+            val keyHash = newSimpleHash();
             for (long segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
                 long offset = i;
                 long updateResult = keyCache.includeExistingKey(segmentId, keyHash, offset);
@@ -91,7 +89,7 @@ public class ContainerKeyCacheTests {
 
         AssertExtensions.assertThrows(
                 "includeExistingKey() accepted negative offset.",
-                () -> keyCache.includeExistingKey(0, newSimpleHash(rnd), -1L),
+                () -> keyCache.includeExistingKey(0, newSimpleHash(), -1L),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -137,7 +135,7 @@ public class ContainerKeyCacheTests {
 
             // Add to the batch.
             val ignoredKey = newTableKey(rnd);
-            updateBatch.add(ignoredKey, (KeyHash) e.getKey().keyHash, ignoredKey.getKey().getLength());
+            updateBatch.add(ignoredKey, e.getKey().keyHash, ignoredKey.getKey().getLength());
             removeOffset = Math.max(removeOffset, newOffset + ignoredKey.getKey().getLength());
         }
 
@@ -179,7 +177,7 @@ public class ContainerKeyCacheTests {
 
             // Add to the batch.
             val ignoredKey = newTableKey(rnd);
-            removeBatch.add(ignoredKey, (KeyHash) e.getKey().keyHash, ignoredKey.getKey().getLength());
+            removeBatch.add(ignoredKey, e.getKey().keyHash, ignoredKey.getKey().getLength());
             removeOffset2 = Math.max(removeOffset2, offset);
         }
 
@@ -196,7 +194,7 @@ public class ContainerKeyCacheTests {
 
             // Add to the batch.
             val ignoredKey = newTableKey(rnd);
-            removeBatch.add(ignoredKey, (KeyHash) e.getKey().keyHash, ignoredKey.getKey().getLength());
+            removeBatch.add(ignoredKey, e.getKey().keyHash, ignoredKey.getKey().getLength());
         }
 
         // Apply batches and then verify the cache contents.
@@ -211,7 +209,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testClose() {
         final long segmentId = 0;
-        val keyHash = newSimpleHash(new Random(0));
+        val keyHash = newSimpleHash();
 
         @Cleanup
         val cacheFactory = new InMemoryCacheFactory();
@@ -435,10 +433,8 @@ public class ContainerKeyCacheTests {
         }
     }
 
-    private HashedArray newSimpleHash(Random rnd) {
-        byte[] buf = new byte[SIMPLE_HASH_LENGTH];
-        rnd.nextBytes(buf);
-        return new TestHashedArray(buf);
+    private UUID newSimpleHash() {
+        return UUID.randomUUID();
     }
 
     private TableKey newTableKey(Random rnd) {
@@ -450,7 +446,7 @@ public class ContainerKeyCacheTests {
     @RequiredArgsConstructor
     private static class TestKey {
         final long segmentId;
-        final HashedArray keyHash;
+        final UUID keyHash;
 
         @Override
         public int hashCode() {

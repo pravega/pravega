@@ -29,9 +29,6 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
-import io.pravega.segmentstore.server.tables.hashing.HashConfig;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.io.IOException;
 import java.time.Duration;
@@ -40,6 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,12 +55,6 @@ import lombok.val;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
-    private static final HashConfig HASH_CONFIG = HashConfig.of(
-            AttributeCalculator.PRIMARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH,
-            AttributeCalculator.SECONDARY_HASH_LENGTH);
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
@@ -85,7 +77,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      */
     public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory,
                                        CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(segmentContainer, cacheFactory, cacheManager, KeyHasher.sha512(HASH_CONFIG), executor);
+        this(segmentContainer, cacheFactory, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
@@ -132,7 +124,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        if (!metadata.getAttributes().containsKey(Attributes.TABLE_NODE_ID)) {
+        if (!metadata.getAttributes().containsKey(Attributes.TABLE_INDEX_OFFSET)) {
             // Not a Table Segment; nothing to do.
             return Collections.emptyList();
         }
@@ -147,9 +139,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentContainer.createStreamSegment(segmentName,
-                IndexWriter.generateInitialTableAttributes(),
-                timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, IndexWriter.generateInitialTableAttributes(), timeout);
     }
 
     @Override
@@ -223,7 +213,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     private CompletableFuture<List<TableEntry>> get(DirectSegmentAccess segment, GetResultBuilder builder,
-                                                    Map<KeyHash, Long> bucketOffsets, TimeoutTimer timer) {
+                                                    Map<UUID, Long> bucketOffsets, TimeoutTimer timer) {
         val bucketReader = TableBucketReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
         int resultSize = builder.getHashes().size();
         for (int i = 0; i < resultSize; i++) {
@@ -334,7 +324,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
          * Sought keys's hashes, in the same order as the keys.
          */
         @Getter
-        private final List<KeyHash> hashes;
+        private final List<UUID> hashes;
 
         /**
          * A list of Futures with the results for each key, in the same order as the keys.

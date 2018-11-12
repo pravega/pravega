@@ -10,9 +10,9 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -61,11 +61,11 @@ class TableKeyBatch {
      * Adds a new Item to this TableKeyBatch.
      *
      * @param key    The {@link TableKey} representing the Key to add.
-     * @param hash   The {@link KeyHash} corresponding to the Key.
+     * @param hash   The Key Hash corresponding to the Key.
      * @param length The serialized length of this Batch Entry. Note that this will almost always be larger than the size
      *               of the key, as it encompasses the whole Table Entry (which includes the value and other metadata as well).
      */
-    void add(TableKey key, KeyHash hash, int length) {
+    void add(TableKey key, UUID hash, int length) {
         Item item = new Item(key, hash, this.length);
         this.items.add(item);
         this.length += length;
@@ -93,9 +93,9 @@ class TableKeyBatch {
         private final TableKey key;
 
         /**
-         * The {@link KeyHash} that was computed for the key.
+         * The Key Hash that was computed for the key.
          */
-        private final KeyHash hash;
+        private final UUID hash;
 
         /**
          * The offset within the TableKeyBatch where this Item is located (NOTE: this is not the Segment Offset!).

@@ -23,7 +23,6 @@ import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -33,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -106,16 +106,16 @@ class ContainerKeyIndex implements AutoCloseable {
     //region Operations
 
     /**
-     * Find the Last Bucket Offsets for the given {@link KeyHash}es.
+     * Find the Last Bucket Offsets for the given KeyHashes.
      *
      * @param segment Segment to look up Bucket Offsets for.
-     * @param hashes  A list of {@link KeyHash} to identify the Buckets.
+     * @param hashes  A Collection of Key Hashes to identify the Buckets.
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the sought Offsets indexed by their corresponding
-     * {@link KeyHash}. If a particular bucket does not exist, its corresponding {@link KeyHash} will have a
-     * {@link TableKey#NOT_EXISTS} associated with it.
+     * Key Hash. If a particular bucket does not exist, its corresponding Key Hash will have a {@link TableKey#NOT_EXISTS}
+     * associated with it.
      */
-    CompletableFuture<Map<KeyHash, Long>> getBucketOffsets(DirectSegmentAccess segment, Collection<KeyHash> hashes, TimeoutTimer timer) {
+    CompletableFuture<Map<UUID, Long>> getBucketOffsets(DirectSegmentAccess segment, Collection<UUID> hashes, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         if (hashes.isEmpty()) {
@@ -125,9 +125,9 @@ class ContainerKeyIndex implements AutoCloseable {
 
         // Find those keys which already exist in the cache. The same hash may occur multiple times, but this process
         // helps dedupe it.
-        val result = new HashMap<KeyHash, Long>();
-        val toLookup = new ArrayList<KeyHash>();
-        for (KeyHash hash : hashes) {
+        val result = new HashMap<UUID, Long>();
+        val toLookup = new ArrayList<UUID>();
+        for (UUID hash : hashes) {
             if (result.containsKey(hash)) {
                 // This KeyHash has already been processed.
                 continue;
@@ -166,26 +166,26 @@ class ContainerKeyIndex implements AutoCloseable {
         }
     }
 
-    private CompletableFuture<Map<KeyHash, Long>> getBucketOffsetFromSegment(DirectSegmentAccess segment, Map<KeyHash, Long> result,
-                                                                             Collection<KeyHash> toLookup, TimeoutTimer timer) {
+    private CompletableFuture<Map<UUID, Long>> getBucketOffsetFromSegment(DirectSegmentAccess segment, Map<UUID, Long> result,
+                                                                          Collection<UUID> toLookup, TimeoutTimer timer) {
         return this.indexReader
                 .locateBuckets(toLookup, segment, timer)
                 .thenApplyAsync(bucketsByHash -> {
                     for (val e : bucketsByHash.entrySet()) {
-                        KeyHash keyHash = e.getKey();
+                        UUID keyHash = e.getKey();
                         TableBucket bucket = e.getValue();
 
                         // Cache the bucket's location, but only if its path is complete.
-                        if (bucket.isPartial()) {
-                            // Incomplete bucket. What we are looking for does not exist. Do not update the information
+                        if (bucket.exists()) {
+                            // Update the cache information.
+                            long highestOffset = this.cache.includeExistingKey(
+                                    segment.getSegmentId(), keyHash, bucket.getSegmentOffset());
+                            result.put(keyHash, highestOffset);
+                        } else {
+                            // Inexistent bucket. What we are looking for does not exist. Do not update the information
                             // in the cache as this would have the potential to fill up the cache with useless keys
                             // if the application requests a lot of them (excellent DoS opportunity!).
                             result.put(keyHash, TableKey.NOT_EXISTS);
-                        } else {
-                            // Update the cache information.
-                            long highestOffset = this.cache.includeExistingKey(segment.getSegmentId(), keyHash,
-                                    this.indexReader.getOffset(bucket.getLastNode()));
-                            result.put(keyHash, highestOffset);
                         }
                     }
 
@@ -295,7 +295,7 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     private CompletableFuture<Void> validateConditionalUpdate(DirectSegmentAccess segment, TableKeyBatch batch, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        List<KeyHash> hashes = batch.getVersionedItems().stream()
+        List<UUID> hashes = batch.getVersionedItems().stream()
                 .map(TableKeyBatch.Item::getHash)
                 .collect(Collectors.toList());
         CompletableFuture<Void> result = getBucketOffsets(segment, hashes, timer)
@@ -317,7 +317,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * Validates a list of UpdateBatchItems against their actual Table Bucket offsets.
      *
      * @param items         A list of {@link TableKeyBatch.Item} instances to validate.
-     * @param bucketOffsets A Map of {@link KeyHash} to their corresponding offsets (versions). Each {@link TableKeyBatch.Item}
+     * @param bucketOffsets A Map of Key Hashes to their corresponding offsets (versions). Each {@link TableKeyBatch.Item}
      *                      will be looked up in this Map (based on the Item's KeyHash) and validated appropriately.
      * @param segmentName   The name of the segment on which the update is performed.
      * @throws KeyNotExistsException  If an UpdateBatchItem's Key does not exist in the Table but the item's version does
@@ -326,7 +326,7 @@ class ContainerKeyIndex implements AutoCloseable {
      *                                different from that key's version.
      */
     @SneakyThrows(ConditionalTableUpdateException.class)
-    private void validateConditionalUpdate(List<TableKeyBatch.Item> items, Map<KeyHash, Long> bucketOffsets, String segmentName) {
+    private void validateConditionalUpdate(List<TableKeyBatch.Item> items, Map<UUID, Long> bucketOffsets, String segmentName) {
         val badKeyVersions = new HashMap<TableKey, Long>(); // Key = Key that failed, Value = Key's bucket offset.
         for (val item : items) {
             // Validate compareVersion.
@@ -363,12 +363,9 @@ class ContainerKeyIndex implements AutoCloseable {
                     val failed = new HashMap<TableKey, Long>();
                     for (val e : searches.entrySet()) {
                         val actual = e.getValue().join();
-                        boolean isValid = true;
-                        if (actual == null) {
-                            isValid = e.getKey().getVersion() == TableKey.NOT_EXISTS;
-                        } else {
-                            isValid = e.getKey().getVersion() == actual.getVersion();
-                        }
+                        boolean isValid = actual == null
+                                ? e.getKey().getVersion() == TableKey.NOT_EXISTS
+                                : e.getKey().getVersion() == actual.getVersion();
 
                         if (!isValid) {
                             failed.put(e.getKey(), actual == null ? TableKey.NOT_EXISTS : actual.getVersion());
