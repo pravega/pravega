@@ -13,9 +13,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,7 +30,7 @@ class AttributeMixer {
     private final ArrayDeque<Map.Entry<UUID, Long>> metadataAttributes;
     private final UUID fromId;
     private final UUID toId;
-    private final AtomicReference<UUID> lastBaseAttributeId;
+    private final AtomicReference<UUID> lastIndexAttribute;
 
     /**
      * Creates a new instance of the AttributeMixer class.
@@ -48,7 +48,7 @@ class AttributeMixer {
                 .collect(Collectors.toCollection(ArrayDeque::new));
         this.fromId = fromId;
         this.toId = toId;
-        this.lastBaseAttributeId = new AtomicReference<>();
+        this.lastIndexAttribute = new AtomicReference<>();
     }
 
     /**
@@ -62,16 +62,16 @@ class AttributeMixer {
      * - The entry will be added only if there is no corresponding updated value for its Attribute Id in the {@link SegmentMetadata},
      * If there is, then the updated value is used.
      *
-     * @param baseIterator An Iterator returning pairs of UUID to Long representing the base Attributes (i.e., from the
-     *                     SegmentAttributeIndex. This iterator must return the pairs in their natural order based on the
-     *                     {@link UUID#compareTo} comparer.
-     * @return A Map of UUID to Long containing all the Attributes from the base iterator, mixed with the appropriate
+     * @param indexAttributes A List containing pairs of UUID to Long representing the base Attributes (i.e., from the
+     *                        SegmentAttributeIndex. This iterator must return the pairs in their natural order based on
+     *                        the {@link UUID#compareTo} comparer.
+     * @return A List of Map Entries (UUID to Long) containing all the Attributes from the index, mixed with the appropriate
      * Attributes from the {@link SegmentMetadata} passed to this class' constructor. This will return null if both
-     * baseIterator is null and there are no more Attributes to process from the {@link SegmentMetadata}.
+     * indexAttributes is null and there are no more Attributes to process from the {@link SegmentMetadata}.
      */
-    Map<UUID, Long> mix(Iterator<Map.Entry<UUID, Long>> baseIterator) {
-        val result = new HashMap<UUID, Long>();
-        if (baseIterator == null) {
+    List<Map.Entry<UUID, Long>> mix(List<Map.Entry<UUID, Long>> indexAttributes) {
+        val result = new ArrayList<Map.Entry<UUID, Long>>();
+        if (indexAttributes == null) {
             // Nothing more in the base iterator. Add whatever is in the metadata attributes.
             while (!this.metadataAttributes.isEmpty()) {
                 include(this.metadataAttributes.removeFirst(), result);
@@ -79,18 +79,22 @@ class AttributeMixer {
 
             return result.isEmpty() ? null : result;
         } else {
-            // For each element in the base iterator, add all those in the metadata iterator that are smaller than it,
-            // then add it. Exclude those that are deleted.
-            while (baseIterator.hasNext()) {
-                val baseAttribute = baseIterator.next();
-                checkBaseAttribute(baseAttribute.getKey());
-                include(baseAttribute, result);
+            // For each element in the index, add all those in the metadata iterator that are smaller than it, then add it.
+            // Exclude those that are deleted.
+            for (val idxAttribute : indexAttributes) {
+                checkIndexAttribute(idxAttribute.getKey());
 
                 // Find all metadata attributes that are smaller or the same as the base attribute and include them all.
                 // This also handles value overrides (metadata attributes, if present, always have the latest value).
+                UUID lastMetadataAttribute = null;
                 while (!this.metadataAttributes.isEmpty()
-                        && this.metadataAttributes.peekFirst().getKey().compareTo(baseAttribute.getKey()) <= 0) {
-                    include(this.metadataAttributes.removeFirst(), result);
+                        && this.metadataAttributes.peekFirst().getKey().compareTo(idxAttribute.getKey()) <= 0) {
+                    lastMetadataAttribute = include(this.metadataAttributes.removeFirst(), result);
+                }
+
+                // Only add our element if it hasn't already been processed.
+                if (lastMetadataAttribute == null || !lastMetadataAttribute.equals(idxAttribute.getKey())) {
+                    include(idxAttribute, result);
                 }
             }
 
@@ -98,18 +102,17 @@ class AttributeMixer {
         }
     }
 
-    private void include(Map.Entry<UUID, Long> e, Map<UUID, Long> result) {
+    private UUID include(Map.Entry<UUID, Long> e, List<Map.Entry<UUID, Long>> result) {
         if (e.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
             // Only add non-deletion values.
-            result.put(e.getKey(), e.getValue());
-        } else {
-            // If we encounter a deleted value, make sure we remove it from the result.
-            result.remove(e.getKey());
+            result.add(e);
         }
+
+        return e.getKey();
     }
 
-    private void checkBaseAttribute(UUID attributeId) {
-        UUID prevId = this.lastBaseAttributeId.get();
+    private void checkIndexAttribute(UUID attributeId) {
+        UUID prevId = this.lastIndexAttribute.get();
         if (prevId != null) {
             Preconditions.checkArgument(prevId.compareTo(attributeId) < 0,
                     "baseIterator did not return Attributes in order. Expected at greater than {%s}, found {%s}.", prevId, attributeId);
@@ -119,6 +122,6 @@ class AttributeMixer {
                 "baseIterator returned an Attribute Id that was out of range. Expected between {%s} and {%s}, found {%s}.",
                 this.fromId, this.toId, attributeId);
 
-        this.lastBaseAttributeId.set(attributeId);
+        this.lastIndexAttribute.set(attributeId);
     }
 }

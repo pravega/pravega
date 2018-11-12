@@ -715,7 +715,8 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         });
     }
 
-    private CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(long segmentId, UUID fromId, UUID toId, Duration timeout) {
+    private CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(long segmentId, UUID fromId,
+                                                                                            UUID toId, Duration timeout) {
         return this.attributeIndex.forSegment(segmentId, timeout)
                 .thenApplyAsync(index -> {
                     AttributeMixer mixer = new AttributeMixer(this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
@@ -838,7 +839,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         @Override
-        public CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+        public CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
             ensureRunning();
             logRequest("attributeIterator", this.segmentId, fromId, toId);
             return StreamSegmentContainer.this.attributeIterator(this.segmentId, fromId, toId, timeout);

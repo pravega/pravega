@@ -124,7 +124,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             // The expected keys are all the Keys from the start index to the end index, excluding the outside-the-bounds values.
             val expectedIterator = sortedKeys.subList(Math.max(1, startIndex), Math.min(sortedKeys.size() - 1, lastIndex + 1)).iterator();
             val iterator = idx.iterator(fromId, toId, TIMEOUT);
-            iterator.forEachRemaining(batch -> batch.forEachRemaining(attribute -> {
+            iterator.forEachRemaining(batch -> batch.forEach(attribute -> {
                 Assert.assertTrue("Not expecting any more attributes in the iteration.", expectedIterator.hasNext());
                 val expectedId = expectedIterator.next();
                 val expectedValue = expectedValues.get(expectedId);
@@ -136,7 +136,6 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             // Verify there are no more attributes that we are expecting.
             Assert.assertFalse("Not all expected attributes were returned.", expectedIterator.hasNext());
         }
-
     }
 
     /**

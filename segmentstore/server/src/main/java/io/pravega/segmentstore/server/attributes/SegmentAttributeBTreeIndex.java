@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.attributes;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -37,12 +38,10 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -338,7 +337,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     }
 
     @Override
-    public AsyncIterator<Iterator<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
+    public AsyncIterator<List<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
         ensureInitialized();
         return this.index
                 .iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout)
@@ -346,10 +345,10 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     if (pageEntries == null) {
                         return null;
                     }
+
                     return pageEntries.stream()
-                                      .map(e -> (Map.Entry<UUID, Long>) new AbstractMap.SimpleImmutableEntry<>(
-                                              deserializeKey(e.getKey()), deserializeValue(e.getValue())))
-                                      .iterator();
+                                      .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                                      .collect(Collectors.toList());
                 });
     }
 

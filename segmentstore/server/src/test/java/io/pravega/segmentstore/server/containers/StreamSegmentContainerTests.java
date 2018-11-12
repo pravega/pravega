@@ -91,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1813,17 +1814,20 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             val expectedValues = allExpectedValues
                     .entrySet().stream()
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    .sorted(Comparator.comparing(Map.Entry::getKey))
+                    .collect(Collectors.toList());
 
-            val actualValues = new HashMap<UUID, Long>();
+            val actualValues = new ArrayList<Map.Entry<UUID, Long>>();
+            val ids = new HashSet<UUID>();
             val iterator = segment.attributeIterator(fromId, toId, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             iterator.forEachRemaining(batch ->
-                    batch.forEach((id, value) -> {
-                        Assert.assertFalse("Duplicate key found.", actualValues.containsKey(id));
-                        actualValues.put(id, value);
+                    batch.forEach(attribute -> {
+                        Assert.assertTrue("Duplicate key found.", ids.add(attribute.getKey()));
+                        actualValues.add(attribute);
                     }), executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-            AssertExtensions.assertMapEquals("Unexpected iterator result.", expectedValues, actualValues);
+            AssertExtensions.assertListEquals("Unexpected iterator result.", expectedValues, actualValues,
+                    (e1, e2) -> e1.getKey().equals(e2.getKey()) && e1.getValue().equals(e2.getValue()));
         }
     }
 

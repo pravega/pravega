@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server;
 import io.pravega.common.util.AsyncIterator;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -70,5 +70,5 @@ public interface AttributeIndex {
      * @param fetchTimeout Timeout for every index fetch.
      * @return A new {@link AsyncIterator} that will iterate through the given Attribute range.
      */
-    AsyncIterator<Iterator<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout);
+    AsyncIterator<List<Map.Entry<UUID, Long>>> iterator(UUID fromId, UUID toId, Duration fetchTimeout);
 }
