@@ -9,13 +9,14 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.collect.Maps;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -68,7 +69,7 @@ public class AttributeMixerTests {
     @Test
     public void testNotSorted() {
         val testData = createTestData(ITERATOR_COUNT, METADATA_COUNT);
-        testData.baseIterators.forEach(list -> {
+        testData.baseIteratorAttributes.forEach(list -> {
             if (list.size() > 1) {
                 val tmp = list.get(0);
                 list.set(0, list.get(1));
@@ -92,7 +93,7 @@ public class AttributeMixerTests {
     @Test
     public void testOutOfRange() {
         val testData = createTestData(ITERATOR_COUNT, METADATA_COUNT);
-        testData.baseIterators.forEach(list -> {
+        testData.baseIteratorAttributes.forEach(list -> {
             if (list.size() > 1) {
                 val tmp = list.get(0);
                 list.set(0, list.get(1));
@@ -117,32 +118,34 @@ public class AttributeMixerTests {
             val iterators = createIterators(testData, fromId, toId);
             val mixer = new AttributeMixer(testData.segmentMetadata, fromId, toId);
 
-            val finalResult = new HashMap<UUID, Long>();
+            val finalResult = new ArrayList<Map.Entry<UUID, Long>>();
+            val ids = new HashSet<UUID>();
             for (int j = 0; j < iterators.size(); j++) {
                 val intermediateResult = mixer.mix(iterators.get(j));
                 if (intermediateResult == null) {
                     Assert.assertEquals("Not expecting a null result for non-terminal input.", iterators.size() - 1, j);
                 } else {
-                    for (val e : intermediateResult.entrySet()) {
-                        Assert.assertFalse("Duplicate key found: " + e.getKey(), finalResult.containsKey(e.getKey()));
-                        finalResult.put(e.getKey(), e.getValue());
+                    for (val e : intermediateResult) {
+                        Assert.assertTrue("Duplicate key found: " + e.getKey(), ids.add(e.getKey()));
+                        finalResult.add(e);
                     }
                 }
             }
 
             val expectedResult = testData.expectedResult
-                    .entrySet().stream()
+                    .stream()
                     .filter(e -> isBetween(e.getKey(), fromId, toId))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    .collect(Collectors.toList());
 
-            AssertExtensions.assertMapEquals("Unexpected final result.", expectedResult, finalResult);
+            AssertExtensions.assertListEquals("Unexpected final result.", expectedResult, finalResult,
+                    (e1, e2) -> e1.getKey().equals(e2.getKey()) && e1.getValue().equals(e2.getValue()));
         }
     }
 
-    private List<Iterator<Map.Entry<UUID, Long>>> createIterators(TestData testData, UUID fromId, UUID toId) {
-        val result = testData.baseIterators
+    private List<List<Map.Entry<UUID, Long>>> createIterators(TestData testData, UUID fromId, UUID toId) {
+        val result = testData.baseIteratorAttributes
                 .stream()
-                .map(list -> list.stream().filter(e -> isBetween(e.getKey(), fromId, toId)).iterator())
+                .map(list -> list.stream().filter(e -> isBetween(e.getKey(), fromId, toId)).collect(Collectors.toList()))
                 .collect(Collectors.toList());
         result.add(null); // To indicate it's done.
         return result;
@@ -162,17 +165,17 @@ public class AttributeMixerTests {
         // Create base iterators.
         int iteratorSize = 0;
         for (int i = 0; i < baseIteratorCount; i++) {
-            val iteratorItems = new ArrayList<Map.Entry<UUID, Long>>(iteratorSize);
+            val indexItems = new ArrayList<Map.Entry<UUID, Long>>(iteratorSize);
             for (int j = 0; j < iteratorSize; j++) {
                 UUID attributeId = new UUID(nextAttributeId, nextAttributeId);
                 long attributeValue = rnd.nextLong();
-                iteratorItems.add(new AbstractMap.SimpleImmutableEntry<>(attributeId, attributeValue));
+                indexItems.add(Maps.immutableEntry(attributeId, attributeValue));
                 sortedAttributeIds.add(attributeId);
                 expectedResult.put(attributeId, attributeValue);
                 nextAttributeId++;
             }
 
-            builder.baseIterator(iteratorItems);
+            builder.baseIteratorAttribute(indexItems);
             iteratorSize++; // Next iterator will have one more item.
         }
 
@@ -196,19 +199,19 @@ public class AttributeMixerTests {
 
         sortedAttributeIds.addAll(metadata.getAttributes().keySet());
         sortedAttributeIds.sort(UUID::compareTo);
-        builder.sortedAttributeIds(sortedAttributeIds);
 
         return builder.segmentMetadata(metadata)
-                      .expectedResult(expectedResult)
+                      .expectedResult(expectedResult.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).collect(Collectors.toList()))
+                      .sortedAttributeIds(sortedAttributeIds)
                       .build();
     }
 
     @Builder
     private static class TestData {
-        @Singular
-        private final List<List<Map.Entry<UUID, Long>>> baseIterators;
         private final List<UUID> sortedAttributeIds;
+        @Singular
+        private final List<List<Map.Entry<UUID, Long>>> baseIteratorAttributes;
         private final SegmentMetadata segmentMetadata;
-        private final Map<UUID, Long> expectedResult;
+        private final List<Map.Entry<UUID, Long>> expectedResult;
     }
 }
