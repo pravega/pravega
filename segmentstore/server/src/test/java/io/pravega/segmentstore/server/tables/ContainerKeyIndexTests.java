@@ -462,7 +462,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         // Check UnindexedKeyHashes.
-        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join().stream().map(HASHER::wrap).collect(Collectors.toList());
+        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join();
         AssertExtensions.assertContainsSameElements("Unexpected result from getUnindexedKeyHashes",
                 highestUpdateHashes, unindexedHashes, (h1, h2) -> h1.equals(h2) ? 0 : 1);
     }

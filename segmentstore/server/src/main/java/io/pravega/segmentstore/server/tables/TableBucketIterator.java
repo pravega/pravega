@@ -9,25 +9,23 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.common.util.ArrayView;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
-import io.pravega.segmentstore.server.tables.hashing.KeyHash;
-import io.pravega.segmentstore.server.tables.hashing.KeyHasher;
 import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -36,84 +34,122 @@ import lombok.val;
 class TableBucketIterator implements AsyncIterator<IteratorItem<TableBucket>> {
     private static final int MIN_ITERATION_BATCH = 10; // Should we accept this via the input?
     private final DirectSegmentAccess segment;
-    private final AtomicReference<IteratorState> state;
+    private final AtomicReference<IteratorState> previousState;
     private final ScheduledExecutorService executor;
     private final Duration fetchTimeout;
-    private final ArrayDeque<UnindexedKey> unindexedKeys;
+    private final ArrayDeque<UUID> unindexedKeyHashes;
 
-    TableBucketIterator(@NonNull DirectSegmentAccess segment, @NonNull List<HashedArray> unindexedKeyHashes, @NonNull KeyHasher hasher,
-                        IteratorState initialState, @NonNull ScheduledExecutorService executor, @NonNull Duration fetchTimeout) {
+    TableBucketIterator(@NonNull DirectSegmentAccess segment, @NonNull List<UUID> unindexedKeyHashes,
+                        IteratorState previousState, @NonNull ScheduledExecutorService executor, @NonNull Duration fetchTimeout) {
         this.segment = segment;
-        this.state = new AtomicReference<>(initialState);
+        this.previousState = new AtomicReference<>(previousState == null ? IteratorState.START : previousState);
         this.executor = executor;
         this.fetchTimeout = fetchTimeout;
-        this.unindexedKeys = getUnindexedKeys(unindexedKeyHashes, hasher);
+        this.unindexedKeyHashes = getUnindexedKeyHashes(unindexedKeyHashes, this.previousState.get().getKeyHash());
     }
 
     //region AsyncIterator Implementation
 
     @Override
     public CompletableFuture<IteratorItem<TableBucket>> getNext() {
-        IteratorState state = this.state.get();
-        if(state != null && state.isEnd()){
+        // Calculate the current iteration's state, which is the one immediately after the one we have
+        IteratorState state = this.previousState.get();
+        if (state.isEnd()) {
             // We are done.
             return null;
         }
 
-        // We will not split the Primary Hash across multiple iterations; that is, if we include at least one Table Bucket
-        // with a particular Primary Hash, then we must include all Table Buckets with that Primary Hash. It is unlikely
-        // that keys will collide on the Primary Hash so, in general, there shouldn't be more than one level anyway.
+        UUID firstKeyHash = getNextKeyHash(state);
+        assert firstKeyHash != null && IteratorState.isValid(firstKeyHash) : "getNextKeyHash generated a null or invalid successor.";
 
-        // Determine the next Primary Hash to query.
-        UUID nextPrimaryHashKey = getNextPrimaryHash();
-        ArrayView nextPrimaryHash = this.attributeCalculator.getPrimaryHash(nextPrimaryHashKey);
+        // Create an Attribute Iterator that will give all Key Hashes from the one we are searching, then loop through
+        // it until we have enough TableBuckets to return or until we reach the end.
+        val buckets = new ArrayList<TableBucket>();
+        return this.segment
+                .attributeIterator(firstKeyHash, IteratorState.MAX_HASH, this.fetchTimeout)
+                .thenCompose(hashes -> processHashIterator(hashes, buckets))
+                .thenApply(v -> {
+                    IteratorState newState = buckets.isEmpty()
+                            ? IteratorState.END
+                            : new IteratorState(buckets.get(buckets.size() - 1).getHash());
+                    val result = new IteratorItem<TableBucket>(newState.serialize(), buckets);
+                    if (!this.previousState.compareAndSet(state, newState)) {
+                        throw new IllegalStateException("Concurrent call to getNext() detected.");
+                    }
 
-        // Filter out all those Unindexed Keys which have a PH Key smaller than nextPrimaryHashKey.
-        while (!this.unindexedKeys.isEmpty() && nextPrimaryHashKey.compareTo(this.unindexedKeys.peekFirst().primaryHashKey) > 0) {
-            this.unindexedKeys.removeFirst();
-        }
-
-        // Create an Attribute Iterator that will give all Primary Hashes from the one we are searching.
-        return null;
-//        return segment.attributeIterator(nextPrimaryHashKey, AttributeCalculator.MAX_PRIMARY_HASH_KEY, fetchTimeout)
-//                .thenCompose(primaryHashIterator -> primaryHashIterator.compose(this::getAllBuckets, this.executor))
-//                .thenCompose(attributeIterator ->{
-//                    //For each result, load up all required secondary hashes to construct the buckets.
-//
-//
-//                    // 4. For each bucket returned above, include all Buckets/hashes from the ContainerKeyIndex which are equal to or
-//                    // below it. (this is very similar to the AttributeMixer - maybe reuse that methodology).
-//
-//                    // 5. Return when there is no more stuff to load or when we have loaded the minimum number of buckets.
-//                });
+                    return result;
+                });
     }
 
     //endregion
 
-    private UUID getNextPrimaryHash() {
-        val state = this.state.get();
-        return state == null
-                ? AttributeCalculator.MIN_PRIMARY_HASH_KEY
-                : this.attributeCalculator.getPrimaryHashAttributeKey(state.getLastPrimaryHash());
-
+    private CompletableFuture<Void> processHashIterator(AsyncIterator<List<Map.Entry<UUID, Long>>> hashIterator, List<TableBucket> buckets) {
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return Futures.loop(
+                canContinue::get,
+                () -> hashIterator.getNext().thenApplyAsync(attributes -> process(attributes, buckets), this.executor),
+                canContinue::set,
+                this.executor);
     }
 
-    private ArrayDeque<UnindexedKey> getUnindexedKeys(List<HashedArray> unindexedKeyHashes, KeyHasher hasher) {
-        return unindexedKeyHashes.stream()
-                .map(hasher::wrap)
-                .map(hash -> new UnindexedKey(this.attributeCalculator.getPrimaryHashAttributeKey(hash.subSegment(0, AttributeCalculator.PRIMARY_HASH_LENGTH)), hash))
-                .sorted(Comparator.comparing(u -> u.primaryHashKey))
-                .collect(Collectors.toCollection(ArrayDeque::new));
-    }
-
-    @RequiredArgsConstructor
-    private static class UnindexedKey {
-        private final UUID primaryHashKey;
-        private final KeyHash hash;
-
-        @Override
-        public String toString() {
-            return String.format("%s: %s", this.primaryHashKey, this.hash);
+    private boolean process(List<Map.Entry<UUID, Long>> attributes, List<TableBucket> buckets) {
+        if (attributes == null) {
+            // Nothing more to do.
+            return false;
         }
+
+        // Transform every eligible Attribute into a TableBucket and add it to the result.
+        for (val a : attributes) {
+            if (IteratorState.isValid(a.getKey()) && a.getValue() != Attributes.NULL_ATTRIBUTE_VALUE) {
+                buckets.add(new TableBucket(a.getKey(), a.getValue()));
+
+                // TODO For each bucket returned above, include all Buckets/hashes from the ContainerKeyIndex which are equal to or
+                // below it. (this is very similar to the AttributeMixer - maybe reuse that methodology).
+                //        while (!this.unindexedKeyHashes.isEmpty() && firstKeyHash.compareTo(this.unindexedKeyHashes.peekFirst()) > 0) {
+                //            this.unindexedKeyHashes.removeFirst();
+                //        }
+
+                // 5. Return when there is no more stuff to load or when we have loaded the minimum number of buckets.
+            }
+        }
+
+        // Once we reached our minimum number of elements we can stop.
+        return buckets.size() < MIN_ITERATION_BATCH;
+    }
+
+    private IteratorItem<TableBucket> createResult(List<TableBucket> buckets) {
+        IteratorState state = buckets.isEmpty() ? IteratorState.END : new IteratorState(buckets.get(buckets.size() - 1).getHash());
+        return new IteratorItem<>(state.serialize(), buckets);
+    }
+
+    /**
+     * Generates a new Key Hash that is immediately after the one from the given IteratorState. We define Key Hash H2 to
+     * be immediately after Key Hash h1 if there doesn't exist Key Hash H3 such that H1&lt;H3&lt;H2. The ordering is
+     * performed using {@link UUID#compareTo}.
+     *
+     * @return The successor Key Hash, or null if no more successors are available (if {@link IteratorState#isEnd} returns true).
+     */
+    private UUID getNextKeyHash(IteratorState state) {
+        if (state.isEnd()) {
+            return null;
+        }
+
+        long msb = state.getKeyHash().getMostSignificantBits();
+        long lsb = state.getKeyHash().getLeastSignificantBits();
+        if (lsb == Long.MAX_VALUE) {
+            msb++; // This won't overflow since we've checked that state is not end (i.e., id != MAX).
+            lsb = Long.MIN_VALUE;
+        } else {
+            lsb++;
+        }
+
+        return new UUID(msb, lsb);
+    }
+
+    private ArrayDeque<UUID> getUnindexedKeyHashes(List<UUID> unindexedKeyHashes, UUID firstHash) {
+        // Filter out the Hashes which are below our first hash, then sort them.
+        return unindexedKeyHashes.stream()
+                                 .filter(id -> id.compareTo(firstHash) > 0)
+                                 .sorted().collect(Collectors.toCollection(ArrayDeque::new));
     }
 }

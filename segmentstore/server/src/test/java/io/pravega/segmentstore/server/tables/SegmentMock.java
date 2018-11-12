@@ -23,9 +23,11 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -202,7 +204,7 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<Map<UUID, Long>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+    public CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> new AttributeIterator(this.metadata, fromId, toId), this.executor);
     }
 
@@ -210,7 +212,7 @@ class SegmentMock implements DirectSegmentAccess {
 
     //region AttributeIterator
 
-    private class AttributeIterator implements AsyncIterator<Map<UUID, Long>> {
+    private class AttributeIterator implements AsyncIterator<List<Map.Entry<UUID, Long>>> {
         private final int MAX_BATCH_SIZE = 5;
         @GuardedBy("attributes")
         private final ArrayDeque<Map.Entry<UUID, Long>> attributes;
@@ -224,13 +226,12 @@ class SegmentMock implements DirectSegmentAccess {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, Long>> getNext() {
+        public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.attributes) {
-                    val result = new HashMap<UUID, Long>();
+                    val result = new ArrayList<Map.Entry<UUID, Long>>();
                     while (!this.attributes.isEmpty() && result.size() < MAX_BATCH_SIZE) {
-                        val next = this.attributes.removeFirst();
-                        result.put(next.getKey(), next.getValue());
+                        result.add(this.attributes.removeFirst());
                     }
 
                     return result.isEmpty() ? null : result;

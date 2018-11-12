@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import java.util.List;
 import lombok.Data;
@@ -22,7 +23,7 @@ public class IteratorItem<T> {
      * Gets a byte array that represents the current state of the iteration. This value can be used to to reinvoke
      * {@link TableStore#iterator} if a previous iteration has been interrupted.
      */
-    private final byte[] state;
+    private final ArrayView state;
 
     /**
      * Gets a List of items that are contained in this instance. The items in this list are not necessarily related

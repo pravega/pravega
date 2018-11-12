@@ -327,12 +327,12 @@ public class ContainerKeyCacheTests {
         });
 
         // Record entries.
-        val expectedHashes = new HashMap<HashedArray, Long>();
-        HashedArray last = null;
+        val expectedHashes = new HashMap<UUID, Long>();
+        UUID last = null;
         for (int i = 1; i < count; i++) {
             // We change the hash every other update; we want to verify that it doesn't include it multiple times and
             // that the correct offset is recorded.
-            HashedArray hash = i % 2 == 0 ? last : KEY_HASHER.hash(newTableKey(rnd).getKey());
+            UUID hash = i % 2 == 0 ? last : KEY_HASHER.hash(newTableKey(rnd).getKey());
             keyCache.recordTailEntry(segmentId, i, i - 1, hash);
             expectedHashes.put(hash, (long) i);
             last = hash;

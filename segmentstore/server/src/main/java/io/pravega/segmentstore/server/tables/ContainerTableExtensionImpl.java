@@ -17,7 +17,6 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorBuilder;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
@@ -234,7 +233,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout) {
         return this.segmentContainer.forSegment(segmentName, timeout)
                 .thenComposeAsync(segment -> this.keyIndex.getUnindexedKeyHashes(segment)
-                        .thenApply(unindexedKeyHashes -> new TableIteratorBuilder(segment, unindexedKeyHashes)), this.executor);
+                                                          .thenApply(unindexedKeyHashes -> new TableIteratorBuilder(segment, unindexedKeyHashes, timeout)), this.executor);
     }
 
     //endregion
@@ -351,12 +350,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region TableIteratorBuilder
 
     /**
-     * Helps build Iterators over TableKeys or TableEntries.
+     * Helps build Iterators over Table Keys or Table Entries.
      */
     @RequiredArgsConstructor
     private class TableIteratorBuilder implements IteratorBuilder {
         private final DirectSegmentAccess segment;
-        private final List<HashedArray> unindexedKeyHashes;
+        private final List<UUID> unindexedKeyHashes;
+        private final Duration fetchTimeout;
         private IteratorState state;
 
         @Override
@@ -376,7 +376,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         private AsyncIterator<IteratorItem<TableBucket>> newBucketIterator() {
-            return new TableBucketIterator(segment, unindexedKeyHashes, hasher, state, executor);
+            return new TableBucketIterator(this.segment, this.unindexedKeyHashes, this.state,
+                    ContainerTableExtensionImpl.this.executor, this.fetchTimeout);
         }
     }
 
