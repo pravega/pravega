@@ -9,26 +9,44 @@
  */
 package io.pravega.test.system.framework.kubernetes;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.reflect.TypeToken;
 import io.kubernetes.client.ApiCallback;
 import io.kubernetes.client.ApiClient;
 import io.kubernetes.client.ApiException;
 import io.kubernetes.client.Configuration;
+import io.kubernetes.client.apis.ApiextensionsApi;
+import io.kubernetes.client.apis.ApiextensionsV1beta1Api;
+import io.kubernetes.client.apis.AppsV1Api;
 import io.kubernetes.client.apis.CoreV1Api;
+import io.kubernetes.client.apis.CustomObjectsApi;
+import io.kubernetes.client.apis.RbacAuthorizationV1beta1Api;
 import io.kubernetes.client.models.V1ContainerState;
 import io.kubernetes.client.models.V1ContainerStateTerminated;
 import io.kubernetes.client.models.V1ContainerStatus;
+import io.kubernetes.client.models.V1Deployment;
 import io.kubernetes.client.models.V1Namespace;
 import io.kubernetes.client.models.V1ObjectMeta;
+import io.kubernetes.client.models.V1ObjectMetaBuilder;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodBuilder;
 import io.kubernetes.client.models.V1PodList;
 import io.kubernetes.client.models.V1PodStatus;
+import io.kubernetes.client.models.V1beta1ClusterRole;
+import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionBuilder;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNames;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNamesBuilder;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpec;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpecBuilder;
 import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.Watch;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
+import io.pravega.test.system.framework.TestFrameworkException;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -39,11 +57,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
+
 @Slf4j
-public class K8Client {
+public class K8Client implements AutoCloseable {
 
 
     private static final String PRETTY_PRINT = null;
@@ -55,10 +76,15 @@ public class K8Client {
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
 
 
-    public K8Client() throws IOException {
-        this.client = Config.defaultClient();
-        client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS); //TODO finalize the time out.
-        Configuration.setDefaultApiClient(this.client);
+    public K8Client() {
+        try {
+            this.client = Config.defaultClient();
+            this.client.setDebugging(true); // delete TODO
+            this.client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS); //TODO finalize the time out.
+            Configuration.setDefaultApiClient(this.client);
+        } catch (IOException e) {
+            throw new TestFrameworkException(ConnectionFailed, "Connection to the k8 cluster failed, ensure .kube/config is configured correctly.", e);
+        }
     }
 
     public V1Namespace createNamespace(final String namespace) throws ApiException {
@@ -104,12 +130,18 @@ public class K8Client {
 
         api.createNamespaceAsync(body, PRETTY_PRINT, callback);
         return callback.getFuture()
-                       .whenComplete((r, t) -> {
-                           if (t instanceof ApiException) {
-                               ApiException e = (ApiException) t;
-                               if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
-                                   log.info("Namespace {} already present, ignoring the exception.", namespace);
+                       .handle((r, t) -> {
+                           if (t == null) {
+                               return r;
+                           } else {
+                               if (t instanceof ApiException) {
+                                   ApiException e = (ApiException) t;
+                                   if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                                       log.info("Namespace {} already present, ignoring the exception.", namespace);
+                                       return null;
+                                   }
                                }
+                               throw new CompletionException(t);
                            }
                        });
     }
@@ -120,13 +152,18 @@ public class K8Client {
         api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, callback);
 
         return callback.getFuture()
-                       .whenComplete((r, t) -> {
-                           if (t instanceof ApiException) {
-                               ApiException e = (ApiException) t;
-                               if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
-                                   log.info("Pod {} is already running in namespace {}, ignoring the exception.",
-                                            pod.getMetadata().getName(), namespace);
+                       .handle((r, t) -> {
+                           if (t == null) {
+                               return r;
+                           } else {
+                               if (t instanceof ApiException) {
+                                   ApiException e = (ApiException) t;
+                                   if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                                       log.info("Pod {} is already running in namespace {}, ignoring the exception.",
+                                                pod.getMetadata().getName(), namespace);
+                                   }
                                }
+                               throw new CompletionException(t);
                            }
                        });
     }
@@ -144,8 +181,135 @@ public class K8Client {
                        });
     }
 
-    public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName)
-            throws IOException, ApiException {
+
+    public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) throws IOException, ApiException {
+        AppsV1Api api = new AppsV1Api();
+        K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("deployment");
+        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, callback );
+
+        return callback.getFuture();
+    }
+
+    public CompletableFuture<Object> createCustomObject(String customResourceGroup, String version, String namespace,
+                                                         String plural, Map<String, Object> request) throws ApiException {
+        CustomObjectsApi api = new CustomObjectsApi();
+        K8AsyncCallback<Object> callback = new K8AsyncCallback<>("createCustomObject");
+        api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, callback);
+        return callback.getFuture();
+    }
+
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<Object> createAndUpdateCustomObject(String customResourceGroup, String version, String namespace,
+                                                        String plural, Map<String, Object> request) throws ApiException {
+        CustomObjectsApi api = new CustomObjectsApi();
+
+        //Fetch the name of the custom object.
+        String name = ((Map<String, String>) request.get("metadata")).get("name");
+        K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
+        api.getNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, callback);
+
+        return callback.getFuture().handle((o, t) -> {
+            CompletableFuture<Object> future = null;
+            if (t != null) {
+                log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it.", name, customResourceGroup, t);
+                try {
+                    //create object
+                    K8AsyncCallback<Object> cb = new K8AsyncCallback<>("createCustomObject");
+                    api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, cb);
+                    future = cb.getFuture();
+                } catch (ApiException e) {
+                    throw new CompletionException(e);
+                }
+            }
+            if (o != null) {
+                log.info("Instance {} of custom resource {}  exits, update it with the new request", name, customResourceGroup);
+                try {
+                    //patch object
+                    K8AsyncCallback<Object> cb = new K8AsyncCallback<>("patchCustomObject");
+                    api.patchNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, request, cb);
+                    future = cb.getFuture();
+                } catch (ApiException e) {
+                    throw new CompletionException(e);
+                }
+            }
+
+            return future;
+        });
+    }
+
+    public CompletableFuture<Object> customObjectStatus(String customResourceGroup, String version, String namespace,
+                                                        String plural, Map<String, Object> request) throws ApiException {
+        CustomObjectsApi api = new CustomObjectsApi();
+
+        K8AsyncCallback<Object> callback = new K8AsyncCallback<>("createCustomObject");
+
+        return callback.getFuture();
+    }
+
+    public CompletableFuture<V1beta1CustomResourceDefinition> createCRD(final V1beta1CustomResourceDefinition crd) throws ApiException {
+        ApiextensionsV1beta1Api api = new ApiextensionsV1beta1Api();
+        K8AsyncCallback<V1beta1CustomResourceDefinition> callback = new K8AsyncCallback<>("create CRD");
+        api.createCustomResourceDefinitionAsync(crd, PRETTY_PRINT, callback);
+
+        return callback.getFuture().handle((r, ex) -> {
+            if (ex == null) {
+                return r;
+            } else {
+                if (ex instanceof ApiException) {
+                    ApiException e = (ApiException) ex;
+                    if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                        log.info("CRD {} is already created, ignoring the exception.", crd.getMetadata().getName());
+                        return null;
+                    }
+                }
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    public CompletableFuture<V1beta1ClusterRole> createClusterRole(V1beta1ClusterRole role) throws ApiException {
+        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
+        K8AsyncCallback<V1beta1ClusterRole> callback = new K8AsyncCallback<>("createClusterRole");
+        api.createClusterRoleAsync(role, PRETTY_PRINT, callback);
+
+        return callback.getFuture().handle((r, ex) -> {
+            if (ex == null) {
+                return r;
+            } else {
+                if (ex instanceof ApiException) {
+                    ApiException e = (ApiException) ex;
+                    if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                        log.info("ClusterRole {} is already created, ignoring the exception.", role.getMetadata().getName());
+                        return null;
+                    }
+                }
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    public CompletableFuture<V1beta1ClusterRoleBinding> createClusterRoleBinding(V1beta1ClusterRoleBinding binding) throws ApiException {
+        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
+        K8AsyncCallback<V1beta1ClusterRoleBinding> callback = new K8AsyncCallback<>("createClusterRoleBinding");
+        api.createClusterRoleBindingAsync(binding, PRETTY_PRINT, callback);
+        return callback.getFuture().handle((r, ex) -> {
+            if (ex == null) {
+                return r;
+            } else {
+                if (ex instanceof ApiException) {
+                    ApiException e = (ApiException) ex;
+                    if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                        log.info("ClusterRoleBinding {} is already present, ignoring the exception.", binding.getMetadata().getName());
+                        return null;
+                    }
+                }
+                throw new CompletionException(ex);
+            }
+        });
+
+    }
+
+    public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName) {
 
         CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
 
@@ -201,6 +365,12 @@ public class K8Client {
         return Optional.empty();
     }
 
+    @Override
+    public void close() {
+        ExecutorServiceHelpers.shutdown(executor);
+
+    }
+
     private static class K8AsyncCallback<T> implements ApiCallback<T> {
         private final String method;
         private T result = null;
@@ -245,6 +415,8 @@ public class K8Client {
 
         String namespace = "test123";
         client.createNamespace(namespace);
+
+
 
         //        String testPodName = "test2";
         //        CoreV1Api api = new CoreV1Api();
