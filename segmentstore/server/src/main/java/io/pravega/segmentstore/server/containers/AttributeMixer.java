@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,19 +19,27 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.val;
 
 /**
- * Combined Segment Attributes from multiple sources.
+ * Combines Segment Attributes from multiple sources.
  */
-class AttributeMixer {
+class AttributeMixer implements AttributeIterator {
+    //region Members
+
+    private final AttributeIterator indexIterator;
     private final ArrayDeque<Map.Entry<UUID, Long>> metadataAttributes;
     private final UUID fromId;
     private final UUID toId;
     private final AtomicReference<UUID> lastIndexAttribute;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the AttributeMixer class.
@@ -39,7 +48,9 @@ class AttributeMixer {
      * @param fromId   The smallest Attribute Id to include.
      * @param toId     The largest Attribute Id to include.
      */
-    AttributeMixer(@NonNull SegmentMetadata metadata, @NonNull UUID fromId, @NonNull UUID toId) {
+    AttributeMixer(@NonNull AttributeIterator indexIterator, @NonNull SegmentMetadata metadata, @NonNull UUID fromId, @NonNull UUID toId) {
+        this.indexIterator = indexIterator;
+
         // Collect eligible attributes from the Metadata into a Dequeue (we need to be able to peek).
         this.metadataAttributes = metadata
                 .getAttributes().entrySet().stream()
@@ -49,6 +60,15 @@ class AttributeMixer {
         this.fromId = fromId;
         this.toId = toId;
         this.lastIndexAttribute = new AtomicReference<>();
+    }
+
+    //endregion
+
+    //region AttributeIterator Implementation
+
+    @Override
+    public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
+        return this.indexIterator.getNext().thenApply(this::mix);
     }
 
     /**
@@ -124,4 +144,6 @@ class AttributeMixer {
 
         this.lastIndexAttribute.set(attributeId);
     }
+
+    //endregion
 }

@@ -19,7 +19,6 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
@@ -31,6 +30,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -715,12 +715,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         });
     }
 
-    private CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(long segmentId, UUID fromId,
-                                                                                            UUID toId, Duration timeout) {
+    private CompletableFuture<AttributeIterator> attributeIterator(long segmentId, UUID fromId, UUID toId, Duration timeout) {
         return this.attributeIndex.forSegment(segmentId, timeout)
                 .thenApplyAsync(index -> {
-                    AttributeMixer mixer = new AttributeMixer(this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
-                    return index.iterator(fromId, toId, timeout).apply(mixer::mix);
+                    AttributeIterator indexIterator = index.iterator(fromId, toId, timeout);
+                    return new AttributeMixer(indexIterator, this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
                 }, this.executor);
     }
 
@@ -839,7 +838,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         }
 
         @Override
-        public CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+        public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
             ensureRunning();
             logRequest("attributeIterator", this.segmentId, fromId, toId);
             return StreamSegmentContainer.this.attributeIterator(this.segmentId, fromId, toId, timeout);

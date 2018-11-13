@@ -9,14 +9,12 @@
  */
 package io.pravega.segmentstore.server;
 
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -139,8 +137,8 @@ public interface DirectSegmentAccess {
      * @param fromId  A UUID representing the first Attribute Id to include.
      * @param toId    A UUID representing the last Attribute Id to include.
      * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * @return A CompletableFuture that, when completed, will return an {@link AttributeIterator} that can be used to iterate
      * through the Segment's Attributes.
      */
-    CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(UUID fromId, UUID toId, Duration timeout);
+    CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout);
 }
