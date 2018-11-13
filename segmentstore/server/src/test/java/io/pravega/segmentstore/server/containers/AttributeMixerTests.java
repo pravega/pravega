@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.collect.Maps;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Singular;
@@ -80,7 +82,7 @@ public class AttributeMixerTests {
         UUID fromId = testData.sortedAttributeIds.get(0);
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterators = createIterators(testData, fromId, toId);
-        val mixer = new AttributeMixer(testData.segmentMetadata, fromId, toId);
+        val mixer = new AttributeMixer(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
         AssertExtensions.assertThrows(
                 "mix() did not throw when iterators returned data out of order.",
                 () -> iterators.forEach(mixer::mix),
@@ -104,7 +106,7 @@ public class AttributeMixerTests {
         // We generate the iterators to include more data than we provide to the mixer.
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterators = createIterators(testData, testData.sortedAttributeIds.get(0), toId);
-        val mixer = new AttributeMixer(testData.segmentMetadata, testData.sortedAttributeIds.get(1), toId);
+        val mixer = new AttributeMixer(testData.getAttributeIterator(), testData.segmentMetadata, testData.sortedAttributeIds.get(1), toId);
         AssertExtensions.assertThrows(
                 "mix() did not throw when iterators returned data out of range.",
                 () -> iterators.forEach(mixer::mix),
@@ -116,7 +118,7 @@ public class AttributeMixerTests {
             UUID fromId = testData.sortedAttributeIds.get(i);
             UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - i - 1);
             val iterators = createIterators(testData, fromId, toId);
-            val mixer = new AttributeMixer(testData.segmentMetadata, fromId, toId);
+            val mixer = new AttributeMixer(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
 
             val finalResult = new ArrayList<Map.Entry<UUID, Long>>();
             val ids = new HashSet<UUID>();
@@ -213,5 +215,10 @@ public class AttributeMixerTests {
         private final List<List<Map.Entry<UUID, Long>>> baseIteratorAttributes;
         private final SegmentMetadata segmentMetadata;
         private final List<Map.Entry<UUID, Long>> expectedResult;
+
+        AttributeIterator getAttributeIterator() {
+            val baseIterator = baseIteratorAttributes.iterator();
+            return () -> CompletableFuture.completedFuture(baseIterator.hasNext() ? baseIterator.next() : null);
+        }
     }
 }
