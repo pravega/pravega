@@ -14,8 +14,11 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -116,8 +119,8 @@ public class TimeoutServiceTest {
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
 
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), executor, null);
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                new SegmentHelper(), executor, null, new StreamMetrics(), new TransactionMetrics());
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();
@@ -259,7 +262,7 @@ public class TimeoutServiceTest {
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
         ControllerService controllerService2 = new ControllerService(streamStore2, hostStore, streamMetadataTasks2,
-                streamTransactionMetadataTasks2, new SegmentHelper(), executor, null);
+                streamTransactionMetadataTasks2, new SegmentHelper(), executor, null, new StreamMetrics(), new TransactionMetrics());
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE)
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
@@ -502,6 +505,6 @@ public class TimeoutServiceTest {
     }
 
     private <T> void checkError(CompletableFuture<T> future, Class<? extends Throwable> expectedException) {
-        AssertExtensions.assertFutureThrows("Failed future", future, e -> e.getClass().equals(expectedException));
+        AssertExtensions.assertFutureThrows("Failed future", future, e -> Exceptions.unwrap(e).getClass().equals(expectedException));
     }
 }

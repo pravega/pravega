@@ -25,6 +25,8 @@ import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -93,6 +95,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
+    // Controller metrics for Streams and Transactions.
+    private StreamMetrics streamMetrics;
+    private TransactionMetrics transactionMetrics;
+
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
@@ -142,6 +148,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Create a RequestTracker instance to trace client requests end-to-end.
             RequestTracker requestTracker = new RequestTracker(serviceConfig.getGRPCServerConfig().get().isRequestTracingEnabled());
+
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -193,7 +202,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -331,6 +340,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of auto retention");
                 streamCutService.awaitTerminated();
             }
+
+            log.info("Closing controller metrics");
+            streamMetrics.close();
+            transactionMetrics.close();
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;

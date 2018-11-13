@@ -24,6 +24,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
@@ -57,8 +58,6 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.Serializable;
@@ -84,8 +83,6 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.task.Stream.TaskStepsRetryHelper.withRetries;
-import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
-import static io.pravega.shared.MetricsNames.nameFromStream;
 
 /**
  * Collection of metadata update tasks on stream.
@@ -98,7 +95,6 @@ public class StreamMetadataTasks extends TaskBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamMetadataTasks.class));
     private static final long RETENTION_FREQUENCY_IN_MINUTES = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis();
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     private final StreamMetadataStore streamMetadataStore;
     private final HostControllerStore hostControllerStore;
@@ -110,6 +106,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final AuthHelper authHelper;
     private final RequestTracker requestTracker;
+    private final StreamMetrics streamMetrics;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
@@ -130,6 +127,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.connectionFactory = connectionFactory;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
+        this.streamMetrics = new StreamMetrics();
         this.setReady();
     }
 
@@ -232,7 +230,7 @@ public class StreamMetadataTasks extends TaskBase {
                     return generateStreamCutIfRequired(scope, stream, latestCut, recordingTime, context, delegationToken)
                             .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime, requestId));
                 })
-                .thenAccept(x -> DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(RETENTION_FREQUENCY, scope, stream), 1));
+                .thenAccept(x -> streamMetrics.retention(scope, stream));
 
     }
 
