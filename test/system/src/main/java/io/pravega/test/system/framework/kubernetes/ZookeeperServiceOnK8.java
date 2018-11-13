@@ -1,27 +1,29 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.test.system.framework.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.ApiException;
 import io.kubernetes.client.models.V1Container;
 import io.kubernetes.client.models.V1ContainerBuilder;
-import io.kubernetes.client.models.V1ContainerPort;
 import io.kubernetes.client.models.V1ContainerPortBuilder;
 import io.kubernetes.client.models.V1Deployment;
 import io.kubernetes.client.models.V1DeploymentBuilder;
-import io.kubernetes.client.models.V1DeploymentSpec;
 import io.kubernetes.client.models.V1DeploymentSpecBuilder;
-import io.kubernetes.client.models.V1EnvVar;
 import io.kubernetes.client.models.V1EnvVarBuilder;
-import io.kubernetes.client.models.V1EnvVarSource;
 import io.kubernetes.client.models.V1EnvVarSourceBuilder;
 import io.kubernetes.client.models.V1LabelSelectorBuilder;
-import io.kubernetes.client.models.V1ObjectFieldSelector;
 import io.kubernetes.client.models.V1ObjectFieldSelectorBuilder;
 import io.kubernetes.client.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.models.V1PodSpec;
 import io.kubernetes.client.models.V1PodSpecBuilder;
 import io.kubernetes.client.models.V1PodStatus;
-import io.kubernetes.client.models.V1PodTemplateSpec;
 import io.kubernetes.client.models.V1PodTemplateSpecBuilder;
 import io.kubernetes.client.models.V1beta1ClusterRole;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
@@ -32,9 +34,7 @@ import io.kubernetes.client.models.V1beta1CustomResourceDefinitionBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNamesBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpecBuilder;
 import io.kubernetes.client.models.V1beta1PolicyRuleBuilder;
-import io.kubernetes.client.models.V1beta1RoleRef;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
-import io.kubernetes.client.models.V1beta1Subject;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.services.Service;
@@ -53,6 +53,7 @@ import java.util.concurrent.CompletableFuture;
 public class ZookeeperServiceOnK8 implements Service {
 
     private final static String DEFAULT_NS = "default";
+    private static final Integer MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
     private final K8Client k8Client;
 
     public ZookeeperServiceOnK8() {
@@ -106,20 +107,20 @@ public class ZookeeperServiceOnK8 implements Service {
     }
 
     public void test() throws Exception {
-//        CompletableFuture<V1beta1CustomResourceDefinition> r1 = k8Client.createCRD(getCustomResourceDefnition());
-//        Futures.await(r1);
-//
-//        CompletableFuture<V1beta1ClusterRole> r2 = k8Client.createClusterRole(getClusterRole());
-//        Futures.await(r2);
-//        CompletableFuture<V1beta1ClusterRoleBinding> r3 = k8Client.createClusterRoleBinding(getClusterRoleBinding());
-//        Futures.await(r3);
-//        CompletableFuture<V1Deployment> r4 = k8Client.createDeployment("default", getDeployment("default"));
-//        Futures.await(r4);
+        CompletableFuture<V1beta1CustomResourceDefinition> r1 = k8Client.createCRD(getCustomResourceDefnition());
+        Futures.await(r1);
+
+        CompletableFuture<V1beta1ClusterRole> r2 = k8Client.createClusterRole(getClusterRole());
+        Futures.await(r2);
+        CompletableFuture<V1beta1ClusterRoleBinding> r3 = k8Client.createClusterRoleBinding(getClusterRoleBinding());
+        Futures.await(r3);
+        CompletableFuture<V1Deployment> r4 = k8Client.createDeployment("default", getDeployment("default"));
+        Futures.await(r4);
         Map<String, Object> map = ImmutableMap.<String, Object>builder()
                 .put("apiVersion", "zookeeper.pravega.io/v1beta1")
                 .put("kind", "ZookeeperCluster")
                 .put("metadata", ImmutableMap.of("name", "example"))
-                .put("spec", ImmutableMap.of("size", 2))
+                .put("spec", ImmutableMap.of("size", 1))
                 .build();
 
         Futures.await(k8Client.createAndUpdateCustomObject("zookeeper.pravega.io", "v1beta1", "default", "zookeeper-clusters", map));
@@ -127,6 +128,34 @@ public class ZookeeperServiceOnK8 implements Service {
         System.out.println("finish test");
     }
 
+    private void testStatus() {
+        try {
+            CompletableFuture<Integer> r1 = k8Client.getDeploymentStatus("zookeeper-operator", "default")
+                                                    .thenApply(deployment -> deployment.getStatus().getAvailableReplicas());
+            Futures.await(r1);
+            System.out.println(r1.join());
+            System.out.println("finish");
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void testPodStatus(){
+        try {
+            CompletableFuture<V1PodStatus> r1 = k8Client.getStatusOfPodWithLabel("default", "app", "example");
+            CompletableFuture<V1PodStatus> r2 = k8Client.getStatusOfPodWithLabel("default", "name", "zookeeper-operator");
+            Futures.await(r1);
+            Futures.await(r2);
+            System.out.println("stop");
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ApiException e) {
+            e.printStackTrace();
+        }
+    }
     private V1beta1ClusterRoleBinding getClusterRoleBinding() {
         return new V1beta1ClusterRoleBindingBuilder().withKind("ClusterRoleBinding")
                                                      .withApiVersion("rbac.authorization.k8s.io/v1beta1")
@@ -218,7 +247,7 @@ public class ZookeeperServiceOnK8 implements Service {
                                                                                .build())
                                         .withKind("Deployment")
                                         .withApiVersion("apps/v1")
-                                        .withSpec(new V1DeploymentSpecBuilder().withReplicas(1)
+                                        .withSpec(new V1DeploymentSpecBuilder().withMinReadySeconds(MIN_READY_SECONDS)
                                                                                .withSelector(new V1LabelSelectorBuilder()
                                                                                                      .withMatchLabels(ImmutableMap.of("name", "zookeeper-operator"))
                                                                                                      .build())
@@ -236,10 +265,9 @@ public class ZookeeperServiceOnK8 implements Service {
 
     public static void main(String[] args) throws Exception {
         ZookeeperServiceOnK8 zkService = new ZookeeperServiceOnK8();
-        zkService.test();
-
-
+//            zkService.test();
+//            zkService.testStatus();
+        zkService.testPodStatus();
 //        zkService.verifyZkOperator();
-
     }
 }

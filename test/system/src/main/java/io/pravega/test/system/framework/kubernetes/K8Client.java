@@ -182,6 +182,19 @@ public class K8Client implements AutoCloseable {
     }
 
 
+    public CompletableFuture<V1PodStatus> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) throws IOException, ApiException {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
+        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelName+"="+labelValue, null,
+                                   null, null, false, callback);
+        return callback.getFuture()
+                       .thenApply(v1PodList -> {
+                           Optional<V1Pod> vpod = v1PodList.getItems().stream().filter(v1Pod -> v1Pod.getMetadata().getName().contains(labelValue) &&
+                                   v1Pod.getMetadata().getNamespace().equals(namespace)).findFirst();
+                           return vpod.map(V1Pod::getStatus).orElseThrow(() -> new RuntimeException("pod not found" + labelValue));
+                       });
+    }
+
     public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) throws IOException, ApiException {
         AppsV1Api api = new AppsV1Api();
         K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("deployment");
@@ -189,6 +202,15 @@ public class K8Client implements AutoCloseable {
 
         return callback.getFuture();
     }
+
+    public CompletableFuture<V1Deployment> getDeploymentStatus(final String deploymentName, final String namespace) throws IOException, ApiException {
+        AppsV1Api api = new AppsV1Api();
+        K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("readNamespacedDeployment");
+        api.readNamespacedDeploymentStatusAsync(deploymentName, namespace, PRETTY_PRINT, callback);
+
+        return callback.getFuture();
+    }
+
 
     public CompletableFuture<Object> createCustomObject(String customResourceGroup, String version, String namespace,
                                                          String plural, Map<String, Object> request) throws ApiException {

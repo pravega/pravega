@@ -22,6 +22,7 @@ public class TestExecutorFactory {
     public enum TestExecutorType {
         LOCAL,
         DOCKER,
+        KUBERNETES,
         REMOTE_SEQUENTIAL,
         REMOTE_DISTRIBUTED //TODO: https://github.com/pravega/pravega/issues/2074.
     }

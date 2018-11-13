@@ -86,11 +86,11 @@ public class Utils {
      *  true: Already deployed services are used for running tests.
      *  false: Services are deployed on the cluster before running tests.
      *
-     * Default value is true
+     * Default value is false
      * @return
      */
     public static boolean isSkipServiceInstallationEnabled() {
-        String config = getConfig("skipServiceInstallation", "true");
+        String config = getConfig("skipServiceInstallation", "false");
         return config.trim().equalsIgnoreCase("true") ? true : false;
     }
 
