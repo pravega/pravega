@@ -47,7 +47,6 @@
             <Bug category="PERFORMANCE" />
             <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD" />
             <Bug pattern="DMI_RANDOM_USED_ONLY_ONCE" />
-            <Bug pattern="FE_FLOATING_POINT_EQUALITY" />
         </Or>
     </Match>
 </FindBugsFilter>
