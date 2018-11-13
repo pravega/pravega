@@ -84,7 +84,7 @@ class PageWrapper {
     }
 
     /**
-     * Gets a value indicating whether the wrapped BTreePage has been modified since it was loaded.
+     * Gets a value indicating whether the wrapped BTreePage is new or has been modified since it was loaded.
      */
     boolean isModified() {
         return isNewPage() || getOffset() != (this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getOffset());
