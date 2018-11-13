@@ -459,14 +459,15 @@ public class AssertExtensions {
         }
     }
 
-     /**
-     * Compares two floating point values with a given precision.
-     *
-     * @param a the first operand.
-     * @param b the second operand.
-     * @return true if the two operands are both null or the represent the same
-     * value within the given precision
-     */
+    /**
+    * Compares two floating point values with a given precision.
+    *
+    * @param a the first operand.
+    * @param b the second operand.
+    * @param precision the maximum absolute difference between the two values.
+    * @return true if the two operands are both null or the represent the same
+    * value within the given precision
+    */
     public static boolean nearlyEquals(Double a, Double b, double precision) {
         if (a == null && b == null) {
             return true;
