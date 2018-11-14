@@ -612,10 +612,11 @@ Stream. These workflows include _create, scale, truncation, update, seal,_
 and _delete_. These workflows are invoked both via direct APIs and in some
 cases as applicable via background policy manager (auto scale and retention).
 
-![request processing](img/Request-Processing_Flow.png)
+<p>
+<img src="img/Request-Processing_Flow.png" width="800" height="500" alt="request processing">
 
 Request Processing Flow
-
+</p>
 ### Create Stream
 
 Create Stream is implemented as a task on **Task Framework**. Create Stream
@@ -782,7 +783,7 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 <p>
-<img src="img/Transaction_Management.png" width="732" height="400" alt="Transaction Management">
+<img src="img/Transaction_Management.png" width="800" height="500" alt="Transaction Management">
 
 Transaction Management
 </p>
