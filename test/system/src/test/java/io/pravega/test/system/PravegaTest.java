@@ -47,6 +47,7 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -128,6 +129,9 @@ public class PravegaTest extends AbstractSystemTest {
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
+        int readCount = 0;
+        int writeCount = NUM_EVENTS;
+
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
@@ -140,7 +144,6 @@ public class PravegaTest extends AbstractSystemTest {
             log.debug("Producing event: {} ", event);
             writer.writeEvent("", event);
             writer.flush();
-            Thread.sleep(500);
         }
         log.info("Invoking Reader test.");
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
@@ -154,13 +157,16 @@ public class PravegaTest extends AbstractSystemTest {
                 String event = reader.readNextEvent(6000).getEvent();
                 if (event != null) {
                     log.debug("Read event: {} ", event);
+                    readCount++;
                 }
             } catch (ReinitializationRequiredException e) {
                 log.error("Unexpected request to reinitialize {}", e);
                 System.exit(0);
             }
         }
+        assertEquals(writeCount, readCount);
         reader.close();
         groupManager.deleteReaderGroup(READER_GROUP);
     }
+
 }
