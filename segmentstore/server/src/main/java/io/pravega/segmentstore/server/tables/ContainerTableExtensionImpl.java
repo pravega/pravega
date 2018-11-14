@@ -370,32 +370,52 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         @Override
         public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator() {
-            return newBucketIterator()
-                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllKeys, executor));
+            return null;
+            //            return newBucketIterator()
+            //                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllKeys, executor));
         }
 
         @Override
         public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator() {
-            return newBucketIterator()
-                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllEntries, executor));
+            return null;
+            //            return newBucketIterator()
+            //                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllEntries, executor));
         }
 
-        private CompletableFuture<TableBucketIterator> newBucketIterator() {
+        private CompletableFuture<AsyncIterator<TableBucket>> newBucketIterator() {
             UUID fromHash = KeyHasher.getNextHash(this.state == null ? null : this.state.getKeyHash());
+            if (fromHash == null) {
+                // Nothing to iterate on.
+                return CompletableFuture.completedFuture(() -> CompletableFuture.completedFuture(null));
+            }
             return ContainerTableExtensionImpl.this.segmentContainer
                     .forSegment(this.segmentName, this.fetchTimeout)
                     .thenComposeAsync(segment -> keyIndex
                                     .getUnindexedKeyHashes(segment)
-                                    .thenComposeAsync(cacheHashes -> TableBucketIterator.builder()
-                                                                                        .segment(segment)
-                                                                                        .cacheHashes(cacheHashes)
-                                                                                        .firstHash(fromHash)
-                                                                                        .executor(executor)
-                                                                                        .fetchTimeout(fetchTimeout)
-                                                                                        .build(),
+                                    .thenComposeAsync(cacheHashes -> TableIterator.<TableBucket>builder()
+                                                    .segment(segment)
+                                                    .cacheHashes(cacheHashes)
+                                                    .firstHash(fromHash)
+                                                    .executor(executor)
+                                                    .resultConverter(b -> CompletableFuture.completedFuture(b))
+                                                    .fetchTimeout(fetchTimeout)
+                                                    .build(),
                                             executor),
                             executor);
         }
+
+        @RequiredArgsConstructor
+        private class IteratorItemImpl<T> implements IteratorItem<T> {
+            private final IteratorState state;
+            @Getter
+            private final List<T> entries;
+
+            @Override
+            public ArrayView getState() {
+                return this.state.serialize();
+            }
+        }
+
     }
 
     //endregion

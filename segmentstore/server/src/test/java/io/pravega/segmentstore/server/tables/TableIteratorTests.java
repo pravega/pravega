@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Builder;
+import lombok.RequiredArgsConstructor;
 import lombok.Singular;
 import lombok.SneakyThrows;
 import lombok.val;
@@ -36,9 +37,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link TableBucketIterator} class.
+ * Unit tests for the {@link TableIterator} class.
  */
-public class TableBucketIteratorTests extends ThreadPooledTestSuite {
+public class TableIteratorTests extends ThreadPooledTestSuite {
     private static final int INDEX_COUNT = 20;
     private static final int CACHE_COUNT = 100;
     private static final double HASH_OVERLAP_RATIO = 0.4; // How many attributes in Cache overlap Index attributes.
@@ -49,18 +50,27 @@ public class TableBucketIteratorTests extends ThreadPooledTestSuite {
         return 1;
     }
 
+    /**
+     * Tests the {@link TableIterator} when Key Hashes are only available from the Cache (nothing from the index).
+     */
     @Test
     public void testFromCacheOnly() {
         val testData = createTestData(0, CACHE_COUNT);
         test(testData);
     }
 
+    /**
+     * Tests the {@link TableIterator} when Key Hashes are only available from the Index (nothing from the cache).
+     */
     @Test
     public void testFromIndexOnly() {
         val testData = createTestData(INDEX_COUNT, 0);
         test(testData);
     }
 
+    /**
+     * Tests the {@link TableIterator} when Key Hashes are available from both the Cache and the index.
+     */
     @Test
     public void testCacheAndIndex() {
         val testData = createTestData(INDEX_COUNT, CACHE_COUNT);
@@ -81,24 +91,26 @@ public class TableBucketIteratorTests extends ThreadPooledTestSuite {
         }
 
         for (val firstHash : startHashes) {
-            val mainIterator = TableBucketIterator
-                    .builder()
+            // We convert TableBuckets into BucketWrappers to verify that the conversion actually is executed.
+            val iterator = TableIterator
+                    .<BucketWrapper>builder()
                     .segment(testData.segment)
                     .cacheHashes(testData.cacheHashes)
                     .firstHash(firstHash)
                     .executor(executorService())
                     .fetchTimeout(TIMEOUT)
+                    .resultConverter(bucket -> CompletableFuture.completedFuture(new BucketWrapper(bucket)))
                     .build().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Keeps track of all Iterator States we encounter, and their offsets.
             val actualBuckets = new ArrayList<TableBucket>();
-            val mainIteration = mainIterator.forEachRemaining(actualBuckets::addAll, executorService());
+            val mainIteration = iterator.forEachRemaining(item -> actualBuckets.add(item.bucket), executorService());
             mainIteration.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
             // Verify output matches.
             val expectedResult = filter(testData.expectedResult, TableBucket::getHash, firstHash, KeyHasher.MAX_HASH);
             AssertExtensions.assertListEquals("Unexpected result when first hash is " + firstHash,
-                    expectedResult, actualBuckets, this::areBucketsEqual);
+                    expectedResult, actualBuckets, (b1, b2) -> b1.equals(b2) && b1.getSegmentOffset() == b2.getSegmentOffset());
         }
     }
 
@@ -151,14 +163,15 @@ public class TableBucketIteratorTests extends ThreadPooledTestSuite {
                       .build();
     }
 
-    private boolean areBucketsEqual(TableBucket b1, TableBucket b2) {
-        return b1.equals(b2) && b1.getSegmentOffset() == b2.getSegmentOffset();
-    }
-
     private static <T> List<T> filter(List<T> items, Function<T, UUID> getHash, UUID fromId, UUID toId) {
         return items.stream()
                     .filter(e -> getHash.apply(e).compareTo(fromId) >= 0 && getHash.apply(e).compareTo(toId) <= 0)
                     .collect(Collectors.toList());
+    }
+
+    @RequiredArgsConstructor
+    private static class BucketWrapper {
+        final TableBucket bucket;
     }
 
     @Builder
