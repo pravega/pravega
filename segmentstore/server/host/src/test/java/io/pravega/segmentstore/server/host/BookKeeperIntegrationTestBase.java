@@ -36,6 +36,8 @@ public abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTe
      *
      * NOTE: this (and tearDown()) cannot be annotated with @Before and @After since JUnit doesn't pick these up from
      * super classes, at least not in the order in which we expect it to)
+     *
+     * @throws Exception exceptions faced during the setup.
      */
     protected void setUp() throws Exception {
         bookkeeper = new BookKeeperRunner(this.configBuilder, BOOKIE_COUNT);
@@ -47,6 +49,8 @@ public abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTe
 
     /**
      * Shuts down BookKeeper and RocksDB and cleans up file system directory.
+     *
+     * @throws Exception exceptions faced during the setup.
      */
     protected void tearDown() throws Exception {
         bookkeeper.close();
