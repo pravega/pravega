@@ -49,7 +49,7 @@ public class StreamSegmentRecord {
      * @return true if they overlap, false otherwise
      */
     public boolean overlaps(final StreamSegmentRecord segment) {
-        return segment.getKeyStart() > keyStart && segment.getKeyStart() < keyEnd;
+        return segment.getKeyStart() < keyEnd && segment.getKeyEnd() > keyStart;
     }
 
     /**

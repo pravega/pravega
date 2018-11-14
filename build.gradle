@@ -254,6 +254,16 @@ project('segmentstore:server:host') {
     applicationName = "pravega-segmentstore"
     mainClassName = "io.pravega.segmentstore.server.host.ServiceStarter"
 
+    startScripts {
+        classpath += files('$APP_HOME/pluginlib')
+        doLast {
+            def scriptFile = file getUnixScript()
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+        }
+    }
+
     applicationDefaultJvmArgs = ["-server", "-Xms512m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=segmentstore",
@@ -448,7 +458,9 @@ project('controller') {
         classpath += files('$APP_HOME/pluginlib')
         doLast {
             def scriptFile = file getUnixScript()
-            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*:$APP_HOME/pluginlib')
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
     applicationDistribution.from('src/conf') {
@@ -524,10 +536,12 @@ project('standalone') {
                                  "-Xdebug",
                                  "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"]
     startScripts {
-        classpath += files('./pluginlib')
+        classpath += files('$APP_HOME/pluginlib')
         doLast {
             def scriptFile = file getUnixScript()
-            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*:$APP_HOME/pluginlib')
+            scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
+            def winScriptFile = file getWindowsScript()
+            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
 

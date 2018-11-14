@@ -7,9 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream.tables;
-
-import io.pravega.controller.store.stream.Version;
+package io.pravega.controller.store.stream;
 
 @lombok.Data
 public class Data {

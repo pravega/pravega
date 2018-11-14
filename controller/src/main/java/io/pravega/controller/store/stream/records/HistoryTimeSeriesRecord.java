@@ -50,7 +50,10 @@ public class HistoryTimeSeriesRecord {
     HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated,
                             long creationTime) {
         if (epoch == referenceEpoch) {
-            Exceptions.checkNotNullOrEmpty(segmentsSealed, "segments sealed");
+            if (epoch != 0) {
+                Exceptions.checkNotNullOrEmpty(segmentsSealed, "segments sealed");
+            }
+            
             Exceptions.checkNotNullOrEmpty(segmentsCreated, "segments created");
         } else {
             Exceptions.checkArgument(segmentsSealed == null || segmentsSealed.isEmpty(), "sealed segments", "should be null for duplicate epoch");

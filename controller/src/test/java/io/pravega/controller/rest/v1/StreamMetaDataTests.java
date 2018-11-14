@@ -69,6 +69,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -724,8 +726,8 @@ public class StreamMetaDataTests {
         scaleMetadataList.add(scaleMetadata2);
         scaleMetadataList.add(scaleMetadata1);
 
-        when(mockControllerService.getScaleRecords(scope1, stream1)).
-                thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
+        doAnswer(x -> CompletableFuture.completedFuture(scaleMetadataList))
+                .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
         Response response = addAuthHeaders(client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 200, response.getStatus());
@@ -744,8 +746,8 @@ public class StreamMetaDataTests {
         // Test for large number of scaling events.
         scaleMetadataList.clear();
         scaleMetadataList.addAll(Collections.nCopies(50000, scaleMetadata3));
-        when(mockControllerService.getScaleRecords(scope1, stream1)).
-                thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
+        doAnswer(x -> CompletableFuture.completedFuture(scaleMetadataList))
+                .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
         response = addAuthHeaders(client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 200, response.getStatus());
@@ -757,15 +759,18 @@ public class StreamMetaDataTests {
         // Test for getScalingEvents for invalid scope/stream.
         final CompletableFuture<List<ScaleMetadata>> completableFuture1 = new CompletableFuture<>();
         completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "stream1"));
-        when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture1);
+        doAnswer(x -> completableFuture1)
+                .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
+
         response = addAuthHeaders(client.target(resourceURI).queryParam("from", fromDateTime).
                 queryParam("to", toDateTime).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 404, response.getStatus());
 
         // Test for getScalingEvents for bad request.
         // from > to is tested here
-        when(mockControllerService.getScaleRecords("scope1", "stream1")).
-                thenReturn(CompletableFuture.completedFuture(scaleMetadataList));
+        doAnswer(x -> CompletableFuture.completedFuture(scaleMetadataList))
+                .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
+
         response = addAuthHeaders(client.target(resourceURI).queryParam("from", fromDateTime * 2).
                 queryParam("to", fromDateTime).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 400, response.getStatus());
@@ -773,7 +778,9 @@ public class StreamMetaDataTests {
         // Test for getScalingEvents failure.
         final CompletableFuture<List<ScaleMetadata>> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(new Exception());
-        when(mockControllerService.getScaleRecords("scope1", "stream1")).thenReturn(completableFuture);
+        doAnswer(x -> completableFuture)
+                .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
+
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 500, response.getStatus());
     }
