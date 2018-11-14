@@ -47,6 +47,8 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -96,6 +98,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private Cluster cluster = null;
 
     // Controller metrics for Streams and Transactions.
+    private StatsProvider statsProvider;
     private StreamMetrics streamMetrics;
     private TransactionMetrics transactionMetrics;
 
@@ -122,6 +125,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
         final CheckpointStore checkpointStore;
 
         try {
+            // Initialize metrics.
+            log.info("Initializing metrics provider ...");
+            statsProvider = MetricsProvider.getMetricsProvider();
+            statsProvider.start();
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
+
             //Initialize the executor service.
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
@@ -148,9 +158,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Create a RequestTracker instance to trace client requests end-to-end.
             RequestTracker requestTracker = new RequestTracker(serviceConfig.getGRPCServerConfig().get().isRequestTracingEnabled());
-
-            streamMetrics = new StreamMetrics();
-            transactionMetrics = new TransactionMetrics();
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -344,6 +351,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             log.info("Closing controller metrics");
             streamMetrics.close();
             transactionMetrics.close();
+            statsProvider.close();
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;

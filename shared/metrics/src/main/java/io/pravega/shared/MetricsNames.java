@@ -47,7 +47,9 @@ public final class MetricsNames {
 
     // Cache (RocksDB) stats
     public static final String CACHE_INSERT_LATENCY = "segmentstore.cache.insert_latency_ms";   // Histogram
+    public static final String CACHE_WRITE_BYTES = "segmentstore.cache.write_bytes";            // Counter
     public static final String CACHE_GET_LATENCY = "segmentstore.cache.get_latency_ms";         // Histogram
+    public static final String CACHE_READ_BYTES = "segmentstore.cache.read_bytes";              // Counter
     public static final String CACHE_TOTAL_SIZE_BYTES = "segmentstore.cache.size_bytes";        // Gauge
     public static final String CACHE_GENERATION_SPREAD = "segmentstore.cache.gen";              // Histogram
 
@@ -123,6 +125,15 @@ public final class MetricsNames {
     public static final String OPEN_TRANSACTIONS = "controller.transactions.opened";                    // Gauge
     public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";              // Dynamic Counter
 
+    // Host metrics
+    public static final String SEGMENT_STORE_HOST_NUMBER = "controller.hosts.count";                    // Dynamic Gauge
+    public static final String SEGMENT_STORE_HOST_FAILURES = "controller.hosts.failures";               // Dynamic Counter
+    public static final String SEGMENT_STORE_HOST_CONTAINER_COUNT = "controller.hosts.container_count"; // Dynamic Gauge
+
+    // Container lifecycle metrics
+    public static final String CONTAINER_LOCATION = "controller.container.host";
+    public static final String CONTAINER_FAILURES = "controller.container.failures";
+
     // Stream segment counts (Dynamic)
     public static final String SEGMENTS_COUNT = "controller.segments.count";    // Dynamic Gauge
     public static final String SEGMENTS_SPLITS = "controller.segment.splits";   // Dynamic Counter
@@ -148,6 +159,11 @@ public final class MetricsNames {
 
     public static String nameFromSegment(String metric, String segmentName) {
         String name = metric + "." + segmentName;
+        return escapeSpecialChar(name);
+    }
+
+    public static String nameFromHost(String metric, String hostId) {
+        String name = metric + "." + hostId;
         return escapeSpecialChar(name);
     }
 

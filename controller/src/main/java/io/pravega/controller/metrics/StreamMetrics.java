@@ -42,8 +42,8 @@ import static io.pravega.shared.MetricsNames.nameFromStream;
  */
 public final class StreamMetrics implements AutoCloseable {
 
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("controller");
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     private final OpStatsLogger createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
     private final OpStatsLogger deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
@@ -198,6 +198,7 @@ public final class StreamMetrics implements AutoCloseable {
     }
 
     /**
+     * Reports the number of active segments for a Stream.
      *
      * @param scope         Scope.
      * @param streamName    Name of the Stream.
