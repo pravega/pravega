@@ -613,7 +613,7 @@ and _delete_. These workflows are invoked both via direct APIs and in some
 cases as applicable via background policy manager (auto scale and retention).
 
 <p>
-<img src="img/Request-Processing_Flow.png" width="800" height="500" alt="request processing">
+<img src="img/Request-Processing_Flow.png" width="850" height="600" alt="request processing">
 
 Request Processing Flow
 </p>
@@ -783,7 +783,7 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 <p>
-<img src="img/Transaction_Management.png" width="800" height="500" alt="Transaction Management">
+<img src="img/Transaction_Management.png" width="850" height="600" alt="Transaction Management">
 
 Transaction Management
 </p>
