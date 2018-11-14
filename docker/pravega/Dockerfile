@@ -19,9 +19,11 @@ RUN apk add --update \
   && rm -rf /var/cache/apk/*
 
 EXPOSE 9090 9091 10000 12345
+
 WORKDIR /opt/pravega
+
 COPY pravega/ /opt/pravega/
-COPY entrypoint.sh /opt/pravega/scripts/
-COPY wait_for /opt/pravega/scripts/
+COPY scripts/ /opt/pravega/scripts/
+RUN chmod +x -R /opt/pravega/scripts/
 
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
