@@ -7,11 +7,12 @@
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.host;
+package io.pravega.server.host;
 
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
+import io.pravega.segmentstore.server.host.BookKeeperIntegrationTestBase;
 import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -24,6 +25,7 @@ import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
+import io.pravega.segmentstore.server.host.S3ClientWrapper;
 import io.pravega.storage.extendeds3.ExtendedS3Storage;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
 import io.pravega.storage.extendeds3.S3FileSystemImpl;
@@ -117,7 +119,7 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
                     .withInitialRetryDelay(1)
                     .withProperty("com.sun.jersey.client.property.connectTimeout", 100);
 
-            S3JerseyClient client = new io.pravega.segmentstore.server.host.S3ClientWrapper(s3Config, filesystemS3);
+            S3JerseyClient client = new S3ClientWrapper(s3Config, filesystemS3);
             return new AsyncStorageWrapper(new RollingStorage(new ExtendedS3Storage(client, config)), this.storageExecutor);
         }
     }

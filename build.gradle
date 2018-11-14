@@ -84,7 +84,6 @@ allprojects {
     }
 }
 
-
 project('common') {
     dependencies {
         testCompile project(':test:testcommon')

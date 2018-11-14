@@ -22,7 +22,7 @@ import lombok.Getter;
 /**
  * Base class for any StreamSegmentStore Integration Test that uses BookKeeper and RocksDB.
  */
-abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase {
+public abstract class BookKeeperIntegrationTestBase extends StreamSegmentStoreTestBase {
     private static final int BOOKIE_COUNT = 1;
     @Getter(AccessLevel.PROTECTED)
     private File baseDir = null;

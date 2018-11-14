@@ -32,7 +32,7 @@ import lombok.Synchronized;
 /**
  * Client wrapper for S3JerseyClient. It uses local filesystem to implement extended S3 JAVA client APIs.
  */
-class S3ClientWrapper extends S3JerseyClient {
+public class S3ClientWrapper extends S3JerseyClient {
 
     private final S3ImplBase s3Impl;
 
