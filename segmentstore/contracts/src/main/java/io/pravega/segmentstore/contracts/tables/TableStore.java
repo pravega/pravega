@@ -183,13 +183,7 @@ public interface TableStore {
      * Begins the creation of a new Iterator over all the the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to iterate over.
-     * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will return an {@link IteratorBuilder} that can be used to construct
-     * an Iterator over the given Table Segment. If the operation failed, the Future will be failed with the causing exception. Notable exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * </ul>
+     * @return An {@link IteratorBuilder} that can be used to construct an Iterator over the given Table Segment.
      */
-    CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout);
+    IteratorBuilder iterator(String segmentName);
 }

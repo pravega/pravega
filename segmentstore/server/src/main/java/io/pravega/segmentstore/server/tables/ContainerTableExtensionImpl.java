@@ -230,10 +230,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout) {
-        return this.segmentContainer.forSegment(segmentName, timeout)
-                .thenComposeAsync(segment -> this.keyIndex.getUnindexedKeyHashes(segment)
-                                                          .thenApply(unindexedKeyHashes -> new TableIteratorBuilder(segment, unindexedKeyHashes, timeout)), this.executor);
+    public IteratorBuilder iterator(String segmentName) {
+        return new TableIteratorBuilder(segmentName);
     }
 
     //endregion
@@ -260,12 +258,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(s, null, timeout);
     }
 
-    private CompletableFuture<IteratorItem<TableKey>> getAllKeys(IteratorItem<TableBucket> bucketIterator) {
+    private CompletableFuture<IteratorItem<TableKey>> getAllKeys(List<TableBucket> bucketIterator) {
         // TODO
         throw new UnsupportedOperationException("implement me");
     }
 
-    private CompletableFuture<IteratorItem<TableEntry>> getAllEntries(IteratorItem<TableBucket> bucketIterator) {
+    private CompletableFuture<IteratorItem<TableEntry>> getAllEntries(List<TableBucket> bucketIterator) {
         // TODO
         throw new UnsupportedOperationException("implement me");
     }
@@ -354,30 +352,49 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      */
     @RequiredArgsConstructor
     private class TableIteratorBuilder implements IteratorBuilder {
-        private final DirectSegmentAccess segment;
-        private final List<UUID> unindexedKeyHashes;
-        private final Duration fetchTimeout;
+        private final String segmentName;
+        private Duration fetchTimeout;
         private IteratorState state;
 
         @Override
-        public IteratorBuilder fromState(byte[] serializedState) throws IOException {
+        public IteratorBuilder fromState(@NonNull byte[] serializedState) throws IOException {
             this.state = IteratorState.deserialize(serializedState);
             return this;
         }
 
         @Override
-        public AsyncIterator<IteratorItem<TableKey>> keyIterator() {
-            return newBucketIterator().compose(ContainerTableExtensionImpl.this::getAllKeys, executor);
+        public IteratorBuilder fetchTimeout(@NonNull Duration fetchTimeout) {
+            this.fetchTimeout = fetchTimeout;
+            return this;
         }
 
         @Override
-        public AsyncIterator<IteratorItem<TableEntry>> entryIterator() {
-            return newBucketIterator().compose(ContainerTableExtensionImpl.this::getAllEntries, executor);
+        public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator() {
+            return newBucketIterator()
+                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllKeys, executor));
         }
 
-        private AsyncIterator<IteratorItem<TableBucket>> newBucketIterator() {
-            return new TableBucketIterator(this.segment, this.unindexedKeyHashes, this.state,
-                    ContainerTableExtensionImpl.this.executor, this.fetchTimeout);
+        @Override
+        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator() {
+            return newBucketIterator()
+                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllEntries, executor));
+        }
+
+        private CompletableFuture<TableBucketIterator> newBucketIterator() {
+            UUID fromHash = KeyHasher.getNextHash(this.state == null ? null : this.state.getKeyHash());
+            return ContainerTableExtensionImpl.this.segmentContainer
+                    .forSegment(this.segmentName, this.fetchTimeout)
+                    .thenComposeAsync(segment -> keyIndex
+                                    .getUnindexedKeyHashes(segment)
+                                    .thenComposeAsync(cacheHashes -> TableBucketIterator.builder()
+                                                                                        .segment(segment)
+                                                                                        .cacheHashes(cacheHashes)
+                                                                                        .firstHash(fromHash)
+                                                                                        .executor(executor)
+                                                                                        .fetchTimeout(fetchTimeout)
+                                                                                        .build(),
+                                            executor),
+                            executor);
         }
     }
 

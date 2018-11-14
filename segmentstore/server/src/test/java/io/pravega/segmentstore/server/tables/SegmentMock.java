@@ -10,13 +10,13 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
-import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -204,20 +204,20 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<AsyncIterator<List<Map.Entry<UUID, Long>>>> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
-        return CompletableFuture.supplyAsync(() -> new AttributeIterator(this.metadata, fromId, toId), this.executor);
+    public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+        return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
     }
 
     //endregion
 
     //region AttributeIterator
 
-    private class AttributeIterator implements AsyncIterator<List<Map.Entry<UUID, Long>>> {
-        private final int MAX_BATCH_SIZE = 5;
+    private class AttributeIteratorImpl implements AttributeIterator {
+        private final int maxBatchSize = 5;
         @GuardedBy("attributes")
         private final ArrayDeque<Map.Entry<UUID, Long>> attributes;
 
-        AttributeIterator(SegmentMetadata metadata, UUID fromId, UUID toId) {
+        AttributeIteratorImpl(SegmentMetadata metadata, UUID fromId, UUID toId) {
             this.attributes = metadata
                     .getAttributes().entrySet().stream()
                     .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
@@ -230,7 +230,7 @@ class SegmentMock implements DirectSegmentAccess {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.attributes) {
                     val result = new ArrayList<Map.Entry<UUID, Long>>();
-                    while (!this.attributes.isEmpty() && result.size() < MAX_BATCH_SIZE) {
+                    while (!this.attributes.isEmpty() && result.size() < maxBatchSize) {
                         result.add(this.attributes.removeFirst());
                     }
 

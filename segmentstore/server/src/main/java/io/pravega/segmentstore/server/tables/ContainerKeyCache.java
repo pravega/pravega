@@ -309,18 +309,18 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Gets a list of Key Hashes representing the unindexed Keys.
+     * Gets the unindexed Key Hashes, mapped to their latest offsets.
      *
      * @param segmentId The Id of the Segment to get Hashes for.
-     * @return The list.
+     * @return The result.
      */
-    List<UUID> getTailHashes(long segmentId) {
+    Map<UUID, Long> getTailHashes(long segmentId) {
         SegmentIndexTail tail;
         synchronized (this.cacheEntries) {
             tail = this.indexTails.getOrDefault(segmentId, null);
         }
 
-        return tail == null ? Collections.emptyList() : tail.getEntries();
+        return tail == null ? Collections.emptyMap() : tail.getEntries();
     }
 
     /**
@@ -347,10 +347,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
     private long updateEntry(long segmentId, CacheEntry entry, UUID itemHash, long cacheSegmentOffset, int generation) {
         UpdateCacheResult ucr = entry.updateIfNewer(itemHash, cacheSegmentOffset, generation);
-        if (ucr.getPreviousOffset() >= 0) {
-            recordTailEntry(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset(), itemHash);
-        }
-
+        recordTailEntry(segmentId, ucr.getCurrentOffset(), ucr.getPreviousOffset(), itemHash);
         return ucr.getCurrentOffset();
     }
 
@@ -667,7 +664,10 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         synchronized void recordTailEntry(long offset, long previousOffset, UUID itemHash) {
             Preconditions.checkArgument(offset > previousOffset, "offset must be greater than previousOffset");
             if (offset >= this.lastIndexedOffset) {
-                this.backpointers.put(offset, previousOffset);
+                if (previousOffset >= 0) {
+                    this.backpointers.put(offset, previousOffset);
+                }
+
                 this.entries.put(itemHash, offset);
             }
         }
@@ -682,8 +682,8 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         /**
          * Gets a list of all Entry Hashes in the this Index Tail.
          */
-        synchronized List<UUID> getEntries() {
-            return new ArrayList<>(this.entries.keySet());
+        synchronized Map<UUID, Long> getEntries() {
+            return new HashMap<>(this.entries);
         }
 
         @Override

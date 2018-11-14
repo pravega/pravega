@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -202,7 +201,6 @@ public class ContainerKeyCacheTests {
         checkCache(expectedResult, keyCache);
     }
 
-
     /**
      * Tests the ability to wipe the cache contents upon closing.
      */
@@ -339,8 +337,7 @@ public class ContainerKeyCacheTests {
         }
 
         val tailHashes = keyCache.getTailHashes(segmentId);
-        AssertExtensions.assertContainsSameElements("Unexpected Tail Hashes.", expectedHashes.keySet(), tailHashes,
-                (h1, h2) -> h1.equals(h2) ? 0 : 1);
+        AssertExtensions.assertMapEquals("Unexpected Tail Hashes.", expectedHashes, tailHashes);
 
         // Gradually increment the Last Indexed Offset of the segment to verify entries are cleaned up.
         for (int lio = 0; lio < count; lio++) {
@@ -354,8 +351,7 @@ public class ContainerKeyCacheTests {
             long cutoff = lio;
             expectedHashes.values().removeIf(offset -> offset < cutoff);
             val actualTailHashes = keyCache.getTailHashes(segmentId);
-            AssertExtensions.assertContainsSameElements("Unexpected Tail Hashes.", expectedHashes.keySet(), actualTailHashes,
-                    (h1, h2) -> h1.equals(h2) ? 0 : 1);
+            AssertExtensions.assertMapEquals("Unexpected Tail Hashes.", expectedHashes, actualTailHashes);
         }
 
         // Unregister the segment.
@@ -397,6 +393,9 @@ public class ContainerKeyCacheTests {
                                    .map(i -> keyCache.get(segmentId, i.getHash()))
                                    .collect(Collectors.toList());
 
+            // Fetch initial tail hashes now, before we apply the updates
+            val expectedTailHashes = keyCache.getTailHashes(segmentId);
+
             // Update the Cache.
             val batchUpdateResult = keyCache.includeUpdateBatch(segmentId, e.getValue(), batchOffset);
 
@@ -415,6 +414,11 @@ public class ContainerKeyCacheTests {
                 Assert.assertEquals("Unexpected backpointer for segment " + segmentId + " offset " + sourceOffset,
                         expectedBackpointer, actualBackpointer);
             }
+
+            // Verify tail entries.
+            e.getValue().getItems().forEach(i -> expectedTailHashes.put(i.getHash(), batchOffset + i.getOffset()));
+            val tailHashes = keyCache.getTailHashes(segmentId);
+            AssertExtensions.assertMapEquals("Unexpected Tail Hashes.", expectedTailHashes, tailHashes);
         }
     }
 
@@ -462,22 +466,6 @@ public class ContainerKeyCacheTests {
             }
 
             return false;
-        }
-    }
-
-    private static class TestHashedArray extends HashedArray {
-        TestHashedArray(byte[] array) {
-            super(array);
-        }
-
-        @Override
-        public int hashCode() {
-            return super.hashCode() % HASH_HASHCODE_BUCKETS;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return super.equals(obj);
         }
     }
 }

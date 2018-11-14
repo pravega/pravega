@@ -399,7 +399,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         checkKeyOffsets(hashes, keysWithOffsets, getBucketOffsetsResult);
         Assert.assertEquals("Unexpected result from unblocked getBackpointerOffset().", -1L, (long) getBackpointersResult);
         Assert.assertEquals("Unexpected result from unblocked conditional update.", segmentLength + 1L, (long) conditionalUpdateResult.get(0));
-        Assert.assertTrue("Not expecting any result from unblocked getUnindexedKeyHashes().", getUnindexedKeysResult.isEmpty());
+        Assert.assertEquals("Unexpected result size from unblocked getUnindexedKeyHashes().", 1, getUnindexedKeysResult.size());
 
         // 4. Verify no new requests are blocked now.
         getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // A timeout check will suffice
@@ -454,23 +454,22 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected number of buckets returned.", highestUpdate.batch.getItems().size(), bucketOffsets.size());
 
         val expectedOffsetsByHash = highestUpdate.batch.getItems().stream()
-                .collect(Collectors.toMap(TableKeyBatch.Item::getHash, TableKeyBatch.Item::getOffset));
+                                                       .collect(Collectors.toMap(TableKeyBatch.Item::getHash, i -> (long) i.getOffset()));
         for (val e : bucketOffsets.entrySet()) {
             long expectedOffset = highestUpdate.offset.get() + expectedOffsetsByHash.get(e.getKey());
             long actualOffset = e.getValue();
             Assert.assertEquals("Unexpected offset.", expectedOffset, actualOffset);
         }
-
-        // Check UnindexedKeyHashes.
-        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join();
-        AssertExtensions.assertContainsSameElements("Unexpected result from getUnindexedKeyHashes",
-                highestUpdateHashes, unindexedHashes, (h1, h2) -> h1.equals(h2) ? 0 : 1);
     }
 
     private void checkBackpointers(List<UpdateItem> updates, TestContext context) {
-        val sortedUpdates = updates.stream().sorted(Comparator.comparingLong(u -> u.offset.get())).collect(Collectors.toList());
-        val highestUpdateHashes = sortedUpdates.get(sortedUpdates.size() - 1).batch
-                .getItems().stream().map(TableKeyBatch.Item::getHash).collect(Collectors.toList());
+        val sortedUpdates = updates.stream()
+                                   .sorted(Comparator.comparingLong(u -> u.offset.get()))
+                                   .collect(Collectors.toList());
+        val highestUpdate = sortedUpdates.get(sortedUpdates.size() - 1);
+        val highestUpdateHashes = highestUpdate.batch.getItems().stream()
+                                                     .map(TableKeyBatch.Item::getHash)
+                                                     .collect(Collectors.toList());
 
         Map<UUID, Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
         for (int updateId = sortedUpdates.size() - 1; updateId >= 0; updateId--) {
@@ -505,7 +504,11 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             backpointerSources = expectedBackpointers;
         }
 
-        // Check Backpointers.
+        // Check unindexed key hashes.
+        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join();
+        val expectedHashes = highestUpdate.batch.getItems().stream()
+                                                .collect(Collectors.toMap(TableKeyBatch.Item::getHash, i -> highestUpdate.offset.get() + i.getOffset()));
+        AssertExtensions.assertMapEquals("Unexpected result from getUnindexedKeyHashes", expectedHashes, unindexedHashes);
     }
 
     private void completePersistArbitrarily(List<UpdateItem> updates, TestContext context) {

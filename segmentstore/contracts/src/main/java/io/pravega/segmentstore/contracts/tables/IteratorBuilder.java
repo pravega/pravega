@@ -10,7 +10,11 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.segmentstore.contracts.BadSegmentTypeException;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Helps create Table Iterators.
@@ -28,18 +32,37 @@ public interface IteratorBuilder {
     IteratorBuilder fromState(byte[] serializedState) throws IOException;
 
     /**
+     * Assigns a timeout for each invocation of the Iterator's {@link AsyncIterator#getNext()} invocation.
+     * @param timeout Timeout.
+     * @return This instance.
+     */
+    IteratorBuilder fetchTimeout(Duration timeout);
+
+    /**
      * Returns an {@link AsyncIterator} that will iterate over the {@link TableKey}s in the Table using the information
      * collected in this builder.
      *
-     * @return A new {@link AsyncIterator}.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over the Keys in given Table Segment. If the operation failed, the Future will be failed with the causing
+     * exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
      */
-    AsyncIterator<IteratorItem<TableKey>> keyIterator();
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator();
 
     /**
      * Returns an {@link AsyncIterator} that will iterate over the {@link TableEntry} instances in the Table using the
      * information collected in this builder.
      *
-     * @return A new {@link AsyncIterator}.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over the Entries in given Table Segment. If the operation failed, the Future will be failed with the causing
+     * exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * </ul>
      */
-    AsyncIterator<IteratorItem<TableEntry>> entryIterator();
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator();
 }

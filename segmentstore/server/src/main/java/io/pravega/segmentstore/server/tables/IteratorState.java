@@ -25,18 +25,6 @@ import lombok.SneakyThrows;
  * Represents the state of a resumable iterator.
  */
 class IteratorState {
-    static final UUID MIN_HASH = new UUID(TableBucket.CORE_ATTRIBUTE_PREFIX + 1, Long.MIN_VALUE);
-    static final UUID MAX_HASH = new UUID(TableBucket.BACKPOINTER_PREFIX - 1, Long.MAX_VALUE);
-
-    /**
-     * An IteratorState that indicates there are no more items left in the iteration.
-     */
-    public static final IteratorState END = new IteratorState(MAX_HASH);
-
-    /**
-     * An IteratorState that indicates the beginning of an iteration.
-     */
-    public static final IteratorState START = new IteratorState(MAX_HASH);
     private static final Serializer SERIALIZER = new Serializer();
 
     /**
@@ -53,21 +41,13 @@ class IteratorState {
      * @param keyHash The Key Hash to use.
      */
     IteratorState(@NonNull UUID keyHash) {
-        Preconditions.checkArgument(isValid(keyHash), "keyHash must be at least IteratorState.MIN_HASH and at most IteratorState.MAX_HASH.");
+        Preconditions.checkArgument(KeyHasher.isValid(keyHash), "keyHash must be at least IteratorState.MIN_HASH and at most IteratorState.MAX_HASH.");
         this.keyHash = keyHash;
     }
 
-    /**
-     * Gets a value indicating whether the iteration for this IteratorState has reached an end.
-     *
-     * @return True if the iteration has reached an end, false otherwise.
-     */
-    public boolean isEnd() {
-        return this.keyHash.equals(MAX_HASH);
-    }
-
-    static boolean isValid(UUID keyHash) {
-        return MIN_HASH.compareTo(keyHash) <= 0 && MAX_HASH.compareTo(keyHash) >= 0;
+    @Override
+    public String toString() {
+        return String.format("Hash = %s", this.keyHash);
     }
 
     //region Serialization

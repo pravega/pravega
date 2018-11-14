@@ -95,10 +95,10 @@ public class TableService extends SegmentContainerCollection implements TableSto
     }
 
     @Override
-    public CompletableFuture<IteratorBuilder> iterator(String segmentName, Duration timeout) {
-        return invokeExtension(segmentName,
-                e -> e.iterator(segmentName, timeout),
-                "iterator", segmentName);
+    public IteratorBuilder iterator(String segmentName) {
+        return invokeSync(segmentName,
+                segmentContainer -> segmentContainer.getExtension(ContainerTableExtensionImpl.class).iterator(segmentName),
+                "iterator");
     }
 
     //endregion
