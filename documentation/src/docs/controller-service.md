@@ -116,8 +116,8 @@ retention and scaling.
 have two policies that users can define, namely [**Scaling** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and
 [**Retention** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java).
 
-- **Scaling policy** describes if and under what circumstances a Stream should automatically scale its number of segments.
-- **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time Based Retention*) and data **size**(*Size Based Retention*).
+       - **Scaling policy** describes if and under what circumstances a Stream should automatically scale its number of segments.  
+       - **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time Based Retention*) and data **size**(*Size Based Retention*).
 
   3. [**Transaction**](pravega-concepts.md#transactions) **Management**: Implementing Transactions requires the manipulation of Stream Segments. With
 each Transaction, Pravega creates a set of Transaction segments, which
@@ -781,11 +781,11 @@ Controller is responsible for ensuring that the Transaction and a
 potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
-
-![transaction management](img/Transaction_Management.png)
+<p>
+<img src="img/Transaction_Management.png" width="732" height="400" alt="Transaction Management">
 
 Transaction Management
-
+</p>
 Client calls into Controller process to _create, ping commit_ or _abort
 transactions_. Each of these requests is received on Controller and handled by the _Transaction Utility_ module which
 implements the business logic for processing each request.
