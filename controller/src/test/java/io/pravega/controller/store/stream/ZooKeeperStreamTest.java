@@ -17,7 +17,7 @@ import org.apache.curator.test.TestingServer;
 
 import java.time.Duration;
 
-public class ZKStreamTest extends StreamTestBase {
+public class ZooKeeperStreamTest extends StreamTestBase {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
@@ -50,7 +50,7 @@ public class ZKStreamTest extends StreamTestBase {
     }
 
     @Override
-    PersistentStreamBase getStream(String scope, String stream) {
-        return new ZKStream(scope, stream, storeHelper);
+    PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize) {
+        return new ZKStream(scope, stream, storeHelper, () -> 0, chunkSize, shardSize);
     }
 }

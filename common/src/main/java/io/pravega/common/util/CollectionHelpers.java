@@ -15,7 +15,6 @@ import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,61 +72,11 @@ public final class CollectionHelpers {
     }
 
     /**
-     * Performs a binary search on the given IndexedMap.
-     *
-     * @param source      The IndexedMap to search on. The Entries in this map must be sorted by Key, otherwise the outcome
-     *                    of this method will be undefined.
-     * @param keys        A Collection containing Keys to search for. This collection need not be sorted.
-     * @param result      A Map that where results will be populated into. Only Keys that are present in the given source
-     *                    will be added here, and only if they are found during the search (if they're already present in
-     *                    the given Map, they will be overridden with the new values found here).
-     * @param <KeyType>   Type of the Keys.
-     * @param <ValueType> Type of the values.
-     * @return True if at least one Key from "keys" was found, false otherwise.
-     */
-    public static <KeyType extends Comparable<KeyType>, ValueType> boolean binarySearch(
-            IndexedMap<KeyType, ValueType> source, Collection<KeyType> keys, Map<KeyType, ValueType> result) {
-        final int count = source.getCount();
-
-        // Process the Keys in sorted order.
-        int nextPos = 0; // Position of the last found Value. This is a sequence position, and not the index in the array.
-        boolean anythingFound = false;
-        Iterator<KeyType> iterator = keys.stream().sorted().iterator();
-        while (iterator.hasNext() && nextPos < count) {
-            // Do a binary search starting at nextIndex until the end of the data.
-            KeyType key = iterator.next();
-            int startPos = nextPos;
-            int endPos = count;
-            while (startPos < endPos) {
-                // Locate the Key in the middle.
-                int midPos = startPos + (endPos - startPos) / 2;
-                KeyType midKey = source.getKey(midPos);
-                int c = key.compareTo(midKey);
-                if (c == 0) {
-                    // Found it.
-                    result.put(key, source.getValue(midPos));
-                    nextPos = midPos + 1;
-                    anythingFound = true;
-                    break;
-                } else if (c < 0) {
-                    // Search again to the left.
-                    endPos = midPos;
-                } else {
-                    // Search again to the right.
-                    startPos = midPos + 1;
-                }
-            }
-        }
-
-        return anythingFound;
-    }
-    
-    /**
-     * Performs a binary search on the given sorted list to find the greatest lower bound for the supplied element. 
+     * Performs a binary search on the given sorted list to find the greatest lower bound for the supplied element.
      * @param list list to search in
      * @param comparator A bifunction comparator that compares elements in list of type T to value of type U
      * @param <T> Type of elements in the list
-     * @return returns index of element in the list is greatest lower bound for the given value. 
+     * @return returns index of element in the list is greatest lower bound for the given value.
      * If value is not found, this returns -1
      */
     public static <T> int findGreatestLowerBound(final List<? extends T> list, Function<? super T, Integer> comparator) {

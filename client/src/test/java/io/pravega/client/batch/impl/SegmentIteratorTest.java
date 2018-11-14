@@ -110,7 +110,7 @@ public class SegmentIteratorTest {
     }
 
     private void sendData(String data, SegmentOutputStream outputStream) {
-        outputStream.write(new PendingEvent("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
+        outputStream.write(PendingEvent.withHeader("routingKey", stringSerializer.serialize(data), new CompletableFuture<>()));
     }
     
 }
