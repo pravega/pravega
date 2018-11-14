@@ -50,10 +50,6 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         this.metricRegistry.remove(this.failName);
     }
 
-    @Override
-    protected void finalize() {
-        close();
-    }
 
     //endregion
 
