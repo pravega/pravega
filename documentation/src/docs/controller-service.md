@@ -142,7 +142,7 @@ The elements of the diagram are discussed in detail in the following sections.
 
  ![Controller system_diagram](img/ControllerSystem-Diagram.png)
 
-<center><i>Controller Process Diagram</i></center>
+_Controller Process Diagram_
 
 
 # Components
@@ -336,7 +336,7 @@ History Table to determine successors of any given Stream Segment.
 
    - Scaling policy describes if and when to automatically scale based on
  incoming traffic conditions into the Stream. The policy supports two
- flavours - _traffic as rate of events per second_ and _traffic as rate of
+ flavours - _traffic as rate of Events per second_ and _traffic as rate of
  bytes per second_. The application specifies their desired traffic
  rates into each segment by means of scaling policy and the supplied
  value is chosen to compute thresholds that determine when to scale a
@@ -521,68 +521,60 @@ other background processing is done using Event Processor framework.
 
 ### Event Processor Framework
 
-Event processors framework is a background worker sub system which reads
-events from an internal Stream and processes it, hence the name event
-processor. All event processors in our system provide **at least once
+Event processors framework is a background worker subsystem which reads
+Events from an internal Stream and processes it, hence the name Event
+Processor. In Pravega all Event Processors provides **at least once
 processing** guarantee. And in its basic flavor, the framework also
-provides strong ordering guarantees. But we also have different subtypes
-of event processors that allow concurrent processing.
+provides strong ordering guarantees. In Pravega, there exists different subtypes
+of event processors which allow concurrent processing.
 
-We create different event processors for different kinds of work.
-Presently we have _three_ different event processors in our system for
-_committing transaction, aborting transactions_ and _processing Stream
-specific requests like scale, update, seal, etc_. Each Controller instance
-has one event processor of each type. The event processor framework
-allows for multiple readers to be created per event processor. All
-readers for a specific event processor across Controller instances share
-the same reader group, which guarantees mutually exclusive distribution
-of work across Controller instances. Each reader gets a dedicated thread
-where it reads the event, calls for its processing and upon completion
-of processing, updates its **Checkpoint**. Events are posted in the event
-processor specific Stream and are routed to specific segments based on
-using scoped Stream name as the routing key.
+We create different Event Processors for different kinds of work.
+In Pravega, there are _three_ different Event Processors:
 
-We have two flavors of event processors, one that performs serial
-processing, which essentially means it reads an event and initiates its
-processing and waits on it to complete before moving on to next event.
-This provides strong ordering guarantees in processing. And it
-checkpoints after processing each event.  Commit transaction is
-implemented using this base flavor of event processor. The degree of
-parallelism for processing these events is upper bounded by number of
-segments in the internal Stream and lower bounded by number of readers.
-Multiple events from across different Streams could land up in the same
-segment and since we perform serial processing, serial processing has
-the drawback that processing stalls or flooding of events from one
+- Committing Transaction,
+- Aborting Transactions,
+- Processing Stream specific requests (scale, update, seal, etc).
+
+Each Controller instance has one Event Processor of each type. The Event Processor framework
+allows for multiple Readers to be created per Event Processor. All
+Readers for a specific Event Processor across Controller instances share
+the same Reader Group, which guarantees mutually exclusive distribution
+of work across Controller instances. Each Reader gets a dedicated thread
+where it reads the Event, calls for its processing and upon completion
+of processing, updates its **Checkpoint**. Events are posted in the Event
+Processor specific Stream and are routed to specific Stream Segments using scoped Stream name as the Routing Key.
+
+#### Serial Event Processor
+It essentially reads an Event and initiates its processing and waits on it to complete before moving on to next Event. This provides strong ordering guarantees in processing. And it
+checkpoints after processing each event. Commit Transaction is
+implemented using this Serial Event Processor. The degree of
+parallelism for processing these Events is upper bounded by the number of
+Stream Segments in the internal Stream and lower bounded by number of Readers.
+Multiple Events from across different Streams could land up in the same
+Stream Segment due to Serial processing. Serial processing has
+a drawback that, processing stalls or flooding of Events from one
 Stream could adversely impact latencies for unrelated Streams.
 
-To overcome these drawbacks we designed **Concurrent Event Processor** as an
-overlay on Serial Event processor. Concurrent event processor, as name
-implies, allows us to process multiple events concurrently. Here the
-reader thread reads an event, schedules it’s asynchronous processing and
-returns to read the next event. There is a ceiling on number of events
+#### Concurrent Event Processor
+To overcome the drawbacks of Serial Event Processor, in Pravega we designed **Concurrent Event Processor**. Concurrent Event Processor, as the name implies, allows us to process multiple Events concurrently. Here the Reader thread, reads an Event, schedules it’s asynchronous processing and
+returns to read the next event. There is a ceiling on number of Events
 that are concurrently processed at any point in time and as processing
-of some event completes, newer events are allowed to be fetched.  The
-checkpoint scheme here becomes slightly more involved because we want to
-guarantee at least once processing.
+of some Event completes, newer Events are allowed to be fetched. The
+Checkpoint scheme here becomes slightly more involved to ensure the guarantee _at least once processing_.
 
-However, with concurrent processing the ordering guarantees get broken.
-However, it is important to note that we only need ordering guarantees
-for processing events from a Stream and not across Streams. In order to
-satisfy ordering guarantee, we overlay concurrent event processor with
-**Serialized Request Handler**, which queues up events from the same Stream
-in an in-memory queue and processes them in order.
+However, with concurrent processing the ordering guarantees get broken. But, it is important to note that only ordering guarantees are needed for processing Events from a Stream and not across Streams. In order to satisfy ordering guarantee, we overlay Concurrent Event processor with **Serialized Request Handler**, which queues up Events from the same Stream in an _in-memory queue_ and processes them in order.
 
-  - **Commit Transaction** processing is implemented on a dedicated serial event
-processor because we want strong commit ordering while ensuring that
+  - **Commit Transaction** processing is implemented on a dedicated Serial Event
+Processor because strong commit ordering is required by ensuring that
 commit does not interfere with processing of other kinds of requests on
 the Stream.
 
   - **Abort Transaction** processing is implemented on a dedicated Concurrent
-Event Processor which performs abort processing on transactions from
+Event Processor which performs abort processing on Transactions from
 across Streams concurrently.
 
-All other requests for Streams is implemented on a serialized request
-handler which ensures exactly one request per Stream is being processed
+All other requests for Streams is implemented on a Serialized Request
+Handler which ensures exactly one request per Stream is being processed
 at any given time and there is ordering guarantee within request
 processing. However, it allows for concurrent requests from across
 Streams to go on concurrently. Workflows like _scale, truncation, seal,
@@ -597,125 +589,120 @@ Controller is the store of truth for all Stream related metadata.
 Pravega clients (`EventStreamReaders` and `EventStreamWriters`), in
 conjunction with the Controller, ensure that Stream invariants are
 satisfied and honored as they work on Streams. The Controller maintains
-the metadata of Streams, including the entire history of segments.
+the metadata of Streams, including the entire history of Stream Segments.
 Client accessing a Stream need to contact the Controller to obtain
-information about segments.
+information about Stream Segments.
 
 Clients query Controller in order to know how to navigate Streams. For
-this purpose Controller exposes appropriate APIs to get active segments,
-successors, predecessors and segment information and _URIs_. These queries
+this purpose Controller exposes appropriate APIs to get _active Stream Segments,
+successors, predecessors_ and _Stream Segment information_ and _URIs_. These queries
 are served using metadata stored and accessed via Stream store
 interface.
 
 Controller also provides workflows to modify state and behavior of the
 Stream. These workflows include _create, scale, truncation, update, seal,_
 and _delete_. These workflows are invoked both via direct APIs and in some
-cases as applicable via background policy manager (auto scale and retention).
+cases as applicable via background policy manager ([Auto Scaling]((https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and [Retention]((https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java)).
 
 <p>
 <img src="img/Request-Processing_Flow.png" width="880" height="750" alt="request processing">
-<center><i>Request Processing Flow Diagram</i></center>
+<i>Request Processing Flow Diagram</i>
 </p>
 
 ### Create Stream
 
-Create Stream is implemented as a task on **Task Framework**. Create Stream
-workflow first creates initial Stream metadata with Stream State set to
-*Creating*. Following this, it identifies segment containers that should
-own and create segments for this Stream and calls create segment
-concurrently. Once all create segments complete, the create Stream task
-completes thus moving the Stream to *Active* state. All failures are
-retried few times with exponential backoffs. However, if it is unable to
-complete any step, the Stream is left dangling in *Creating* state.
+Create Stream is implemented as a task on **Task Framework**.
+
+ - Create Stream workflow first sets the initial Stream set to *Creating*.
+ - Then, it identifies Segment Containers that should
+own and create Segments for this Stream and calls `CreateSegment()`
+concurrently. Once all `CreateSegment()`(s) completes, the `createStream()` task
+gets completed thus moving the Stream to *Active* state. All failures are retried few times with exponential backoffs.
+- However, if it is unable to complete any step, the Stream is left dangling in *Creating* state.
 
 ### Update Stream
 
-Update Stream is implemented as a task on serialized sequest
-handler over concurrent event processor framework. Update Stream is invoked
-by an explicit API call into Controller. It first posts an _Update
-Request_ event into request Stream. Following that it tries to create a
-temporary update property. If it fails to create the temporary update
-property, the request is failed and the caller is notified of the
-failure to update a Stream due to conflict with another ongoing update.
+Update Stream is implemented as a task on **Serialized Request
+Handler** over Concurrent Event Processor framework.
 
-The event is picked by **Request Event processor**. When the processing
+1. Update Stream is invoked by an explicit API `updateStream()` call into Controller.
+2. It first posts an _Update Request_ event into request Stream.
+3. Following that it tries to create a temporary update property. If it fails to create the temporary update property, the request is failed and the caller is notified of the failure to update a Stream due to conflict with another ongoing update.
+4. The event is picked by **Request Event Processor**. When the processing
 starts, the update Stream task expects to find the temporary update
 Stream property to be present. If it does not find the property, the
 update processing is delayed by pushing event the back in the in-memory
 queue until it deems the event expired. If it finds the property to be
 updated during this period, before the expiry, the event is processed
-and update Stream operation is performed. Now that the processing
-starts, it first sets the state to *Updating*. Following this the Stream
-configuration is updated in the metadata store followed by notifying
-Segment Stores for all active segments of the Stream about change in
+and `updateStream()` operation is performed.
+
+- Once the update Stream processing starts, it first sets the Stream state to *Updating*.
+- Then, the Stream configuration is updated in the metadata store followed by notifying
+Segment Stores for all _active_ Stream Segments of the Stream, about the change in
 policy. Now the state is reset to *Active*.
 
 ### Scale Stream
 
 Scale can be invoked either by explicit API call (referred to as manual
 scale) or performed automatically based on scale policy (referred to as
-auto-scale). We first write the event followed by updating the segment
-table by creating new entries for desired segments to be created. This
+Auto scaling). First write the Event followed by updating the Segment
+Table by creating new entries for the creation of desired Stream Segments. This
 step is idempotent and ensures that if an existing ongoing scale
 operation is in progress, then this attempt to start a new scale fails.
 The start of processing is similar to mechanism followed in update
 Stream. If metadata is updated, the event processes and proceeds with
 executing the task. If the metadata is not updated within the desired
-time frame, the event is discarded.
+time frame, the Event is discarded.
 
-Once scale processing starts, it first sets the Stream State *Scaling*.
-This is followed by creating new segments in Segment Stores. After
-successfully creating new segments, it updates the history table with a
-partial record corresponding to new epoch which contains list of
-segments as they would appear post scale. Each new epoch creation also
-creates a new root epoch node under which metadata for all transactions
-from that epoch reside. So as the scale is performed, there would be a
-node corresponding to old epoch and now there will also be a root node
-for new epoch. Any transaction creation from this point on will be done
-against new epoch. Now the workflow attempts to complete scale by
-opportunistically attempting to delete the old epoch. Old epoch can be
-deleted if and only if there are no transactions under its tree. Once we
-are sure there are no transactions on old epoch, we can proceed with
-sealing old segments and completing the scale. After old segments are
-sealed successfully, the partial record in history table is now
-completed whereby completing the scale workflow. The state is now reset
-to *Active*.
+- Once scale processing starts, it first sets the Stream State *Scaling*.
+- Then creates new Stream Segments in Segment Store. After
+successfully creating new Stream Segments, it updates the History Table with a
+partial record corresponding to new _epoch_ which contains the list of
+Stream Segments as they would appear post scale. Following is the workflow:
+
+1. Each new _epoch_ creation also creates a new root _epoch_ node under which metadata for all transactions from that _epoch_ reside.
+2. So as the scale is performed, there would be a node corresponding to old _epoch_ and now there will also be a root node for new _epoch_.
+3. Any Transaction creation from this point on will be done against new _epoch_.
+4. Now the workflow attempts to complete scale by opportunistically attempting to delete the old _epoch_.
+5. Old _epoch_ can be deleted if and only if there are no Transactions under its tree. Once we
+are sure there are no Transactions on old _epoch_, we can proceed with sealing old Stream Segments and completing the scale.
+
+- After old Stream Segments are sealed successfully, the partial record in History Table is now
+completed whereby completing the scale workflow. The Stream State is now reset to *Active*.
 
 ### Truncate Stream
 
 Truncate follows similar mechanism to update and has a temporary
-Stream property for truncation that is used to supply input for truncate Stream. Once truncate workflow identifies that it can proceed, it first
-sets the state to *Truncating*. Truncate workflow then looks at the
-requested StreamCut, and checks if it is greater than or equal to the
-existing truncation point, only then is it a valid input for truncation
-and the workflow commences. The truncation workflow takes the requested
-StreamCut and computes all segments that are to be deleted as part of
-this truncation request. It then calls into respective Segment Stores to
-delete identified segments. Post deletion, we call truncate on segments
-that are described in the Stream cut at the offsets as described in the
-Stream cut. Following this the truncation record is updated with the new
-truncation point and deleted segments.  The state is reset to *Active*.
+Stream property for truncation that is used to supply input for truncate Stream.
+
+- Once the truncate workflow process starts, the Stream State is set to *Truncating*.
+- Truncate workflow then looks at the requested `StreamCut`, and checks if it is greater than or equal to the existing truncation point, only then is it a valid input for truncation
+and the workflow commences.
+- The truncation workflow takes the requested `StreamCut` and computes all Stream Segments that are to be deleted as part of this truncation request.
+- Then calls into respective Segment Stores to delete identified Stream Segments. Post deletion, we call truncate on Stream Segments that are described in the `StreamCut` at the offsets as described in the `Streamcut`.
+- Following this the truncation record is updated with the new
+truncation point and deleted Stream Segments.  The state is reset to *Active*.
 
 ### Seal Stream
 
 Seal Stream can be requested via an explicit API call into Controller.
-It first posts a seal-Stream event into request Stream followed by
-attempts to set the state of Stream to *Sealing*. If the event is picked
-and does not find the Stream to be in desired state, it postpones the
+It first posts a seal Stream Event into request Stream.
+
+- Once the Seal Stream process starts, the Stream State is set to *Sealing*.
+- If the event is picked and does not find the Stream to be in desired state, it postpones the
 seal Stream processing by reposting it at the back of in-memory queue.
-Once the Stream is set to sealing state, all active segments for the
-Stream are sealed by calling into Segment Store. After this the Stream
-is marked as *Sealed* in the Stream metadata.
+- Once the Stream is set to sealing state, all _active_ Stream Segments for the
+Stream are sealed by calling into Segment Store.
+- After this the Stream is marked as *Sealed* in the Stream metadata.
 
 ### Delete Stream
 
 Delete Stream can be requested via an explicit API call into Controller.
-The request first verifies if the Stream is in *Sealed* state. Only sealed
-Streams can be deleted and an event to this effect is posted in request
-Stream. When the event is picked for processing, it verifies the Stream
-state again and then proceeds to delete all segments that belong to this
-Stream from its inception by calling into Segment Store. Once all
-segments are deleted successfully, the Stream metadata corresponding to
+The request first verifies if the Stream is in *Sealed* state.
+- Only sealed Streams can be deleted and an event to this effect is posted in request
+Stream.
+- When the event is picked for processing, it verifies the Stream state again and then proceeds to delete all Stream Segments that belong to this Stream from its inception by calling into Segment Store.
+- Once all Stream Segments are deleted successfully, the Stream metadata corresponding to
 this Stream is cleaned up.
 
 ## Stream Policy Manager
@@ -726,51 +713,49 @@ Controller is not just the store for Stream policy but it actively enforces thos
 ### Scaling Infrastructure
 
 Scaling infrastructure is built in conjunction with Segment Stores. As
-Controller creates new segments in Segment Stores, it passes user
+Controller creates new Stream Segments in Segment Stores, it passes user
 defined scaling policies to Segment Stores. The Segment Store then
-monitors traffic for the said segment and reports to Controller if some
+monitors traffic for the said Stream Segment and reports to Controller if some
 thresholds, as determined from policy, are breached. Controller receives
-these notifications via events posted in dedicated internal Streams.
+these notifications via Events posted in dedicated internal Streams.
 There are two types of traffic reports that can be received for
-segments. First type identifies if a segment should be **scaled up** (split)
-and second type identifies if a segment should be **scaled down**. For segments eligible for scale up, Controller immediately posts request for
-segment scale up in the request Stream for request event processor to
+segments.
+
+- It identifies if a Stream Segment should be **scaled up** (split).
+- It identifies if a Stream Segment should be **scaled down**.
+
+For Stream Segments eligible for scale up, Controller immediately posts request for
+Stream Segment scale up in the request Stream for Request Event Processor to
 process. However, for scale down, Controller needs to wait for at least
-two neighboring segments to become eligible for scale down. For this
-purpose it simply marks the segment as **cold** in the metadata store. And
-if and when there are neighboring segments that are marked as cold,
-Controller consolidates them and posts a scale down request for them.
+two neighboring Stream Segments to become eligible for scale down. For this
+purpose it marks the Stream Segment as **cold** in the metadata store. Controller consolidates the neighboring Stream Segments that are marked as cold and posts a scale down request for them.
 The scale requests processing is then performed asynchronously on the
-request event processor.   
+Request Event Processor.   
 
 ### Retention Infrastructure
 
 The retention policy defines how much data should be retained for a
 given Stream. This can be defined as _time based_ or _size based_. To apply
-this policy, Controller periodically collects StreamCuts for the Stream
-and opportunistically performs truncation on previously collected Stream
-cuts if policy dictates it. Since this is a periodic background work
-that needs to be performed for all Streams that have a retention policy
-defined, there is an imperative need to fairly distribute this workload
+this policy, Controller periodically collects `StreamCuts` for the Stream
+and opportunistically performs truncation on previously collected `StreamCuts` if policy dictates it. Since this is a periodic background work that needs to be performed for all Streams that have a retention policy defined, there is an imperative need to fairly distribute this workload
 across all available Controller instances. To achieve this we rely on
 bucketing Streams into predefined sets and distributing these sets
 across Controller instances. This is done by using Zookeeper to store
 this distribution. Each Controller instance, during bootstrap, attempts
 to acquire ownership of buckets. All Streams under a bucket are
 monitored for retention opportunities by the owning Controller. At each
-period, Controller collects a new Stream cut and adds it to a
+period, Controller collects a new `StreamCut` and adds it to a
 retention set for the said Stream. Post this it looks for candidate
-StreamCuts stored in retention set which are eligible for truncation
+`StreamCuts` stored in retention set which are eligible for truncation
 based on the defined retention policy. For example, in time based
-retention, the latest StreamCut older than specified retention period
+retention, the latest `StreamCut` older than specified retention period
 is chosen as the truncation point.
 
 ## Transaction Manager
 
 Another important role played by Controller is that of Transaction
-manager. It is responsible for creation and committing and abortion of
-transactions. Since Controller is the central brain and agency in our
-cluster, and is the holder of truth about Stream, the writers request
+manager. It is responsible for creation, committing and abortion of
+Transactions. Since Controller is the central brain and agency in Pravega cluster, and is the holder of truth about Stream, the writers request
 Controller to perform all control plane actions with respect to
 Transactions. Controller plays active roles in providing guarantees for
 Transactions from the time since they are created till the time they are
@@ -784,7 +769,7 @@ ensure all promises made with respect to either are honored and
 enforced.
 <p>
 <img src="img/Transaction_Management.png" width="880" height="750" alt="Transaction Management">
-<center><i>Transaction Management Diagram </i></center>
+<i>Transaction Management Diagram </i>
 </p>
 
 Client calls into Controller process to _create, ping commit_ or _abort
@@ -795,73 +780,64 @@ implements the business logic for processing each request.
 
 Writers interact with Controller to create new Transactions. Controller Service passes the create transaction request to Transaction Utility module.
 
-The create transaction function in the module performs the following steps:
+The create Transaction function in the module performs the following steps:
 
 1. Generates a unique UUID for the Transaction.
-2. It fetches current active set of segments for the Stream from metadata store and its corresponding epoch identifier from the history.
-3. It creates a new transaction record in the Zookeeper using the metadata store interface.
-4. It then requests Segment Store to create special Transaction segments that are inherently linked to the parent active segments.
+2. It fetches current _active_ set of Stream Segments for the Stream from metadata store and its corresponding epoch identifier from the history.
+3. It creates a new Transaction record in the Zookeeper using the metadata store interface.
+4. It then requests Segment Store to create special Transaction Segments that are inherently linked to the parent _active_ Stream Segments.
 
-While creating Transactions, Controller ensures that parent segments are not sealed as we attempt to create corresponding transaction segments.
-And during the lifespan of a transaction, should a scale commence, it should wait for Transactions on older epoch to finish before the scale proceeds
-to seal segments from old epoch.
+While creating Transactions, Controller ensures that parent Stream segments are not sealed as we attempt to create corresponding Transaction Segments.
+And during the lifespan of a Transaction, should a scale commence, it should wait for Transactions on older _epoch_ to finish before the scale proceeds
+to seal Stream Segments from old _epoch_.
 
 ### Commit Transaction
 
-Upon receiving request to commit a transaction, Controller Service passes the request to Transaction Utility module.
-This module first tries to mark the transaction for commit in the transaction specific metadata record via metadata store.
-Following this, it posts a commit event in the internal Commit Stream.
-Commit transaction workflow is implemented on commit event processor and
-thereby processed asynchronously. The commit transaction workflow checks for eligibility of transaction to be committed, and if true,
-it performs the commit workflow with indefinite retries until it
-succeeds. If the Transaction is not eligible for commit, which typically
-happens if Transaction is created on a new epoch while the old epoch is
-still active, then such events are reposted into the internal Stream to
+Upon receiving request to commit a Transaction, Controller Service passes the request to Transaction Utility module.
+
+1. This module first tries to mark the Transaction for commit in the Transaction specific metadata record via metadata store.
+2. Then, it posts a commit event in the internal Commit Stream.
+3. Commit Transaction workflow is implemented on commit event processor and thereby processed asynchronously.
+4. The commit transaction workflow checks for eligibility of Transaction to be committed, and if true,
+it performs the commit workflow with indefinite retries until it succeeds. If the Transaction is not eligible for commit, which typically happens if Transaction is created on a new epoch while the old _epoch_ is still _active_, then such Events are reposted into the internal Stream to
 be picked later.
 
-Once a Transaction is committed successfully, the record for the
-transaction is removed from under its epoch root. Then if there is an
-ongoing scale, then it calls to attempt to complete the ongoing scale.
-Trying to complete scale hinges on ability to delete old epoch which can
-be deleted if and only if there are no outstanding active transactions against the said epoch (refer to scale workflow for more details).   
+Once a Transaction is committed successfully, the record for the Transaction is removed from under its _epoch_ root. Then if there is an ongoing scale, then it calls to attempt to complete the ongoing scale.
+Trying to complete scale hinges on ability to delete old _epoch_ which can
+be deleted if and only if there are no outstanding active Transactions against the said _epoch_ (Refer to [scale workflow](#scale-stream) for more details).   
 
 ### Abort Transaction
 
-Abort, like commit, can be requested explicitly by the application.
-However, abort can also be initiated automatically if the Transaction’s
-timeout elapses. Controller tracks the timeout for each and every
-transaction in the system and whenever timeout elapses, or upon explicit
-user request, Transaction utility module marks the transaction for abort in its
-respective metadata. Post this, the event is picked for processing by
-abort event processor and Transactions abort is immediately attempted.
-There is no ordering requirement for abort Transaction and hence it is
+Abort, like commit, can be requested explicitly by the application. However, abort can also be initiated automatically if the Transaction’s timeout elapses.
+
+1. Controller tracks the timeout for each and every Transaction in the system and whenever timeout elapses, or upon explicit user request, Transaction utility module marks the Transaction for abort in its respective metadata.
+2. After this, the Event is picked for processing by abort Event Processor and Transactions abort is immediately attempted.
+3. There is no ordering requirement for abort Transaction and hence it is
 performed concurrently and across Streams.
 
-Like commit, once the Transaction is aborted, its node is deleted from
-its epoch root and if there is an ongoing scale, it complete scale flow
-is attempted.
+Like commit, once the Transaction is aborted, its node is deleted from its _epoch_ root and if there is an ongoing scale, it complete scale flow is attempted.
 
 ### Ping Transaction
 
 Since Controller has no visibility into data path with respect to data
-being written to segments in a transaction, Controller is unaware if a
-transaction is being actively worked upon or not and if the timeout
-elapses it may attempt to abort the transaction. To enable applications
-to control the destiny of a transaction, Controller exposes an API to
-allow applications to renew transaction timeout period. This mechanism
-is called ping and whenever application pings a transaction, Controller
+being written to segments in a Transaction, Controller is unaware if a
+Transaction is being actively worked upon or not and if the timeout
+elapses it may attempt to abort the Transaction. To enable applications
+to control the destiny of a Transaction, Controller exposes an API to
+allow applications to renew Transaction timeout period. This mechanism
+is called ping and whenever application pings a Transaction, Controller
 resets its timer for respective transaction.
 
 ### Transaction Timeout Management
 
 Controllers track each Transaction for their timeouts. This is
-implemented as timer wheel service. Each Transaction, upon creation gets
+implemented as *timer wheel service*. Each Transaction, upon creation gets
 registered into the timer service on the Controller where it is created.
 Subsequent pings for the Transaction could be received on different
 Controller instances and timer management is transferred to latest
 Controller instance based on ownership mechanism implemented via
 Zookeeper. Upon timeout expiry, an automatic abort is attempted and if
-it is able to successfully set transaction status to abort, the abort
+it is able to successfully set Transaction status to abort, the abort
 workflow is initiated.
 
 Each Transaction that a Controller is monitoring for timeouts is added
@@ -872,19 +848,19 @@ and monitor their timeouts from that point onward.
 
 ## Segment Container to Host Mapping
 
-Controller is also responsible for assignment of segment containers to
+Controller is also responsible for assignment of Segment Containers to
 Segment Store nodes. The responsibility of maintaining this mapping
 befalls a single Controller instance that is chosen via a leader
 election using Zookeeper. This leader Controller monitors lifecycle of
 Segment Store nodes as they are added to/removed from the cluster and
-performs redistribution of segment containers across available segment
-store nodes. This distribution mapping is stored in a dedicated znode.
+performs redistribution of Segment Containers across available Segment
+Store nodes. This distribution mapping is stored in a dedicated znode.
 Each Segment Store periodically polls this znode to look for changes and
 if changes are found, it shuts down and relinquishes containers it no
 longer owns and attempts to acquire ownership of containers that are
 assigned to it.
 
-The details about implementation, especially with respect to how the metadata is stored and managed is already discussed [here](#controller-cluster-listener).
+The details about implementation, especially with respect to how the metadata is stored and managed is already discussed in the section [Cluster Listener](#controller-cluster-listener).
 
 # Resources
 
