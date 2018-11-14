@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -48,6 +49,12 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
         return result;
+    }
+    
+    @Override
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
+        return new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID(),
+                                           Callbacks::doNothing, getRetryFromConfig(config), delegationToken);
     }
     
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {

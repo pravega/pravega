@@ -55,9 +55,11 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
@@ -212,6 +214,11 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                                  .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.",
                                                       ch.id(), ch.localAddress(), ch.remoteAddress()))
                                  .count();
+    }
+    
+    @VisibleForTesting
+    public List<Channel> getActiveChannels() {
+        return channelGroup.stream().filter(Channel::isActive).collect(Collectors.toList());
     }
 
     @Override

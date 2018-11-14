@@ -39,7 +39,7 @@ public class CacheKeyTests {
                 Assert.assertEquals("getStreamSegmentId() did not return the same value for equivalent keys.",
                         originalKey.getSegmentId(), newKey.getSegmentId());
                 Assert.assertEquals("getOffset() did not return the same value for equivalent keys.",
-                        originalKey.getEntryId(), newKey.getEntryId());
+                        originalKey.getOffset(), newKey.getOffset());
 
                 if (lastKey != null) {
                     Assert.assertNotEquals("equals() did not return false for different keys.", originalKey, lastKey);

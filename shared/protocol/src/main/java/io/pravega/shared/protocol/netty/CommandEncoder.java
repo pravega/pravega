@@ -17,16 +17,11 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
-import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
-import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
@@ -89,64 +83,43 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (msg instanceof Append) {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
-            if (session == null || !session.id.equals(append.getWriterId())) {
-                throw new InvalidMessageException("Sending appends without setting up the append.");
-            }
-            if (append.getEventNumber() <= session.lastEventNumber) {
-                throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-                + " following: " + session.lastEventNumber);
-            }
-            if (append.isConditional()) {
+            validateAppend(append, session);
+            if (append.segment != segmentBeingAppendedTo) {
                 breakFromAppend(out);
-                ConditionalAppend ca = new ConditionalAppend(append.writerId,
-                        append.eventNumber,
-                        append.getExpectedLength(),
-                        new Event(append.getData()));
-                writeMessage(ca, out);
-            } else {
-                Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
-                        "Bug in CommandEncoder.encode, block is too small.");
-                if (append.segment != segmentBeingAppendedTo) {
-                    breakFromAppend(out);
+            }
+            if (bytesLeftInBlock == 0) {
+                currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
+                bytesLeftInBlock = currentBlockSize;
+                segmentBeingAppendedTo = append.segment;
+                writeMessage(new AppendBlock(session.id), out);
+                if (ctx != null) {
+                    ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
+                                            blockSizeSupplier.getBatchTimeout(),
+                                            TimeUnit.MILLISECONDS);
                 }
-                if (bytesLeftInBlock == 0) {
-                    currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
-                    bytesLeftInBlock = currentBlockSize;
-                    segmentBeingAppendedTo = append.segment;
-                    writeMessage(new AppendBlock(session.id), out);
-                    if (ctx != null) {
-                        ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
-                                                blockSizeSupplier.getBatchTimeout(),
-                                                TimeUnit.MILLISECONDS);
-                    }
-                }
+            }
 
-                session.lastEventNumber = append.getEventNumber();
-                session.eventCount++;
-                ByteBuf data = append.getData();
-                int msgSize = TYPE_PLUS_LENGTH_SIZE + data.readableBytes();
-                // Is there enough space for a subsequent message after this one?
-                if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
-                    bytesLeftInBlock -= serializeEvent(new Event(data), new ByteBufOutputStream(out));
-                } else {
-                    ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                    serializeEvent(new Event(data), bout);
-                    byte[] serializedMessage = bout.toByteArray(); 
-                    int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
-                    ByteBuf dataInsideBlock = wrappedBuffer(serializedMessage, 0, bytesInBlock);
-                    ByteBuf dataRemainging = wrappedBuffer(serializedMessage,
-                                                           bytesInBlock,
-                                                           serializedMessage.length - bytesInBlock);
-                    writeMessage(new PartialEvent(dataInsideBlock), out);
-                    writeMessage(new AppendBlockEnd(session.id,
-                                                    currentBlockSize - bytesLeftInBlock,
-                                                    dataRemainging,
-                                                    session.eventCount,
-                                                    session.lastEventNumber,
-                                                    0L), out);
-                    bytesLeftInBlock = 0;
-                    session.eventCount = 0;
-                }
+            session.lastEventNumber = append.getEventNumber();
+            session.eventCount++;
+            ByteBuf data = append.getData().slice();
+            int msgSize = data.readableBytes();
+            // Is there enough space for a subsequent message after this one?
+            if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
+                out.writeBytes(data);
+                bytesLeftInBlock -= msgSize;
+            } else {
+                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE; 
+                ByteBuf dataInsideBlock = data.readSlice(bytesInBlock);
+                ByteBuf dataRemainging = data;
+                writeMessage(new PartialEvent(dataInsideBlock), out);
+                writeMessage(new AppendBlockEnd(session.id,
+                                                currentBlockSize - bytesLeftInBlock,
+                                                dataRemainging,
+                                                session.eventCount,
+                                                session.lastEventNumber,
+                                                0L), out);
+                bytesLeftInBlock = 0;
+                session.eventCount = 0;
             }
         } else if (msg instanceof SetupAppend) {
             breakFromAppend(out);
@@ -166,6 +139,21 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
     }
 
+    private void validateAppend(Append append, Session session) {
+        if (session == null || !session.id.equals(append.getWriterId())) {
+            throw new InvalidMessageException("Sending appends without setting up the append.");
+        }
+        if (append.getEventNumber() <= session.lastEventNumber) {
+            throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
+            + " following: " + session.lastEventNumber);
+        }
+        if (append.isConditional()) {
+            throw new IllegalArgumentException("Conditional appends should be written via a ConditionalAppend object.");
+        }
+        Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
+                "Bug in CommandEncoder.encode, block is too small.");
+    }
+
     private void breakFromAppend(ByteBuf out) {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
@@ -180,15 +168,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             session.eventCount = 0;
         }
         segmentBeingAppendedTo = null;
-    }
-
-    @SneakyThrows(IOException.class)
-    private int serializeEvent(Event event, OutputStream out) {
-        int result = event.getData().readableBytes() + TYPE_PLUS_LENGTH_SIZE;
-        DataOutputStream dout = new DataOutputStream(out);
-        event.writeFields(dout);
-        dout.flush();
-        return result;
     }
 
     @SneakyThrows(IOException.class)
