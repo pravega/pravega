@@ -614,7 +614,7 @@ cases as applicable via background policy manager (auto scale and retention).
 
 <p>
 <img src="img/Request-Processing_Flow.png" width="880" height="750" alt="request processing">
-<center><i>Request Processing Flow</i></center>
+<center><i>Request Processing Flow Diagram</i></center>
 </p>
 
 ### Create Stream
@@ -784,8 +784,9 @@ ensure all promises made with respect to either are honored and
 enforced.
 <p>
 <img src="img/Transaction_Management.png" width="880" height="750" alt="Transaction Management">
-<center><i>Transaction Management </i></center>
+<center><i>Transaction Management Diagram </i></center>
 </p>
+
 Client calls into Controller process to _create, ping commit_ or _abort
 transactions_. Each of these requests is received on Controller and handled by the _Transaction Utility_ module which
 implements the business logic for processing each request.
