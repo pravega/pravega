@@ -26,9 +26,8 @@ import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryI
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.storage.filesystem.FileSystemStorageConfig;
-import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.File;
 import java.time.Duration;
@@ -306,10 +305,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         final String attributeSegmentName;
 
         TestContext(String segmentName, AttributeIndexConfig config) {
-            val storageConfig = FileSystemStorageConfig.builder()
-                                                       .with(FileSystemStorageConfig.ROOT, OUTPUT_DIR_NAME)
-                                                       .build();
-            val storageFactory = new FileSystemStorageFactory(storageConfig, executorService());
+            val storageFactory = new InMemoryStorageFactory(executorService());
             this.storage = storageFactory.createStorageAdapter();
             this.containerMetadata = new MetadataBuilder(0).build();
             this.cacheFactory = new NoOpCacheFactory();
