@@ -37,7 +37,8 @@ init_kubernetes() {
             done
             echo "Found external service endpoint: ${PUBLISHED_ADDRESS}:${PUBLISHED_PORT}"
         else
-            echo "Service type is ${service_type}. Skipping published endpoint configuration..."
+            echo "Unexpected service type ${service_type}. Exiting..."
+            exit 1
         fi
     fi
 }
