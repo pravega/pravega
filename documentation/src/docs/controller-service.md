@@ -435,14 +435,14 @@ are transferred, as surviving nodes compete to acquire ownership of
 orphaned buckets. The Controller instance which owns a bucket is
 responsible for all long running scheduled background work corresponding
 to all nodes under the bucket. Presently this entails running periodic
-workflows to capture `StreamCuts` (called Retention-Set) for each Stream at desired frequencies.
+workflows to capture `StreamCut`(s) (called Retention-Set) for each Stream at desired frequencies.
 
 ### Retention Set
 
  One retention set per Stream is stored under the corresponding
- bucket/Stream znode. As we compute  `StreamCuts` periodically, we keep
+ bucket/Stream znode. As we compute  `StreamCut`(s) periodically, we keep
  preserving them under this znode. As some automatic truncation is
- performed, the `StreamCuts` that are no longer valid are purged from
+ performed, the `StreamCut`(s) that are no longer valid are purged from
  this set.
 
 ## Controller Cluster Listener
@@ -493,7 +493,7 @@ Stream) and allow for tasks to _failover_ from one Controller instance to
 another. However, this model was limiting in its scope and locking
 semantics and had no inherent notion of ordering of tasks as multiple
 tasks could race to acquire working rights (lock) on a resource
-concurrently and any one of them could succeed. To overcome this limitation we came up with a new infrastructure called [**Event Processor**](#event-processor-framework)(It is built using Pravega Streams. Event Processor provides a clear mechanism to ensure **_mutually exclusive_** and **_ordered processing_).**
+concurrently and any one of them could succeed. To overcome this limitation we came up with a new infrastructure called [**Event Processor**](#event-processor-framework) (It is built using Pravega Streams. Event Processor provides a clear mechanism to ensure **_mutually exclusive_** and **_ordered processing_).**
 
 ### Task Framework
 
@@ -602,7 +602,7 @@ interface.
 Controller also provides workflows to modify state and behavior of the
 Stream. These workflows include _create, scale, truncation, update, seal,_
 and _delete_. These workflows are invoked both via direct APIs and in some
-cases as applicable via background policy manager ([Auto Scaling]((https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and [Retention]((https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java)).
+cases as applicable via background policy manager ([Auto Scaling](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and [Retention](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java)).
 
 <p>
 <img src="img/Request-Processing_Flow.png" width="880" height="750" alt="request processing">
@@ -654,17 +654,17 @@ Stream. If metadata is updated, the event processes and proceeds with
 executing the task. If the metadata is not updated within the desired
 time frame, the Event is discarded.
 
-- Once scale processing starts, it first sets the Stream State *Scaling*.
+- Once scale processing starts, it first sets the Stream State to *Scaling*.
 - Then creates new Stream Segments in Segment Store. After
 successfully creating new Stream Segments, it updates the History Table with a
 partial record corresponding to new _epoch_ which contains the list of
 Stream Segments as they would appear post scale. Following is the workflow:
 
-1. Each new _epoch_ creation also creates a new root _epoch_ node under which metadata for all transactions from that _epoch_ reside.
-2. So as the scale is performed, there would be a node corresponding to old _epoch_ and now there will also be a root node for new _epoch_.
-3. Any Transaction creation from this point on will be done against new _epoch_.
-4. Now the workflow attempts to complete scale by opportunistically attempting to delete the old _epoch_.
-5. Old _epoch_ can be deleted if and only if there are no Transactions under its tree. Once we
+    1. Each new _epoch_ creation also creates a new root _epoch_ node under which metadata for all transactions from that _epoch_ reside.
+    2. So as the scale is performed, there would be a node corresponding to old _epoch_ and now there will also be a root node for new _epoch_.
+    3. Any Transaction creation from this point on will be done against new _epoch_.
+    4. Now the workflow attempts to complete scale by opportunistically attempting to delete the old _epoch_.
+    5. Old _epoch_ can be deleted if and only if there are no Transactions under its tree. Once we
 are sure there are no Transactions on old _epoch_, we can proceed with sealing old Stream Segments and completing the scale.
 
 - After old Stream Segments are sealed successfully, the partial record in History Table is now
@@ -736,8 +736,8 @@ Request Event Processor.
 
 The retention policy defines how much data should be retained for a
 given Stream. This can be defined as _time based_ or _size based_. To apply
-this policy, Controller periodically collects `StreamCuts` for the Stream
-and opportunistically performs truncation on previously collected `StreamCuts` if policy dictates it. Since this is a periodic background work that needs to be performed for all Streams that have a retention policy defined, there is an imperative need to fairly distribute this workload
+this policy, Controller periodically collects `StreamCut`(s) for the Stream
+and opportunistically performs truncation on previously collected `StreamCut`(s) if policy dictates it. Since this is a periodic background work that needs to be performed for all Streams that have a retention policy defined, there is an imperative need to fairly distribute this workload
 across all available Controller instances. To achieve this we rely on
 bucketing Streams into predefined sets and distributing these sets
 across Controller instances. This is done by using Zookeeper to store
@@ -746,7 +746,7 @@ to acquire ownership of buckets. All Streams under a bucket are
 monitored for retention opportunities by the owning Controller. At each
 period, Controller collects a new `StreamCut` and adds it to a
 retention set for the said Stream. Post this it looks for candidate
-`StreamCuts` stored in retention set which are eligible for truncation
+`StreamCut`(s) stored in retention set which are eligible for truncation
 based on the defined retention policy. For example, in time based
 retention, the latest `StreamCut` older than specified retention period
 is chosen as the truncation point.
