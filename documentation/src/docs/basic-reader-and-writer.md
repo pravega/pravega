@@ -57,11 +57,12 @@ Pravega Stream names are organized within Scopes. A Scope acts as a namespace fo
 
 
 Scopes and Streams are created and manipulated via the `StreamManager` interface
-to the Pravega Controller. An URI(`StreamManager.create(controllerURI)`) is a must to any of the Pravega
-Controller instances in the cluster in order to create a `StreamManager` object. In the setup for the `HelloWorld` sample applications, the `controllerURI` is
+to the Pravega Controller. An URI to any of the Pravega Controller instance(s) in your cluster is a must to create a `StreamManager` object. In the setup for the `HelloWorld` sample applications, the `controllerURI` is
 configured as a command line parameter when the sample application is launched.
 
-**Note:** For the "single node" deployment of Pravega, the Controller is listening on
+
+
+**Note:** For the "standalone" deployment of Pravega, the Controller is listening on
 localhost, port 9090.
 
 The `StreamManager` provides access to various control plane functions in Pravega
@@ -78,7 +79,7 @@ related to Scopes and Streams:
 |                 |                                                                   | **Note:** If the Scope contains Streams, the `deleteScope` operation will fail with an exception.                                                                                                               |
 |                 |                                                                   | If we delete a nonexistent Scope, the method will succeed and return **_False_**.                                                                                                               |
 | `createStream`    | (String scopeName, String streamName, StreamConfiguration config) | Create a Stream within a given Scope.                                                                          |
-|                 |                                                                   | Both Scope name and Stream name are limited by the following pattern: [a-zA-Z0-9]+ (i.e. letters and numbers only, no punctuation).                                                                                                               |
+|                 |                                                                   | Both Scope name and Stream name are limited using the following characters: ( Letters (a-z A-Z), numbers (0-9) and delimiters like (. , -) are allowed). punctuation).                                                                                                               |
 |                 |                                                                   | **Note:** The Scope must exist, an exception is thrown if we create a Stream in a nonexistent Scope.                                                                                                               |
 |                 |                                                                   | A Stream Configuration is built using a builder pattern.                                                                                                               |
 |                 |                                                                   | Returns **_True_** if the Stream is created, returns **_False_** if the Stream already exists.                                                                                                               |
@@ -106,12 +107,12 @@ a developer to control various behaviors of the Stream.  All configuration
 objects in Pravega use a builder pattern for construction. **Retention Policy** and **Scaling
 Policy** are the two important configuration items related to streams.   
 
-**Retention Policy:** It allows the developer to control how long the data is kept in a
-Stream before it is deleted. The developer can specify the time limit to keep the data for a certain
-period of time (ideal for situations like regulatory compliance that mandate
-certain retention periods) or can retain the data until a certain number of bytes
-have been consumed. In Pravega, the Retention Policy is in  WIP state and is not completely
-implemented. By default, the Retention Policy is set to "unlimited" (i.e., Data will not be removed from the Stream).
+**Retention Policy:**  Pravega supports the following two types of Retentions:
+
+ - **Time based Retention**: It allows the developer to control how long the data is kept in a Stream before it is deleted. The developer can specify the time limit (milliseconds) to keep the data for a certain period of time (ideal for situations like regulatory compliance that mandate
+certain retention periods).
+ - **Size based Retention**: Retains the data until a certain number of bytes
+have been consumed. It is based on the total size of the data in the stream in bytes.
 
 **Scaling Policy:** When a Stream is created, it is configured with a Scaling Policy that determines how a Stream handles the varying changes in its load. Developers configure a Stream to take advantage
 of Pravega's Auto Scaling feature. Pravega has three kinds of Scaling Policy:
@@ -143,8 +144,8 @@ A `ClientFactory` is created in the context of a Scope, since all Readers, Write
 also needs a URI to one of the Pravega Controllers (`ClientFactory.withScope(scope, controllerURI)`) , just like `StreamManager`.
 
 As the `ClientFactory` and the objects it creates consumes resources from
-Pravega, it is a good practice to create these objects in a try-with-resources
-statement.  Since the `ClientFactory` and the objects it creates, implements
+Pravega, it is a good practice to create these objects using a try-with-resources
+statement. Since the `ClientFactory` and the objects it creates, implements
 `Autocloseable` feature, the try-with-resources approach makes sure that, regardless of how
 the application ends, the Pravega resources will be properly closed in the
 right order.
@@ -189,7 +190,9 @@ appear on.  Many operations in Pravega, such as `writeEvent()`, are asynchronou
 and return some sort of `Future` object. If the application needed to make sure
 the Event was durably written to Pravega and available for Readers, it could
 wait on the `Future` before proceeding. In the case of Pravega's `HelloWorld`
-example, we don't bother waiting.
+example, it does wait on the `Future`, the user application can choose to wait on it.
+
+
 
 `EventStreamWriter` can also be used to begin a Transaction.  We cover
 Transactions in more detail in ([Working with Pravega:
@@ -271,9 +274,14 @@ name the Reader Group. The Reader Group is created via the
 context of a Scope, we can safely conclude that Reader Group names are namespaced
 by that Scope.  
 
-The `ReaderGroupConfig` right now doesn't have much behavior. The developer
-specifies the Stream which should be the part of the Reader Group and its lower and
-upper bounds. In our case, on line 11, we start at the beginning of the Stream.
+The developer specifies the Stream which should be the part of the Reader Group and its lower and
+upper bounds. In the sample application, we start at the beginning of the Stream as follows:
+
+```Java
+final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                                                                .stream(Stream.of(scope, streamName))
+                                                                .build();
+```
 Other configuration items, such as specifying checkpointing etc., are options
 that will be available through the `ReaderGroupConfig`.
 
@@ -324,7 +332,7 @@ until there are no more Events, and then the application terminates.
 
 # Experimental Batch Reader
 
-`BatchClient` is used for applications that requires batch reads of historical stream data. It allows listing all the segments in a stream, and reading their data. When the data is read this way, rather than joining a Reader Group which automatically partitions the data, the underlying structure of the stream is exposed and it is up to the application to decide how to process it. So Events read in this way need not be read in order.
+`BatchClient` is used for applications that requires batch reads of historical stream data. Using the Batch Reader all the segments in a Stream can be listed and read from. Hence, the Events for a given Routing Key which can reside on multiple segments are not read in order.
 
 Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as `MapReduce`.
 
