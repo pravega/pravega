@@ -19,9 +19,12 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -77,7 +80,53 @@ abstract class TableBucketReader<ResultT> {
     //region Searching
 
     /**
-     * Attempts to locate something in the Table that matches a particular key.
+     * Locates all {@link ResultT} instances in a TableBucket.
+     *
+     * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
+     * @param handler      A {@link Consumer} that will be invoked every time a {@link ResultT} is fetched. This will not
+     *                     be invoked for any {@link ResultT} item that is marked as deleted.
+     * @param timer        A {@link TimeoutTimer} for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the operation completed.
+     */
+    CompletableFuture<Void> findAll(long bucketOffset, Consumer<ResultT> handler, TimeoutTimer timer) {
+        AtomicLong offset = new AtomicLong(bucketOffset);
+        return Futures.loop(
+                () -> offset.get() >= 0,
+                () -> {
+                    // Read the Key from the Segment.
+                    ReadResult readResult = segment.read(offset.get(), getMaxReadLength(), timer.getRemaining());
+                    val reader = getReader(null, offset.get(), timer);
+                    AsyncReadResultProcessor.process(readResult, reader, this.executor);
+                    return reader.getResult()
+                            .thenComposeAsync(entryResult -> {
+                                // Record the entry.
+                                if (!isDeleted(entryResult)) {
+                                    handler.accept(entryResult);
+                                }
+
+                                // Get the next Key Location for this bucket.
+                                return this.getBackpointer.apply(segment, offset.get(), timer.getRemaining());
+                            }, this.executor);
+                },
+                offset::set,
+                this.executor);
+    }
+
+    /**
+     * Locates all {@link ResultT} instances in a TableBucket.
+     *
+     * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
+     * @param timer        A {@link TimeoutTimer} for the operation.
+     * @return A CompletableFuture that, when completed, will contain a List with the desired result items. This list
+     * will exclude all {@link ResultT} items that are marked as deleted.
+     */
+    CompletableFuture<List<ResultT>> findAll(long bucketOffset, TimeoutTimer timer) {
+        List<ResultT> result = new ArrayList<>();
+        return findAll(bucketOffset, result::add, timer).thenApply(v -> result);
+    }
+
+    /**
+     * Attempts to locate something in a TableBucket that matches a particular key.
      *
      * @param soughtKey    An {@link ArrayView} instance representing the Key we are looking for.
      * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
@@ -85,7 +134,7 @@ abstract class TableBucketReader<ResultT> {
      * @return A CompletableFuture that, when completed, will contain the desired result, or null of no such result
      * was found.
      */
-    public CompletableFuture<ResultT> find(ArrayView soughtKey, long bucketOffset, TimeoutTimer timer) {
+    CompletableFuture<ResultT> find(ArrayView soughtKey, long bucketOffset, TimeoutTimer timer) {
         int maxReadLength = getMaxReadLength();
 
         // Read the Key at the current offset and check it against the sought one.
@@ -151,6 +200,8 @@ abstract class TableBucketReader<ResultT> {
      */
     protected abstract SearchContinuation processResult(ResultT result, ArrayView soughtKey);
 
+    protected abstract boolean isDeleted(ResultT resultT);
+
     //endregion
 
     //region Entry
@@ -186,6 +237,11 @@ abstract class TableBucketReader<ResultT> {
                 return SearchContinuation.ResultFound;
             }
         }
+
+        @Override
+        protected boolean isDeleted(TableEntry tableEntry) {
+            return tableEntry.getKey().getVersion() == TableKey.NOT_EXISTS;
+        }
     }
 
     //endregion
@@ -219,6 +275,11 @@ abstract class TableBucketReader<ResultT> {
                 // No match: Continue searching if possible.
                 return SearchContinuation.Continue;
             }
+        }
+
+        @Override
+        protected boolean isDeleted(TableKey tableKey) {
+            return tableKey.getVersion() == TableKey.NOT_EXISTS;
         }
     }
 

@@ -62,7 +62,8 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
 
             // Get the result and compare it with the original key.
             val result = keyReader.getResult().get(BASE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            Assert.assertEquals("Unexpected version.", 1L, result.getVersion());
+            val expectedVersion = e.isRemoval ? TableKey.NOT_EXISTS : 1L;
+            Assert.assertEquals("Unexpected version.", expectedVersion, result.getVersion());
             AssertExtensions.assertArrayEquals("Unexpected key read back.", e.key, 0,
                     result.getKey().array(), result.getKey().arrayOffset(), e.key.length);
         }
