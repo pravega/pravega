@@ -96,21 +96,21 @@ public final class MetricsNames {
 
     // Metrics in Controller
     // Stream request counts (Static)
-    public static final String CREATE_STREAM = "controller.stream.created";                     // Dynamic Counter
+    public static final String CREATE_STREAM = "controller.stream.created";                     // Counter
     public static final String CREATE_STREAM_LATENCY = "controller.stream.created_ms";          // Histogram
-    public static final String CREATE_STREAM_FAILED = "controller.stream.create_failed";        // Dynamic Counter
-    public static final String SEAL_STREAM = "controller.stream.sealed";                        // Dynamic Counter
+    public static final String CREATE_STREAM_FAILED = "controller.stream.create_failed";        // Counter
+    public static final String SEAL_STREAM = "controller.stream.sealed";                        // Counter
     public static final String SEAL_STREAM_LATENCY = "controller.stream.sealed_ms";             // Histogram
-    public static final String SEAL_STREAM_FAILED = "controller.stream.seal_failed";            // Dynamic Counter
-    public static final String DELETE_STREAM = "controller.stream.deleted";                     // Dynamic Counter
+    public static final String SEAL_STREAM_FAILED = "controller.stream.seal_failed";            // Counter
+    public static final String DELETE_STREAM = "controller.stream.deleted";                     // Counter
     public static final String DELETE_STREAM_LATENCY = "controller.stream.deleted_ms";          // Histogram
-    public static final String DELETE_STREAM_FAILED = "controller.stream.delete_failed";        // Dynamic Counter
-    public static final String UPDATE_STREAM = "controller.stream.updated";                     // Dynamic Counter
+    public static final String DELETE_STREAM_FAILED = "controller.stream.delete_failed";        // Counter
+    public static final String UPDATE_STREAM = "controller.stream.updated";                     // Counter
     public static final String UPDATE_STREAM_LATENCY = "controller.stream.updated_ms";          // Histogram
-    public static final String UPDATE_STREAM_FAILED = "controller.stream.update_failed";        // Dynamic Counter
-    public static final String TRUNCATE_STREAM = "controller.stream.truncated";                 // Dynamic Counter
+    public static final String UPDATE_STREAM_FAILED = "controller.stream.update_failed";        // Counter
+    public static final String TRUNCATE_STREAM = "controller.stream.truncated";                 // Counter
     public static final String TRUNCATE_STREAM_LATENCY = "controller.stream.truncated_ms";      // Histogram
-    public static final String TRUNCATE_STREAM_FAILED = "controller.stream.truncate_failed";    // Dynamic Counter
+    public static final String TRUNCATE_STREAM_FAILED = "controller.stream.truncate_failed";    // Counter
 
     // Transaction request Operations (Dynamic)
     public static final String CREATE_TRANSACTION = "controller.transactions.created";                  // Dynamic Counter

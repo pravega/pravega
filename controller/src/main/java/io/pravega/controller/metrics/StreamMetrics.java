@@ -62,7 +62,6 @@ public final class StreamMetrics implements AutoCloseable {
      */
     public void createStream(String scope, String streamName, int minNumSegments, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM, 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_STREAM, scope, streamName), 1); // Streams can be re-created
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), 0);
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, streamName), minNumSegments);
         DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, streamName), 0);
@@ -92,7 +91,6 @@ public final class StreamMetrics implements AutoCloseable {
      */
     public void deleteStream(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(DELETE_STREAM, 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(DELETE_STREAM, scope, streamName), 1); // Streams can be re-created
         deleteStreamLatency.reportSuccessEvent(latency);
     }
 
@@ -118,7 +116,6 @@ public final class StreamMetrics implements AutoCloseable {
      */
     public void sealStream(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(SEAL_STREAM, 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEAL_STREAM, scope, streamName), 1); // Streams can be re-created
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), 0);
         sealStreamLatency.reportSuccessEvent(latency);
     }

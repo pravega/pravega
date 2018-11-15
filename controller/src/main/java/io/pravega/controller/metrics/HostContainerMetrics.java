@@ -42,12 +42,18 @@ public class HostContainerMetrics {
      * @param newMapping    Updated host to Container relationships.
      */
     public void updateHostContainerMetrics(Map<Host, Set<Integer>> oldMapping, Map<Host, Set<Integer>> newMapping) {
+        if (newMapping == null) {
+            // Nothing to do if the new mapping is null.
+            return;
+        }
+
         // Report current number of Segment Store hosts with containers.
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_STORE_HOST_NUMBER, newMapping.keySet().size());
 
         // Report the host/container relationships and the number of containers per host.
         newMapping.keySet().forEach(host -> reportContainerLocationAndCount(host, newMapping.get(host)));
         if (oldMapping == null) {
+            // Do not perform comparisons against the oldMapping if it is null.
             return;
         }
 
