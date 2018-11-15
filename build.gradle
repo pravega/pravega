@@ -620,6 +620,19 @@ project('test:system') {
     // Specifically publish this test project
     apply plugin: 'maven'
 
+    compileJava { // override the compile java options.
+        options.compilerArgs.clear()
+        options.compilerArgs.addAll([
+                "-Xlint:deprecation",
+                "-Xlint:divzero",
+                "-Xlint:empty",
+                "-Xlint:fallthrough",
+                "-Xlint:finally",
+                "-Xlint:overrides",
+                "-Xlint:path",
+        ])
+    }
+
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion

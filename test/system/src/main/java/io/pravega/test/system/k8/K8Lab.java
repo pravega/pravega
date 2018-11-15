@@ -26,7 +26,6 @@ import io.kubernetes.client.models.V1PodSpec;
 import io.kubernetes.client.models.V1Status;
 import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.Watch;
-import io.swagger.annotations.Api;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
@@ -77,10 +76,10 @@ public class K8Lab {
                 .withName(testPodName)
                 .withImage("openjdk:8-jre-alpine")
                 .withImagePullPolicy("IfNotPresent")
-//                .withCommand("/bin/sh", "-c", "wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml",
-//                             "java -version",
-//                             "/bin/sh"
-//                )
+                //                .withCommand("/bin/sh", "-c", "wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml",
+                //                             "java -version",
+                //                             "/bin/sh"
+                //                )
                 .withCommand("/bin/sh")
                 .withArgs("-c", "wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml;java -version;" +
                         "echo ./maven-metadata.xml")
@@ -89,7 +88,6 @@ public class K8Lab {
                 .endSpec().build();
 
         api.createNamespacedPod("default", pod, null);
-
 
         V1PodList list = api.listNamespacedPod("default", null, null, null, null, null, null, null, null, null);
         for (V1Pod item : list.getItems()) {
@@ -145,10 +143,15 @@ public class K8Lab {
         } catch (JsonSyntaxException e) {
             if (e.getCause() instanceof IllegalStateException) {
                 IllegalStateException ise = (IllegalStateException) e.getCause();
-                if (ise.getMessage() != null && ise.getMessage().contains("Expected a string but was BEGIN_OBJECT"))
+                if (ise.getMessage() != null && ise.getMessage().contains("Expected a string but was BEGIN_OBJECT")) {
+
                     log.debug("Catching exception because of issue https://github.com/kubernetes-client/java/issues/86", e);
-                else throw e;
-            } else throw e;
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
         }
     }
 

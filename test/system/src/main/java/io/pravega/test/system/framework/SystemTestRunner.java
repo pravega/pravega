@@ -12,12 +12,10 @@ package io.pravega.test.system.framework;
 import io.pravega.test.system.framework.TestExecutorFactory.TestExecutorType;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Ignore;
-import org.junit.internal.AssumptionViolatedException;
 import org.junit.internal.runners.model.EachTestNotifier;
 import org.junit.internal.runners.statements.RunBefores;
 import org.junit.runner.Description;
 import org.junit.runner.notification.RunNotifier;
-import org.junit.runner.notification.StoppedByUserException;
 import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.InitializationError;
@@ -54,6 +52,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
         }
         super.run(notifier);
     }
+
     @Override
     protected Statement classBlock(final RunNotifier notifier) {
         final Statement statement = super.classBlock(notifier);

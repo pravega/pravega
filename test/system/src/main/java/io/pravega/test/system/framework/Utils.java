@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperServiceOnK8;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -44,9 +45,18 @@ public class Utils {
         return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
     }
 
+    // TODO: optimize it with a factory.
     public static Service createZookeeperService() {
-        return DOCKER_BASED ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        TestExecutorFactory.TestExecutorType r = TestExecutorFactory.getTestExecutionType();
+        switch (r) {
+            case DOCKER:
+                return new ZookeeperDockerService("zookeeper");
+            case KUBERNETES:
+                return new ZookeeperServiceOnK8();
+            case REMOTE_SEQUENTIAL:
+            default:
+                return new ZookeeperService("zookeeper");
+        }
     }
 
     public static Service createBookkeeperService(final URI zkUri) {
@@ -103,6 +113,10 @@ public class Utils {
     public static boolean isAwsExecution() {
         String dockerConfig = getConfig("awsExec", "false");
         return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
+
+    }
+
+    public static void main(String[] args) {
 
     }
 }
