@@ -26,9 +26,18 @@ import lombok.NonNull;
 import lombok.val;
 
 /**
- * Combines Segment Attributes from multiple sources.
+ * Implements a {@link AttributeIterator} for a Segment, using both the Segment Attribute Index and Segment Metadata
+ * as sources.
+ *
+ * While the Segment Attribute Index is the final storage for all the Segment's Extended Attributes, the Segment Metadata
+ * also contains the Core Attributes and those Extended Attributes that have recently been changed. As such, if an
+ * Attribute exists in the Segment Metadata, it's value is the most recent and must be used (eventually that value will
+ * trickle down to the Attribute Index).
+ *
+ * Instances of this class iterate over the Attribute Index (within the specified bounds), and also include Attributes
+ * from the Segment Metadata where appropriate.
  */
-class AttributeMixer implements AttributeIterator {
+class SegmentAttributeIterator implements AttributeIterator {
     //region Members
 
     private final AttributeIterator indexIterator;
@@ -42,13 +51,13 @@ class AttributeMixer implements AttributeIterator {
     //region Constructor
 
     /**
-     * Creates a new instance of the AttributeMixer class.
+     * Creates a new instance of the SegmentAttributeIterator class.
      *
      * @param metadata The {@link SegmentMetadata} for the Segment.
      * @param fromId   The smallest Attribute Id to include.
      * @param toId     The largest Attribute Id to include.
      */
-    AttributeMixer(@NonNull AttributeIterator indexIterator, @NonNull SegmentMetadata metadata, @NonNull UUID fromId, @NonNull UUID toId) {
+    SegmentAttributeIterator(@NonNull AttributeIterator indexIterator, @NonNull SegmentMetadata metadata, @NonNull UUID fromId, @NonNull UUID toId) {
         this.indexIterator = indexIterator;
 
         // Collect eligible attributes from the Metadata into a Dequeue (we need to be able to peek).

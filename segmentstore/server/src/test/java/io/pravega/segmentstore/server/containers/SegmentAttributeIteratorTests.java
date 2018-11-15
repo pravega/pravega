@@ -31,9 +31,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Unit tests for the {@link AttributeMixer} class.
+ * Unit tests for the {@link SegmentAttributeIterator} class.
  */
-public class AttributeMixerTests {
+public class SegmentAttributeIteratorTests {
     private static final int ITERATOR_COUNT = 20;
     private static final int METADATA_COUNT = 100;
     private static final double ATTRIBUTE_OVERLAP_RATIO = 0.4; // How many attributes in Metadata overlap base Attributes.
@@ -82,7 +82,7 @@ public class AttributeMixerTests {
         UUID fromId = testData.sortedAttributeIds.get(0);
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterators = createIterators(testData, fromId, toId);
-        val mixer = new AttributeMixer(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
+        val mixer = new SegmentAttributeIterator(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
         AssertExtensions.assertThrows(
                 "mix() did not throw when iterators returned data out of order.",
                 () -> iterators.forEach(mixer::mix),
@@ -106,7 +106,7 @@ public class AttributeMixerTests {
         // We generate the iterators to include more data than we provide to the mixer.
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterators = createIterators(testData, testData.sortedAttributeIds.get(0), toId);
-        val mixer = new AttributeMixer(testData.getAttributeIterator(), testData.segmentMetadata, testData.sortedAttributeIds.get(1), toId);
+        val mixer = new SegmentAttributeIterator(testData.getAttributeIterator(), testData.segmentMetadata, testData.sortedAttributeIds.get(1), toId);
         AssertExtensions.assertThrows(
                 "mix() did not throw when iterators returned data out of range.",
                 () -> iterators.forEach(mixer::mix),
@@ -118,7 +118,7 @@ public class AttributeMixerTests {
             UUID fromId = testData.sortedAttributeIds.get(i);
             UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - i - 1);
             val iterators = createIterators(testData, fromId, toId);
-            val mixer = new AttributeMixer(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
+            val mixer = new SegmentAttributeIterator(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
 
             val finalResult = new ArrayList<Map.Entry<UUID, Long>>();
             val ids = new HashSet<UUID>();

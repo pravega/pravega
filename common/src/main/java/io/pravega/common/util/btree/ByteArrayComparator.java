@@ -20,9 +20,9 @@ import java.util.Comparator;
  * Lexicographic bitwise comparison:
  * - Consider two arrays A and B, with each having L bits (L is a multiple of 8).
  * - Define A{n} and B{n} as the bit at position n in A and B, respectively. This can be either 0 or 1.
- * - A is before than B if there exists bit position i such that for all bit positions j smaller than i,
+ * - A precedes B if there exists bit position i such that for all bit positions j smaller than i,
  * then A{j} is equal to B{j}, A{i} is 0 and B{i} is 1.
- * - A is the same as B if the values of all bit positions in both arrays match.
+ * - A is equal to B if the values of all bit positions in both arrays match.
  *
  * Lexicographic bitwise comparison matches the natural order of numbers when serialized as unsigned (i.e., using the
  * specialized methods in {@link BitConverter}) since they avoid the complications involved with interpreting individual
