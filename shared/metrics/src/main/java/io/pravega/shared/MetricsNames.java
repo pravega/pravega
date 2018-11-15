@@ -126,13 +126,13 @@ public final class MetricsNames {
     public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";              // Dynamic Counter
 
     // Host metrics
-    public static final String SEGMENT_STORE_HOST_NUMBER = "controller.hosts.count";                    // Dynamic Gauge
-    public static final String SEGMENT_STORE_HOST_FAILURES = "controller.hosts.failures";               // Dynamic Counter
-    public static final String SEGMENT_STORE_HOST_CONTAINER_COUNT = "controller.hosts.container_count"; // Dynamic Gauge
+    public static final String SEGMENT_STORE_HOST_NUMBER = "controller.hosts.count";                    // Gauge
+    public static final String SEGMENT_STORE_HOST_FAILURES = "controller.hosts.failures";               // Counter
+    public static final String SEGMENT_STORE_HOST_CONTAINER_COUNT = "controller.hosts.container_count"; // Gauge
 
     // Container lifecycle metrics
-    public static final String CONTAINER_LOCATION = "controller.container.host";
-    public static final String CONTAINER_FAILURES = "controller.container.failures";
+    public static final String CONTAINER_LOCATION = "controller.container.host";        // Gauge
+    public static final String CONTAINER_FAILURES = "controller.container.failures";    // Counter
 
     // Stream segment counts (Dynamic)
     public static final String SEGMENTS_COUNT = "controller.segments.count";    // Dynamic Gauge
