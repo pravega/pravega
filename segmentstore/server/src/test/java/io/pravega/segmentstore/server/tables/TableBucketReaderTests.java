@@ -13,17 +13,26 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -106,8 +115,8 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val segment = new SegmentMock(executorService());
 
         // Generate our test data and append it to the segment.
-        val deletedKey = generateEntries().get(0).getKey();
         val es = new EntrySerializer();
+        val deletedKey = generateEntries(es).get(0).getKey();
         byte[] data = new byte[es.getRemovalLength(deletedKey)];
         es.serializeRemoval(Collections.singleton(deletedKey), data);
         segment.append(data, null, TIMEOUT).join();
@@ -119,35 +128,92 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         Assert.assertNull("Not expecting any result for key that was deleted.", deletedResult);
     }
 
+    /**
+     * Tests the ability to locate all non-deleted Table Keys in a Table Bucket.
+     */
+    @Test
+    public void testFindAllKeys() {
+        testFindAll(TableBucketReader::key, TableEntry::getKey, this::areEqual);
+    }
+
+    /**
+     * Tests the ability to locate all non-deleted Table Entries in a Table Bucket.
+     */
+    @Test
+    public void testFindAllEntries() {
+        testFindAll(TableBucketReader::entry, e -> e, this::areEqual);
+    }
+
+    @SneakyThrows
+    private <T> void testFindAll(GetBucketReader<T> createReader, Function<TableEntry, T> getItem, BiPredicate<T, T> areEqual) {
+        val segment = new SegmentMock(executorService());
+
+        // Generate our test data and append it to the segment.
+        val data = generateData();
+        segment.append(data.serialization, null, TIMEOUT).join();
+
+        // Generate a deleted key and append it to the segment.
+        val deletedKey = data.entries.get(0).getKey();
+        val es = new EntrySerializer();
+        byte[] deletedData = new byte[es.getRemovalLength(deletedKey)];
+        es.serializeRemoval(Collections.singleton(deletedKey), deletedData);
+        long newBucketOffset = segment.append(deletedData, null, TIMEOUT).join();
+        data.backpointers.put(newBucketOffset, data.getBucketOffset());
+
+        // Create a new TableBucketReader and get all the requested items for this bucket. We pass the offset of the
+        // deleted entry to make sure its data is not included.
+        val reader = createReader.apply(segment, (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)), executorService());
+        val result = reader.findAll(newBucketOffset, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+        // We expect to find all non-deleted Table Items that are linked, in the order of backpointers (i.e., reverse order).
+        val expectedResult = data.entries.stream()
+                .filter(e -> data.backpointers.containsValue(e.getKey().getVersion()))
+                .sorted(Comparator.comparingLong(e -> -e.getKey().getVersion()))
+                .map(getItem)
+                .collect(Collectors.toList());
+        AssertExtensions.assertListEquals("Unexpected result from findAll().", expectedResult, result, areEqual);
+    }
+
     private TestData generateData() {
-        val entries = generateEntries();
         val s = new EntrySerializer();
+        val entries = generateEntries(s);
         val length = entries.stream().mapToInt(s::getUpdateLength).sum();
         byte[] serialization = new byte[length];
         s.serializeUpdate(entries, serialization);
-        int entryLength = length / entries.size(); // All entries have the same length.
         val backpointers = new HashMap<Long, Long>();
 
         // The first entry is not linked; we use that to search for inexistent keys.
         for (int i = 2; i < entries.size(); i++) {
-            backpointers.put((long) i * entryLength, (long) (i - 1) * entryLength);
+            backpointers.put(entries.get(i).getKey().getVersion(), entries.get(i - 1).getKey().getVersion());
         }
 
-        return new TestData(entries, serialization, backpointers, entries.get(0), entryLength);
+        return new TestData(entries, serialization, backpointers, entries.get(0));
     }
 
-    private List<TableEntry> generateEntries() {
+    private List<TableEntry> generateEntries(EntrySerializer s) {
         val rnd = new Random(0);
         val result = new ArrayList<TableEntry>();
+        long version = 0;
         for (int i = 0; i < COUNT; i++) {
             byte[] keyData = new byte[KEY_LENGTH];
             rnd.nextBytes(keyData);
             byte[] valueData = new byte[VALUE_LENGTH];
             rnd.nextBytes(valueData);
-            result.add(TableEntry.unversioned(new ByteArraySegment(keyData), new ByteArraySegment(valueData)));
+            result.add(TableEntry.versioned(new ByteArraySegment(keyData), new ByteArraySegment(valueData), version));
+            version += s.getUpdateLength(result.get(result.size() - 1));
         }
 
         return result;
+    }
+
+    private boolean areEqual(TableEntry e1, TableEntry e2) {
+        return areEqual(e1.getKey(), e2.getKey())
+                && HashedArray.arrayEquals(e1.getValue(), e2.getValue());
+    }
+
+    private boolean areEqual(TableKey k1, TableKey k2) {
+        return HashedArray.arrayEquals(k1.getKey(), k2.getKey())
+                && k1.getVersion() == k2.getVersion();
     }
 
     @RequiredArgsConstructor
@@ -156,10 +222,9 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         final byte[] serialization;
         final Map<Long, Long> backpointers;
         final TableEntry unlinkedEntry;
-        final int entryLength;
 
         long getEntryOffset(int index) {
-            return (long) index * entryLength;
+            return this.entries.get(index).getKey().getVersion();
         }
 
         long getBucketOffset() {
@@ -169,5 +234,10 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         long getBackpointer(long source) {
             return this.backpointers.getOrDefault(source, -1L);
         }
+    }
+
+    @FunctionalInterface
+    private interface GetBucketReader<T> {
+        TableBucketReader<T> apply(DirectSegmentAccess segment, TableBucketReader.GetBackpointer getBackpointer, ScheduledExecutorService executor);
     }
 }

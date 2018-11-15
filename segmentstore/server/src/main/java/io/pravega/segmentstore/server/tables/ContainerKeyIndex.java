@@ -168,7 +168,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private CompletableFuture<Map<UUID, Long>> getBucketOffsetFromSegment(DirectSegmentAccess segment, Map<UUID, Long> result,
                                                                           Collection<UUID> toLookup, TimeoutTimer timer) {
         return this.indexReader
-                .locateBuckets(toLookup, segment, timer)
+                .locateBuckets(segment, toLookup, timer)
                 .thenApplyAsync(bucketsByHash -> {
                     for (val e : bucketsByHash.entrySet()) {
                         UUID keyHash = e.getKey();
@@ -211,10 +211,10 @@ class ContainerKeyIndex implements AutoCloseable {
 
         if (offset <= this.cache.getSegmentIndexOffset(segment.getSegmentId())) {
             // The sought source offset is already indexed; do not bother with waiting for recovery.
-            return this.indexReader.getBackpointerOffset(offset, segment, timeout);
+            return this.indexReader.getBackpointerOffset(segment, offset, timeout);
         } else {
             // Nothing in the tail cache; look it up in the index.
-            return this.recoveryTracker.waitIfNeeded(segment, () -> this.indexReader.getBackpointerOffset(offset, segment, timeout));
+            return this.recoveryTracker.waitIfNeeded(segment, () -> this.indexReader.getBackpointerOffset(segment, offset, timeout));
         }
     }
 

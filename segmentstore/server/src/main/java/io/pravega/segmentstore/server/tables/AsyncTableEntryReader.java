@@ -69,15 +69,17 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     }
 
     /**
-     * Creates a new {@link AsyncTableEntryReader} that can be used to match a key to a sought one.
+     * Creates a new {@link AsyncTableEntryReader} that can be used to read a {@link TableEntry} with a an optional
+     * matching key.
      *
-     * @param soughtKey  An {@link ArrayView} representing the Key to match.
-     * @param keyVersion The version of the {@link TableKey} that is located at this position. This will be used for
+     * @param soughtKey  (Optional) An {@link ArrayView} representing the Key to match. If provided, a {@link TableEntry}
+     *                   will only be returned if its {@link TableEntry#getKey()} matches this value.
+     * @param keyVersion The version of the {@link TableEntry} that is located at this position. This will be used for
      *                   constructing the result and has no bearing on the reading/matching logic.
-     * @param serializer The {@link EntrySerializer} to use for deserializing the Keys.
+     * @param serializer The {@link EntrySerializer} to use for deserializing the {@link TableEntry} instance.
      * @param timer      Timer for the whole operation.
      * @return A new instance of the {@link AsyncTableEntryReader} class. The {@link #getResult()} will be completed with
-     * an {@link EntrySerializer.Header} instance once the Key is matched.
+     * a {@link TableEntry} instance once the Key is matched.
      */
     static AsyncTableEntryReader<TableEntry> readEntry(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
         return new EntryReader(soughtKey, keyVersion, serializer, timer);
@@ -200,7 +202,12 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             if (readData.getLength() >= EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
                 // We read enough information.
                 ArrayView keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
-                complete(TableKey.versioned(keyData, this.keyVersion));
+                if (header.isDeletion()) {
+                    complete(TableKey.notExists(keyData));
+                } else {
+                    complete(TableKey.versioned(keyData, this.keyVersion));
+                }
+
                 return true; // We are done.
             }
 
@@ -220,11 +227,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         private final long keyVersion;
         private boolean keyValidated;
 
-        private EntryReader(@NonNull ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
+        private EntryReader(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
             super(serializer, timer);
             this.soughtKey = soughtKey;
             this.keyVersion = keyVersion;
-            this.keyValidated = false;
+            this.keyValidated = soughtKey == null;
         }
 
         @Override
@@ -233,19 +240,19 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             val header = getHeader();
             assert header != null : "acceptResult called with no header loaded.";
 
-            if (header.getKeyLength() != this.soughtKey.getLength()) {
-                // Key length mismatch. This is not the Table Entry we're looking for.
-                complete(null);
-                return false;
-            }
-
-            if (readData.getLength() < EntrySerializer.HEADER_LENGTH + this.soughtKey.getLength()) {
-                // The key hasn't been fully read. Need more info.
-                return false;
-            }
-
             // The key has been read.
             if (!this.keyValidated) {
+                if (header.getKeyLength() != this.soughtKey.getLength()) {
+                    // Key length mismatch. This is not the Table Entry we're looking for.
+                    complete(null);
+                    return false;
+                }
+
+                if (readData.getLength() < EntrySerializer.HEADER_LENGTH + this.soughtKey.getLength()) {
+                    // The key hasn't been fully read. Need more info.
+                    return false;
+                }
+
                 // Compare the sought key and the data we read, byte-by-byte.
                 ByteArraySegment keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
                 for (int i = 0; i < this.soughtKey.getLength(); i++) {
@@ -261,7 +268,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
             if (header.isDeletion()) {
                 // Deleted key. We cannot read more.
-                complete(TableEntry.notExists(this.soughtKey));
+                complete(TableEntry.notExists(getKeyData(this.soughtKey, readData, header)));
                 return true;
             }
 
@@ -278,8 +285,20 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 valueData = readData.subSegment(header.getValueOffset(), header.getValueLength());
             }
 
-            complete(TableEntry.versioned(this.soughtKey, valueData, this.keyVersion));
+            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, this.keyVersion));
             return true; // Now we are truly done.
+        }
+
+        private ArrayView getKeyData(ArrayView soughtKey, ByteArraySegment readData, EntrySerializer.Header header) {
+            if (soughtKey == null) {
+                if (readData.getLength() >= header.getKeyOffset() + header.getKeyLength()) {
+                    soughtKey = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
+                } else {
+                    soughtKey = new ByteArraySegment(new byte[0]);
+                }
+            }
+
+            return soughtKey;
         }
     }
 

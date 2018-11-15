@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.HashedArray;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,6 +48,7 @@ class BucketUpdate {
      *                overwritten with this value.
      */
     void withExistingKey(KeyInfo keyInfo) {
+        Preconditions.checkArgument(keyInfo.getOffset() >= 0, "KeyInfo.getOffset() must be a non-negative number.");
         this.existingKeys.put(keyInfo.getKey(), keyInfo);
     }
 

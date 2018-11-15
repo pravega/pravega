@@ -294,7 +294,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         // Update the keys in the segment (via their buckets).
-        val buckets = iw.locateBuckets(keysWithOffsets.keySet(), context.segment, context.timer).join();
+        val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
         val bucketUpdates = buckets.entrySet().stream()
                 .map(e -> {
                     BucketUpdate bu = new BucketUpdate(e.getValue());
@@ -307,7 +307,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 })
                 .collect(Collectors.toList());
 
-        iw.updateBuckets(bucketUpdates, context.segment, 0L, 1L, TIMEOUT).join();
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, 1L, TIMEOUT).join();
 
         // First lookup should go directly to the index. The cache should be empty.
         val result1 = context.index.getBucketOffsets(context.segment, hashes, context.timer).join();
@@ -344,7 +344,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         // Update the keys in the segment (via their buckets).
-        val buckets = iw.locateBuckets(keysWithOffsets.keySet(), context.segment, context.timer).join();
+        val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
         val bucketUpdates = buckets.entrySet().stream()
                                    .map(e -> {
                                        BucketUpdate bu = new BucketUpdate(e.getValue());
@@ -355,7 +355,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                                    .collect(Collectors.toList());
 
         // We leave the IndexOffset unchanged for now.
-        iw.updateBuckets(bucketUpdates, context.segment, 0L, 0L, TIMEOUT).join();
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, 0L, TIMEOUT).join();
 
         // Simulate writing the data to the segment by increasing its length.
         context.segment.append(new byte[segmentLength], null, TIMEOUT).join();

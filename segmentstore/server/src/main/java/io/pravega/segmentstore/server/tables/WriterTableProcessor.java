@@ -26,7 +26,6 @@ import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -228,11 +227,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         // Group keys by their assigned TableBucket (whether existing or not), then fetch all existing keys
         // for each such bucket and finally (reindex) update the bucket.
         return this.indexWriter
-                .groupByBucket(keyUpdates.getUpdates(), segment, timer)
+                .groupByBucket(segment, keyUpdates.getUpdates(), timer)
                 .thenComposeAsync(bucketUpdates -> fetchExistingKeys(bucketUpdates, segment, timer)
                                 .thenComposeAsync(v -> {
                                             logBucketUpdates(bucketUpdates);
-                                            return this.indexWriter.updateBuckets(bucketUpdates, segment,
+                                            return this.indexWriter.updateBuckets(segment, bucketUpdates,
                                                     this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
                                                     timer.getRemaining());
                                         },
@@ -371,26 +370,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private CompletableFuture<Void> fetchExistingKeys(BucketUpdate bucketUpdate, DirectSegmentAccess segment, TimeoutTimer timer) {
         // Get all Key locations, using the bucket's last offset and backpointers.
-        final int maxReadLength = EntrySerializer.HEADER_LENGTH + EntrySerializer.MAX_KEY_LENGTH;
-        AtomicLong offset = new AtomicLong(bucketUpdate.getBucket().getSegmentOffset());
-        return Futures.loop(
-                () -> offset.get() >= 0,
-                () -> {
-                    // Read the Key from the Segment.
-                    ReadResult readResult = segment.read(offset.get(), maxReadLength, timer.getRemaining());
-                    val keyReader = AsyncTableEntryReader.readKey(offset.get(), this.connector.getSerializer(), timer);
-                    AsyncReadResultProcessor.process(readResult, keyReader, this.executor);
-                    return keyReader.getResult()
-                                  .thenComposeAsync(tableKey -> {
-                                      // Record the Key and its location.
-                                      bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(tableKey.getKey()), offset.get()));
+        return TableBucketReader
+                .key(segment, this.indexWriter::getBackpointerOffset, this.executor)
+                .findAll(bucketUpdate.getBucket().getSegmentOffset(),
+                        k -> bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(k.getKey()), k.getVersion())),
+                        timer);
 
-                                      // Get the next Key Location for this bucket.
-                                      return this.indexWriter.getBackpointerOffset(offset.get(), segment, timer.getRemaining());
-                                  }, this.executor);
-                },
-                offset::set,
-                this.executor);
     }
 
     private void logBucketUpdates(Collection<BucketUpdate> bucketUpdates) {
