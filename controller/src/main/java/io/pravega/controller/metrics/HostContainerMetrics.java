@@ -10,8 +10,6 @@
 package io.pravega.controller.metrics;
 
 import io.pravega.common.cluster.Host;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -19,17 +17,15 @@ import java.util.Set;
 import static io.pravega.shared.MetricsNames.CONTAINER_FAILURES;
 import static io.pravega.shared.MetricsNames.CONTAINER_LOCATION;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_CONTAINER_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_NUMBER;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_FAILURES;
+import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_NUMBER;
 import static io.pravega.shared.MetricsNames.nameFromContainer;
 import static io.pravega.shared.MetricsNames.nameFromHost;
 
 /**
  * Class to encapsulate the logic to report Controller metrics for Segment Store hosts and Container lifecycle.
  */
-public class HostContainerMetrics {
-
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+public class HostContainerMetrics extends AbstractControllerMetrics {
 
     /**
      * This method reports the number available Segment Store hosts managing Containers, as well as the number of
@@ -72,15 +68,15 @@ public class HostContainerMetrics {
 
     private void reportContainerLocationAndCount(Host host, Set<Integer> containerIds) {
         for (Integer containerId: containerIds) {
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(CONTAINER_LOCATION, host.getHostId()), containerId);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(CONTAINER_LOCATION, host.toString()), containerId);
         }
 
-        DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, host.getHostId()), containerIds.size());
+        DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, host.toString()), containerIds.size());
     }
 
     private void reportHostFailures(Host failedHost) {
         DYNAMIC_LOGGER.incCounterValue(SEGMENT_STORE_HOST_FAILURES, 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromHost(SEGMENT_STORE_HOST_FAILURES, failedHost.getHostId()), 1);
+        DYNAMIC_LOGGER.incCounterValue(nameFromHost(SEGMENT_STORE_HOST_FAILURES, failedHost.toString()), 1);
     }
 
     private void reportContainerFailovers(Set<Integer> failedContainers) {

@@ -9,10 +9,7 @@
  */
 package io.pravega.controller.metrics;
 
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
@@ -40,10 +37,7 @@ import static io.pravega.shared.MetricsNames.nameFromStream;
 /**
  * Class to encapsulate the logic to report Controller service metrics for Streams.
  */
-public final class StreamMetrics implements AutoCloseable {
-
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("controller");
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+public final class StreamMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
     private final OpStatsLogger createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
     private final OpStatsLogger deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);

@@ -9,10 +9,7 @@
  */
 package io.pravega.controller.metrics;
 
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 
 import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
@@ -31,10 +28,7 @@ import static io.pravega.shared.MetricsNames.nameFromTransaction;
 /**
  * Class to encapsulate the logic to report Controller service metrics for Transactions.
  */
-public final class TransactionMetrics implements AutoCloseable {
-
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("controller");
+public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
     private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
     private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
