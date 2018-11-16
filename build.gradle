@@ -620,17 +620,9 @@ project('test:system') {
     // Specifically publish this test project
     apply plugin: 'maven'
 
-    compileJava { // override the compile java options.
-        options.compilerArgs.clear()
-        options.compilerArgs.addAll([
-                "-Xlint:deprecation",
-                "-Xlint:divzero",
-                "-Xlint:empty",
-                "-Xlint:fallthrough",
-                "-Xlint:finally",
-                "-Xlint:overrides",
-                "-Xlint:path",
-        ])
+    // override the compile java options to disable -Werror. This will be removed once https://github.com/kubernetes-client/java/issues/436
+    compileJava {
+        options.compilerArgs.remove("-Werror")
     }
 
     dependencies {
@@ -646,9 +638,7 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
-        // https://mvnrepository.com/artifact/io.kubernetes/client-java
-        compile group: 'io.kubernetes', name: 'client-java', version: '3.0.0'
-
+        compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
     }
     //disable the default test task.
     test {
@@ -715,6 +705,30 @@ project('test:system') {
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
         onlyIf { dockerRegistryUrl && repoUrl }
+    }
+
+    //This is  used to invoke systemTests
+    task startK8SystemTests(type: Test) {
+
+        description 'Used to invoke K8 based System Tests, example usage: gradle startK8SystemTests'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+
+        ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
+        systemProperty "execType", "K8"
+        systemProperty "imageVersion", System.getProperty("imageVersion")
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+        systemProperty "skipServiceInstallation", "true"
+        systemProperty "repoUrl", "${repoUrl}"
+
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+
+        maxParallelForks = 1
+        systemProperty "testVersion", pravegaVersion
+
+        onlyIf { repoUrl }
     }
 
     task execShellScript(type: Exec) {

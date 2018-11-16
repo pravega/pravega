@@ -11,7 +11,6 @@ package io.pravega.test.system.framework;
 
 import io.pravega.test.system.framework.TestExecutorFactory.TestExecutorType;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Ignore;
 import org.junit.internal.runners.model.EachTestNotifier;
 import org.junit.internal.runners.statements.RunBefores;
 import org.junit.runner.Description;
@@ -41,16 +40,6 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
      */
     public SystemTestRunner(Class<?> testClass) throws InitializationError {
         super(testClass);
-    }
-
-    @Override
-    public void run(final RunNotifier notifier) {
-        Ignore annotation = super.getTestClass().getAnnotation(Ignore.class);
-        if (annotation != null && annotation.value().equalsIgnoreCase("DCOS") ) {
-            notifier.fireTestIgnored(Description.createTestDescription(super.getTestClass().getJavaClass(), super.getTestClass().getName()));
-            return;
-        }
-        super.run(notifier);
     }
 
     @Override

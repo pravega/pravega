@@ -20,11 +20,14 @@ import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+
 import java.net.URI;
 
 /**
  * Utility methods used inside the TestFramework.
  */
+@Slf4j
 public class Utils {
 
     public static final int DOCKER_CONTROLLER_PORT = 9090;
@@ -45,13 +48,13 @@ public class Utils {
         return System.getenv().getOrDefault(key, System.getProperty(key, defaultValue));
     }
 
-    // TODO: optimize it with a factory.
     public static Service createZookeeperService() {
         TestExecutorFactory.TestExecutorType r = TestExecutorFactory.getTestExecutionType();
+        log.debug("Test executor type is {}", r);
         switch (r) {
             case DOCKER:
                 return new ZookeeperDockerService("zookeeper");
-            case KUBERNETES:
+            case K8:
                 return new ZookeeperServiceOnK8();
             case REMOTE_SEQUENTIAL:
             default:

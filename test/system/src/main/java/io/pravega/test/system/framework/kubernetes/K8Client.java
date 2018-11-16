@@ -60,14 +60,21 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Conne
 @Slf4j
 public class K8Client implements AutoCloseable {
 
-    private static final String PRETTY_PRINT = null;
     private static final int DEFAULT_TIMEOUT_SECONDS = 60; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
+    private static final String PRETTY_PRINT = null;
     private final ApiClient client;
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "pravega-k8-client");
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
 
+    /**
+     * Create an instance of K8Client. The k8 config used follows the below pattern.
+     *      1. If $KUBECONFIG is defined, use that config file.
+     *      2. If $HOME/.kube/config can be found, use that.
+     *      3. If the in-cluster service account can be found, assume in cluster config.
+     *      4.Default to localhost:8080 as a last resort.
+     */
     public K8Client() {
         try {
             this.client = Config.defaultClient();
@@ -79,6 +86,11 @@ public class K8Client implements AutoCloseable {
         }
     }
 
+    /**
+     * Method used to create a namespace. This blocks until the namespace is created.
+     * @param namespace Namespace to be created.
+     * @return V1Namespace.
+     */
     @SneakyThrows(ApiException.class)
     public V1Namespace createNamespace(final String namespace) {
         CoreV1Api api = new CoreV1Api();
@@ -105,6 +117,13 @@ public class K8Client implements AutoCloseable {
         return api.createNamespace(body, PRETTY_PRINT);
     }
 
+    /**
+     * Method to create a namespace. This is the non blocking version of the api.
+     * Note: If the namespace already exists then it can cause K8 client to stop responding, blocking version of the api
+     * is preferred.
+     * @param namespace Namespace.
+     * @return A future of type V1Namespace.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1Namespace> createNameSpace(final String namespace) {
         // Namespace create operation on an already existing namespace causes K8 to stop responding, use the blocking version of api.
@@ -140,6 +159,12 @@ public class K8Client implements AutoCloseable {
                        });
     }
 
+    /**
+     * Deploy a pod. This ignores exception incase the pod has already been deployed.
+     * @param namespace Namespace.
+     * @param pod Pod details.
+     * @return Future which is completed once the deployemnt has been triggered.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1Pod> deployPod(final String namespace, final V1Pod pod) {
         CoreV1Api api = new CoreV1Api();
@@ -164,6 +189,12 @@ public class K8Client implements AutoCloseable {
                        });
     }
 
+    /**
+     * Method used to fetch the status of a Pod. V1PodStatus also helps to indicate the container status.
+     * @param namespace Namespace.
+     * @param podName Name of the pod.
+     * @return A future representing the status of the pod.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1PodStatus> getStatusOfPod(final String namespace, final String podName) {
         CoreV1Api api = new CoreV1Api();
@@ -179,6 +210,13 @@ public class K8Client implements AutoCloseable {
     }
 
 
+    /**
+     * Method to fetch the status of all pods which match a label.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labelName Name of the label.
+     * @param labelValue Value of the label.
+     * @return Future representing the list of pod status.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
         CoreV1Api api = new CoreV1Api();
@@ -193,6 +231,12 @@ public class K8Client implements AutoCloseable {
                        });
     }
 
+    /**
+     * Create a deployement on K8, if the deployment is already present then it is ignored.
+     * @param namespace Namespace.
+     * @param deploy Deployment object.
+     * @return A future which represents the creation of the Deployment.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) {
         AppsV1Api api = new AppsV1Api();
@@ -217,6 +261,12 @@ public class K8Client implements AutoCloseable {
                 });
     }
 
+    /**
+     * Fetch the deployment status.
+     * @param deploymentName Name of the deployment
+     * @param namespace Namespace where the deployment exists.
+     * @return Future representing the Deployement.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1Deployment> getDeploymentStatus(final String deploymentName, final String namespace) {
         AppsV1Api api = new AppsV1Api();
@@ -227,6 +277,15 @@ public class K8Client implements AutoCloseable {
     }
 
 
+    /**
+     * Create a Custom object for a CRD. This is useful while interacting with operators.
+     * @param customResourceGroup Custom resource group.
+     * @param version Version.
+     * @param namespace Namespace.
+     * @param plural plural of the CRD.
+     * @param request Actual request.
+     * @return Future representing the custom object creation.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<Object> createCustomObject(String customResourceGroup, String version, String namespace,
                                                          String plural, Map<String, Object> request) {
@@ -236,6 +295,16 @@ public class K8Client implements AutoCloseable {
         return callback.getFuture();
     }
 
+    /**
+     * This is used to update a custom object. This is useful to modify the custom object configuration, number of
+     * instances is one type of configuration. If the object does not exist then a new object is created.
+     * @param customResourceGroup Custom resource group.
+     * @param version version.
+     * @param namespace Namespace.
+     * @param plural Plural of the CRD.
+     * @param request Actual request.
+     * @return
+     */
     @SuppressWarnings("unchecked")
     @SneakyThrows(ApiException.class)
     public CompletableFuture<Object> createAndUpdateCustomObject(String customResourceGroup, String version, String namespace,
@@ -276,6 +345,11 @@ public class K8Client implements AutoCloseable {
         });
     }
 
+    /**
+     * Create a CRD.
+     * @param crd Custom resource defnition.
+     * @return A future indicating the status of this operation.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1beta1CustomResourceDefinition> createCRD(final V1beta1CustomResourceDefinition crd) {
         ApiextensionsV1beta1Api api = new ApiextensionsV1beta1Api();
@@ -298,6 +372,11 @@ public class K8Client implements AutoCloseable {
         });
     }
 
+    /**
+     * Create a cluster role.
+     * @param role Role.
+     * @return A future indicating the status of this operation.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1beta1ClusterRole> createClusterRole(V1beta1ClusterRole role) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
@@ -320,6 +399,11 @@ public class K8Client implements AutoCloseable {
         });
     }
 
+    /**
+     * Create a cluster role binding.
+     * @param binding The binding.
+     * @return A future representing the status of this operation.
+     */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1beta1ClusterRoleBinding> createClusterRoleBinding(V1beta1ClusterRoleBinding binding) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
@@ -342,6 +426,13 @@ public class K8Client implements AutoCloseable {
 
     }
 
+    /**
+     * A method which returns a completed future once a given Pod has completed execution. This is useful to track test execution.
+     * This method uses a Watch to track the status of the pod. The maximum wait time is based on the retry configuration.
+     * @param namespace Namespace.
+     * @param podName Pod name.
+     * @return A future which is complete once the pod completes.
+     */
     public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName) {
 
         CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
@@ -369,6 +460,12 @@ public class K8Client implements AutoCloseable {
 
     }
 
+    /**
+     * Create a Watch for a pod and return once the pod has terminated.
+     * @param namespace Namespace.
+     * @param podName Name of the pod.
+     * @return
+     */
     @SneakyThrows({ApiException.class, IOException.class})
     private Optional<V1ContainerStateTerminated> createAWatchAndReturnOnTermination(String namespace, String podName) {
         CoreV1Api api = new CoreV1Api();
@@ -383,9 +480,10 @@ public class K8Client implements AutoCloseable {
         for (Watch.Response<V1Pod> v1PodResponse : watch) {
 
             List<V1ContainerStatus> containerStatuses = v1PodResponse.object.getStatus().getContainerStatuses();
-            if (containerStatuses.size() == 0) {
-                log.error("Invalid State, atleast 1 container should be part of the pod {}/{}", namespace, podName);
-                throw new IllegalStateException("Invalid pod state " + podName);
+            log.debug("Container status for the pod {} is {}", podName, containerStatuses);
+            if (containerStatuses == null || containerStatuses.size() == 0) {
+                log.debug("Container status is not part of the pod {}/{}, wait for the next update from K8 Cluster", namespace, podName);
+                continue;
             }
             // We check only the first container as there is only one container in the pod.
             V1ContainerState containerStatus = containerStatuses.get(0).getState();
@@ -398,6 +496,14 @@ public class K8Client implements AutoCloseable {
         return Optional.empty();
     }
 
+    /**
+     * A method which returns a completed future once the pod is running for a given label.
+     * @param namespace Namespace
+     * @param labelName Label name.
+     * @param labelValue Value of the Label.
+     * @param atleastNumberOfPods Number of pods that need to be running.
+     * @return A future which completes once the number of running pods matches the given criteria.
+     */
     public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int atleastNumberOfPods) {
 
         AtomicBoolean shouldRetry = new AtomicBoolean(true);
@@ -457,43 +563,8 @@ public class K8Client implements AutoCloseable {
                       contentLength, done);
         }
 
-        public CompletableFuture<T> getFuture() {
+        CompletableFuture<T> getFuture() {
             return future;
         }
-    }
-
-
-    public static void main(String[] args) throws IOException, ApiException {
-        K8Client client = new K8Client();
-
-        String namespace = "test123";
-        client.createNamespace(namespace);
-
-        //        String testPodName = "test2";
-        //        CoreV1Api api = new CoreV1Api();
-        //        V1Pod pod = new V1PodBuilder()
-        //                .withNewMetadata().withName(testPodName).withLabels(ImmutableMap.of("POD_NAME", testPodName)).endMetadata()
-        //                .withNewSpec().addNewContainer()
-        //                .withName(testPodName)
-        //                .withImage("openjdk:8-jre-alpine")
-        //                .withImagePullPolicy("IfNotPresent")
-        ////                .withCommand("/bin/sh", "-c", "wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml",
-        ////                             "java -version",
-        ////                             "/bin/sh"
-        ////                )
-        //                .withCommand("/bin/sh")
-        //                .withArgs("-c", "sleep 60;wget http://asdrepo.isus.emc.com:8081/artifactory/nautilus-pravega-testframework/pravega/systemtests/maven-metadata.xml;java -version;" +
-        //                        "echo ./maven-metadata.xml")
-        //                .endContainer()
-        //                .withRestartPolicy("Never")
-        //                .endSpec().build();
-        //
-        //        log.info("Create a Pod");
-        //        CompletableFuture<V1Pod> pod1 = client.deployPod(namespace, pod);
-        //        Futures.await(pod1);
-        //        client.waitUntilPodCompletes(namespace, testPodName).join();
-        //
-        //        Futures.await(client.getStatusOfPod(namespace, testPodName));
-
     }
 }
