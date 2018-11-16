@@ -30,9 +30,9 @@ import static io.pravega.shared.MetricsNames.nameFromTransaction;
  */
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
-    private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
-    private final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
+    private static final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
+    private static final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+    private static final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
 
     /**
      * This method increments the global and Stream-related counters of created Transactions and reports the latency of
@@ -45,7 +45,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     public void createTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION, 1);
         DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
-        createTransactionLatency.reportSuccessEvent(latency);
+        createTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -70,7 +70,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     public void commitTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1);
         DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
-        commitTransactionLatency.reportSuccessEvent(latency);
+        commitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**
@@ -97,7 +97,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     public void abortTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION, 1);
         DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
-        abortTransactionLatency.reportSuccessEvent(latency);
+        abortTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
     /**

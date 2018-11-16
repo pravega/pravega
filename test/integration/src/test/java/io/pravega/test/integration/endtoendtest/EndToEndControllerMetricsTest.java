@@ -41,6 +41,7 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
@@ -73,11 +74,17 @@ public class EndToEndControllerMetricsTest {
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
 
-    @Before
-    public void setUp() throws Exception {
+    @BeforeClass
+    public static void initialize() {
         MetricsProvider.initialize(MetricsConfig.builder()
                                                 .with(MetricsConfig.ENABLE_STATISTICS, true)
+                                                .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
                                                 .build());
+        MetricsProvider.getMetricsProvider().start();
+    }
+
+    @Before
+    public void setUp() throws Exception {
         executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
@@ -104,6 +111,7 @@ public class EndToEndControllerMetricsTest {
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
+        MetricsProvider.getMetricsProvider().close();
     }
 
     @Test(timeout = 300000)
@@ -174,16 +182,17 @@ public class EndToEndControllerMetricsTest {
             Assert.assertEquals(i + 1, streamDeleteCounter.getCount());
         }
 
-        Timer createdStreamsLatency = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
-        Assert.assertNotNull(createdStreamsLatency);
-        Timer sealedStreamsLatency = MetricRegistryUtils.getTimer(getTimerMetricName(SEAL_STREAM_LATENCY));
-        Assert.assertNotNull(sealedStreamsLatency);
-        Timer deletedStreamsLatency = MetricRegistryUtils.getTimer(getTimerMetricName(DELETE_STREAM_LATENCY));
-        Assert.assertNotNull(deletedStreamsLatency);
-        Timer updatedStreamsLatency = MetricRegistryUtils.getTimer(getTimerMetricName(UPDATE_STREAM_LATENCY));
-        Assert.assertNotNull(updatedStreamsLatency);
-        Timer truncatedStreamsLatency = MetricRegistryUtils.getTimer(getTimerMetricName(TRUNCATE_STREAM_LATENCY));
-        Assert.assertNotNull(truncatedStreamsLatency);
+        checkStatsRegisteredValues(12, CREATE_STREAM_LATENCY);
+        checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
+        checkStatsRegisteredValues(iterations, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
+    }
+
+    private void checkStatsRegisteredValues(int expectedValues, String...metricNames) {
+        for (String metricName: metricNames) {
+            Timer latencyValues = MetricRegistryUtils.getTimer(getTimerMetricName(metricName));
+            Assert.assertNotNull(latencyValues);
+            Assert.assertEquals(expectedValues, latencyValues.getSnapshot().size());
+        }
     }
 
     private static String getCounterMetricName(String metricName) {

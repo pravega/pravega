@@ -47,8 +47,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
 import io.pravega.controller.task.TaskSweeper;
 import io.pravega.controller.util.Config;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.StatsProvider;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -97,11 +95,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
-    // Controller metrics for Streams and Transactions.
-    private StatsProvider statsProvider;
-    private StreamMetrics streamMetrics;
-    private TransactionMetrics transactionMetrics;
-
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
@@ -125,13 +118,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
         final CheckpointStore checkpointStore;
 
         try {
-            // Initialize metrics.
-            log.info("Initializing metrics provider ...");
-            statsProvider = MetricsProvider.getMetricsProvider();
-            statsProvider.start();
-            streamMetrics = new StreamMetrics();
-            transactionMetrics = new TransactionMetrics();
-
             //Initialize the executor service.
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
@@ -209,7 +195,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, new StreamMetrics(), new TransactionMetrics());
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -347,11 +333,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of auto retention");
                 streamCutService.awaitTerminated();
             }
-
-            log.info("Closing controller metrics");
-            streamMetrics.close();
-            transactionMetrics.close();
-            statsProvider.close();
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;
