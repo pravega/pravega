@@ -217,6 +217,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
+            DYNAMIC_LOGGER.incCounterValue(SEGMENT_READ_BYTES, reply.getData().array().length);
             DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
@@ -233,6 +234,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         ByteBuffer data = copyData(Collections.singletonList(contents));
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
                         connection.send(reply);
+                        DYNAMIC_LOGGER.incCounterValue(SEGMENT_READ_BYTES, reply.getData().array().length);
                         DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
                     })
                     .exceptionally(e -> {

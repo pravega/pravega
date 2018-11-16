@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static io.pravega.shared.MetricsNames.CONTAINER_FAILURES;
-import static io.pravega.shared.MetricsNames.CONTAINER_LOCATION;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_CONTAINER_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_FAILURES;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_NUMBER;
@@ -25,7 +24,7 @@ import static io.pravega.shared.MetricsNames.nameFromHost;
 /**
  * Class to encapsulate the logic to report Controller metrics for Segment Store hosts and Container lifecycle.
  */
-public class HostContainerMetrics extends AbstractControllerMetrics {
+public final class HostContainerMetrics extends AbstractControllerMetrics {
 
     /**
      * This method reports the number available Segment Store hosts managing Containers, as well as the number of
@@ -47,7 +46,7 @@ public class HostContainerMetrics extends AbstractControllerMetrics {
         DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_STORE_HOST_NUMBER, newMapping.keySet().size());
 
         // Report the host/container relationships and the number of containers per host.
-        newMapping.keySet().forEach(host -> reportContainerLocationAndCount(host, newMapping.get(host)));
+        newMapping.keySet().forEach(host -> reportContainerCountPerHost(host, newMapping.get(host)));
         if (oldMapping == null) {
             // Do not perform comparisons against the oldMapping if it is null.
             return;
@@ -66,11 +65,7 @@ public class HostContainerMetrics extends AbstractControllerMetrics {
         }
     }
 
-    private void reportContainerLocationAndCount(Host host, Set<Integer> containerIds) {
-        for (Integer containerId: containerIds) {
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(CONTAINER_LOCATION, host.toString()), containerId);
-        }
-
+    private void reportContainerCountPerHost(Host host, Set<Integer> containerIds) {
         DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, host.toString()), containerIds.size());
     }
 
