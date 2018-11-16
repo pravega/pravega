@@ -20,7 +20,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -163,15 +162,16 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         // Create a new TableBucketReader and get all the requested items for this bucket. We pass the offset of the
         // deleted entry to make sure its data is not included.
         val reader = createReader.apply(segment, (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)), executorService());
-        val result = reader.findAll(newBucketOffset, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val result = reader.findAllExisting(newBucketOffset, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // We expect to find all non-deleted Table Items that are linked, in the order of backpointers (i.e., reverse order).
+        // We expect to find all non-deleted Table Items that are linked.
         val expectedResult = data.entries.stream()
                 .filter(e -> data.backpointers.containsValue(e.getKey().getVersion()))
-                .sorted(Comparator.comparingLong(e -> -e.getKey().getVersion()))
                 .map(getItem)
                 .collect(Collectors.toList());
-        AssertExtensions.assertListEquals("Unexpected result from findAll().", expectedResult, result, areEqual);
+
+        AssertExtensions.assertContainsSameElements("Unexpected result from findAll().", expectedResult, result,
+                (i1, i2) -> areEqual.test(i1, i2) ? 0 : 1);
     }
 
     private TestData generateData() {
