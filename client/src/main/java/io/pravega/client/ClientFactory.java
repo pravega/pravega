@@ -62,7 +62,9 @@ public interface ClientFactory extends AutoCloseable {
      * @param scope The scope string.
      * @param controllerUri The URI for controller.
      * @return Instance of ClientFactory implementation.
+     * @deprecated Use {@link #withScope(String, ClientConfig)}
      */
+    @Deprecated
     static ClientFactory withScope(String scope, URI controllerUri) {
         return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
     }
