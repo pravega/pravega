@@ -243,18 +243,7 @@ public final class BitConverter {
      * @return The number of bytes written.
      */
     public static int writeUnsignedLong(byte[] target, int offset, long value) {
-        if (value < 0) {
-            // Negative value; shift it to the range [0, 2^63-1] to avoid using 2's complement.
-            value += Long.MAX_VALUE;
-            value++;
-            writeLong(target, offset, value);
-        } else {
-            // Positive value; shift it to the range [2^63, 2^64-1] to differentiate it from negative values.
-            writeLong(target, offset, value);
-            target[offset] |= 0x80;
-        }
-
-        return Long.BYTES;
+        return writeLong(target, offset, value ^ Long.MIN_VALUE);
     }
 
     /**
@@ -266,17 +255,6 @@ public final class BitConverter {
      * @return The read number.
      */
     public static long readUnsignedLong(ArrayView source, int position) {
-        long result = readLong(source, position);
-        if (result < 0) {
-            // This is a signed type, so negative means the first bit is 1, which means our original value was positive.
-            // Clear the first bit to get the desired result.
-            result &= 0x7FFF_FFFF_FFFF_FFFFL;
-        } else {
-            // Convert this back into a negative value.
-            result -= Long.MAX_VALUE;
-            result--;
-        }
-
-        return result;
+        return readLong(source, position) ^ Long.MIN_VALUE;
     }
 }
