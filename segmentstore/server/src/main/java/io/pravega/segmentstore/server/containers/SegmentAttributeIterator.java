@@ -20,8 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
 import lombok.val;
 
@@ -37,14 +41,17 @@ import lombok.val;
  * Instances of this class iterate over the Attribute Index (within the specified bounds), and also include Attributes
  * from the Segment Metadata where appropriate.
  */
+@ThreadSafe
 class SegmentAttributeIterator implements AttributeIterator {
     //region Members
 
     private final AttributeIterator indexIterator;
+    @GuardedBy("metadataAttributes")
     private final ArrayDeque<Map.Entry<UUID, Long>> metadataAttributes;
     private final UUID fromId;
     private final UUID toId;
     private final AtomicReference<UUID> lastIndexAttribute;
+    private final AtomicBoolean inProgress;
 
     //endregion
 
@@ -69,6 +76,7 @@ class SegmentAttributeIterator implements AttributeIterator {
         this.fromId = fromId;
         this.toId = toId;
         this.lastIndexAttribute = new AtomicReference<>();
+        this.inProgress = new AtomicBoolean();
     }
 
     //endregion
@@ -77,7 +85,20 @@ class SegmentAttributeIterator implements AttributeIterator {
 
     @Override
     public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
-        return this.indexIterator.getNext().thenApply(this::mix);
+        // Verify no other call to getNext() is currently executing.
+        Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
+
+        return this.indexIterator
+                .getNext()
+                .thenApply(this::mix)
+                .handle((r, ex) -> {
+                    this.inProgress.set(false);
+                    if (ex == null) {
+                        return r;
+                    } else {
+                        throw new CompletionException(ex);
+                    }
+                });
     }
 
     /**
@@ -98,12 +119,14 @@ class SegmentAttributeIterator implements AttributeIterator {
      * Attributes from the {@link SegmentMetadata} passed to this class' constructor. This will return null if both
      * indexAttributes is null and there are no more Attributes to process from the {@link SegmentMetadata}.
      */
-    List<Map.Entry<UUID, Long>> mix(List<Map.Entry<UUID, Long>> indexAttributes) {
+    private List<Map.Entry<UUID, Long>> mix(List<Map.Entry<UUID, Long>> indexAttributes) {
         val result = new ArrayList<Map.Entry<UUID, Long>>();
         if (indexAttributes == null) {
             // Nothing more in the base iterator. Add whatever is in the metadata attributes.
-            while (!this.metadataAttributes.isEmpty()) {
-                include(this.metadataAttributes.removeFirst(), result);
+            synchronized (this.metadataAttributes) {
+                while (!this.metadataAttributes.isEmpty()) {
+                    include(this.metadataAttributes.removeFirst(), result);
+                }
             }
 
             return result.isEmpty() ? null : result;
@@ -116,9 +139,11 @@ class SegmentAttributeIterator implements AttributeIterator {
                 // Find all metadata attributes that are smaller or the same as the base attribute and include them all.
                 // This also handles value overrides (metadata attributes, if present, always have the latest value).
                 UUID lastMetadataAttribute = null;
-                while (!this.metadataAttributes.isEmpty()
-                        && this.metadataAttributes.peekFirst().getKey().compareTo(idxAttribute.getKey()) <= 0) {
-                    lastMetadataAttribute = include(this.metadataAttributes.removeFirst(), result);
+                synchronized (this.metadataAttributes) {
+                    while (!this.metadataAttributes.isEmpty()
+                            && this.metadataAttributes.peekFirst().getKey().compareTo(idxAttribute.getKey()) <= 0) {
+                        lastMetadataAttribute = include(this.metadataAttributes.removeFirst(), result);
+                    }
                 }
 
                 // Only add our element if it hasn't already been processed.

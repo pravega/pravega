@@ -13,6 +13,7 @@ import com.google.common.collect.Maps;
 import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -33,10 +34,15 @@ import org.junit.Test;
 /**
  * Unit tests for the {@link SegmentAttributeIterator} class.
  */
-public class SegmentAttributeIteratorTests {
+public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
     private static final int ITERATOR_COUNT = 20;
     private static final int METADATA_COUNT = 100;
     private static final double ATTRIBUTE_OVERLAP_RATIO = 0.4; // How many attributes in Metadata overlap base Attributes.
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 1;
+    }
 
     /**
      * Tests a scenario where all the attributes come only from the base iterators.
@@ -81,11 +87,10 @@ public class SegmentAttributeIteratorTests {
 
         UUID fromId = testData.sortedAttributeIds.get(0);
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
-        val iterators = createIterators(testData, fromId, toId);
-        val mixer = new SegmentAttributeIterator(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
+        val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
         AssertExtensions.assertThrows(
-                "mix() did not throw when iterators returned data out of order.",
-                () -> iterators.forEach(mixer::mix),
+                "getNext() did not throw when iterators returned data out of order.",
+                () -> iterator.forEachRemaining(CompletableFuture::completedFuture, executorService()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -104,12 +109,12 @@ public class SegmentAttributeIteratorTests {
         });
 
         // We generate the iterators to include more data than we provide to the mixer.
+        UUID fromId = testData.sortedAttributeIds.get(1);
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
-        val iterators = createIterators(testData, testData.sortedAttributeIds.get(0), toId);
-        val mixer = new SegmentAttributeIterator(testData.getAttributeIterator(), testData.segmentMetadata, testData.sortedAttributeIds.get(1), toId);
+        val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
         AssertExtensions.assertThrows(
-                "mix() did not throw when iterators returned data out of range.",
-                () -> iterators.forEach(mixer::mix),
+                "getNext() did not throw when iterators returned data out of range.",
+                () -> iterator.forEachRemaining(CompletableFuture::completedFuture, executorService()),
                 ex -> ex instanceof IllegalArgumentException);
     }
 
@@ -117,22 +122,15 @@ public class SegmentAttributeIteratorTests {
         for (int i = 0; i < testData.sortedAttributeIds.size() / 2; i++) {
             UUID fromId = testData.sortedAttributeIds.get(i);
             UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - i - 1);
-            val iterators = createIterators(testData, fromId, toId);
-            val mixer = new SegmentAttributeIterator(testData.getAttributeIterator(), testData.segmentMetadata, fromId, toId);
-
+            val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
             val finalResult = new ArrayList<Map.Entry<UUID, Long>>();
             val ids = new HashSet<UUID>();
-            for (int j = 0; j < iterators.size(); j++) {
-                val intermediateResult = mixer.mix(iterators.get(j));
-                if (intermediateResult == null) {
-                    Assert.assertEquals("Not expecting a null result for non-terminal input.", iterators.size() - 1, j);
-                } else {
-                    for (val e : intermediateResult) {
-                        Assert.assertTrue("Duplicate key found: " + e.getKey(), ids.add(e.getKey()));
-                        finalResult.add(e);
-                    }
+            iterator.forEachRemaining(intermediateResult -> {
+                for (val e : intermediateResult) {
+                    Assert.assertTrue("Duplicate key found: " + e.getKey(), ids.add(e.getKey()));
+                    finalResult.add(e);
                 }
-            }
+            }, executorService()).join();
 
             val expectedResult = testData.expectedResult
                     .stream()
@@ -144,16 +142,7 @@ public class SegmentAttributeIteratorTests {
         }
     }
 
-    private List<List<Map.Entry<UUID, Long>>> createIterators(TestData testData, UUID fromId, UUID toId) {
-        val result = testData.baseIteratorAttributes
-                .stream()
-                .map(list -> list.stream().filter(e -> isBetween(e.getKey(), fromId, toId)).collect(Collectors.toList()))
-                .collect(Collectors.toList());
-        result.add(null); // To indicate it's done.
-        return result;
-    }
-
-    private boolean isBetween(UUID toCheck, UUID fromId, UUID toId) {
+    private static boolean isBetween(UUID toCheck, UUID fromId, UUID toId) {
         return fromId.compareTo(toCheck) <= 0 && toId.compareTo(toCheck) >= 0;
     }
 
@@ -216,9 +205,12 @@ public class SegmentAttributeIteratorTests {
         private final SegmentMetadata segmentMetadata;
         private final List<Map.Entry<UUID, Long>> expectedResult;
 
-        AttributeIterator getAttributeIterator() {
+        AttributeIterator getAttributeIterator(UUID fromId, UUID toId) {
             val baseIterator = baseIteratorAttributes.iterator();
-            return () -> CompletableFuture.completedFuture(baseIterator.hasNext() ? baseIterator.next() : null);
+            return () -> CompletableFuture.completedFuture(
+                    baseIterator.hasNext()
+                            ? baseIterator.next().stream().filter(e -> isBetween(e.getKey(), fromId, toId)).collect(Collectors.toList())
+                            : null);
         }
     }
 }
