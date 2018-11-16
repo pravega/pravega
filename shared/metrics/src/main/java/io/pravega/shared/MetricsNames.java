@@ -132,7 +132,7 @@ public final class MetricsNames {
     public static final String SEGMENT_STORE_HOST_CONTAINER_COUNT = "controller.hosts.container_count"; // Gauge
 
     // Container lifecycle metrics
-    public static final String CONTAINER_FAILURES = "controller.container.failures";    // Counter
+    public static final String CONTAINER_FAILOVERS = "controller.container.failovers";    // Counter
 
     // Stream segment counts (Dynamic)
     public static final String SEGMENTS_COUNT = "controller.segments.count";    // Dynamic Gauge

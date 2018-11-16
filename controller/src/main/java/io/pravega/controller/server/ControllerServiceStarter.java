@@ -95,6 +95,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
+    private StreamMetrics streamMetrics;
+    private TransactionMetrics transactionMetrics;
+
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
@@ -194,8 +197,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, new StreamMetrics(), new TransactionMetrics());
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -332,6 +337,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (streamCutService != null) {
                 log.info("Awaiting termination of auto retention");
                 streamCutService.awaitTerminated();
+            }
+
+            if (streamMetrics != null) {
+                streamMetrics.close();
+                transactionMetrics.close();
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);

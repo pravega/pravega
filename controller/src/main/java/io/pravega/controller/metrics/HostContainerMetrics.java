@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static io.pravega.shared.MetricsNames.CONTAINER_FAILURES;
+import static io.pravega.shared.MetricsNames.CONTAINER_FAILOVERS;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_CONTAINER_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_FAILURES;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_NUMBER;
@@ -50,8 +50,9 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
             return;
         }
 
-        // Report Segment Store node and container failures. We consider a failure the event that the old host/container
-        // map contains hosts not existing in the new map.
+        // Report Segment Store failures and container failovers. We consider a host failure the event that the old
+        // host/container map contains a host not existing in the new map; in this case, the related containers will
+        // need to be relocated across the rest of running hosts (Container failover).
         Set<Host> workingNodes = new HashSet<>(oldMapping.keySet());
         if (workingNodes.retainAll(newMapping.keySet())) {
             oldMapping.keySet().stream()
@@ -75,9 +76,9 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
     }
 
     private void reportContainerFailovers(Set<Integer> failedContainers) {
-        DYNAMIC_LOGGER.incCounterValue(CONTAINER_FAILURES, failedContainers.size());
+        DYNAMIC_LOGGER.incCounterValue(CONTAINER_FAILOVERS, failedContainers.size());
         for (Integer containerId: failedContainers) {
-            DYNAMIC_LOGGER.incCounterValue(nameFromContainer(CONTAINER_FAILURES, containerId), 1);
+            DYNAMIC_LOGGER.incCounterValue(nameFromContainer(CONTAINER_FAILOVERS, containerId), 1);
         }
     }
 }
