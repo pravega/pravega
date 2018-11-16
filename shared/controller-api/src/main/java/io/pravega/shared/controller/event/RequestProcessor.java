@@ -17,7 +17,7 @@ public interface RequestProcessor {
      * Method to process abort txn event.
      *
      * @param abortEvent abort event
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent);
 
@@ -25,7 +25,7 @@ public interface RequestProcessor {
      * Method to process commit txn event.
      *
      * @param commitEvent commit event
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent);
 
@@ -33,7 +33,7 @@ public interface RequestProcessor {
      * Method to process auto scale event.
      *
      * @param autoScaleEvent auto scale event.
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processAutoScaleRequest(AutoScaleEvent autoScaleEvent);
 
@@ -41,7 +41,7 @@ public interface RequestProcessor {
      * Method to process scale operation event.
      *
      * @param scaleOpEvent scale operation event.
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processScaleOpRequest(ScaleOpEvent scaleOpEvent);
 
@@ -49,7 +49,7 @@ public interface RequestProcessor {
      * Method to process update stream event.
      *
      * @param updateStreamEvent update stream event.
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent);
 
@@ -57,7 +57,7 @@ public interface RequestProcessor {
      * Method to process truncate stream event.
      *
      * @param truncateStreamEvent truncate stream event.
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent);
 
@@ -65,7 +65,7 @@ public interface RequestProcessor {
      * Method to process seal stream event.
      *
      * @param sealStreamEvent stream stream event.
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processSealStream(SealStreamEvent sealStreamEvent);
 
@@ -73,7 +73,7 @@ public interface RequestProcessor {
      * Method to process delete stream event.
      *
      * @param deleteStreamEvent delete stream event.
-     * @return
+     * @return CompletableFuture that caller can use to get to synchronize.
      */
     CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent);
 }

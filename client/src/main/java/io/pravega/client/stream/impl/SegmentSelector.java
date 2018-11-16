@@ -59,7 +59,7 @@ public class SegmentSelector {
      * @param routingKey The key that should be used to select from the segment that the event
      *            should go to.
      * @return The SegmentOutputStream for the segment that has been selected or null if
-     *         {@link #refreshSegmentEventWriters()} needs to be called.
+     *         {@link #refreshSegmentEventWriters(Consumer)} needs to be called.
      */
     @Synchronized
     public SegmentOutputStream getSegmentOutputStreamForKey(String routingKey) {
