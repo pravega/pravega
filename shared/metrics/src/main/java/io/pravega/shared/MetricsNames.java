@@ -96,34 +96,34 @@ public final class MetricsNames {
 
     // Metrics in Controller
     // Stream request counts (Static)
-    public static final String CREATE_STREAM = "controller.stream.created";                     // Counter
-    public static final String CREATE_STREAM_LATENCY = "controller.stream.created_ms";          // Histogram
-    public static final String CREATE_STREAM_FAILED = "controller.stream.create_failed";        // Counter
-    public static final String SEAL_STREAM = "controller.stream.sealed";                        // Counter
-    public static final String SEAL_STREAM_LATENCY = "controller.stream.sealed_ms";             // Histogram
-    public static final String SEAL_STREAM_FAILED = "controller.stream.seal_failed";            // Counter
-    public static final String DELETE_STREAM = "controller.stream.deleted";                     // Counter
-    public static final String DELETE_STREAM_LATENCY = "controller.stream.deleted_ms";          // Histogram
-    public static final String DELETE_STREAM_FAILED = "controller.stream.delete_failed";        // Counter
-    public static final String UPDATE_STREAM = "controller.stream.updated";                     // Counter
-    public static final String UPDATE_STREAM_LATENCY = "controller.stream.updated_ms";          // Histogram
-    public static final String UPDATE_STREAM_FAILED = "controller.stream.update_failed";        // Counter
-    public static final String TRUNCATE_STREAM = "controller.stream.truncated";                 // Counter
-    public static final String TRUNCATE_STREAM_LATENCY = "controller.stream.truncated_ms";      // Histogram
-    public static final String TRUNCATE_STREAM_FAILED = "controller.stream.truncate_failed";    // Counter
+    public static final String CREATE_STREAM = "controller.stream.created";                         // Counter
+    public static final String CREATE_STREAM_LATENCY = "controller.stream.created_latency_ms";      // Histogram
+    public static final String CREATE_STREAM_FAILED = "controller.stream.create_failed";            // Counter
+    public static final String SEAL_STREAM = "controller.stream.sealed";                            // Counter
+    public static final String SEAL_STREAM_LATENCY = "controller.stream.sealed_latency_ms";         // Histogram
+    public static final String SEAL_STREAM_FAILED = "controller.stream.seal_failed";                // Counter
+    public static final String DELETE_STREAM = "controller.stream.deleted";                         // Counter
+    public static final String DELETE_STREAM_LATENCY = "controller.stream.deleted_latency_ms";      // Histogram
+    public static final String DELETE_STREAM_FAILED = "controller.stream.delete_failed";            // Counter
+    public static final String UPDATE_STREAM = "controller.stream.updated";                         // Counter
+    public static final String UPDATE_STREAM_LATENCY = "controller.stream.updated_latency_ms";      // Histogram
+    public static final String UPDATE_STREAM_FAILED = "controller.stream.update_failed";            // Counter
+    public static final String TRUNCATE_STREAM = "controller.stream.truncated";                     // Counter
+    public static final String TRUNCATE_STREAM_LATENCY = "controller.stream.truncated_latency_ms";  // Histogram
+    public static final String TRUNCATE_STREAM_FAILED = "controller.stream.truncate_failed";        // Counter
 
     // Transaction request Operations (Dynamic)
-    public static final String CREATE_TRANSACTION = "controller.transactions.created";                  // Dynamic Counter
-    public static final String CREATE_TRANSACTION_LATENCY = "controller.transactions.created_ms";       // Histogram
-    public static final String CREATE_TRANSACTION_FAILED = "controller.transactions.create_failed";     // Dynamic Counter
-    public static final String COMMIT_TRANSACTION = "controller.transactions.committed";                // Dynamic Counter
-    public static final String COMMIT_TRANSACTION_LATENCY = "controller.transactions.committed_ms";     // Histogram
-    public static final String COMMIT_TRANSACTION_FAILED = "controller.transactions.commit_failed";     // Dynamic Counter
-    public static final String ABORT_TRANSACTION = "controller.transactions.aborted";                   // Dynamic Counter
-    public static final String ABORT_TRANSACTION_LATENCY = "controller.transactions.aborted_ms";        // Histogram
-    public static final String ABORT_TRANSACTION_FAILED = "controller.transactions.abort_failed";       // Dynamic Counter
-    public static final String OPEN_TRANSACTIONS = "controller.transactions.opened";                    // Gauge
-    public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";              // Dynamic Counter
+    public static final String CREATE_TRANSACTION = "controller.transactions.created";                      // Dynamic Counter
+    public static final String CREATE_TRANSACTION_LATENCY = "controller.transactions.created_latency_ms";   // Histogram
+    public static final String CREATE_TRANSACTION_FAILED = "controller.transactions.create_failed";         // Dynamic Counter
+    public static final String COMMIT_TRANSACTION = "controller.transactions.committed";                    // Dynamic Counter
+    public static final String COMMIT_TRANSACTION_LATENCY = "controller.transactions.committed_latency_ms"; // Histogram
+    public static final String COMMIT_TRANSACTION_FAILED = "controller.transactions.commit_failed";         // Dynamic Counter
+    public static final String ABORT_TRANSACTION = "controller.transactions.aborted";                       // Dynamic Counter
+    public static final String ABORT_TRANSACTION_LATENCY = "controller.transactions.aborted_latency_ms";    // Histogram
+    public static final String ABORT_TRANSACTION_FAILED = "controller.transactions.abort_failed";           // Dynamic Counter
+    public static final String OPEN_TRANSACTIONS = "controller.transactions.opened";                        // Gauge
+    public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";                  // Dynamic Counter
 
     // Host metrics
     public static final String SEGMENT_STORE_HOST_NUMBER = "controller.hosts.count";                    // Gauge

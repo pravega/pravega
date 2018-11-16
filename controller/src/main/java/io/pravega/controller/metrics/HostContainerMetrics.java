@@ -28,10 +28,8 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
 
     /**
      * This method reports the number available Segment Store hosts managing Containers, as well as the number of
-     * Containers assigned to each host. It also reports the relationship between Segment Store hosts and Container ids,
-     * to make it easier for administrators to infer in which node a certain Container is running. Moreover, this method
-     * also reports failures for hosts and Containers; we consider a failure the situation in which a host in present
-     * in the oldMapping, but not present in newMapping.
+     * Containers assigned to each host. Moreover, this method also reports failures for hosts and Containers; we
+     * consider a failure the situation in which a host in present in the oldMapping, but not present in newMapping.
      *
      * @param oldMapping    Previous host to Container relationships.
      * @param newMapping    Updated host to Container relationships.
@@ -52,8 +50,8 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
             return;
         }
 
-        // Report Segment Store node and container failures related to node failures. We consider a failure the event
-        // that the old host/container map contains hosts not existing in the new map.
+        // Report Segment Store node and container failures. We consider a failure the event that the old host/container
+        // map contains hosts not existing in the new map.
         Set<Host> workingNodes = new HashSet<>(oldMapping.keySet());
         if (workingNodes.retainAll(newMapping.keySet())) {
             oldMapping.keySet().stream()
@@ -72,6 +70,8 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
     private void reportHostFailures(Host failedHost) {
         DYNAMIC_LOGGER.incCounterValue(SEGMENT_STORE_HOST_FAILURES, 1);
         DYNAMIC_LOGGER.incCounterValue(nameFromHost(SEGMENT_STORE_HOST_FAILURES, failedHost.toString()), 1);
+        // Set to 0 the number of containers for the failed host.
+        DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, failedHost.toString()), 0);
     }
 
     private void reportContainerFailovers(Set<Integer> failedContainers) {
