@@ -25,12 +25,15 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -159,7 +162,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             log.info("Finished Phase 1");
         }
 
-        // Phase 2: Force a recovery and remove all data (unconditionally
+        // Phase 2: Force a recovery and remove all data (unconditionally)
         log.info("Starting Phase 2");
         try (val builder = createBuilder()) {
             val tableStore = builder.createTableStoreService();
@@ -238,6 +241,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Check inexistent keys.
         val searchFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
+        val iteratorFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
         val expectedResult = new ArrayList<Map.Entry<HashedArray, EntryData>>();
         for (val e : bySegment.entrySet()) {
             String segmentName = e.getKey();
@@ -248,11 +252,17 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             }
 
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
+            iteratorFutures.add(tableStore.entryIterator(segmentName, null, TIMEOUT)
+                    .thenCompose(ei -> {
+                        val result = new ArrayList<TableEntry>();
+                        return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
+                                .thenApply(v -> result);
+                    }));
         }
 
+        // Check search results.
         val actualResults = Futures.allOfWithResults(searchFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
                                    .stream().flatMap(List::stream).collect(Collectors.toList());
-
         Assert.assertEquals("Unexpected number of search results.", expectedResult.size(), actualResults.size());
         for (int i = 0; i < expectedResult.size(); i++) {
             val expectedKey = expectedResult.get(i).getKey();
@@ -267,6 +277,19 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Unexpected TableKey.Version for non-deleted Key.", expectedEntry.getVersion(), actual.getKey().getVersion());
             }
         }
+
+        // Check iterator results. We sort it (and actualResults) by Version/Offset to ease the comparison.
+        val actualIteratorResults = Futures.allOfWithResults(iteratorFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                .stream()
+                .flatMap(List::stream)
+                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                .collect(Collectors.toList());
+        val expectedIteratorResults = actualResults.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                .collect(Collectors.toList());
+        AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntryHelpers::areEqual);
+
     }
 
     private Map<String, List<Long>> executeUpdates(HashMap<String, ArrayList<TableEntry>> updates, TableStore tableStore) throws Exception {

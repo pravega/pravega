@@ -19,12 +19,14 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -83,6 +85,30 @@ abstract class TableBucketReader<ResultT> {
      * Locates all {@link ResultT} instances in a TableBucket.
      *
      * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
+     * @param timer        A {@link TimeoutTimer} for the operation.
+     * @return A CompletableFuture that, when completed, will contain a List with the desired result items. This list
+     * will exclude all {@link ResultT} items that are marked as deleted.
+     */
+    CompletableFuture<List<ResultT>> findAllExisting(long bucketOffset, TimeoutTimer timer) {
+        val result = new HashMap<HashedArray, ResultT>();
+
+        // This handler ensures that items are only added once (per key) and only if they are not deleted. Since the items
+        // are processed in descending version order, the first time we encounter its key is its latest value.
+        Consumer<ResultT> handler = item -> {
+            TableKey key = getKey(item);
+            HashedArray indexedKey = new HashedArray(key.getKey());
+            if (!result.containsKey(indexedKey)) {
+                result.put(indexedKey, key.getVersion() == TableKey.NOT_EXISTS ? null : item);
+            }
+        };
+        return findAll(bucketOffset, handler, timer)
+                .thenApply(v -> result.values().stream().filter(Objects::nonNull).collect(Collectors.toList()));
+    }
+
+    /**
+     * Locates all {@link ResultT} instances in a TableBucket.
+     *
+     * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
      * @param handler      A {@link Consumer} that will be invoked every time a {@link ResultT} is fetched. This will not
      *                     be invoked for any {@link ResultT} item that is marked as deleted.
      * @param timer        A {@link TimeoutTimer} for the operation.
@@ -99,10 +125,8 @@ abstract class TableBucketReader<ResultT> {
                     AsyncReadResultProcessor.process(readResult, reader, this.executor);
                     return reader.getResult()
                             .thenComposeAsync(entryResult -> {
-                                // Record the entry.
-                                if (!isDeleted(entryResult)) {
-                                    handler.accept(entryResult);
-                                }
+                                // Record the entry, but only if we haven't processed its Key before and only if it exists.
+                                handler.accept(entryResult);
 
                                 // Get the next Key Location for this bucket.
                                 return this.getBackpointer.apply(segment, offset.get(), timer.getRemaining());
@@ -110,19 +134,6 @@ abstract class TableBucketReader<ResultT> {
                 },
                 offset::set,
                 this.executor);
-    }
-
-    /**
-     * Locates all {@link ResultT} instances in a TableBucket.
-     *
-     * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
-     * @param timer        A {@link TimeoutTimer} for the operation.
-     * @return A CompletableFuture that, when completed, will contain a List with the desired result items. This list
-     * will exclude all {@link ResultT} items that are marked as deleted.
-     */
-    CompletableFuture<List<ResultT>> findAll(long bucketOffset, TimeoutTimer timer) {
-        List<ResultT> result = new ArrayList<>();
-        return findAll(bucketOffset, result::add, timer).thenApply(v -> result);
     }
 
     /**
@@ -200,7 +211,7 @@ abstract class TableBucketReader<ResultT> {
      */
     protected abstract SearchContinuation processResult(ResultT result, ArrayView soughtKey);
 
-    protected abstract boolean isDeleted(ResultT resultT);
+    protected abstract TableKey getKey(ResultT resultT);
 
     //endregion
 
@@ -239,8 +250,8 @@ abstract class TableBucketReader<ResultT> {
         }
 
         @Override
-        protected boolean isDeleted(TableEntry tableEntry) {
-            return tableEntry.getKey().getVersion() == TableKey.NOT_EXISTS;
+        protected TableKey getKey(TableEntry tableEntry) {
+            return tableEntry.getKey();
         }
     }
 
@@ -278,8 +289,8 @@ abstract class TableBucketReader<ResultT> {
         }
 
         @Override
-        protected boolean isDeleted(TableKey tableKey) {
-            return tableKey.getVersion() == TableKey.NOT_EXISTS;
+        protected TableKey getKey(TableKey tableKey) {
+            return tableKey;
         }
     }
 

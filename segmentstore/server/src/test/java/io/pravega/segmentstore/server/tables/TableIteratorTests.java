@@ -77,6 +77,16 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
         test(testData);
     }
 
+    /**
+     * Tests the {@link TableIterator#empty()} method.
+     */
+    @Test
+    public void testEmpty() throws Exception {
+        val empty = TableIterator.empty();
+        val next = empty.getNext().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertNull("Empty iterator should return null from getNext().", next);
+    }
+
     @SneakyThrows
     private void test(TestData testData) {
         // Try a combination of different start hashes.

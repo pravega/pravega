@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,7 +46,7 @@ class TableIterator<T> implements AsyncIterator<T> {
     private final AttributeIterator indexHashIterator;
     private final ConvertResult<T> resultConverter;
     private final ArrayDeque<Map.Entry<UUID, Long>> cacheHashes;
-    private final ScheduledExecutorService executor;
+    private final Executor executor;
     private final AtomicReference<Iterator<TableBucket>> currentBatch = new AtomicReference<>();
 
     //endregion
@@ -185,6 +187,20 @@ class TableIterator<T> implements AsyncIterator<T> {
     }
 
     /**
+     * Creates a new {@link TableIterator} that contains no elements.
+     *
+     * @param <T> Type of elements returned at each iteration.
+     * @return A new instance of the {@link TableIterator.Builder} class.
+     */
+    static <T> TableIterator<T> empty() {
+        return new TableIterator<>(
+                () -> CompletableFuture.completedFuture(null),
+                ignored -> CompletableFuture.completedFuture(null),
+                new ArrayDeque<>(),
+                ForkJoinPool.commonPool());
+    }
+
+    /**
      * Builder for the {@link TableIterator} class.
      */
     static class Builder<T> {
@@ -257,7 +273,8 @@ class TableIterator<T> implements AsyncIterator<T> {
          * Sets a {@link ConvertResult} function that will translate each {@link TableBucket} instance into the desired
          * final result.
          *
-         * @param resultConverter
+         * @param resultConverter A Function that will translate each {@link TableBucket} instance into the desired
+         *                        final result.
          * @return This object.
          */
         Builder<T> resultConverter(@NonNull ConvertResult<T> resultConverter) {

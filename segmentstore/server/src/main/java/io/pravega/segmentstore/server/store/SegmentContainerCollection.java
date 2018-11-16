@@ -18,7 +18,6 @@ import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -76,28 +75,5 @@ public abstract class SegmentContainerCollection {
         }
 
         return resultFuture;
-    }
-
-    /**
-     * Executes the given Function on the SegmentContainer that the given Segment maps to.
-     *
-     * @param streamSegmentName The name of the StreamSegment to fetch the Container for.
-     * @param toInvoke          A Function that will be invoked on the Container.
-     * @param methodName        The name of the calling method (for logging purposes).
-     * @param logArgs           (Optional) A vararg array of items to be logged.
-     * @param <T>               Resulting type.
-     * @return The result of toInvoke.
-     */
-    @SneakyThrows(ContainerNotFoundException.class)
-    protected <T> T invokeSync(String streamSegmentName, Function<SegmentContainer, T> toInvoke, String methodName, Object... logArgs) {
-        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
-        int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
-        SegmentContainer container = this.segmentContainerRegistry.getContainer(containerId);
-        T result = toInvoke.apply(container);
-        if (log.isTraceEnabled()) {
-            LoggerHelpers.traceLeave(log, methodName, traceId, result);
-        }
-
-        return result;
     }
 }

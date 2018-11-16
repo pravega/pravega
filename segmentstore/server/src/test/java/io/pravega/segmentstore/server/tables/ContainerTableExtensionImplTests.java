@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -20,6 +21,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.CacheManager;
@@ -39,6 +41,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -77,9 +80,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int SINGLE_UPDATE_COUNT = 10;
     private static final int BATCH_UPDATE_COUNT = 10000;
     private static final int BATCH_SIZE = 689;
+    private static final int ITERATOR_BATCH_UPDATE_COUNT = 1000; // Iterators are slower to check, so we reduce our test size.
+    private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(3000);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -102,6 +107,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         Assert.assertNotNull("Segment not created", context.segment());
         val tableSegmentProcessors = context.ext.createWriterSegmentProcessors(context.segment().getMetadata());
         Assert.assertFalse("Expecting Writer Table Processors for table segment.", tableSegmentProcessors.isEmpty());
+
+        checkIterators(Collections.emptyMap(), context.ext);
 
         context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
@@ -193,6 +200,34 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @Test
     public void testBatchUpdatesConditionalWithCollisions() {
         testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+    }
+
+    /**
+     * Tests the ability to iterate over keys or entries using a {@link KeyHasher} that is not prone to collisions.
+     */
+    @Test
+    public void testIterators() {
+        testBatchUpdates(
+                ITERATOR_BATCH_UPDATE_COUNT,
+                ITERATOR_BATCH_UPDATE_SIZE,
+                KeyHashers.DEFAULT_HASHER,
+                this::toUnconditionalTableEntry,
+                this::toUnconditionalKey,
+                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
+    }
+
+    /**
+     * Tests the ability to iterate over keys or entries using a {@link KeyHasher} that is very prone to collisions.
+     */
+    @Test
+    public void testIteratorsWithCollisions() {
+        testBatchUpdates(
+                ITERATOR_BATCH_UPDATE_COUNT,
+                ITERATOR_BATCH_UPDATE_SIZE,
+                KeyHashers.COLLISION_HASHER,
+                this::toUnconditionalTableEntry,
+                this::toUnconditionalKey,
+                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
     }
 
     /**
@@ -302,6 +337,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             check(expectedEntries, removedKeys, context.ext);
         }
 
+        checkIterators(expectedEntries, context.ext);
+
         // Remove.
         for (val key : keys) {
             val toRemove = generateToRemove.apply(key, getKeyVersion.apply(key));
@@ -313,10 +350,17 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             check(expectedEntries, removedKeys, context.ext);
         }
+
+        checkIterators(expectedEntries, context.ext);
+    }
+
+    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+        testBatchUpdates(BATCH_UPDATE_COUNT, BATCH_SIZE, keyHasher, generateToUpdate, generateToRemove, this::check);
     }
 
     @SneakyThrows
-    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+    private void testBatchUpdates(int updateCount, int maxBatchSize, KeyHasher keyHasher, EntryGenerator generateToUpdate,
+                                  KeyGenerator generateToRemove, CheckTable checkTable) {
         @Cleanup
         val context = new TestContext(keyHasher);
 
@@ -327,7 +371,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         Assert.assertNotNull(processor);
 
         // Generate test data (in update & remove batches).
-        val data = generateTestData(context);
+        val data = generateTestData(updateCount, maxBatchSize, context);
 
         // Process each such batch in turn. Keep track of the removed keys, as well as of existing key versions.
         val removedKeys = new HashSet<ArrayView>();
@@ -366,7 +410,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
 
             // Verify result (from cache).
-            check(current.expectedEntries, removedKeys, context.ext);
+            checkTable.accept(current.expectedEntries, removedKeys, context.ext);
 
             last = current;
         }
@@ -376,7 +420,15 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         @Cleanup
         val ext2 = context.createExtension();
-        check(last.expectedEntries, removedKeys, ext2);
+        checkTable.accept(last.expectedEntries, removedKeys, ext2);
+
+        // Finally, remove all data.
+        val finalRemoval = last.expectedEntries.keySet().stream()
+                .map(k -> toUnconditionalKey(k, 1))
+                .collect(Collectors.toList());
+        ext2.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        removedKeys.addAll(last.expectedEntries.keySet());
+        checkTable.accept(Collections.emptyMap(), removedKeys, ext2);
     }
 
     private void check(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
@@ -405,6 +457,36 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     @SneakyThrows
+    private void checkIterators(Map<HashedArray, HashedArray> expectedEntries, ContainerTableExtension ext) {
+        // Get the existing keys. We will use this to check Key Versions.
+        val existingEntries = ext.get(SEGMENT_NAME, new ArrayList<>(expectedEntries.keySet()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        existingEntries.sort(Comparator.comparingLong(e -> e.getKey().getVersion()));
+        val existingKeys = existingEntries.stream().map(TableEntry::getKey).collect(Collectors.toList());
+
+        // Collect and verify all Table Entries.
+        val entryIterator = ext.entryIterator(SEGMENT_NAME, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val actualEntries = collectIteratorItems(entryIterator);
+        actualEntries.sort(Comparator.comparingLong(e -> e.getKey().getVersion()));
+        AssertExtensions.assertListEquals("Unexpected Table Entries from entryIterator().", existingEntries, actualEntries, TableEntryHelpers::areEqual);
+
+        // Collect and verify all Table Keys.
+        val keyIterator = ext.keyIterator(SEGMENT_NAME, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val actualKeys = collectIteratorItems(keyIterator);
+        actualKeys.sort(Comparator.comparingLong(TableKey::getVersion));
+        AssertExtensions.assertListEquals("Unexpected Table Keys from keyIterator().", existingKeys, actualKeys, TableEntryHelpers::areEqual);
+    }
+
+    private <T> List<T> collectIteratorItems(AsyncIterator<IteratorItem<T>> iterator) throws Exception {
+        val result = new ArrayList<T>();
+        val hashes = new HashSet<HashedArray>();
+        iterator.forEachRemaining(item -> {
+            Assert.assertTrue("Duplicate IteratorItem.getState().", hashes.add(new HashedArray(item.getState())));
+            result.addAll(item.getEntries());
+        }, executorService()).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        return result;
+    }
+
+    @SneakyThrows
     private void addToProcessor(Supplier<CompletableFuture<?>> action, WriterTableProcessor processor, Supplier<Long> getSegmentLength) {
         // Determine the length of the modified data.
         int initialLength = (int) (long) getSegmentLength.get();
@@ -425,10 +507,14 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     private ArrayList<TestBatchData> generateTestData(TestContext context) {
+        return generateTestData(BATCH_UPDATE_COUNT, BATCH_SIZE, context);
+    }
+
+    private ArrayList<TestBatchData> generateTestData(int batchUpdateCount, int maxBatchSize, TestContext context) {
         val result = new ArrayList<TestBatchData>();
         int count = 0;
-        while (count < BATCH_UPDATE_COUNT) {
-            int batchSize = Math.min(BATCH_SIZE, BATCH_UPDATE_COUNT - count);
+        while (count < batchUpdateCount) {
+            int batchSize = Math.min(maxBatchSize, batchUpdateCount - count);
             TestBatchData prev = result.isEmpty() ? null : result.get(result.size() - 1);
             result.add(generateAndPopulateEntriesBatch(batchSize, prev, context));
             count += batchSize;
@@ -740,6 +826,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     @FunctionalInterface
     private interface KeyGenerator {
         TableKey apply(ArrayView key, long currentVersion);
+    }
+
+    @FunctionalInterface
+    private interface CheckTable {
+        void accept(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> removedKeys, ContainerTableExtension ext) throws Exception;
     }
 
     //endregion

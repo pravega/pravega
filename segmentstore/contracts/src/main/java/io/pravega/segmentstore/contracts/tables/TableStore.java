@@ -11,6 +11,7 @@ package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -180,10 +181,40 @@ public interface TableStore {
     CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout);
 
     /**
-     * Begins the creation of a new Iterator over all the the given Table Segment.
+     * Creates a new Iterator over all the {@link TableKey} instances the given Table Segment.
      *
-     * @param segmentName The name of the Table Segment to iterate over.
-     * @return An {@link IteratorBuilder} that can be used to construct an Iterator over the given Table Segment.
+     * @param segmentName     The name of the Table Segment to iterate over.
+     * @param serializedState (Optional) A byte array representing the serialized form of the State. This can be obtained
+     *                        from {@link IteratorItem#getState()}. If provided, the iteration will resume from where it
+     *                        left off, otherwise it will start from the beginning.
+     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over all the {@link TableKey} instances in the Table. If the operation failed, the Future will be failed with the
+     * causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * <li>{@link java.io.IOException} If serializedState is non-null but it cannot be deserialized.
+     * </ul>
      */
-    IteratorBuilder iterator(String segmentName);
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout);
+
+    /**
+     * Creates a new Iterator over all the {@link TableEntry} instances the given Table Segment.
+     *
+     * @param segmentName     The name of the Table Segment to iterate over.
+     * @param serializedState (Optional) A byte array representing the serialized form of the State. This can be obtained
+     *                        from {@link IteratorItem#getState()}. If provided, the iteration will resume from where it
+     *                        left off, otherwise it will start from the beginning.
+     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
+     * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
+     * over all the {@link TableEntry} instances in the Table. If the operation failed, the Future will be failed with the
+     * causing exception. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * <li>{@link java.io.IOException} If serializedState is non-null but it cannot be deserialized.
+     * </ul>
+     */
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout);
 }

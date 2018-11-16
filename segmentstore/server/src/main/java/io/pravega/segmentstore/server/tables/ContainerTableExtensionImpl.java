@@ -18,7 +18,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.tables.IteratorBuilder;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -230,8 +229,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     }
 
     @Override
-    public IteratorBuilder iterator(String segmentName) {
-        return new TableIteratorBuilder(segmentName);
+    public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+        return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::key);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+        return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
     }
 
     //endregion
@@ -258,14 +262,43 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         return segment.append(s, null, timeout);
     }
 
-    private CompletableFuture<IteratorItem<TableKey>> getAllKeys(List<TableBucket> bucketIterator) {
-        // TODO
-        throw new UnsupportedOperationException("implement me");
-    }
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,
+                                                                              @NonNull Duration fetchTimeout,
+                                                                              @NonNull GetBucketReader<T> createBucketReader) {
+        UUID fromHash;
+        try {
+            fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorState.deserialize(serializedState).getKeyHash());
+        } catch (IOException ex) {
+            // Bad IteratorState serialization.
+            return Futures.failedFuture(ex);
+        }
 
-    private CompletableFuture<IteratorItem<TableEntry>> getAllEntries(List<TableBucket> bucketIterator) {
-        // TODO
-        throw new UnsupportedOperationException("implement me");
+        if (fromHash == null) {
+            // Nothing to iterate on.
+            return CompletableFuture.completedFuture(TableIterator.empty());
+        }
+
+        return this.segmentContainer
+                .forSegment(segmentName, fetchTimeout)
+                .thenComposeAsync(segment -> {
+                    // Create a converter that will use a TableBucketReader to fetch all requested items in the iterated Buckets.
+                    val bucketReader = createBucketReader.apply(segment, this.keyIndex::getBackpointerOffset, this.executor);
+
+                    TableIterator.ConvertResult<IteratorItem<T>> converter = bucket ->
+                            bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(fetchTimeout))
+                                    .thenApply(result -> new IteratorItemImpl<>(new IteratorState(bucket.getHash()), result));
+
+                    // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.
+                    return this.keyIndex.getUnindexedKeyHashes(segment)
+                            .thenComposeAsync(cacheHashes -> TableIterator.<IteratorItem<T>>builder()
+                                    .segment(segment)
+                                    .cacheHashes(cacheHashes)
+                                    .firstHash(fromHash)
+                                    .executor(executor)
+                                    .resultConverter(converter)
+                                    .fetchTimeout(fetchTimeout)
+                                    .build(), this.executor);
+                }, this.executor);
     }
 
     //endregion
@@ -345,77 +378,28 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     //endregion
 
-    //region TableIteratorBuilder
+    //region IteratorItemImpl
 
-    /**
-     * Helps build Iterators over Table Keys or Table Entries.
-     */
     @RequiredArgsConstructor
-    private class TableIteratorBuilder implements IteratorBuilder {
-        private final String segmentName;
-        private Duration fetchTimeout;
-        private IteratorState state;
+    private class IteratorItemImpl<T> implements IteratorItem<T> {
+        private final IteratorState state;
+        @Getter
+        private final Collection<T> entries;
 
         @Override
-        public IteratorBuilder fromState(@NonNull byte[] serializedState) throws IOException {
-            this.state = IteratorState.deserialize(serializedState);
-            return this;
-        }
-
-        @Override
-        public IteratorBuilder fetchTimeout(@NonNull Duration fetchTimeout) {
-            this.fetchTimeout = fetchTimeout;
-            return this;
+        public ArrayView getState() {
+            return this.state.serialize();
         }
 
         @Override
-        public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator() {
-            return null;
-            //            return newBucketIterator()
-            //                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllKeys, executor));
+        public String toString() {
+            return String.format("State = %s, EntryCount = %s", this.state, this.entries.size());
         }
+    }
 
-        @Override
-        public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator() {
-            return null;
-            //            return newBucketIterator()
-            //                    .thenApply(bi -> bi.compose(ContainerTableExtensionImpl.this::getAllEntries, executor));
-        }
-
-        private CompletableFuture<AsyncIterator<TableBucket>> newBucketIterator() {
-            UUID fromHash = KeyHasher.getNextHash(this.state == null ? null : this.state.getKeyHash());
-            if (fromHash == null) {
-                // Nothing to iterate on.
-                return CompletableFuture.completedFuture(() -> CompletableFuture.completedFuture(null));
-            }
-            return ContainerTableExtensionImpl.this.segmentContainer
-                    .forSegment(this.segmentName, this.fetchTimeout)
-                    .thenComposeAsync(segment -> keyIndex
-                                    .getUnindexedKeyHashes(segment)
-                                    .thenComposeAsync(cacheHashes -> TableIterator.<TableBucket>builder()
-                                                    .segment(segment)
-                                                    .cacheHashes(cacheHashes)
-                                                    .firstHash(fromHash)
-                                                    .executor(executor)
-                                                    .resultConverter(b -> CompletableFuture.completedFuture(b))
-                                                    .fetchTimeout(fetchTimeout)
-                                                    .build(),
-                                            executor),
-                            executor);
-        }
-
-        @RequiredArgsConstructor
-        private class IteratorItemImpl<T> implements IteratorItem<T> {
-            private final IteratorState state;
-            @Getter
-            private final List<T> entries;
-
-            @Override
-            public ArrayView getState() {
-                return this.state.serialize();
-            }
-        }
-
+    @FunctionalInterface
+    private interface GetBucketReader<T> {
+        TableBucketReader<T> apply(DirectSegmentAccess segment, TableBucketReader.GetBackpointer getBackpointer, ScheduledExecutorService executor);
     }
 
     //endregion

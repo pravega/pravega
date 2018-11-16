@@ -13,14 +13,12 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
-import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -133,7 +131,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFindAllKeys() {
-        testFindAll(TableBucketReader::key, TableEntry::getKey, this::areEqual);
+        testFindAll(TableBucketReader::key, TableEntry::getKey, TableEntryHelpers::areEqual);
     }
 
     /**
@@ -141,7 +139,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFindAllEntries() {
-        testFindAll(TableBucketReader::entry, e -> e, this::areEqual);
+        testFindAll(TableBucketReader::entry, e -> e, TableEntryHelpers::areEqual);
     }
 
     @SneakyThrows
@@ -163,15 +161,16 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         // Create a new TableBucketReader and get all the requested items for this bucket. We pass the offset of the
         // deleted entry to make sure its data is not included.
         val reader = createReader.apply(segment, (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)), executorService());
-        val result = reader.findAll(newBucketOffset, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val result = reader.findAllExisting(newBucketOffset, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
-        // We expect to find all non-deleted Table Items that are linked, in the order of backpointers (i.e., reverse order).
+        // We expect to find all non-deleted Table Items that are linked.
         val expectedResult = data.entries.stream()
                 .filter(e -> data.backpointers.containsValue(e.getKey().getVersion()))
-                .sorted(Comparator.comparingLong(e -> -e.getKey().getVersion()))
                 .map(getItem)
                 .collect(Collectors.toList());
-        AssertExtensions.assertListEquals("Unexpected result from findAll().", expectedResult, result, areEqual);
+
+        AssertExtensions.assertContainsSameElements("Unexpected result from findAll().", expectedResult, result,
+                (i1, i2) -> areEqual.test(i1, i2) ? 0 : 1);
     }
 
     private TestData generateData() {
@@ -204,16 +203,6 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         }
 
         return result;
-    }
-
-    private boolean areEqual(TableEntry e1, TableEntry e2) {
-        return areEqual(e1.getKey(), e2.getKey())
-                && HashedArray.arrayEquals(e1.getValue(), e2.getValue());
-    }
-
-    private boolean areEqual(TableKey k1, TableKey k2) {
-        return HashedArray.arrayEquals(k1.getKey(), k2.getKey())
-                && k1.getVersion() == k2.getVersion();
     }
 
     @RequiredArgsConstructor
