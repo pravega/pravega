@@ -9,8 +9,8 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: Basic Reader and Writer
 
-Lets examine how to build simple Pravega applications. The sample Pravega application uses a Pravega Reader to read from a Pravega Stream or a
-Pravega Writer that writes to a Pravega Stream. A simple example of both can be
+Lets examine how to build simple Pravega applications. The simplest kind of Pravega application uses a Pravega Reader to read from a Pravega Stream or a
+Pravega Writer that writes to a Pravega Stream. A simple sample application example of both can be
 found in the [Pravega Samples](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These sample applications
 provide a very basic example of how a Java application could use the Pravega's
 Java Client Library to access Pravega functionality.
@@ -21,11 +21,10 @@ before executing the sample applications.
 
 ## HelloWorldWriter
 
-The `HelloWorldWriter` application is a simple demonstration that uses the
+The `HelloWorldWriter` application demonstrates the usage of
 `EventStreamWriter` to write an Event to Pravega.
 
-In the below mentioned `HelloWorldWriter` example application, the key part of
-the code is in the `run()` method. The purpose of the `run()` method is to create a Stream and output the given Event to that Stream.
+The key part of `HelloWorldWriter` is in the `run()` method. The purpose of the `run()` method is to create a Stream and output the given Event to that Stream.
 
 ```Java
 
@@ -53,11 +52,8 @@ public void run(String routingKey, String message) {
 
 ## Creating a Stream and the StreamManager Interface
 
-Pravega Stream names are organized within Scopes. A Scope acts as a namespace for Stream names; all Stream names are unique within their Scope. Therefore, a Stream is uniquely identified by the combination of its name and Scope. Developers can also define meaningful Scope names, such as "FactoryMachines" or "HRWebsitelogs", to effectively organize collections of Streams. For example, Scopes can be used to classify Streams by tenant (in a multi tenant environment), by department in an organization or by geographic location.
-
-
-Scopes and Streams are created and manipulated via the `StreamManager` interface
-to the Pravega Controller. An URI to any of the Pravega Controller instance(s) in your cluster is a must to create a `StreamManager` object. In the setup for the `HelloWorld` sample applications, the `controllerURI` is
+[Scopes](pravega-concepts.md#streams) and Streams are created and manipulated via the `StreamManager` interface
+to the Pravega Controller. An URI to any of the Pravega Controller instance(s) in your cluster is required to create a `StreamManager` object. In the setup for the `HelloWorld` sample applications, the `controllerURI` is
 configured as a command line parameter when the sample application is launched.
 
 
@@ -72,27 +68,27 @@ related to Scopes and Streams:
 |-----------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
 | (static) `create` | (URI controller)                                                  | Given a URI to one of the Pravega Controller instances in the Pravega Cluster, create a Stream Manager object. |
 | `createScope`     | (String scopeName)                                                | Creates a Scope with the given name.                                                                           |
-|                 |                                                                   | Returns **_True_** if the Scope is created, returns **_False_** if the Scope already exists.                                                                                                               |
+|                 |                                                                   | Returns _True_ if the Scope is created, returns _False_ if the Scope already exists.                                                                                                               |
 |                 |                                                                   | This method can be called even if the Stream is already existing.                                                                                                              |
 | `deleteScope`     | (String scopeName)                                                | Deletes a Scope with the given name.                                                                           |
-|                 |                                                                   | Returns **_True_** if the scope was deleted, returns **_False_** otherwise.                                                                                                               |
-|                 |                                                                   | **Note:** If the Scope contains Streams, the `deleteScope` operation will fail with an exception.                                                                                                               |
-|                 |                                                                   | If we delete a nonexistent Scope, the method will succeed and return **_False_**.                                                                                                               |
+|                 |                                                                   | Returns _True_ if the scope was deleted, returns _False_ otherwise.                                                                                                               |
+|                 |                                                                   | If the Scope contains Streams, the `deleteScope` operation will fail with an exception.                                                                                                               |
+|                 |                                                                   | If we delete a nonexistent Scope, the method will succeed and return _False_.                                                                                                               |
 | `createStream`    | (String scopeName, String streamName, StreamConfiguration config) | Create a Stream within a given Scope.                                                                          |
-|                 |                                                                   | Both Scope name and Stream name are limited using the following characters: ( Letters (a-z A-Z), numbers (0-9) and delimiters like (. , -) are allowed). punctuation).                                                                                                               |
-|                 |                                                                   | **Note:** The Scope must exist, an exception is thrown if we create a Stream in a nonexistent Scope.                                                                                                               |
+|                 |                                                                   | Both Scope name and Stream name are limited using the following characters: ( Letters (a-z A-Z), numbers (0-9) and delimiters: "." and "-") are allowed.                                                                                                               |
+|                 |                                                                   | The Scope must exist, an exception is thrown if we create a Stream in a nonexistent Scope.                                                                                                               |
 |                 |                                                                   | A Stream Configuration is built using a builder pattern.                                                                                                               |
-|                 |                                                                   | Returns **_True_** if the Stream is created, returns **_False_** if the Stream already exists.                                                                                                               |
+|                 |                                                                   | Returns _True_ if the Stream is created, returns _False_ if the Stream already exists.                                                                                                               |
 |                 |                                                                   | This method can be called even if the Stream is already existing.                                                                                                               |
 | `updateStream`    | (String scopeName, String streamName, StreamConfiguration config) | Swap out the Stream's configuration.                                                                           |
-|                 |                                                                   | **Note:** The Stream must already exist, an exception is thrown if we update a nonexistent Stream.                                                                                                              |
-|                 |                                                                   | Returns **_True_** if the Stream was changed.                                                                                                               |
+|                 |                                                                   |  The Stream must already exist, an exception is thrown if we update a nonexistent Stream.                                                                                                              |
+|                 |                                                                   | Returns _True_ if the Stream was changed.                                                                                                               |
 | `sealStream`      | (String scopeName, String streamName)                             | Prevent any further writes to a Stream.                                                                        |
-|                 |                                                                   | **Note:** The Stream must already exist, an exception is thrown if you seal a nonexistent Stream.                                                                                                                |
-|                 |                                                                   | Returns **_True_** if the Stream is successfully sealed.                                                                                                               |
+|                 |                                                                   | The Stream must already exist, an exception is thrown if you seal a nonexistent Stream.                                                                                                                |
+|                 |                                                                   | Returns _True_ if the Stream is successfully sealed.                                                                                                               |
 | `deleteStream`    | (String scopeName, String streamName)                             | Remove the Stream from Pravega and recover any resources used by that Stream.                                  |
-|                 |                                                                   | **Note:** The Stream must already exist, an exception is thrown if we delete a nonexistent Stream.                                                                                                              |
-|                 |                                                                   | Returns **_True_** if the Stream was deleted.                                                                                                               |
+|                 |                                                                   | The Stream must already exist, an exception is thrown if we delete a nonexistent Stream.                                                                                                              |
+|                 |                                                                   | Returns _True_ if the Stream was deleted.                                                                                                               |
 
 
 
@@ -111,17 +107,10 @@ Policy** are the two important configuration items related to streams.   
 
  - **Time based Retention**: It allows the developer to control how long the data is kept in a Stream before it is deleted. The developer can specify the time limit (milliseconds) to keep the data for a certain period of time (ideal for situations like regulatory compliance that mandate
 certain retention periods).
- - **Size based Retention**: Retains the data until a certain number of bytes
-have been consumed. It is based on the total size of the data in the stream in bytes.
+ - **Size based Retention**: Retains the newest subset of a Stream's data that does not exceed the specified size in bytes.
 
 **Scaling Policy:** When a Stream is created, it is configured with a Scaling Policy that determines how a Stream handles the varying changes in its load. Developers configure a Stream to take advantage
-of Pravega's Auto Scaling feature. Pravega has three kinds of Scaling Policy:
-
-1. **Fixed:** The API `ScalingPolicy.fixed`, states that the number of Stream Segments does not vary with load.
-
-2. **Data-based:** Pravega splits a Stream Segment into multiple ones (i.e., Scale-up Event) if the number of bytes per second written to that Stream Segment increases beyond a defined threshold. Similarly, Pravega merges two adjacent Stream Segments (i.e., Scale-down Event) if the number of bytes written to them fall below a defined threshold. Note that, even if the load for a Stream Segment reaches the defined threshold, Pravega does not immediately trigger a Scale-up/down Event. Instead, the load should be satisfying the scaling policy threshold for a [sufficient amount of time](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java).
-
-3. **Event-based:** Similar to the data-based scaling policy, but it uses number of Events instead of bytes.
+of Pravega's [Auto Scaling](pravega-concepts.md#elastic-streams-auto-scaling) feature.
 
 The minimum number of Segments is a factor that sets the minimum degree of read parallelism to be maintained; for example if this value is set as three, there will always be three Stream Segments available on the Stream.  Currently, this property is effective only when the stream is
 created; at some point in the future, update stream will allow this factor to be
@@ -192,11 +181,9 @@ the Event was durably written to Pravega and available for Readers, it could
 wait on the `Future` before proceeding. In the case of Pravega's `HelloWorld`
 example, it does wait on the `Future`, the user application can choose to wait on it.
 
-
-
 `EventStreamWriter` can also be used to begin a Transaction.  We cover
-Transactions in more detail in ([Working with Pravega:
-Transactions](transactions.md)).
+Transactions in more detail in [Working with Pravega:
+Transactions](transactions.md).
 
 ## HelloWorldReader
 
