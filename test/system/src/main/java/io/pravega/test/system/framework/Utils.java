@@ -118,8 +118,4 @@ public class Utils {
         return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
 
     }
-
-    public static void main(String[] args) {
-
-    }
 }
