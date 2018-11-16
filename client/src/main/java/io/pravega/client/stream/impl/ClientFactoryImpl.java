@@ -49,6 +49,7 @@ import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
@@ -126,6 +127,15 @@ public class ClientFactoryImpl implements ClientFactory {
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
+        Stream stream = new StreamImpl(scope, streamName);
+        ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
+                + stream.getScopedName());
+        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor);
+    }
+    
+    @Override
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());

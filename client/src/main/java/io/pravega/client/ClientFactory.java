@@ -27,6 +27,7 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -89,6 +90,17 @@ public interface ClientFactory extends AutoCloseable {
      * @return Newly created writer object
      */
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
+    
+    /**
+     * Creates a new writer that can write to the specified stream.
+     *
+     * @param streamName The name of the stream to write to.
+     * @param config The writer configuration.
+     * @param s The Serializer.
+     * @param <T> The type of events.
+     * @return Newly created writer object
+     */
+    <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
 
     /**
      * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader
