@@ -65,8 +65,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
-    private final StreamMetrics streamMetrics;
-    private final TransactionMetrics transactionMetrics;
 
     protected AbstractStreamMetadataStore(HostIndex hostIndex, int bucketCount) {
         cache = CacheBuilder.newBuilder()
@@ -105,8 +103,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         this.hostIndex = hostIndex;
         this.bucketCount = bucketCount;
-        this.streamMetrics = new StreamMetrics();
-        this.transactionMetrics = new TransactionMetrics();
     }
 
     /**
@@ -421,9 +417,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, null, executor).thenAccept(list ->
-                        streamMetrics.reportActiveSegments(scope, name, list.size())),
+                        StreamMetrics.reportActiveSegments(scope, name, list.size())),
                 findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry ->
-                        streamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
+                        StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
         ));
 
         return future;
@@ -519,7 +515,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count ->
-                            transactionMetrics.reportOpenTransactions(scopeName, streamName, count));
+                            TransactionMetrics.reportOpenTransactions(scopeName, streamName, count));
                     return result;
                 });
     }
@@ -557,7 +553,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.commitTransaction(txId), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count ->
-                            transactionMetrics.reportOpenTransactions(scope, streamName, count));
+                            TransactionMetrics.reportOpenTransactions(scope, streamName, count));
                     return result;
                 });
     }
@@ -582,7 +578,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(stream.abortTransaction(txId), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count ->
-                            transactionMetrics.reportOpenTransactions(scope, streamName, count));
+                            TransactionMetrics.reportOpenTransactions(scope, streamName, count));
                     return result;
                 });
     }

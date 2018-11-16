@@ -106,7 +106,6 @@ public class StreamMetadataTasks extends TaskBase {
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final AuthHelper authHelper;
     private final RequestTracker requestTracker;
-    private final StreamMetrics streamMetrics;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
@@ -127,7 +126,6 @@ public class StreamMetadataTasks extends TaskBase {
         this.connectionFactory = connectionFactory;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.streamMetrics = new StreamMetrics();
         this.setReady();
     }
 
@@ -230,7 +228,7 @@ public class StreamMetadataTasks extends TaskBase {
                     return generateStreamCutIfRequired(scope, stream, latestCut, recordingTime, context, delegationToken)
                             .thenCompose(newRecord -> truncate(scope, stream, policy, context, retentionSet, newRecord, recordingTime, requestId));
                 })
-                .thenAccept(x -> streamMetrics.retention(scope, stream));
+                .thenAccept(x -> StreamMetrics.reportRetentionEvent(scope, stream));
 
     }
 

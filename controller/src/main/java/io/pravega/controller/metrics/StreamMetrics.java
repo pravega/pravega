@@ -39,11 +39,11 @@ import static io.pravega.shared.MetricsNames.nameFromStream;
  */
 public final class StreamMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private final static OpStatsLogger createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
-    private final static OpStatsLogger deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
-    private final static OpStatsLogger sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
-    private final static OpStatsLogger updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
-    private final static OpStatsLogger truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
+    private final OpStatsLogger createStreamLatency = STATS_LOGGER.createStats(CREATE_STREAM_LATENCY);
+    private final OpStatsLogger deleteStreamLatency = STATS_LOGGER.createStats(DELETE_STREAM_LATENCY);
+    private final OpStatsLogger sealStreamLatency = STATS_LOGGER.createStats(SEAL_STREAM_LATENCY);
+    private final OpStatsLogger updateStreamLatency = STATS_LOGGER.createStats(UPDATE_STREAM_LATENCY);
+    private final OpStatsLogger truncateStreamLatency = STATS_LOGGER.createStats(TRUNCATE_STREAM_LATENCY);
 
     /**
      * This method increments the global and Stream-specific counters of Stream creations, initializes other
@@ -184,7 +184,7 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param scope         Scope.
      * @param streamName    Name of the Stream.
      */
-    public void retention(String scope, String streamName) {
+    public static void reportRetentionEvent(String scope, String streamName) {
         DYNAMIC_LOGGER.recordMeterEvents(nameFromStream(RETENTION_FREQUENCY, scope, streamName), 1);
     }
 
@@ -195,7 +195,7 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param streamName    Name of the Stream.
      * @param numSegments   Number of active segments in this Stream.
      */
-    public void reportActiveSegments(String scope, String streamName, int numSegments) {
+    public static void reportActiveSegments(String scope, String streamName, int numSegments) {
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, streamName), numSegments);
     }
 
@@ -208,7 +208,7 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param splits        Number of segment splits in the scale operation.
      * @param merges        Number of segment merges in the scale operation.
      */
-    public void reportSegmentSplitsAndMerges(String scope, String streamName, long splits, long merges) {
+    public static void reportSegmentSplitsAndMerges(String scope, String streamName, long splits, long merges) {
         DYNAMIC_LOGGER.updateCounterValue(SEGMENTS_SPLITS, splits);
         DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, streamName), splits);
         DYNAMIC_LOGGER.updateCounterValue(SEGMENTS_MERGES, merges);

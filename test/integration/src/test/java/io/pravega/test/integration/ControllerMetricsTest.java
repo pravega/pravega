@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.integration.endtoendtest;
+package io.pravega.test.integration;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
@@ -39,6 +39,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -61,7 +62,7 @@ import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
  * Check the end to end correctness of metrics published by the Controller.
  */
 @Slf4j
-public class EndToEndControllerMetricsTest {
+public class ControllerMetricsTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
@@ -76,11 +77,13 @@ public class EndToEndControllerMetricsTest {
 
     @BeforeClass
     public static void initialize() {
-        MetricsProvider.initialize(MetricsConfig.builder()
-                                                .with(MetricsConfig.ENABLE_STATISTICS, true)
-                                                .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
-                                                .build());
-        MetricsProvider.getMetricsProvider().start();
+        if (MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM)) == null) {
+            MetricsProvider.initialize(MetricsConfig.builder()
+                                                    .with(MetricsConfig.ENABLE_STATISTICS, true)
+                                                    .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
+                                                    .build());
+            MetricsProvider.getMetricsProvider().start();
+        }
     }
 
     @Before
@@ -111,6 +114,10 @@ public class EndToEndControllerMetricsTest {
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
+    }
+
+    @AfterClass
+    public static void cleanUp() {
         MetricsProvider.getMetricsProvider().close();
     }
 

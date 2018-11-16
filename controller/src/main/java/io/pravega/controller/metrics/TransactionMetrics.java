@@ -30,17 +30,17 @@ import static io.pravega.shared.MetricsNames.nameFromTransaction;
  */
 public final class TransactionMetrics extends AbstractControllerMetrics implements AutoCloseable {
 
-    private static final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
-    private static final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
-    private static final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
+    private final OpStatsLogger createTransactionLatency = STATS_LOGGER.createStats(CREATE_TRANSACTION_LATENCY);
+    private final OpStatsLogger commitTransactionLatency = STATS_LOGGER.createStats(COMMIT_TRANSACTION_LATENCY);
+    private final OpStatsLogger abortTransactionLatency = STATS_LOGGER.createStats(ABORT_TRANSACTION_LATENCY);
 
     /**
      * This method increments the global and Stream-related counters of created Transactions and reports the latency of
      * the operation.
      *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param latency       Latency of the create Transaction operation.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     * @param latency    Latency of the create Transaction operation.
      */
     public void createTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION, 1);
@@ -51,8 +51,8 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     /**
      * This method increments the global and Stream-related counters of failed Transaction create operations.
      *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
      */
     public void createTransactionFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION_FAILED, 1);
@@ -63,9 +63,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * This method increments the global and Stream-related counters of committed Transactions and reports the latency
      * of the operation.
      *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param latency       Latency of the commit Transaction operation.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     * @param latency    Latency of the commit Transaction operation.
      */
     public void commitTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1);
@@ -76,9 +76,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     /**
      * This method increments the global, Stream-related and Transaction-related counters of failed commit operations.
      *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param txnId         Transaction id.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     * @param txnId      Transaction id.
      */
     public void commitTransactionFailed(String scope, String streamName, String txnId) {
         DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1);
@@ -90,9 +90,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * This method increments the global and Stream-related counters of aborted Transactions and reports the latency
      * of the operation.
      *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param latency       Latency of the abort Transaction operation.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     * @param latency    Latency of the abort Transaction operation.
      */
     public void abortTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION, 1);
@@ -103,9 +103,9 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
     /**
      * This method increments the global, Stream-related and Transaction-related counters of failed abort operations.
      *
-     * @param scope         Scope.
-     * @param streamName    Name of the Stream.
-     * @param txnId         Transaction id.
+     * @param scope      Scope.
+     * @param streamName Name of the Stream.
+     * @param txnId      Transaction id.
      */
     public void abortTransactionFailed(String scope, String streamName, String txnId) {
         DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1);
@@ -120,7 +120,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param streamName            Name of the Stream.
      * @param ongoingTransactions   Number of open Transactions in the Stream.
      */
-    public void reportOpenTransactions(String scope, String streamName, int ongoingTransactions) {
+    public static void reportOpenTransactions(String scope, String streamName, int ongoingTransactions) {
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), ongoingTransactions);
     }
 

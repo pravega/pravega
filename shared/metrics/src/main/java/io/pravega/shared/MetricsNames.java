@@ -44,6 +44,7 @@ public final class MetricsNames {
     public static final String STORAGE_WRITE_LATENCY = "segmentstore.storage.write_latency_ms"; // Histogram
     public static final String STORAGE_READ_BYTES = "segmentstore.storage.read_bytes";          // Counter
     public static final String STORAGE_WRITE_BYTES = "segmentstore.storage.write_bytes";        // Counter
+    public static final String STORAGE_CREATE_COUNT = "segmentstore.storage.create_count";      // Counter
 
     // Cache (RocksDB) stats
     public static final String CACHE_INSERT_LATENCY = "segmentstore.cache.insert_latency_ms";   // Histogram
