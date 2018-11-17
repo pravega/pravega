@@ -16,7 +16,6 @@ import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -28,11 +27,11 @@ import java.util.concurrent.CompletableFuture;
  * Conditional vs Unconditional Updates
  * * The {@link #put(String, List, Duration)} and {@link #remove(String, Collection, Duration)} methods support conditional
  * updates.
- * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableKey#hasVersion()} true,
+ * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableEntry#getKey()#hasVersion()} true,
  * or if at least one of the {@link TableKey} instances in the remove() call has {@link TableKey#hasVersion()} true, then
  * the operation will perform a Conditional Update. If the "hasVersion()" method returns false for ALL the items in the
  * respective collections, then the operation will perform an Unconditional Update.
- * * Conditional Updates compare the provided {@link TableKey#getVersion()} or {@link TableKey#hasVersion()}
+ * * Conditional Updates compare the provided {@link TableKey#getVersion()} or {@link TableEntry#getKey()#getVersion()}
  * against the version of the Key in the specified Table Segment. If the versions match, the Update (insert, update, remove)
  * will be allowed, otherwise it will be rejected. For a batched update (a Collection of {@link TableKey} or {@link TableEntry}),
  * all the items in the collection must meet the version comparison criteria in order for the entire batch to be accepted
@@ -120,9 +119,9 @@ public interface TableStore {
      * Inserts new or updates existing Table Entries into the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to insert/update the Table Entries.
-     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableKey#hasVersion()}
+     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#getKey()#hasVersion()}
      *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
-     *                    Update. If {@link TableKey#hasVersion()} returns false for ALL items in the list, then this
+     *                    Update. If {@link TableEntry#getKey()#hasVersion()} returns false for ALL items in the list, then this
      *                    will perform an Unconditional update.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a List with the current version of the each TableEntry
@@ -132,8 +131,8 @@ public interface TableStore {
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link TableKeyTooLongException} If {@link TableEntry#getKey()} exceeds {@link #maximumKeyLength()}.
      * <li>{@link TableValueTooLongException} If {@link TableEntry#getValue()} exceeds {@link #maximumValueLength()}.
-     * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()}  is true and
-     * {@link TableKey#getVersion()} does not match the Table Entry's Key current Table Version.
+     * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#getKey()#hasVersion()} is true and
+     * {@link TableEntry#getKey()#getVersion()} does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
      */
@@ -153,7 +152,7 @@ public interface TableStore {
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link TableKeyTooLongException} If {@link TableKey#getKey()} exceeds {@link #maximumKeyLength()}.
-     * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#getVersion()} ()}
+     * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#getVersion()}
      * does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
