@@ -199,7 +199,7 @@ class RocksDBCache implements Cache {
             throw convert(ex, "get key '%s'", key);
         }
 
-        RocksDBMetrics.get(timer.getElapsedMillis(), ((result != null) ? result.length : 0));
+        RocksDBMetrics.get(timer.getElapsedMillis(), (result != null) ? result.length : 0);
         return result;
     }
 
