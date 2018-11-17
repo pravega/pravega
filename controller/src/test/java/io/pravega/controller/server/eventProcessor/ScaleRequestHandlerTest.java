@@ -381,7 +381,7 @@ public class ScaleRequestHandlerTest {
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
         // 6. run scale. this should fail in scaleCreateNewEpochs with IllegalArgumentException with epochTransitionConsistent
-        AssertExtensions.assertThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
+        AssertExtensions.assertFutureThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
@@ -568,7 +568,8 @@ public class ScaleRequestHandlerTest {
         // now complete wait latch.
         wait.complete(null);
         
-        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
@@ -728,7 +729,8 @@ public class ScaleRequestHandlerTest {
         // now complete wait latch.
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());

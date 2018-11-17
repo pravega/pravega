@@ -32,6 +32,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 
 /**
  * Base class for testing any implementation of the Storage interface.
@@ -104,11 +105,11 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
             s.initialize(DEFAULT_EPOCH);
 
             // Segment does not exist.
-            assertThrows("openWrite() did not throw for non-existent StreamSegment.",
+            assertFutureThrows("openWrite() did not throw for non-existent StreamSegment.",
                     s.openWrite(segmentName),
                     ex -> ex instanceof StreamSegmentNotExistsException);
 
-            assertThrows("openRead() did not throw for non-existent StreamSegment.",
+            assertFutureThrows("openRead() did not throw for non-existent StreamSegment.",
                     s.openRead(segmentName),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }

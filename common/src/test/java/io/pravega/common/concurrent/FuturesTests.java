@@ -89,7 +89,7 @@ public class FuturesTests {
         val f3 = Futures.<Integer>exceptionallyCompose(failedFuture, ex -> {
             throw new IntentionalException();
         });
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected completion for failed future whose handler also threw an exception.",
                 () -> f3,
                 ex -> ex instanceof IntentionalException);

@@ -132,7 +132,7 @@ public abstract class StreamTestBase {
 
         assertEquals(activeEpoch, stream.getEpochRecord(0).join());
 
-        AssertExtensions.assertThrows("", stream.getEpochRecord(1),
+        AssertExtensions.assertFutureThrows("", stream.getEpochRecord(1),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
@@ -918,7 +918,7 @@ public abstract class StreamTestBase {
         assertEquals(stream.getEpochRecord(12).join(), epochs.get(0));
 
         // now try to fetch an epoch that will fall in a chunk that does not exist
-        AssertExtensions.assertThrows("", stream.fetchEpochs(12, 14, true), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        AssertExtensions.assertFutureThrows("", stream.fetchEpochs(12, 14, true), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
     /**

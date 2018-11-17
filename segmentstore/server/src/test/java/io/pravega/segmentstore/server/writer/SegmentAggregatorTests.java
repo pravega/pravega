@@ -1961,7 +1961,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         if (context.transactionIds.containsKey(metadata.getId()) && metadata.isMerged()) {
             Assert.assertEquals("Unexpected number of attributes in attribute index for merged transaction " + metadata.getId(),
                     0, persistedAttributes.size());
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertFutureThrows(
                     "Merged transaction attribute index still exists.",
                     context.dataSource.persistAttributes(metadata.getId(), Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
@@ -1977,7 +1977,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
             Assert.assertEquals("Unexpected number of attributes in attribute index for " + metadata.getId(), extendedAttributeCount, persistedAttributes.size());
             if (metadata.isSealedInStorage()) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertFutureThrows(
                         "Sealed segment attribute index accepted new values.",
                         context.dataSource.persistAttributes(metadata.getId(), Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);

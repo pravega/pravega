@@ -28,7 +28,7 @@ import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -162,7 +162,7 @@ public class SegmentSelectorTest {
                 });
 
         assertEquals(Collections.emptyList(), selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback));
-        assertThrows("Writer Future", writerFuture, t -> t instanceof NoSuchSegmentException);
+        assertFutureThrows("Writer Future", writerFuture, t -> t instanceof NoSuchSegmentException);
     }
 
 }

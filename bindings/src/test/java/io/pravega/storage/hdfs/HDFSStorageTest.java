@@ -248,7 +248,7 @@ public class HDFSStorageTest extends StorageTestBase {
             validateProperties("post-seal", segmentName, result, expectedLength, true);
 
             // Inexistent segment.
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertFutureThrows(
                     "GetInfo succeeded on missing segment.",
                     s.getStreamSegmentInfo("non-existent", null),
                     ex -> ex instanceof StreamSegmentNotExistsException);

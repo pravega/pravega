@@ -95,7 +95,8 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
 
     private CompletableFuture<Void> processNotification() {
         return CompletableFuture.runAsync(() -> {
-            StreamNotification notification = Exceptions.handleInterrupted(() -> notifications.poll(1, TimeUnit.SECONDS));
+            StreamNotification notification =
+                    Exceptions.handleInterruptedCall(() -> notifications.poll(1, TimeUnit.SECONDS));
             if (notification != null) {
                 final StreamImpl stream;
                 switch (notification.getType()) {

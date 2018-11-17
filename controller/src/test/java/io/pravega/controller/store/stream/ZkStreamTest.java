@@ -581,7 +581,7 @@ public class ZkStreamTest {
 
         ZKStream stream2 = new ZKStream("scope", "stream", storeHelper);
         // verify that the call fails
-        AssertExtensions.assertThrows("", stream2.getCurrentTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("", stream2.getCurrentTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         reset(storeHelper);
         ZKStream stream3 = new ZKStream("scope", "stream", storeHelper);

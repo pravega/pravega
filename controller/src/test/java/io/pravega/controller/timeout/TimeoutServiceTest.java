@@ -504,6 +504,6 @@ public class TimeoutServiceTest {
     }
 
     private <T> void checkError(CompletableFuture<T> future, Class<? extends Throwable> expectedException) {
-        AssertExtensions.assertThrows("Failed future", future, e -> e.getClass().equals(expectedException));
+        AssertExtensions.assertFutureThrows("Failed future", future, e -> e.getClass().equals(expectedException));
     }
 }

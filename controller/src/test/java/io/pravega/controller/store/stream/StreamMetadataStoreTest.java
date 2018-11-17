@@ -186,7 +186,7 @@ public abstract class StreamMetadataStoreTest {
         assertNull(store.deleteStream(scope, stream1, null, executor).join());
 
         // Delete a deleted stream, should fail with node not found error.
-        AssertExtensions.assertThrows("Should throw StoreException",
+        AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.deleteStream(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
 
@@ -200,7 +200,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, store.deleteScope(scope).join().getStatus());
 
         // Deleting non-existing stream should return null.
-        AssertExtensions.assertThrows("Should throw StoreException",
+        AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.deleteStream(scope, "nonExistent", null, executor),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
         // endregion
@@ -263,7 +263,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
-        AssertExtensions.assertThrows("Should throw StoreException",
+        AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.getScopeConfiguration(scope2),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
     }
@@ -473,7 +473,7 @@ public abstract class StreamMetadataStoreTest {
         streamObj.updateEpochTransitionNode(new Data(EpochTransitionRecord.EMPTY.toBytes(), epochRecord.getVersion())).join();
         latch.complete(null);
 
-        AssertExtensions.assertThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        AssertExtensions.assertFutureThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         // endregion
     }
 
@@ -553,7 +553,7 @@ public abstract class StreamMetadataStoreTest {
         latch.complete(null);
 
         // first scale should fail in attempting to update epoch transition record.
-        AssertExtensions.assertThrows("WriteConflict in start scale", () -> response, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        AssertExtensions.assertSuppliedFutureThrows("WriteConflict in start scale", () -> response, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         VersionedMetadata<EpochTransitionRecord> versioned = streamObj.getEpochTransition().join();
         EpochTransitionRecord epochTransitionRecord = versioned.getObject();
         assertEquals(EpochTransitionRecord.EMPTY, epochTransitionRecord);
@@ -561,7 +561,7 @@ public abstract class StreamMetadataStoreTest {
         VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
         state = store.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
         // now call first step of scaling -- createNewSegments. this should throw exception
-        AssertExtensions.assertThrows("epoch transition was supposed to be invalid",
+        AssertExtensions.assertFutureThrows("epoch transition was supposed to be invalid",
                 store.startScale(scope, stream, false, versioned, state, null, executor),
                 e -> Exceptions.unwrap(e) instanceof IllegalStateException);
         // verify that state is reset to ACTIVE
@@ -832,7 +832,7 @@ public abstract class StreamMetadataStoreTest {
                 Arrays.asList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)), scaleTs, null, null, executor).join();
         response = versioned.getObject();
         assertEquals(1, response.getActiveEpoch());
-        AssertExtensions.assertThrows("attempting to create new segments against inconsistent epoch transition record",
+        AssertExtensions.assertFutureThrows("attempting to create new segments against inconsistent epoch transition record",
                 store.startScale(scope, stream, false, versioned, state, null, executor),
                 e -> Exceptions.unwrap(e) instanceof IllegalStateException);
         

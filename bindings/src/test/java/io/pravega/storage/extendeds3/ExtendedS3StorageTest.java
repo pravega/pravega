@@ -31,7 +31,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 
 /**
  * Unit tests for ExtendedS3Storage.
@@ -73,7 +73,7 @@ public class ExtendedS3StorageTest extends IdempotentStorageTestBase {
         try (Storage s = createStorage(setup.client, adapterConfig, executorService())) {
             s.initialize(DEFAULT_EPOCH);
             s.create(segmentName, null).join();
-            assertThrows("create() did not throw for existing StreamSegment.",
+            assertFutureThrows("create() did not throw for existing StreamSegment.",
                     s.create(segmentName, null),
                     ex -> ex instanceof StreamSegmentExistsException);
         }

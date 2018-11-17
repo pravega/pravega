@@ -1278,7 +1278,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 val first = truncatedResult.next();
                 Assert.assertEquals("Read request for a truncated offset did not start with a Truncated ReadResultEntryType.",
                         ReadResultEntryType.Truncated, first.getType());
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Truncate ReadResultEntryType did not throw when getContent() was invoked.",
                         () -> {
                             first.requestContent(TIMEOUT);
