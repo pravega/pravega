@@ -9,7 +9,7 @@
 package io.pravega.client.byteStream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.byteStream.ByteStreamClient;
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.segment.impl.Segment;
@@ -24,7 +24,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class ByteStreamClientImpl implements ByteStreamClient {
+public class ByteStreamClientImpl implements ByteStreamClientFactory {
     @NonNull
     private final String scope;
     @NonNull

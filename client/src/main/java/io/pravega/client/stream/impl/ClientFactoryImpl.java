@@ -11,12 +11,14 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.BatchClientFactory;
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.impl.BatchClientImpl;
-import io.pravega.client.byteStream.ByteStreamClient;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -60,7 +62,7 @@ import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class ClientFactoryImpl implements ClientFactory {
+public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactory, SynchronizerClientFactory {
 
     private final String scope;
     private final Controller controller;
@@ -199,12 +201,12 @@ public class ClientFactoryImpl implements ClientFactory {
     }
     
     @Override
-    public BatchClient createBatchClient() {
+    public BatchClientFactory createBatchClient() {
         return new BatchClientImpl(controller, connectionFactory);
     }
     
     @Override
-    public ByteStreamClient createByteStreamClient() {
+    public ByteStreamClientFactory createByteStreamClient() {
         return new ByteStreamClientImpl(scope, controller, inFactory, outFactory, metaFactory);
     }
 

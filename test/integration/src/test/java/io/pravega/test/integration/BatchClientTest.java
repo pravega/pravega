@@ -11,8 +11,8 @@ package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientFactory;
-import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
@@ -121,7 +121,7 @@ public class BatchClientTest {
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
         createTestStreamWithEvents(clientFactory);
 
-        BatchClient batchClient = clientFactory.createBatchClient();
+        BatchClientFactory batchClient = clientFactory.createBatchClient();
 
         // List out all the segments in the stream.
         ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), null, null).getIterator());
@@ -152,7 +152,7 @@ public class BatchClientTest {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
         createTestStreamWithEvents(clientFactory);
-        BatchClient batchClient = clientFactory.createBatchClient();
+        BatchClientFactory batchClient = clientFactory.createBatchClient();
 
         // 1. Create a StreamCut after 2 events(offset = 2 * 30 = 60).
         StreamCut streamCut60L = new StreamCutImpl(Stream.of(SCOPE, STREAM), ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 60L));
@@ -173,7 +173,7 @@ public class BatchClientTest {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
         createTestStreamWithEvents(clientFactory);
-        BatchClient batchClient = clientFactory.createBatchClient();
+        BatchClientFactory batchClient = clientFactory.createBatchClient();
 
         // 1. Fetch Segments.
         ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
@@ -191,7 +191,7 @@ public class BatchClientTest {
         eventList.addAll(Lists.newArrayList(segmentIterator));
     }
 
-    private void validateSegmentCountAndEventCount(BatchClient batchClient, ArrayList<SegmentRange> segmentsPostTruncation) {
+    private void validateSegmentCountAndEventCount(BatchClientFactory batchClient, ArrayList<SegmentRange> segmentsPostTruncation) {
         //expected segments = 1+ 3 + 2 = 6
         assertEquals("Expected number of segments post truncation", 6, segmentsPostTruncation.size());
         List<String> eventsPostTruncation = new ArrayList<>();

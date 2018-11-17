@@ -119,7 +119,7 @@ public class StreamManagerImpl implements StreamManager {
 
     /**
      * Fetch the {@link StreamInfo} for a given stream.
-     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)}
+     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.BatchClientFactory#getStreamInfo(Stream)}
      * is removed.
      *
      * @param stream The Stream.

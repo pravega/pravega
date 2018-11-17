@@ -8,6 +8,7 @@
  */
 package io.pravega.client.byteStream;
 
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
 import io.pravega.client.netty.impl.ClientConnection;
@@ -77,7 +78,7 @@ public class ByteStreamWriterTest {
 
     @Test(timeout = 5000)
     public void testWrite() throws Exception {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         byte[] value = new byte[] { 1, 2, 3, 4, 5 };
@@ -92,7 +93,7 @@ public class ByteStreamWriterTest {
 
     @Test(timeout = 5000)
     public void testSingleByteWrite() throws Exception {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         int numBytes = BufferedByteStreamWriterImpl.BUFFER_SIZE * 2 + 1;
@@ -105,7 +106,7 @@ public class ByteStreamWriterTest {
 
     @Test(timeout = 5000)
     public void testLargeWrite() throws Exception {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         byte[] value = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 10];
@@ -123,7 +124,7 @@ public class ByteStreamWriterTest {
 
     @Test
     public void testCloseAndSeal() throws IOException {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         ByteBuffer toWrite = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4 });

@@ -7,9 +7,13 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.batch;
+package io.pravega.client;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.batch.SegmentRange;
+import io.pravega.client.batch.StreamInfo;
+import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
@@ -29,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
  * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
  */
 @Beta
-public interface BatchClient {
+public interface BatchClientFactory {
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.

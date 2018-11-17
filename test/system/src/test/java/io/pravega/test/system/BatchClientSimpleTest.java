@@ -10,11 +10,11 @@
 package io.pravega.test.system;
 
 import com.google.common.collect.Lists;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -102,7 +102,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
     }
 
     /**
-     * This test verifies the basic functionality of {@link BatchClient}, including stream metadata checks, segment
+     * This test verifies the basic functionality of {@link BatchClientFactory}, including stream metadata checks, segment
      * counts, parallel segment reads and reads with offsets using stream cuts.
      */
     @Test
@@ -140,7 +140,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
 
         // Instantiate the batch client and assert it provides correct stream info.
         log.debug("Creating batch client.");
-        BatchClient batchClient = clientFactory.createBatchClient();
+        BatchClientFactory batchClient = clientFactory.createBatchClient();
         io.pravega.client.batch.StreamInfo streamInfo = batchClient.getStreamInfo(stream).join();
         log.debug("Validating stream metadata fields.");
         assertEquals("Expected Stream name: ", STREAM, streamInfo.getStreamName());
@@ -182,7 +182,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
 
     // Start utils region
 
-    private int readFromRanges(List<SegmentRange> ranges, BatchClient batchClient) {
+    private int readFromRanges(List<SegmentRange> ranges, BatchClientFactory batchClient) {
         List<CompletableFuture<Integer>> eventCounts = ranges
                 .parallelStream()
                 .map(range -> CompletableFuture.supplyAsync(() -> batchClient.readSegment(range, new JavaSerializer<>()))

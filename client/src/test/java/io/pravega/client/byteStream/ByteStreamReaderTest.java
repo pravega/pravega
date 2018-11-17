@@ -9,6 +9,7 @@
  */
 package io.pravega.client.byteStream;
 
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
@@ -74,7 +75,7 @@ public class ByteStreamReaderTest {
     
     @Test(timeout = 5000)
     public void testReadWritten() throws Exception {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -100,7 +101,7 @@ public class ByteStreamReaderTest {
 
     @Test(timeout = 5000)
     public void testAvailable() throws Exception {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         @Cleanup
@@ -114,7 +115,7 @@ public class ByteStreamReaderTest {
 
     @Test(timeout = 5000)
     public void testSkip() throws Exception {
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
         ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
         @Cleanup
