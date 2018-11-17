@@ -295,7 +295,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
 
     }
 
+    /**
+     * Moved to {@link TransactionalEventStreamWriterImpl}.
+     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
+     */
     @Override
+    @Deprecated
     public Transaction<Type> beginTxn() {
         TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
                 RuntimeException::new);
@@ -311,7 +316,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
     }
     
+    /**
+     * Moved to {@link TransactionalEventStreamWriterImpl}.
+     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
+     */
     @Override
+    @Deprecated
     public Transaction<Type> getTxn(UUID txId) {
         StreamSegments segments = getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);

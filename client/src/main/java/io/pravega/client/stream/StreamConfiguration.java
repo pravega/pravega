@@ -39,7 +39,9 @@ public class StreamConfiguration implements Serializable {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
         
         /**
-         * @deprecated Does nothing. Scope is specified on stream creation.
+         * Scope is specified on stream creation.
+         * @param scope ignored
+         * @deprecated Does nothing. 
          */
         @Deprecated
         public StreamConfigurationBuilder scope(String scope) {
@@ -47,7 +49,9 @@ public class StreamConfiguration implements Serializable {
         }
         
         /**
-         * @deprecated Does nothing. Stream name is specified on stream creation.
+         * Stream name is specified on stream creation.
+         * @param streamName ignored
+         * @deprecated Does nothing. 
          */
         @Deprecated
         public StreamConfigurationBuilder streamName(String streamName) {
