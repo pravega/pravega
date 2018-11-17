@@ -79,8 +79,8 @@ public class StreamTest {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(5);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(6);
         final int startingSegmentNumber = 0;
-        final StreamConfiguration streamConfig1 = StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(policy1).build();
-        final StreamConfiguration streamConfig2 = StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(policy2).build();
+        final StreamConfiguration streamConfig1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration streamConfig2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
         CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -93,7 +93,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete(streamConfig1).toBytes()).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete("test", "test", streamConfig1).toBytes()).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());

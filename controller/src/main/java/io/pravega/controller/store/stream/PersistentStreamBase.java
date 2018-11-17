@@ -101,7 +101,7 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp, startingSegmentNumber))
                 .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
                         .thenCompose((Void v) -> createConfigurationIfAbsent(StreamConfigurationRecord.complete(
-                                createStreamResponse.getConfiguration()).toBytes()))
+                                scope, name, createStreamResponse.getConfiguration()).toBytes()))
                         .thenCompose((Void v) -> createEpochTransitionIfAbsent(EpochTransitionRecord.EMPTY.toBytes()))
                         .thenCompose((Void v) -> createTruncationDataIfAbsent(StreamTruncationRecord.EMPTY.toBytes()))
                         .thenCompose((Void v) -> createCommitTxnRecordIfAbsent(CommittingTransactionsRecord.EMPTY.toBytes()))
@@ -240,7 +240,7 @@ public abstract class PersistentStreamBase implements Stream {
         return getVersionedConfigurationRecord()
                 .thenCompose(configRecord -> {
                     Preconditions.checkArgument(!configRecord.getObject().isUpdating());
-                    StreamConfigurationRecord update = StreamConfigurationRecord.update(newConfiguration);
+                    StreamConfigurationRecord update = StreamConfigurationRecord.update(scope, name, newConfiguration);
                     return Futures.toVoid(setConfigurationData(new Data(update.toBytes(), configRecord.getVersion())));
                 });
     }
@@ -255,7 +255,7 @@ public abstract class PersistentStreamBase implements Stream {
         StreamConfigurationRecord current = existing.getObject();
         Preconditions.checkNotNull(current);
         if (current.isUpdating()) {
-            StreamConfigurationRecord newProperty = StreamConfigurationRecord.complete(current.getStreamConfiguration());
+            StreamConfigurationRecord newProperty = StreamConfigurationRecord.complete(scope, name, current.getStreamConfiguration());
             log.debug("Completing update configuration for stream {}/{}", scope, name);
             return Futures.toVoid(setConfigurationData(new Data(newProperty.toBytes(), existing.getVersion())));
         } else {

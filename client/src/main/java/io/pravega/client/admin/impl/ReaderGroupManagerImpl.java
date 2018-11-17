@@ -76,9 +76,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                          .scope(scope)
-                                                                          .streamName(streamName)
+        getAndHandleExceptions(controller.createStream(scope, streamName, StreamConfiguration.builder()
                                                                           .scalingPolicy(config.getScalingPolicy())
                                                                           .build()),
                                RuntimeException::new);
@@ -91,8 +89,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                 Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
-                                                                                  .scope(scope)
-                                                                                  .streamName(getStreamForReaderGroup(groupName))
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
         @Cleanup

@@ -189,13 +189,11 @@ public class EndToEndTruncationTest {
     @Test(timeout = 30000)
     public void testTruncation() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
@@ -245,13 +243,11 @@ public class EndToEndTruncationTest {
     @Test(timeout = 30000)
     public void testWriteDuringTruncationAndDeletion() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                 .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                 .controllerURI(URI.create("tcp://" + serviceHost))
@@ -312,13 +308,11 @@ public class EndToEndTruncationTest {
     public void testWriteDuringScaleAndTruncation() throws Exception {
         Stream stream = new StreamImpl("test", "test");
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
@@ -493,12 +487,12 @@ public class EndToEndTruncationTest {
         final String streamName = "testSegmentTruncationWhileReading";
         final String readerGroupName = "RGTestSegmentTruncationWhileReading";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(streamName)
+        StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, parallelism))
                                                         .build();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(scope).join();
-        controller.createStream(config).join();
+        controller.createStream(scope, streamName, config).join();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
                                                                                     .build());

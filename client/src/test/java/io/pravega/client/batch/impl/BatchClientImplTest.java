@@ -139,9 +139,7 @@ public class BatchClientImplTest {
         BatchClientImpl client = new BatchClientImpl(mockController, connectionFactory);
 
         mockController.createScope(scope);
-        mockController.createStream(StreamConfiguration.builder()
-                                                       .scope(scope)
-                                                       .streamName(streamName)
+        mockController.createStream(scope, streamName, StreamConfiguration.builder()
                                                        .scalingPolicy(ScalingPolicy.fixed(3))
                                                        .build()).join();
 
@@ -161,9 +159,7 @@ public class BatchClientImplTest {
     private Stream createStream(String scope, String streamName, int numSegments, MockController mockController) {
         Stream stream = new StreamImpl(scope, streamName);
         mockController.createScope(scope);
-        mockController.createStream(StreamConfiguration.builder()
-                                                       .scope(scope)
-                                                       .streamName(streamName)
+        mockController.createStream(scope, streamName, StreamConfiguration.builder()
                                                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                        .build())
                       .join();

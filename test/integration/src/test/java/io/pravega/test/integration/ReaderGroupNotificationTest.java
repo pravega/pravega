@@ -120,13 +120,11 @@ public class ReaderGroupNotificationTest {
     public void testSegmentNotifications() throws Exception {
         final String streamName = "stream1";
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://localhost"))
@@ -192,13 +190,11 @@ public class ReaderGroupNotificationTest {
     public void testEndOfStreamNotifications() throws Exception {
         final String streamName = "stream2";
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, streamName, config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://localhost"))

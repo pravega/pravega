@@ -68,12 +68,10 @@ public class EndToEndTransactionTest {
         ScalingPolicy policy = ScalingPolicy.fixed(5);
         StreamConfiguration streamConfig =
                 StreamConfiguration.builder()
-                        .scope(testScope)
-                        .streamName(testStream)
                         .scalingPolicy(policy)
                         .build();
 
-        if (!controller.createStream(streamConfig).get()) {
+        if (!controller.createStream(testScope, testStream, streamConfig).get()) {
             log.error("FAILURE: Error creating test stream");
             return;
         }

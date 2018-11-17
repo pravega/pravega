@@ -68,13 +68,13 @@ public class ScaleTest {
 
             final String streamName = "stream1";
             final StreamConfiguration config =
-                    StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
+                    StreamConfiguration.builder().scalingPolicy(
                             ScalingPolicy.fixed(1)).build();
 
             Stream stream = new StreamImpl(scope, streamName);
 
             log.info("Creating stream {}/{}", scope, streamName);
-            if (!controller.createStream(config).get()) {
+            if (!controller.createStream(scope, streamName, config).get()) {
                 log.error("Stream already existed, exiting");
                 return;
             }

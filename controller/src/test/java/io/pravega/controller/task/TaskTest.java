@@ -191,7 +191,7 @@ public class TaskTest {
         final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
@@ -217,8 +217,6 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null, executor).get();
-        assertTrue(config.getStreamName().equals(configuration.getStreamName()));
-        assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
@@ -228,8 +226,7 @@ public class TaskTest {
         final String deadHost = "deadHost";
         final int initialSegments = 2;
         final ScalingPolicy policy1 = ScalingPolicy.fixed(initialSegments);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         final ArrayList<Long> sealSegments = new ArrayList<>();
         sealSegments.add(0L);
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
@@ -248,8 +245,8 @@ public class TaskTest {
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
-        List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        Assert.assertTrue(streams.stream().allMatch(x -> !x.getStreamName().equals(stream)));
+        Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
+        Assert.assertTrue(streams.keySet().stream().allMatch(x -> !x.equals(stream)));
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
@@ -315,10 +312,10 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1, null, executor).get();
-        assertTrue(config.getStreamName().equals(stream1));
+        assertEquals(config1, config);
 
         config = streamStore.getConfiguration(SCOPE, stream2, null, executor).get();
-        assertTrue(config.getStreamName().equals(stream2));
+        assertEquals(config2, config);
     }
 
     @Test

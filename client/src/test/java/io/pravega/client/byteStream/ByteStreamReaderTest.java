@@ -57,9 +57,7 @@ public class ByteStreamReaderTest {
         connectionFactory.provideConnection(endpoint, connection);
         controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         controller.createScope(SCOPE);
-        controller.createStream(StreamConfiguration.builder()
-                                                   .scope(SCOPE)
-                                                   .streamName(STREAM)
+        controller.createStream(SCOPE, STREAM, StreamConfiguration.builder()
                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                    .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();

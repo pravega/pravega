@@ -98,14 +98,12 @@ public class UnreadBytesTest {
     @Test(timeout = 50000)
     public void testUnreadBytes() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("unreadbytes")
-                .streamName("unreadbytes")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
 
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream(config).get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
@@ -157,14 +155,12 @@ public class UnreadBytesTest {
     @Test(timeout = 50000)
     public void testUnreadBytesWithEndStreamCuts() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("unreadbytes")
-                                                        .streamName("unreadbytes")
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
 
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream(config).get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());

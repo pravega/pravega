@@ -41,9 +41,9 @@ import org.apache.curator.test.TestingServer;
 
 @Slf4j
 public class EndToEndAutoScaleUpTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 3)).build();
+    static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 3))
+                                                                 .build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -76,7 +76,7 @@ public class EndToEndAutoScaleUpTest {
 
             controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(CONFIG).get();
+            controller.createStream("test", "test", CONFIG).get();
             @Cleanup
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 

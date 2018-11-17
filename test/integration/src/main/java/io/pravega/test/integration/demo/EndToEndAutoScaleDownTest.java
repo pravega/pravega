@@ -40,9 +40,9 @@ import org.apache.curator.test.TestingServer;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 1)).build();
+    static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                                 .build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -76,7 +76,7 @@ public class EndToEndAutoScaleDownTest {
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(CONFIG).get();
+            controller.createStream("test", "test", CONFIG).get();
 
             Stream stream = new StreamImpl("test", "test");
             Map<Double, Double> map = new HashMap<>();

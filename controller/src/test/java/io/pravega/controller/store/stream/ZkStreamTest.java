@@ -140,21 +140,19 @@ public class ZkStreamTest {
         final String streamName1 = "Stream1";
         final String streamName2 = "Stream2";
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
-        StreamConfiguration streamConfig =
-                StreamConfiguration.builder().scope(scopeName).streamName(streamName1).scalingPolicy(policy).build();
+        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-        StreamConfiguration streamConfig2 =
-                StreamConfiguration.builder().scope(scopeName).streamName(streamName2).scalingPolicy(policy).build();
+        StreamConfiguration streamConfig2 = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName1, State.ACTIVE, null, executor).get();
         store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName2, State.ACTIVE, null, executor).get();
 
-        List<StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
+        Map<String, StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
         assertEquals("Size of list", 2, listOfStreams.size());
-        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0).getStreamName());
-        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1).getStreamName());
+        assertTrue("Name of stream at index zero", listOfStreams.containsKey("Stream1"));
+        assertTrue("Name of stream at index one", listOfStreams.containsKey("Stream2"));
     }
 
     @Test

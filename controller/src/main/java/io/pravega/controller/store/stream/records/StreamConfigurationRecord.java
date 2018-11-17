@@ -20,6 +20,7 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,16 +34,20 @@ public class StreamConfigurationRecord {
 
     public static final ConfigurationRecordSerializer SERIALIZER = new ConfigurationRecordSerializer();
 
+    @NonNull
+    private final String scope;
+    @NonNull
+    private final String streamName;
     private final StreamConfiguration streamConfiguration;
     private final boolean updating;
 
-    public static StreamConfigurationRecord update(StreamConfiguration streamConfig) {
-        return StreamConfigurationRecord.builder().streamConfiguration(streamConfig)
+    public static StreamConfigurationRecord update(String scope, String streamName, StreamConfiguration streamConfig) {
+        return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
                                         .updating(true).build();
     }
 
-    public static StreamConfigurationRecord complete(StreamConfiguration streamConfig) {
-        return StreamConfigurationRecord.builder().streamConfiguration(streamConfig)
+    public static StreamConfigurationRecord complete(String scope, String streamName, StreamConfiguration streamConfig) {
+        return StreamConfigurationRecord.builder().scope(scope).streamName(streamName).streamConfiguration(streamConfig)
                                         .updating(false).build();
     }
 
@@ -202,10 +207,10 @@ public class StreamConfigurationRecord {
         private void read00(RevisionDataInput revisionDataInput,
                             StreamConfigurationRecordBuilder configurationRecordBuilder)
                 throws IOException {
+            configurationRecordBuilder.scope(revisionDataInput.readUTF())
+                                      .streamName(revisionDataInput.readUTF());
             StreamConfiguration.StreamConfigurationBuilder streamConfigurationBuilder = StreamConfiguration.builder();
-            streamConfigurationBuilder.scope(revisionDataInput.readUTF())
-                                      .streamName(revisionDataInput.readUTF())
-                                      .scalingPolicy(StreamConfigurationRecord.ScalingPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getScalingPolicy())
+            streamConfigurationBuilder.scalingPolicy(StreamConfigurationRecord.ScalingPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getScalingPolicy())
                                       .retentionPolicy(StreamConfigurationRecord.RetentionPolicyRecord.SERIALIZER.deserialize(revisionDataInput).getRetentionPolicy());
             configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build())
                                       .updating(revisionDataInput.readBoolean());
@@ -213,8 +218,8 @@ public class StreamConfigurationRecord {
 
         private void write00(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
-            revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamConfiguration().getScope());
-            revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamConfiguration().getStreamName());
+            revisionDataOutput.writeUTF(streamConfigurationRecord.getScope());
+            revisionDataOutput.writeUTF(streamConfigurationRecord.getStreamName());
             StreamConfigurationRecord.ScalingPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
                     new StreamConfigurationRecord.ScalingPolicyRecord(streamConfigurationRecord.getStreamConfiguration().getScalingPolicy()));
             StreamConfigurationRecord.RetentionPolicyRecord.SERIALIZER.serialize(revisionDataOutput,

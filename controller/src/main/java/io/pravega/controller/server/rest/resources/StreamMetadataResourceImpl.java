@@ -195,50 +195,50 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "createStream");
 
+        String streamName = createStreamRequest.getStreamName();
         try {
-            NameUtils.validateUserStreamName(createStreamRequest.getStreamName());
+            NameUtils.validateUserStreamName(streamName);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create stream failed due to invalid stream name {}", createStreamRequest.getStreamName());
+            log.warn("Create stream failed due to invalid stream name {}", streamName);
             asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
             LoggerHelpers.traceLeave(log, "createStream", traceId);
             return;
         }
 
         try {
-            authenticateAuthorize(scopeName + "/" + createStreamRequest.getStreamName(), READ_UPDATE);
+            authenticateAuthorize(scopeName + "/" + streamName, READ_UPDATE);
         } catch (AuthException e) {
-            log.warn("Create stream for {} failed due to authentication failure.", createStreamRequest.getStreamName());
+            log.warn("Create stream for {} failed due to authentication failure.", streamName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
             LoggerHelpers.traceLeave(log, "createStream", traceId);
             return;
         }
 
-        StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest, scopeName);
-        controllerService.createStream(streamConfiguration, System.currentTimeMillis())
+        StreamConfiguration streamConfiguration = ModelHelper.getCreateStreamConfig(createStreamRequest);
+        controllerService.createStream(scopeName, streamName, streamConfiguration, System.currentTimeMillis())
                 .thenApply(streamStatus -> {
                     Response resp = null;
                     if (streamStatus.getStatus() == CreateStreamStatus.Status.SUCCESS) {
-                        log.info("Successfully created stream: {}/{}", scopeName, streamConfiguration.getStreamName());
+                        log.info("Successfully created stream: {}/{}", scopeName, streamName);
                         resp = Response.status(Status.CREATED).
-                                entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
+                                entity(ModelHelper.encodeStreamResponse(scopeName, streamName, streamConfiguration)).build();
                     } else if (streamStatus.getStatus() == CreateStreamStatus.Status.STREAM_EXISTS) {
-                        log.warn("Stream already exists: {}/{}", scopeName, streamConfiguration.getStreamName());
+                        log.warn("Stream already exists: {}/{}", scopeName, streamName);
                         resp = Response.status(Status.CONFLICT).build();
                     } else if (streamStatus.getStatus() == CreateStreamStatus.Status.SCOPE_NOT_FOUND) {
                         log.warn("Scope not found: {}", scopeName);
                         resp = Response.status(Status.NOT_FOUND).build();
                     } else if (streamStatus.getStatus() == CreateStreamStatus.Status.INVALID_STREAM_NAME) {
-                        log.warn("Invalid stream name: {}", streamConfiguration.getStreamName());
+                        log.warn("Invalid stream name: {}", streamName);
                         resp = Response.status(Status.BAD_REQUEST).build();
                     } else {
-                        log.warn("createStream failed for : {}/{}", scopeName, streamConfiguration.getStreamName());
+                        log.warn("createStream failed for : {}/{}", scopeName, streamName);
                         resp = Response.status(Status.INTERNAL_SERVER_ERROR).build();
                     }
                     return resp;
                 }).exceptionally(exception -> {
-                    log.warn("createStream for {}/{} failed {}: ", scopeName, streamConfiguration.getStreamName(),
-                             exception);
-                    return Response.status(Status.INTERNAL_SERVER_ERROR).build();
+                             log.warn("createStream for {}/{} failed {}: ", scopeName, streamName, exception);
+                             return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                 }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "createStream", traceId));
     }
@@ -431,7 +431,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         controllerService.getStream(scopeName, streamName)
                 .thenApply(streamConfig -> Response.status(Status.OK)
-                        .entity(ModelHelper.encodeStreamResponse(streamConfig))
+                        .entity(ModelHelper.encodeStreamResponse(scopeName, streamName, streamConfig))
                         .build())
                 .exceptionally(exception -> {
                     if (exception.getCause() instanceof StoreException.DataNotFoundException
@@ -464,10 +464,10 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     ReaderGroupsList readerGroups = new ReaderGroupsList();
-                    streamsList.forEach(stream -> {
-                        if (stream.getStreamName().startsWith(READER_GROUP_STREAM_PREFIX)) {
+                    streamsList.forEach((stream, config) -> {
+                        if (stream.startsWith(READER_GROUP_STREAM_PREFIX)) {
                             ReaderGroupsListReaderGroups readerGroup = new ReaderGroupsListReaderGroups();
-                            readerGroup.setReaderGroupName(stream.getStreamName().substring(
+                            readerGroup.setReaderGroupName(stream.substring(
                                     READER_GROUP_STREAM_PREFIX.length()));
                             readerGroups.addReaderGroupsItem(readerGroup);
                         }
@@ -554,11 +554,11 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         controllerService.listStreamsInScope(scopeName)
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
-                    streamsList.forEach(stream -> {
+                    streamsList.forEach((stream, config) -> {
                         // If internal streams are requested select only the ones that have the special stream names
                         // otherwise display the regular user created streams.
-                        if (!showOnlyInternalStreams ^ stream.getStreamName().startsWith(INTERNAL_NAME_PREFIX)) {
-                            streams.addStreamsItem(ModelHelper.encodeStreamResponse(stream));
+                        if (!showOnlyInternalStreams ^ stream.startsWith(INTERNAL_NAME_PREFIX)) {
+                            streams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, stream, config));
                         }
                     });
                     log.info("Successfully fetched streams for scope: {}", scopeName);
@@ -601,12 +601,12 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         }
 
         StreamConfiguration streamConfiguration = ModelHelper.getUpdateStreamConfig(
-                updateStreamRequest, scopeName, streamName);
-        controllerService.updateStream(streamConfiguration).thenApply(streamStatus -> {
+                updateStreamRequest);
+        controllerService.updateStream(scopeName, streamName, streamConfiguration).thenApply(streamStatus -> {
             if (streamStatus.getStatus() == UpdateStreamStatus.Status.SUCCESS) {
                 log.info("Successfully updated stream config for: {}/{}", scopeName, streamName);
                 return Response.status(Status.OK)
-                         .entity(ModelHelper.encodeStreamResponse(streamConfiguration)).build();
+                         .entity(ModelHelper.encodeStreamResponse(scopeName, streamName, streamConfiguration)).build();
             } else if (streamStatus.getStatus() == UpdateStreamStatus.Status.STREAM_NOT_FOUND ||
                     streamStatus.getStatus() == UpdateStreamStatus.Status.SCOPE_NOT_FOUND) {
                 log.warn("Stream: {}/{} not found", scopeName, streamName);

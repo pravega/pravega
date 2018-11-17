@@ -182,12 +182,10 @@ public class DebugStreamSegmentsTest {
     private void createStream(String streamName) throws Exception {
         Controller controller = controllerWrapper.getController();
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 4))
                                                         .retentionPolicy(RetentionPolicy.bySizeBytes(100 * 1024))
                                                         .build();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, streamName, config).get();
     }
 
 }

@@ -254,14 +254,16 @@ public final class ModelHelper {
 
     /**
      * Converts StreamConfiguration into StreamConfig.
-     *
+     * 
+     * @param scope the stream's scope 
+     * @param streamName The Stream Name
      * @param configModel The stream configuration.
      * @return StreamConfig instance.
      */
-    public static final StreamConfig decode(final StreamConfiguration configModel) {
+    public static final StreamConfig decode(String scope, String streamName, final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "configModel");
         final StreamConfig.Builder builder = StreamConfig.newBuilder()
-                .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getStreamName()))
+                .setStreamInfo(createStreamInfo(scope, streamName))
                 .setScalingPolicy(decode(configModel.getScalingPolicy()));
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));

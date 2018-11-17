@@ -32,8 +32,7 @@ public class ModelHelper {
      * @param scope               The scope of stream
      * @return StreamConfiguration internal object
      */
-    public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest,
-                                                                  final String scope) {
+    public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest) {
         ScalingPolicy scalingPolicy;
         if (createStreamRequest.getScalingPolicy().getType() == ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS) {
            scalingPolicy = ScalingPolicy.fixed(createStreamRequest.getScalingPolicy().getMinSegments());
@@ -65,8 +64,6 @@ public class ModelHelper {
             }
         }
         return StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(createStreamRequest.getStreamName())
                 .scalingPolicy(scalingPolicy)
                 .retentionPolicy(retentionPolicy)
                 .build();
@@ -80,8 +77,7 @@ public class ModelHelper {
      * @param stream              The name of stream
      * @return StreamConfiguration internal object
      */
-    public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest,
-                                                                  final String scope, final String stream) {
+    public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest) {
         ScalingPolicy scalingPolicy;
         if (updateStreamRequest.getScalingPolicy().getType() == ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS) {
             scalingPolicy = ScalingPolicy.fixed(updateStreamRequest.getScalingPolicy().getMinSegments());
@@ -113,8 +109,6 @@ public class ModelHelper {
             }
         }
         return StreamConfiguration.builder()
-                                  .scope(scope)
-                                  .streamName(stream)
                                   .scalingPolicy(scalingPolicy)
                                   .retentionPolicy(retentionPolicy)
                                   .build();
@@ -126,7 +120,7 @@ public class ModelHelper {
      * @param streamConfiguration The configuration of stream
      * @return Stream properties wrapped in StreamResponse object
      */
-    public static final StreamProperty encodeStreamResponse(final StreamConfiguration streamConfiguration) {
+    public static final StreamProperty encodeStreamResponse(String scope, String streamName, final StreamConfiguration streamConfiguration) {
         ScalingConfig scalingPolicy = new ScalingConfig();
         if (streamConfiguration.getScalingPolicy().getScaleType() == ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             scalingPolicy.setType(ScalingConfig.TypeEnum.valueOf(streamConfiguration.getScalingPolicy().
@@ -157,8 +151,8 @@ public class ModelHelper {
         }
 
         StreamProperty streamProperty = new StreamProperty();
-        streamProperty.setStreamName(streamConfiguration.getStreamName());
-        streamProperty.setScopeName(streamConfiguration.getScope());
+        streamProperty.setScopeName(scope);
+        streamProperty.setStreamName(streamName);
         streamProperty.setScalingPolicy(scalingPolicy);
         streamProperty.setRetentionPolicy(retentionConfig);
         return streamProperty;

@@ -79,8 +79,8 @@ public abstract class StreamMetadataStoreTest {
     protected final String stream2 = "stream2";
     protected final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     protected final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-    protected final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
-    protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
+    protected final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+    protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
     @Before
     public abstract void setupTaskStore() throws Exception;
@@ -105,7 +105,7 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream2, configuration2, start, null, executor).get();
         store.setState(scope, stream2, State.ACTIVE, null, executor).get();
 
-        assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getStreamName());
+        assertEquals(configuration1, store.getConfiguration(scope, stream1, null, executor).get());
         // endregion
 
         // region checkSegments
@@ -214,10 +214,10 @@ public abstract class StreamMetadataStoreTest {
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream2, State.ACTIVE, null, executor).get();
-        List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
-        assertEquals("List streams in scope", stream1, streamInScope.get(0).getStreamName());
-        assertEquals("List streams in scope", stream2, streamInScope.get(1).getStreamName());
+        assertTrue("List streams in scope", streamInScope.containsKey(stream1));
+        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
 
         // List streams in non-existent scope 'Scope1'
         try {

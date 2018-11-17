@@ -94,13 +94,11 @@ public class EndToEndStatsTest {
     @Test(timeout = 10000)
     public void testStatsCount() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller);
 

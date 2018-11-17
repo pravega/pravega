@@ -57,21 +57,24 @@ public interface Controller extends AutoCloseable {
      * exist when the controller executed the operation. In the case of a re-attempt to create
      * the same stream, the future completes with false to indicate that the stream existed when
      * the controller executed the operation.
-     *
+     * 
+     * @param scope Scope
+     * @param streamName Stream name
      * @param streamConfig Stream configuration
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the stream was added because it did not already exist.
      */
-    CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> createStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
      * API to update the configuration of a stream.
-     *
+     * @param scope Scope
+     * @param streamName Stream name
      * @param streamConfig Stream configuration to updated
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the stream was updated because the config is now different from before.
      */
-    CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in

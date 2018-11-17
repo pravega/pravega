@@ -138,14 +138,14 @@ public class ControllerServiceWithZKStreamTest {
     public void getSegmentsImmediatelyFollowingTest() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+                .scalingPolicy(policy1).build();
         //Start time  when stream is created.
         long start = System.currentTimeMillis();
 
         // Create stream and scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM, configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Controller.SegmentRange> currentSegments = consumer.getCurrentSegments(SCOPE, STREAM).get();
@@ -180,14 +180,14 @@ public class ControllerServiceWithZKStreamTest {
     public void streamCutTests() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+                .scalingPolicy(policy1).build();
         //Start time  when stream is created.
         long start = System.currentTimeMillis();
 
         // Create stream and scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM, configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Long> segments = new ArrayList<>();

@@ -54,8 +54,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     //Initial number of segments is 2.
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 2);
-    private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(12 * 60);
@@ -87,7 +86,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create scope status {}", createScopeStatus);
 
         //create a stream
-        Boolean createStreamStatus = controller.createStream(CONFIG).get();
+        Boolean createStreamStatus = controller.createStream(SCOPE, STREAM_NAME, CONFIG).get();
         log.debug("Create stream status {}", createStreamStatus);
     }
 

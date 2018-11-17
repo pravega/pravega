@@ -95,8 +95,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
-        return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
@@ -116,8 +116,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig) {
-        return this.controller.updateStream(streamConfig).thenApply(x -> {
+    public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.updateStream(scope, streamName, streamConfig).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);

@@ -61,10 +61,10 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     @Test(timeout = 30000)
     public void testReaderOffline() throws Exception {
-        StreamConfiguration config = getStreamConfig("test", "test");
+        StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
@@ -122,8 +122,8 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         controllerWrapper.getControllerService().createScope(scopeB).get();
 
         // Create Streams.
-        controller.createStream(getStreamConfig(scopeA, streamName)).get();
-        controller.createStream(getStreamConfig(scopeB, streamName)).get();
+        controller.createStream(scopeA, streamName, getStreamConfig()).get();
+        controller.createStream(scopeB, streamName, getStreamConfig()).get();
 
         // Create ReaderGroup and reader.
         @Cleanup
@@ -379,10 +379,8 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertEquals(new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
     }
 
-    private StreamConfiguration getStreamConfig(String scope, String streamName) {
+    private StreamConfiguration getStreamConfig() {
         return StreamConfiguration.builder()
-                                  .scope(scope)
-                                  .streamName(streamName)
                                   .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                   .build();
     }

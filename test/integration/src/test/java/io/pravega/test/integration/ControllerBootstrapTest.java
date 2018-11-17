@@ -90,11 +90,9 @@ public class ControllerBootstrapTest {
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        CompletableFuture<Boolean> streamStatus = controller.createStream(streamConfiguration);
+        CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
         // Create transaction should fail.

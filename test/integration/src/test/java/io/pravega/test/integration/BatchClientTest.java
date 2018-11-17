@@ -237,13 +237,11 @@ public class BatchClientTest {
 
     private void createStream() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM)
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
 
         controllerWrapper.getControllerService().createScope(SCOPE).join();
-        assertTrue("Create Stream operation", controllerWrapper.getController().createStream(config).join());
+        assertTrue("Create Stream operation", controllerWrapper.getController().createStream(SCOPE, STREAM, config).join());
     }
 
     private void write30ByteEvents(int numberOfEvents, EventStreamWriter<String> writer) {

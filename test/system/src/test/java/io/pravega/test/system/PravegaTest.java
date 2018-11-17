@@ -62,8 +62,6 @@ public class PravegaTest extends AbstractSystemTest {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder()
-                                                                  .scope(STREAM_SCOPE)
-                                                                  .streamName(STREAM_NAME)
                                                                   .scalingPolicy(scalingPolicy)
                                                                   .build();
 
@@ -111,7 +109,7 @@ public class PravegaTest extends AbstractSystemTest {
                                     .build(), connectionFactory.getInternalExecutor());
 
         assertTrue(controller.createScope(STREAM_SCOPE).get());
-        assertTrue(controller.createStream(config).get());
+        assertTrue(controller.createStream(STREAM_SCOPE, STREAM_NAME, config).get());
     }
 
     /**

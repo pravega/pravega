@@ -101,13 +101,11 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakSegmentSealed() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM_NAME)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build(), new InlineExecutor());
         @Cleanup
@@ -170,13 +168,11 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakMultiReader() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM_NAME)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup

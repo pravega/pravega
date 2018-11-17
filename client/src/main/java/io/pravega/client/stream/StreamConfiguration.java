@@ -24,18 +24,6 @@ public class StreamConfiguration implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * API to return scope.
-     *
-     */
-    private final String scope;
-
-    /**
-     * API to return stream name.
-     *
-     */
-    private final String streamName;
-
-    /**
      * API to return scaling policy.
      *
      */
@@ -49,5 +37,21 @@ public class StreamConfiguration implements Serializable {
 
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
+        
+        /**
+         * @deprecated Does nothing. Scope is specified on stream creation.
+         */
+        @Deprecated
+        public StreamConfigurationBuilder scope(String scope) {
+            return this;
+        }
+        
+        /**
+         * @deprecated Does nothing. Stream name is specified on stream creation.
+         */
+        @Deprecated
+        public StreamConfigurationBuilder streamName(String streamName) {
+            return this;
+        }
     }
 }

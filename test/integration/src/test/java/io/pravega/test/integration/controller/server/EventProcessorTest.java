@@ -146,13 +146,11 @@ public class EventProcessorTest {
         }
 
         final StreamConfiguration config = StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
-        CompletableFuture<Boolean> createStatus = controller.createStream(config);
+        CompletableFuture<Boolean> createStatus = controller.createStream(scope, streamName, config);
         if (!createStatus.get()) {
             System.err.println("Stream alrady existed, exiting");
             return;

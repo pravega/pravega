@@ -51,14 +51,11 @@ public class AutoScaleTest extends AbstractScaleTests {
     private static final String SCALE_DOWN_STREAM_NAME = "testScaleDown";
 
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 1);
-    private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(SCALE_UP_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
-    private static final StreamConfiguration CONFIG_TXN = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(SCALE_UP_TXN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG_TXN = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
-    private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
     //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
     @Rule
@@ -91,10 +88,10 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("create scope status {}", createScopeStatus);
 
         //create a stream
-        Boolean createStreamStatus = controller.createStream(CONFIG_UP).get();
+        Boolean createStreamStatus = controller.createStream(SCOPE, SCALE_UP_STREAM_NAME, CONFIG_UP).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);
 
-        createStreamStatus = controller.createStream(CONFIG_DOWN).get();
+        createStreamStatus = controller.createStream(SCOPE, SCALE_DOWN_STREAM_NAME, CONFIG_DOWN).get();
         log.debug("create stream status for scaledown stream {}", createStreamStatus);
 
         log.debug("scale down stream starting segments:" + controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME).get().getSegments().size());
@@ -109,7 +106,7 @@ public class AutoScaleTest extends AbstractScaleTests {
                 executorService).getFuture().get();
         assertTrue(status);
 
-        createStreamStatus = controller.createStream(CONFIG_TXN).get();
+        createStreamStatus = controller.createStream(SCOPE, SCALE_UP_TXN_STREAM_NAME, CONFIG_TXN).get();
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 

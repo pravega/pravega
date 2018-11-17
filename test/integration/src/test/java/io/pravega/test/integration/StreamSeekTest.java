@@ -209,10 +209,8 @@ public class StreamSeekTest {
     private void createStream(String streamName) throws Exception {
         Controller controller = controllerWrapper.getController();
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, streamName, config).get();
     }
 }
