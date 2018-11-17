@@ -29,7 +29,6 @@ public class ModelHelper {
      * This method translates the REST request object CreateStreamRequest into internal object StreamConfiguration.
      *
      * @param createStreamRequest An object conforming to the createStream REST API json
-     * @param scope               The scope of stream
      * @return StreamConfiguration internal object
      */
     public static final StreamConfiguration getCreateStreamConfig(final CreateStreamRequest createStreamRequest) {
@@ -73,8 +72,6 @@ public class ModelHelper {
      * This method translates the REST request object UpdateStreamRequest into internal object StreamConfiguration.
      *
      * @param updateStreamRequest An object conforming to the updateStreamConfig REST API json
-     * @param scope               The scope of stream
-     * @param stream              The name of stream
      * @return StreamConfiguration internal object
      */
     public static final StreamConfiguration getUpdateStreamConfig(final UpdateStreamRequest updateStreamRequest) {
@@ -117,6 +114,8 @@ public class ModelHelper {
     /**
      * The method translates the internal object StreamConfiguration into REST response object.
      *
+     * @param scope the scope of the stream
+     * @param streamName the name of the stream
      * @param streamConfiguration The configuration of stream
      * @return Stream properties wrapped in StreamResponse object
      */

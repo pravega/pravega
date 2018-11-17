@@ -54,7 +54,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;

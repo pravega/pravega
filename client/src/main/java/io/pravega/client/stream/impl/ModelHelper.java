@@ -103,8 +103,6 @@ public final class ModelHelper {
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "config");
         return StreamConfiguration.builder()
-                .scope(config.getStreamInfo().getScope())
-                .streamName(config.getStreamInfo().getStream())
                 .scalingPolicy(encode(config.getScalingPolicy()))
                 .retentionPolicy(encode(config.getRetentionPolicy()))
                 .build();
