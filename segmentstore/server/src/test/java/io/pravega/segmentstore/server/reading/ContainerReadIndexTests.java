@@ -354,7 +354,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ReadResultEntry secondEntry = rr.next();
         Assert.assertTrue("Unexpected ReadResultEntryType.isTerminal of truncated result entry.", secondEntry.getType().isTerminal());
         Assert.assertEquals("Unexpected ReadResultEntryType of truncated result entry.", ReadResultEntryType.Truncated, secondEntry.getType());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expecting getContent() to return a failed CompletableFuture.",
                 secondEntry::getContent,
                 ex -> ex instanceof StreamSegmentTruncatedException);
@@ -558,7 +558,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.metadata.getStreamSegmentMetadata(segmentId).markSealed();
         context.readIndex.triggerFutureReads(Collections.singleton(segmentId));
         Assert.assertTrue("Expected future read to be failed after sealing.", futureReadEntry.getContent().isCompletedExceptionally());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected future read to be failed with appropriate exception.",
                 futureReadEntry::getContent,
                 ex -> ex instanceof StreamSegmentSealedException);

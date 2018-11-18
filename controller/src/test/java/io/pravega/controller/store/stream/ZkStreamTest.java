@@ -592,11 +592,11 @@ public class ZkStreamTest {
     private void testCommitFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
                                    OperationContext context,
                                    Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Seal txn to commit it failure",
+        AssertExtensions.assertSuppliedFutureThrows("Seal txn to commit it failure",
                 () -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), context, executor),
                 checker);
 
-        AssertExtensions.assertThrows("Commit txn failure",
+        AssertExtensions.assertSuppliedFutureThrows("Commit txn failure",
                 () -> store.commitTransaction(scope, stream, txnId, context, executor),
                 checker);
     }
@@ -604,11 +604,11 @@ public class ZkStreamTest {
     private void testAbortFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
                                   OperationContext context,
                                   Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Seal txn to abort it failure",
+        AssertExtensions.assertSuppliedFutureThrows("Seal txn to abort it failure",
                 () -> store.sealTransaction(scope, stream, txnId, false, Optional.empty(), context, executor),
                 checker);
 
-        AssertExtensions.assertThrows("Abort txn failure",
+        AssertExtensions.assertSuppliedFutureThrows("Abort txn failure",
                 () -> store.abortTransaction(scope, stream, txnId, context, executor),
                 checker);
     }

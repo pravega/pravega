@@ -298,7 +298,7 @@ public class FuturesTests {
         Function<Integer, CompletableFuture<Boolean>> futureEvenFilter =
                 x -> Futures.failedFuture(new IntentionalException("intentional"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected behavior when filter threw an exception.",
                 () -> Futures.filter(list, futureEvenFilter),
                 ex -> ex instanceof IntentionalException);

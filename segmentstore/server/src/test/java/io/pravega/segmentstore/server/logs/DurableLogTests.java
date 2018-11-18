@@ -946,19 +946,19 @@ public class DurableLogTests extends OperationLogTestBase {
             Assert.assertTrue("Expecting an offline DurableLog.", durableLog.isOffline());
 
             // Verify all operations fail with the right exception.
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "add() did not fail with the right exception when offline.",
                     () -> durableLog.add(new ProbeOperation(), TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "read() did not fail with the right exception when offline.",
                     () -> durableLog.read(0, 1, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "truncate() did not fail with the right exception when offline.",
                     () -> durableLog.truncate(0, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "operationProcessingBarrier() did not fail with the right exception when offline.",
                     () -> durableLog.operationProcessingBarrier(TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
@@ -1162,7 +1162,7 @@ public class DurableLogTests extends OperationLogTestBase {
                     }
                 } else {
                     // Verify we are not allowed to truncate on non-valid Truncation Points.
-                    AssertExtensions.assertThrows(
+                    AssertExtensions.assertSuppliedFutureThrows(
                             "DurableLog allowed truncation on a non-MetadataCheckpointOperation.",
                             () -> durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT),
                             ex -> ex instanceof IllegalArgumentException);

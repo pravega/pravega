@@ -59,7 +59,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         context.container.startAsync().awaitRunning();
 
         // Non-existent segment.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when the segment does not exist.",
                 () -> context.container.getStreamSegmentInfo(SEGMENT_NAME, false, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -127,7 +127,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         val context = new TestContext();
         context.container.startAsync().awaitRunning();
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when the segment does not exist.",
                 () -> context.container.read(SEGMENT_NAME, 0, 1, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);

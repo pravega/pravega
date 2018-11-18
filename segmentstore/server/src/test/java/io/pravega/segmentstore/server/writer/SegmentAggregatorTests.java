@@ -120,7 +120,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Check behavior for already-sealed segments (in storage, but not in metadata)
         context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
         context.storage.seal(writeHandle(context.transactionAggregators[1].getMetadata().getName()), TIMEOUT).join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
                 () -> context.transactionAggregators[1].initialize(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);

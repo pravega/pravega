@@ -71,7 +71,7 @@ public class SegmentStateStoreTests extends StateStoreTests {
                     .thenCompose(si -> this.storage.openWrite(stateSegment))
                     .thenCompose(handle -> this.storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
                     .join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected behavior when attempting to read a corrupted state file.",
                 () -> store.get(segmentName, TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);

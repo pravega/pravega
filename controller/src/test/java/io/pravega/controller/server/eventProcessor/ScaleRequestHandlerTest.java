@@ -561,7 +561,7 @@ public class ScaleRequestHandlerTest {
         if (!expectFailureOnSecondJob) {
             scaleRequestHandler2.execute(event).join();
         } else {
-            AssertExtensions.assertThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
+            AssertExtensions.assertSuppliedFutureThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
                     secondExceptionPredicate);
         }
         // verify that scale is complete
@@ -773,7 +773,7 @@ public class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
         
         // rerun same manual scaling job. It should fail with StartException but after having reset the state to active
-        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event),
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         // verify that state is reset
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
@@ -786,7 +786,7 @@ public class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
 
         // rerun same auto scaling job. 
-        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event2),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event2),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(2, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());

@@ -356,7 +356,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(0, scale1ActiveEpoch);
         
         // rerun start scale with old epoch transition. should throw write conflict
-        AssertExtensions.assertThrows("", () -> store.submitScale(scope, stream, scale1SealedSegments,
+        AssertExtensions.assertSuppliedFutureThrows("", () -> store.submitScale(scope, stream, scale1SealedSegments,
                 Arrays.asList(segment1, segment2), scaleTs, empty, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
