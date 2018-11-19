@@ -238,8 +238,8 @@ public final class BitConverter {
      * @param target The byte array to write to.
      * @param offset The offset within the byte array to write at.
      * @param value  The (signed) value to write. The value will be converted into the range [0, 2^64-1] before
-     *               serialization: if negative, then {@link Long#MAX_VALUE} + 1 will be added to it, otherwise the
-     *               first bit will be set to 1.
+     *               serialization by flipping the high order bit (so positive values will begin with 1 and negative values
+     *               will begin with 0).
      * @return The number of bytes written.
      */
     public static int writeUnsignedLong(byte[] target, int offset, long value) {
