@@ -81,7 +81,7 @@ public class ZookeeperServiceOnK8 implements Service {
                                                // wait until zk operator is running, only one instance of operator is running.
                                                .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "name", OPERATOR_ID, 1))
                                                // request operator to deploy zookeeper nodes.
-                                               .thenCompose(v -> k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL, getZookeeperDeployment("example", 1))), t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
+                                               .thenCompose(v -> k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL, getZookeeperDeployment(getID(), 1))), t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
         if (wait) {
             Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, 1),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper service", t));

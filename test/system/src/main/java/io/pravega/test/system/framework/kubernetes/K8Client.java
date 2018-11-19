@@ -14,6 +14,7 @@ import io.kubernetes.client.ApiCallback;
 import io.kubernetes.client.ApiClient;
 import io.kubernetes.client.ApiException;
 import io.kubernetes.client.Configuration;
+import io.kubernetes.client.PodLogs;
 import io.kubernetes.client.apis.ApiextensionsV1beta1Api;
 import io.kubernetes.client.apis.AppsV1Api;
 import io.kubernetes.client.apis.CoreV1Api;
@@ -44,6 +45,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +69,7 @@ public class K8Client implements AutoCloseable {
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final String PRETTY_PRINT = null;
     private final ApiClient client;
+    private final PodLogs logUtility;
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(5, "pravega-k8-client");
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
 
@@ -81,6 +86,7 @@ public class K8Client implements AutoCloseable {
             this.client.setDebugging(false); // this can be set to true enable http dump.
             this.client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             Configuration.setDefaultApiClient(this.client);
+            this.logUtility = new PodLogs();
         } catch (IOException e) {
             throw new TestFrameworkException(ConnectionFailed, "Connection to the k8 cluster failed, ensure .kube/config is configured correctly.", e);
         }
@@ -525,6 +531,24 @@ public class K8Client implements AutoCloseable {
 
     }
 
+
+    /**
+     * Save logs of the specified pod.
+     * @param fromPod Pod logs to be copied.
+     * @param toFile destination file of the logs.
+     */
+    public void saveLogs(final V1Pod fromPod, final String toFile) {
+        log.debug("copy logs from pod {} to file {}", fromPod.getMetadata().getName(), toFile);
+        try {
+            @Cleanup
+            InputStream r = logUtility.streamNamespacedPodLog(fromPod);
+            Files.copy(r, Paths.get(toFile));
+        } catch (ApiException | IOException e) {
+          log.error("Error while copying files from pod {}.", fromPod.getMetadata().getName());
+        }
+
+    }
+
     @Override
     public void close() {
         ExecutorServiceHelpers.shutdown(executor);
@@ -553,13 +577,13 @@ public class K8Client implements AutoCloseable {
 
         @Override
         public void onUploadProgress(long bytesWritten, long contentLength, boolean done) {
-            log.debug("UploadProgress callback invoked bytesWritten:{} for contentLength: {} done: {}", bytesWritten,
+            log.trace("UploadProgress callback invoked bytesWritten:{} for contentLength: {} done: {}", bytesWritten,
                       contentLength, done);
         }
 
         @Override
         public void onDownloadProgress(long bytesRead, long contentLength, boolean done) {
-            log.debug("DownloadProgress callback invoked, bytesRead: {} for contentLength: {} done: {}", bytesRead,
+            log.trace("DownloadProgress callback invoked, bytesRead: {} for contentLength: {} done: {}", bytesRead,
                       contentLength, done);
         }
 

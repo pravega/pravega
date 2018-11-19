@@ -718,7 +718,7 @@ project('test:system') {
         systemProperty "execType", "K8"
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
-        systemProperty "skipServiceInstallation", "true"
+        systemProperty "skipServiceInstallation", "false"
         systemProperty "repoUrl", "${repoUrl}"
 
         if (System.getProperty("imageVersion") == null) {
