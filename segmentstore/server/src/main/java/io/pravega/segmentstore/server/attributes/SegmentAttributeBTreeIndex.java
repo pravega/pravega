@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -69,9 +70,19 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      * For Attribute Segment Appends, we want to write conditionally based on the offset, and retry the operation if
      * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to put().
      */
-    private static final Retry.RetryAndThrowBase<Exception> INDEX_RETRY = Retry
+    private static final Retry.RetryAndThrowBase<Exception> UPDATE_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
             .retryingOn(BadOffsetException.class)
+            .throwingOn(Exception.class);
+
+    /**
+     * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
+     * if we stumble upon a segment truncation.
+     */
+    private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
+            .withExpBackoff(10, 2, 10, 1000)
+            .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
 
     private static final int KEY_LENGTH = 2 * Long.BYTES; // UUID
@@ -291,8 +302,9 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             serializedKeys.add(serializeKey(key));
         }
 
-        return this.index
-                .get(serializedKeys, timeout)
+        // Fetch the raw data from the index, but retry (as needed) if we run across a truncated part of the attribute
+        // segment file (see READ_RETRY Javadoc).
+        return READ_RETRY.runAsync(() -> this.index.get(serializedKeys, timeout), this.executor)
                 .thenApply(entries -> {
                     assert entries.size() == keys.size() : "Unexpected number of entries returned by the index search.";
 
@@ -310,6 +322,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     return result;
                 })
                 .exceptionally(this::handleIndexOperationException);
+
     }
 
     @Override
@@ -357,7 +370,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     private CompletableFuture<Void> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return INDEX_RETRY
+        return UPDATE_RETRY
                 .runAsync(() -> executeConditionallyOnce(indexOperation, timer), this.executor)
                 .exceptionally(this::handleIndexOperationException)
                 .thenAccept(Callbacks::doNothing);
@@ -435,7 +448,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                            }, this.executor);
     }
 
-    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets, Duration timeout) {
+    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
+                                               long truncateOffset, Duration timeout) {
         // The write offset is the offset of the first page to be written in the list.
         long writeOffset = pages.get(0).getKey();
 
@@ -455,14 +469,25 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
         // Stitch the collected Input Streams and write them to Storage.
         val toWrite = new SequenceInputStream(Collections.enumeration(streams));
-        return this.storage.write(this.handle.get(), writeOffset, toWrite, length.get(), timeout)
-                           .thenApplyAsync(v -> {
-                               // Store data in cache and remove obsolete pages.
-                               storeInCache(pages, obsoleteOffsets);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.storage
+                .write(this.handle.get(), writeOffset, toWrite, length.get(), timer.getRemaining())
+                .thenComposeAsync(v -> {
+                    if (this.storage.supportsTruncation() && truncateOffset >= 0) {
+                        return this.storage.truncate(this.handle.get(), truncateOffset, timer.getRemaining());
+                    } else {
+                        log.debug("{}: Not truncating attribute segment. SupportsTruncation = {}, TruncateOffset = {}.",
+                                this.traceObjectId, this.storage.supportsTruncation(), truncateOffset);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor)
+                .thenApplyAsync(v -> {
+                    // Store data in cache and remove obsolete pages.
+                    storeInCache(pages, obsoleteOffsets);
 
-                               // Return the current length of the Segment Attribute Index.
-                               return writeOffset + length.get();
-                           }, this.executor);
+                    // Return the current length of the Segment Attribute Index.
+                    return writeOffset + length.get();
+                }, this.executor);
     }
 
     private byte[] getFromCache(long offset, int length) {
