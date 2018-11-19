@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,7 +59,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -354,9 +354,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     @Override
     public AttributeIterator iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
         ensureInitialized();
-        val indexIterator = this.index
-                .iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout);
-        return new AttributeIteratorImpl(indexIterator);
+        return new AttributeIteratorImpl(fromId, (id, inclusive) ->
+                this.index.iterator(serializeKey(id), inclusive, serializeKey(toId), true, fetchTimeout));
     }
 
     //endregion
@@ -649,22 +648,82 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     /**
      * Converts a Page Entry Iterator into an Attribute Iterator.
      */
-    @RequiredArgsConstructor
     private class AttributeIteratorImpl implements AttributeIterator {
-        private final AsyncIterator<List<PageEntry>> pageEntryIterator;
+        private final CreatePageEntryIterator getPageEntryIterator;
+        private final AtomicReference<AsyncIterator<List<PageEntry>>> pageEntryIterator;
+        private final AtomicReference<UUID> lastProcessedId;
+        private final AtomicBoolean firstInvocation;
+        private final AtomicBoolean inProgress;
+
+        AttributeIteratorImpl(UUID firstId, CreatePageEntryIterator getPageEntryIterator) {
+            this.getPageEntryIterator = getPageEntryIterator;
+            this.pageEntryIterator = new AtomicReference<>();
+            this.lastProcessedId = new AtomicReference<>(firstId);
+            this.firstInvocation = new AtomicBoolean(true);
+            this.inProgress = new AtomicBoolean(false);
+            reinitialize();
+        }
 
         @Override
         public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
-            return this.pageEntryIterator.getNext().thenApply(pageEntries -> {
-                if (pageEntries == null) {
-                    return null;
-                }
+            // Verify no other call to getNext() is currently executing.
+            Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
+            try {
+                return READ_RETRY
+                        .runAsync(this::getNextPageEntries, executor)
+                        .thenApply(pageEntries -> {
+                            if (pageEntries == null) {
+                                // We are done.
+                                return null;
+                            }
 
-                return pageEntries.stream()
-                                  .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
-                                  .collect(Collectors.toList());
-            });
+                            val result = pageEntries.stream()
+                                                    .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                                                    .collect(Collectors.toList());
+                            if (result.size() > 0) {
+                                // Update the last Attribute Id and also indicate that we have processed at least one iteration.
+                                this.lastProcessedId.set(result.get(result.size() - 1).getKey());
+                                this.firstInvocation.set(false);
+                            }
+
+                            return result;
+                        })
+                        .handle((result, ex) -> {
+                            this.inProgress.set(false);
+                            if (ex != null) {
+                                handleIndexOperationException(ex); // This will throw.
+                            }
+
+                            return result;
+                        });
+            } catch (Throwable ex) {
+                // Clear the inProgress flag if a sync exception occurred.
+                this.inProgress.set(false);
+                throw ex;
+            }
         }
+
+        private CompletableFuture<List<PageEntry>> getNextPageEntries() {
+            return this.pageEntryIterator
+                    .get().getNext()
+                    .exceptionally(ex -> {
+                        // Reinitialize the iterator, then rethrow the exception so we may try again.
+                        reinitialize();
+                        throw new CompletionException(ex);
+                    });
+        }
+
+        private void reinitialize() {
+            // If this is the first invocation then we need to treat the lastProcessedId as "inclusive" in the iterator, since it
+            // was the first value we wanted our iterator to begin at. For any other cases, we need to treat it as exclusive,
+            // since it stores the last id we have ever returned, so we want to begin with the following one.
+            this.pageEntryIterator.set(this.getPageEntryIterator.apply(this.lastProcessedId.get(), this.firstInvocation.get()));
+        }
+    }
+
+    @FunctionalInterface
+    private interface CreatePageEntryIterator {
+        AsyncIterator<List<PageEntry>> apply(UUID firstId, boolean firstIdInclusive);
     }
 
     //endregion

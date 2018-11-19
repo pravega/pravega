@@ -44,6 +44,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
@@ -359,12 +361,33 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
      * 4. The code should be able to handle and recover from this.
      */
     @Test
-    public void testTruncatedSegment() throws Exception {
+    public void testTruncatedSegmentGet() throws Exception {
+        testTruncatedSegment(
+                (attributeId, idx) -> idx.get(Collections.singleton(attributeId), TIMEOUT),
+                result -> result.entrySet().stream().findFirst().get());
+    }
+
+    /**
+     * Tests iterating from the Attribute Segment while a truncation was in progress. Scenario:
+     * 1. We have a concurrent (active) iterator() and put()/delete(), where the iterator starts executing first.
+     * 2. The iterator manages to fetch the location of the root page, but doesn't read it yet.
+     * 3. The put() causes the previous root page to become obsolete and truncates the segment after it.
+     * 4. The code should be able to handle and recover from this.
+     */
+    @Test
+    public void testTruncatedSegmentIterator() throws Exception {
+        testTruncatedSegment(
+                (attributeId, idx) -> idx.iterator(attributeId, attributeId, TIMEOUT).getNext(),
+                result -> result.get(0));
+    }
+
+    private <T> void testTruncatedSegment(BiFunction<UUID, AttributeIndex, CompletableFuture<T>> toTest,
+                                          Function<T, Map.Entry<UUID, Long>> getValue) throws Exception {
         val attributeId = UUID.randomUUID();
         val lastWrittenValue = new AtomicLong(0);
         val config = AttributeIndexConfig.builder()
-                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10) // Very, very frequent rollovers.
-                .build();
+                                         .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10) // Very, very frequent rollovers.
+                                         .build();
         @Cleanup
         val context = new TestContext(config);
         populateSegments(context);
@@ -391,7 +414,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 return null;
             }
         };
-        val get = idx.get(Collections.singleton(attributeId), TIMEOUT);
+        val get = toTest.apply(attributeId, idx);
         waitForInterception.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // Make sure we got the the part where we read the root.
 
         // Initiate (and complete) a put(), this should truncate the segment beyond the first root, causing the get to fail.
@@ -402,8 +425,9 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         blockRead.complete(null);
 
         // Finally, verify we can read the data we want to.
-        long value = get.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).get(attributeId);
-        Assert.assertEquals("Unexpected value read.", lastWrittenValue.get(), value);
+        val attributePair = getValue.apply(get.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+        Assert.assertEquals("Unexpected id read.", attributeId, attributePair.getKey());
+        Assert.assertEquals("Unexpected value read.", lastWrittenValue.get(), (long) attributePair.getValue());
         Assert.assertTrue("No interception done.", intercepted.get());
     }
 
