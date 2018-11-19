@@ -848,6 +848,12 @@ public class ScaleRequestHandlerTest {
         }
 
         @Override
+        public CompletableFuture<Void>  writeEventToSegment(int segmentId, ControllerEvent event) {
+            queue.add(event);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
         public Transaction<ControllerEvent> beginTxn() {
             return null;
         }

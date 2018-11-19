@@ -67,6 +67,15 @@ public class StreamSegments {
         return segments.ceilingEntry(key).getValue();
     }
 
+    public Segment getSegmentForId(int id) {
+        int index = 0;
+        for(Segment segment: segments.values()) {
+            if (index++ == id)
+                return segment;
+        }
+        return null;
+    }
+
     public Collection<Segment> getSegments() {
         return segments.values();
     }

@@ -42,6 +42,11 @@ public class ControllerEventStreamWriterMock implements EventStreamWriter<Contro
     }
 
     @Override
+    public CompletableFuture<Void> writeEventToSegment(int segmentId, ControllerEvent event) {
+        return writeEvent(event);
+    }
+
+    @Override
     public Transaction<ControllerEvent> beginTxn() {
         return null;
     }

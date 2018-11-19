@@ -151,6 +151,12 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
             }
 
             @Override
+            public CompletableFuture<Void> writeEventToSegment(int segmentId, AutoScaleEvent event) {
+                consumer.accept(event);
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+
+            @Override
             public Transaction<AutoScaleEvent> beginTxn() {
                 return null;
             }

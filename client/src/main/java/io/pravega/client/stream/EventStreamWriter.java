@@ -60,6 +60,26 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     CompletableFuture<Void> writeEvent(String routingKey, Type event);
 
     /**
+     * Write an event to the specified segment of the stream. Similar to {@link #writeEvent(String, Object)} but
+     * provides a segmentId which is used to specify segment.
+     * Events written to the specified segment will be read by readers in exactly the same order they were written.
+     *
+     * Note that the implementation provides retry logic to handle connection failures and service
+     * host failures. Internal retries will not violate the exactly once semantic so it is better to
+     * rely on this than to wrap this method with custom retry logic.
+     *
+     * @param segmentId The id of the segment the event is to be written, starting from 0.
+     *                  If the segment id cannot be found from the stream, then no writing will happen.
+     * @param event The event to be written to the segment of the stream (Null is disallowed)
+     * @return A completableFuture that will complete when the event has been durably stored on the configured
+     *         number of replicas, and is available for readers to see. This future may complete exceptionally
+     *         cannot happen, however these exceptions are not transient failures. Failures that occur as a
+     *         if this result of connection drops or host death are handled internally with multiple retires and
+     *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
+     */
+    CompletableFuture<Void> writeEventToSegment(int segmentId, Type event);
+
+    /**
      * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
      * Note that transactions can only be open for {@link EventWriterConfig#getTransactionTimeoutTime()}.
      * 

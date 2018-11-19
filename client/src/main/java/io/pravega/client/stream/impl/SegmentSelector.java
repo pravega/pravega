@@ -69,6 +69,23 @@ public class SegmentSelector {
         return writers.get(getSegmentForEvent(routingKey));
     }
 
+    /**
+     * Selects which segment an event should be written to.
+     *
+     * @param segmentId The id of segment to which the event should go to.
+     *                  the method should be used only for fixed segment(s).
+     * @return The SegmentOutputStream for the segment that has been selected or null if
+     *         the id is out of range.
+     */
+    @Synchronized
+    public SegmentOutputStream getSegmentOutputStreamForId(int segmentId) {
+        if (currentSegments == null) {
+            return null;
+        }
+        Segment segment = getSegmentForId(segmentId);
+        return segment == null ? null : writers.get(segment);
+    }
+
     @Synchronized
     public Segment getSegmentForEvent(String routingKey) {
         if (currentSegments == null) {
@@ -79,6 +96,15 @@ public class SegmentSelector {
         }
         return currentSegments.getSegmentForKey(routingKey);
     }
+
+    @Synchronized
+    public Segment getSegmentForId(int segmentId) {
+        if (currentSegments == null) {
+            return null;
+        }
+        return currentSegments.getSegmentForId(segmentId);
+    }
+
 
     public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment>
             segmentSealedCallback) {

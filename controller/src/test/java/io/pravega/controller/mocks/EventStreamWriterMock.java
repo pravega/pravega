@@ -40,6 +40,12 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     }
 
     @Override
+    public CompletableFuture<Void> writeEventToSegment(int segmentId, T event) {
+        eventList.add(event);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public Transaction<T> beginTxn() {
         throw new NotImplementedException("beginTxn");
     }

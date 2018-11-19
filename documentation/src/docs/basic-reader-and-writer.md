@@ -211,6 +211,13 @@ EventStreamWriter can also be used to begin a Transaction.  We cover
 Transactions in more detail elsewhere ([Working with Pravega:
 Transactions](transactions.md)).
 
+With the need to write events in sequence into Pravega stream, there are two options:
+1. Create a stream with fixed one segment only, using ScalingPolicy.fixed(1); no writing parallelism for 
+this option as there is only one segment available. 
+2. Create a stream with fixed multiple segments using ScalingPolicy.fixed(n), then write event directly to 
+a segment using writer.writeEvent(segmentId, message). Note segmentId is between 0 to (n-1) inclusive.
+With this option, writing parallelism could be provided by the client side instead of Pravega. 
+
 That's it for writing Events.  Now lets take a look at how to read Events using
 Pravega.
 

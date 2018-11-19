@@ -1155,6 +1155,11 @@ public class StreamMetadataTasksTest {
         }
 
         @Override
+        public CompletableFuture<Void> writeEventToSegment(int segmentId, ControllerEvent event) {
+            return writeEvent(event);
+        }
+
+        @Override
         public Transaction<ControllerEvent> beginTxn() {
             return null;
         }

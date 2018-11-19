@@ -103,7 +103,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         Preconditions.checkNotNull(routingKey);
         return writeEventInternal(routingKey, event);
     }
-    
+
+    @Override
+    public CompletableFuture<Void> writeEventToSegment(int segmentId, Type event) {
+        return writeEventToSegmentInternal(segmentId, event);
+    }
+
     private CompletableFuture<Void> writeEventInternal(String routingKey, Type event) {
         Preconditions.checkNotNull(event);
         Exceptions.checkNotClosed(closed.get(), this);
@@ -118,6 +123,25 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
                 }
                 segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
+            }
+        }
+        return ackFuture;
+    }
+
+    private CompletableFuture<Void> writeEventToSegmentInternal(int segmentId, Type event) {
+        Preconditions.checkNotNull(event);
+        Exceptions.checkNotClosed(closed.get(), this);
+        ByteBuffer data = serializer.serialize(event);
+        CompletableFuture<Void> ackFuture = new CompletableFuture<>();
+        synchronized (writeFlushLock) {
+            synchronized (writeSealLock) {
+                SegmentOutputStream segmentWriter =
+                        selector.getSegmentOutputStreamForId(segmentId);
+                if (segmentWriter == null) {
+                    log.error("Don't have a writer for segment id: ", segmentId);
+                } else {
+                    segmentWriter.write(PendingEvent.withHeader(Integer.toString(segmentId), data, ackFuture));
+                }
             }
         }
         return ackFuture;

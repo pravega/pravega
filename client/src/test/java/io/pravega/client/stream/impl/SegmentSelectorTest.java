@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
@@ -95,6 +96,33 @@ public class SegmentSelectorTest {
             assertTrue(count > 1);
         }
     }
+
+    @Test
+    public void testSegmentIdAsRoutingKey() {
+        Controller controller = Mockito.mock(Controller.class);
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        TreeMap<Double, Segment> segments = new TreeMap<>();
+
+        segments.put(0.25, new Segment(scope, streamName, 0));
+        segments.put(0.5, new Segment(scope, streamName, 1));
+        segments.put(0.75, new Segment(scope, streamName, 2));
+        segments.put(1.0, new Segment(scope, streamName, 3));
+        StreamSegments streamSegments = new StreamSegments(segments, "");
+
+        when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
+        for (int i = 0; i < 4; i++) {
+            Segment segment = selector.getSegmentForId(i);
+            assertNotNull(segment);
+            assertEquals("scope/streamName/" + i + ".#epoch.0", segment.toString());
+        }
+        assertNull(selector.getSegmentForId(-1));
+        assertNull(selector.getSegmentForId(4));
+    }
+
+
 
     @Test
     public void testSameRoutingKey() {
