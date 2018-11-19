@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -130,4 +131,14 @@ public interface DirectSegmentAccess {
      * failed, the future will be failed with the causing exception.
      */
     CompletableFuture<Void> truncate(long offset, Duration timeout);
+
+    /**
+     * Gets an iterator for the Segment's Attributes in the given range (using natural ordering based on {@link UUID#compareTo}.
+     * @param fromId  A UUID representing the first Attribute Id to include.
+     * @param toId    A UUID representing the last Attribute Id to include.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will return an {@link AttributeIterator} that can be used to iterate
+     * through the Segment's Attributes.
+     */
+    CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout);
 }

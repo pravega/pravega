@@ -11,10 +11,12 @@ package io.pravega.segmentstore.server.attributes;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -27,6 +29,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -55,6 +58,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -347,6 +351,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                 null);
     }
 
+    @Override
+    public AttributeIterator iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
+        ensureInitialized();
+        val indexIterator = this.index
+                .iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout);
+        return new AttributeIteratorImpl(indexIterator);
+    }
+
     //endregion
 
     //region Helpers
@@ -409,13 +421,23 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     }
 
     private ByteArraySegment serializeKey(UUID key) {
+        // Keys are serialized using Unsigned Longs. This ensures that they will be stored in the Attribute Index in their
+        // natural order (i.e., the same as the one done by UUID.compare()).
         byte[] result = new byte[KEY_LENGTH];
-        BitConverter.writeLong(result, 0, key.getMostSignificantBits());
-        BitConverter.writeLong(result, Long.BYTES, key.getLeastSignificantBits());
+        BitConverter.writeUnsignedLong(result, 0, key.getMostSignificantBits());
+        BitConverter.writeUnsignedLong(result, Long.BYTES, key.getLeastSignificantBits());
         return new ByteArraySegment(result);
     }
 
+    private UUID deserializeKey(ByteArraySegment key) {
+        Preconditions.checkArgument(key.getLength() == KEY_LENGTH, "Unexpected key length.");
+        long msb = BitConverter.readUnsignedLong(key, 0);
+        long lsb = BitConverter.readUnsignedLong(key, Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
     private ByteArraySegment serializeValue(long value) {
+        // Values are not sorted, so we can use the simpler serialization.
         byte[] result = new byte[VALUE_LENGTH];
         BitConverter.writeLong(result, 0, value);
         return new ByteArraySegment(result);
@@ -617,6 +639,31 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
          */
         synchronized void setGeneration(int value) {
             this.generation = value;
+        }
+    }
+
+    //endregion
+
+    //region AttributeIteratorImpl
+
+    /**
+     * Converts a Page Entry Iterator into an Attribute Iterator.
+     */
+    @RequiredArgsConstructor
+    private class AttributeIteratorImpl implements AttributeIterator {
+        private final AsyncIterator<List<PageEntry>> pageEntryIterator;
+
+        @Override
+        public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
+            return this.pageEntryIterator.getNext().thenApply(pageEntries -> {
+                if (pageEntries == null) {
+                    return null;
+                }
+
+                return pageEntries.stream()
+                                  .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                                  .collect(Collectors.toList());
+            });
         }
     }
 
