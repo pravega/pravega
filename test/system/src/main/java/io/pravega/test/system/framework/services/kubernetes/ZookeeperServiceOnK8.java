@@ -121,8 +121,10 @@ public class ZookeeperServiceOnK8 implements Service {
     @Override
     public CompletableFuture<Void> scaleService(int instanceCount) {
         //Update the instance count.
-        return k8Client.waitUntilPodIsRunning(NAMESPACE, "name", OPERATOR_ID, instanceCount)
-                       .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
+        // request operator to deploy zookeeper nodes.
+        return k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL,
+                                             getZookeeperDeployment(getID(), instanceCount))
+                .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
     }
 
     private V1beta1ClusterRoleBinding getClusterRoleBinding() {

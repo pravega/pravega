@@ -507,10 +507,10 @@ public class K8Client implements AutoCloseable {
      * @param namespace Namespace
      * @param labelName Label name.
      * @param labelValue Value of the Label.
-     * @param atleastNumberOfPods Number of pods that need to be running.
+     * @param expectedPodCount Number of pods that need to be running.
      * @return A future which completes once the number of running pods matches the given criteria.
      */
-    public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int atleastNumberOfPods) {
+    public CompletableFuture<Void> waitUntilPodIsRunning(String namespace, String labelName, String labelValue, int expectedPodCount) {
 
         AtomicBoolean shouldRetry = new AtomicBoolean(true);
 
@@ -524,7 +524,7 @@ public class K8Client implements AutoCloseable {
                                                                                                             .allMatch(st -> st.getState().getRunning() != null))
                                                                               .count()),
                             runCount -> { // Number of pods which are running
-                                if (runCount >= atleastNumberOfPods) {
+                                if (runCount == expectedPodCount) {
                                     shouldRetry.set(false);
                                 }
                             }, executor);
