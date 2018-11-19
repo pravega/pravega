@@ -96,9 +96,6 @@ import static org.mockito.Mockito.*;
 public class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
-    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
-            ScalingPolicy.byEventRate(1, 2, 3)).build();
-
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private TaskMetadataStore taskMetadataStore;
@@ -154,6 +151,9 @@ public class ScaleRequestHandlerTest {
         // mock pravega
         // create a stream
         streamStore.createScope(scope).get();
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 3))
+                                                        .build();
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 

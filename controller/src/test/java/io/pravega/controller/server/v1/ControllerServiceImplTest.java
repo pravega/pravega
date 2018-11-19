@@ -35,7 +35,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.shared.NameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.Map;

@@ -78,9 +78,6 @@ import static org.mockito.Mockito.verify;
 
 public class RequestHandlersTest {
     private final String scope = "scope";
-    private final String stream = "stream";
-    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
-            ScalingPolicy.byEventRate(1, 2, 3)).build();
     private RequestTracker requestTracker = new RequestTracker(true);
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
