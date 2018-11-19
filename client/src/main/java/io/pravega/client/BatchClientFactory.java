@@ -12,7 +12,6 @@ package io.pravega.client;
 import com.google.common.annotations.Beta;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
@@ -36,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
 public interface BatchClientFactory {
 
     /**
-     * Get information about a given Stream, {@link StreamInfo}.
+     * Get information about a given Stream, {@link io.pravega.client.batch.StreamInfo}.
      * @deprecated
      *   Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
      *
@@ -44,7 +43,7 @@ public interface BatchClientFactory {
      * @return stream information.
      */
     @Deprecated
-    CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
+    CompletableFuture<io.pravega.client.batch.StreamInfo> getStreamInfo(Stream stream);
 
     /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
