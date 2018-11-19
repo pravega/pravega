@@ -200,7 +200,7 @@ public class AutoScaleTest extends AbstractScaleTests {
         ControllerImpl controller = getController();
         final AtomicBoolean exit = new AtomicBoolean(false);
         ClientFactory clientFactory = getClientFactory();
-        startWritingIntoTxn(clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
+        startWritingIntoTxn(clientFactory.createTransactionalEventWriter(SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
                 EventWriterConfig.builder().build()), exit);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.

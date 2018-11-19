@@ -92,6 +92,7 @@ public class EndToEndStatsTest {
     }
 
     @Test(timeout = 10000)
+    @SuppressWarnings("deprecation")
     public void testStatsCount() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))

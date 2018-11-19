@@ -16,7 +16,6 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -24,10 +23,12 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
@@ -101,7 +102,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                               .transactionTimeoutTime(30000)
                                                               .build();
-            EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(), writerConfig);
+            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(), writerConfig);
 
             // region Successful commit tests
             Transaction<String> txn1 = test.beginTxn();
@@ -170,7 +171,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         System.exit(0);
     }
 
-    private static void startWriter(EventStreamWriter<String> test, AtomicBoolean done) {
+    private static void startWriter(TransactionalEventStreamWriter<String> test, AtomicBoolean done) {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {

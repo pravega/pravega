@@ -90,6 +90,7 @@ public class StreamRecreationTest {
     }
 
     @Test(timeout = 40000)
+    @SuppressWarnings("deprecation")
     public void testStreamRecreation() throws Exception {
         final String myScope = "myScope";
         final String myStream = "myStream";

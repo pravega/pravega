@@ -9,13 +9,13 @@
  */
 package io.pravega.test.integration.demo;
 
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -82,9 +82,9 @@ public class EndToEndTransactionTest {
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);
 
         @Cleanup
-        EventStreamWriter<String> producer = clientFactory.createEventWriter(
+        TransactionalEventStreamWriter<String> producer = clientFactory.createTransactionalEventWriter(
                 testStream,
-                new JavaSerializer<>(),
+                new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(txnTimeout).build());
 
         // region Successful commit tests

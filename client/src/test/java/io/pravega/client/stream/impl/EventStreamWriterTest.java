@@ -362,6 +362,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTxn() throws TxnFailedException {
         String scope = "scope";
         String streamName = "stream";
@@ -396,6 +397,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTxnFailed() {
         String scope = "scope";
         String streamName = "stream";

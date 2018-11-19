@@ -60,6 +60,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
         String readerName = "reader";
@@ -128,6 +129,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -155,6 +157,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";
         String groupName = "group";

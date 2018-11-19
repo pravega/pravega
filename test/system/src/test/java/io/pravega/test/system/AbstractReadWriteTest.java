@@ -22,6 +22,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -205,7 +206,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }, executorService);
     }
 
-    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<String> writer, AtomicBoolean stopFlag) {
+    CompletableFuture<Void> startWritingIntoTxn(final TransactionalEventStreamWriter<String> writer, AtomicBoolean stopFlag) {
         return CompletableFuture.runAsync(() -> {
             while (!stopFlag.get()) {
                 Transaction<String> transaction = null;
@@ -450,6 +451,16 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     private <T> void closeWriter(EventStreamWriter<T> writer) {
+        try {
+            log.info("Closing writer");
+            writer.close();
+        } catch (Throwable e) {
+            log.error("Error while closing writer", e);
+            testState.getWriteException.compareAndSet(null, e);
+        }
+    }
+    
+    private <T> void closeWriter(TransactionalEventStreamWriter<T> writer) {
         try {
             log.info("Closing writer");
             writer.close();

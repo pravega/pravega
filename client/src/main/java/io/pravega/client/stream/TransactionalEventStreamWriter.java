@@ -36,4 +36,9 @@ public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
      */
     EventWriterConfig getConfig();
     
+    /**
+     * Closes the writer. (No further methods may be called)
+     */
+    @Override
+    void close();
 }
