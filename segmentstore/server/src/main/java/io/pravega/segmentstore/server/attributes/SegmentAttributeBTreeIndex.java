@@ -418,6 +418,13 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         return new ByteArraySegment(result);
     }
 
+    private UUID deserializeKey(ByteArraySegment key) {
+        Preconditions.checkArgument(key.getLength() == KEY_LENGTH, "Unexpected key length.");
+        long msb = BitConverter.readUnsignedLong(key, 0);
+        long lsb = BitConverter.readUnsignedLong(key, Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
     private ByteArraySegment serializeValue(Long value) {
         if (value == null || value == Attributes.NULL_ATTRIBUTE_VALUE) {
             // Deletion.

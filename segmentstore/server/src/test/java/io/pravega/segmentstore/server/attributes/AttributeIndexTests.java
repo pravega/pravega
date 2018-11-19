@@ -107,7 +107,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             expectedValues.put(attributeId, value);
         }
 
-        idx.put(expectedValues, TIMEOUT).join();
+        idx.update(expectedValues, TIMEOUT).join();
 
         // Check iterator.
         // Sort the keys using natural order (UUID comparator).
