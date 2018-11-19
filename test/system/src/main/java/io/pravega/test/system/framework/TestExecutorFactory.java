@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
-import io.pravega.test.system.framework.services.kubernetes.K8Sequential;
+import io.pravega.test.system.framework.services.kubernetes.K8SequentialExecutor;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
 
@@ -37,7 +37,7 @@ public class TestExecutorFactory {
             case REMOTE_SEQUENTIAL:
                 return getMarathonSequentialExecutor();
             case K8:
-                 return new K8Sequential();
+                 return new K8SequentialExecutor();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             case LOCAL:

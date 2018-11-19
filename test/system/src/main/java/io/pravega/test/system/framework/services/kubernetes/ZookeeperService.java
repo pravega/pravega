@@ -39,7 +39,6 @@ import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.kubernetes.K8Client;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.net.URI;
 import java.util.List;
@@ -53,7 +52,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
  * Manage Zookeeper service on k8 cluster.
  */
 @Slf4j
-public class ZookeeperServiceOnK8 implements Service {
+public class ZookeeperService implements Service {
 
     private static final String NAMESPACE = "default";
     private static final Integer MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
@@ -65,9 +64,10 @@ public class ZookeeperServiceOnK8 implements Service {
     private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int ZKPORT = 2181;
     private static final String TCP = "tcp://";
+    private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
     private final K8Client k8Client;
 
-    public ZookeeperServiceOnK8() {
+    public ZookeeperService() {
         k8Client = new K8Client();
     }
 
@@ -81,9 +81,12 @@ public class ZookeeperServiceOnK8 implements Service {
                                                // wait until zk operator is running, only one instance of operator is running.
                                                .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "name", OPERATOR_ID, 1))
                                                // request operator to deploy zookeeper nodes.
-                                               .thenCompose(v -> k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL, getZookeeperDeployment(getID(), 1))), t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
+                                               .thenCompose(v -> k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION,
+                                                                                                      NAMESPACE, CUSTOM_RESOURCE_PLURAL,
+                                                                                                      getZookeeperDeployment(getID(), DEFAULT_INSTANCE_COUNT))),
+                                       t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, 1),
+            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, DEFAULT_INSTANCE_COUNT),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper service", t));
         }
     }
@@ -91,7 +94,8 @@ public class ZookeeperServiceOnK8 implements Service {
 
     @Override
     public void stop() {
-        throw new NotImplementedException();
+        Futures.getAndHandleExceptions(k8Client.deleteCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL, getID()),
+                                       t -> new TestFrameworkException(RequestFailed, "Failed to stop zookeeper service", t));
     }
 
     @Override
@@ -105,8 +109,18 @@ public class ZookeeperServiceOnK8 implements Service {
 
     @Override
     public boolean isRunning() {
-        // return false since mutliple invocations of start does not have any side effects.
-        return false;
+
+        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
+                       .thenApply(statuses -> statuses.stream()
+                                                      .filter(podStatus -> podStatus.getContainerStatuses()
+                                                                                    .stream()
+                                                                                    .allMatch(st -> st.getState().getRunning() != null))
+                                                      .count())
+                       .thenApply(runCount -> runCount == DEFAULT_INSTANCE_COUNT)
+                       .exceptionally(t -> {
+                           log.warn("Exception observed while checking status of pod " + ID, t);
+                           return false;
+                       }).join();
     }
 
     @Override
@@ -123,8 +137,8 @@ public class ZookeeperServiceOnK8 implements Service {
         //Update the instance count.
         // request operator to deploy zookeeper nodes.
         return k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL,
-                                             getZookeeperDeployment(getID(), instanceCount))
-                .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
+                                                    getZookeeperDeployment(getID(), instanceCount))
+                       .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
     }
 
     private V1beta1ClusterRoleBinding getClusterRoleBinding() {

@@ -23,6 +23,7 @@ import io.kubernetes.client.apis.RbacAuthorizationV1beta1Api;
 import io.kubernetes.client.models.V1ContainerState;
 import io.kubernetes.client.models.V1ContainerStateTerminated;
 import io.kubernetes.client.models.V1ContainerStatus;
+import io.kubernetes.client.models.V1DeleteOptions;
 import io.kubernetes.client.models.V1Deployment;
 import io.kubernetes.client.models.V1Namespace;
 import io.kubernetes.client.models.V1ObjectMeta;
@@ -312,17 +313,15 @@ public class K8Client implements AutoCloseable {
      * @return
      */
     @SuppressWarnings("unchecked")
-    @SneakyThrows(ApiException.class)
     public CompletableFuture<Object> createAndUpdateCustomObject(String customResourceGroup, String version, String namespace,
                                                         String plural, Map<String, Object> request) {
         CustomObjectsApi api = new CustomObjectsApi();
 
         //Fetch the name of the custom object.
         String name = ((Map<String, String>) request.get("metadata")).get("name");
-        K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
-        api.getNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, callback);
+        CompletableFuture<Object> f = getCustomObject(customResourceGroup, version, namespace, plural, name);
 
-        return callback.getFuture().handle((o, t) -> {
+        return f.handle((o, t) -> {
             CompletableFuture<Object> future = null;
             if (t != null) {
                 log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it.", name, customResourceGroup, t);
@@ -349,6 +348,48 @@ public class K8Client implements AutoCloseable {
 
             return future;
         });
+    }
+
+    /**
+     * Fetch Custom Object for a given custom resource group.
+     * @param customResourceGroup Custom resource group.
+     * @param version Version.
+     * @param namespace Namespace.
+     * @param plural Plural of the CRD.
+     * @param name Name of the object.
+     * @return A future which returns the details of the object. The future completes exceptionally if the object is not present.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<Object> getCustomObject(String customResourceGroup, String version, String namespace,
+                                                     String plural, String name) {
+        CustomObjectsApi api = new CustomObjectsApi();
+        K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
+        api.getNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, callback);
+        return callback.getFuture();
+    }
+
+
+    /**
+     * Delete Custom Object for a given resource group.
+     * @param customResourceGroup Custom resource group.
+     * @param version Version.
+     * @param namespace Namespace.
+     * @param plural Plural of the CRD.
+     * @param name Name of the object.
+     * @return Future which completes once the delete request is accepted.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<Object> deleteCustomObject(String customResourceGroup, String version, String namespace,
+                                                      String plural, String name) {
+
+        CustomObjectsApi api = new CustomObjectsApi();
+        V1DeleteOptions options = new V1DeleteOptions();
+        options.setOrphanDependents(false);
+        K8AsyncCallback<Object> callback = new K8AsyncCallback<>("getCustomObject");
+        api.deleteNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, options,
+                                              0, false, null, callback);
+
+        return callback.getFuture();
     }
 
     /**
@@ -524,6 +565,7 @@ public class K8Client implements AutoCloseable {
                                                                                                             .allMatch(st -> st.getState().getRunning() != null))
                                                                               .count()),
                             runCount -> { // Number of pods which are running
+                                log.debug("Expected pod count : {}, actual pod count :{}.", expectedPodCount, runCount);
                                 if (runCount == expectedPodCount) {
                                     shouldRetry.set(false);
                                 }

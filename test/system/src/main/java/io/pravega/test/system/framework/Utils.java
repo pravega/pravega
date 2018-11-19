@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
-import io.pravega.test.system.framework.services.kubernetes.ZookeeperServiceOnK8;
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -19,7 +19,6 @@ import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -55,10 +54,10 @@ public class Utils {
             case DOCKER:
                 return new ZookeeperDockerService("zookeeper");
             case K8:
-                return new ZookeeperServiceOnK8();
+                return new ZookeeperService();
             case REMOTE_SEQUENTIAL:
             default:
-                return new ZookeeperService("zookeeper");
+                return new io.pravega.test.system.framework.services.marathon.ZookeeperService("zookeeper");
         }
     }
 

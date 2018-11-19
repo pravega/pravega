@@ -24,7 +24,7 @@ import java.util.concurrent.CompletionException;
 import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 
 @Slf4j
-public class K8Sequential implements TestExecutor {
+public class K8SequentialExecutor implements TestExecutor {
 
     private static final String NAMESPACE = "default"; // K8 namespace where the tests run.
 
