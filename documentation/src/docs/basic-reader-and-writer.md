@@ -9,8 +9,8 @@ You may obtain a copy of the License at
 -->
 # Working with Pravega: Basic Reader and Writer
 
-Lets examine how to build simple Pravega applications. The simplest kind of Pravega application uses a Pravega Reader to read from a Pravega Stream or a
-Pravega Writer that writes to a Pravega Stream. A simple sample application example of both can be
+Lets examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
+Writer that writes to a Stream. A simple sample application of both can be
 found in the [Pravega Samples](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These sample applications
 provide a very basic example of how a Java application could use the Pravega's
 Java Client Library to access Pravega functionality.
@@ -52,7 +52,7 @@ public void run(String routingKey, String message) {
 
 ## Creating a Stream and the StreamManager Interface
 
-[Scopes](pravega-concepts.md#streams) and Streams are created and manipulated via the `StreamManager` interface
+[Scopes and Streams](pravega-concepts.md#streams) are created and manipulated via the `StreamManager` interface
 to the Pravega Controller. An URI to any of the Pravega Controller instance(s) in your cluster is required to create a `StreamManager` object. In the setup for the `HelloWorld` sample applications, the `controllerURI` is
 configured as a command line parameter when the sample application is launched.
 
@@ -66,27 +66,27 @@ related to Scopes and Streams:
 
 | **Method**      | **Parameters**                                                    | **Discussion**                                                                                                 |
 |-----------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
-| (static) `create` | (URI controller)                                                  | Given a URI to one of the Pravega Controller instances in the Pravega Cluster, create a Stream Manager object. |
-| `createScope`     | (String scopeName)                                                | Creates a Scope with the given name.                                                                           |
+| (static) `create` | (`URI controller`)                                                  | Given a URI to one of the Pravega Controller instances in the Pravega Cluster, create a Stream Manager object. |
+| `createScope`     | (String `scopeName`)                                                | Creates a Scope with the given name.                                                                           |
 |                 |                                                                   | Returns _True_ if the Scope is created, returns _False_ if the Scope already exists.                                                                                                               |
 |                 |                                                                   | This method can be called even if the Stream is already existing.                                                                                                              |
-| `deleteScope`     | (String scopeName)                                                | Deletes a Scope with the given name.                                                                           |
+| `deleteScope`     | (String `scopeName`)                                                | Deletes a Scope with the given name.                                                                           |
 |                 |                                                                   | Returns _True_ if the scope was deleted, returns _False_ otherwise.                                                                                                               |
 |                 |                                                                   | If the Scope contains Streams, the `deleteScope` operation will fail with an exception.                                                                                                               |
 |                 |                                                                   | If we delete a nonexistent Scope, the method will succeed and return _False_.                                                                                                               |
-| `createStream`    | (String scopeName, String streamName, StreamConfiguration config) | Create a Stream within a given Scope.                                                                          |
+| `createStream`    | (String `scopeName`, String `streamName`, `StreamConfiguration config`) | Create a Stream within a given Scope.                                                                          |
 |                 |                                                                   | Both Scope name and Stream name are limited using the following characters: ( Letters (a-z A-Z), numbers (0-9) and delimiters: "." and "-") are allowed.                                                                                                               |
 |                 |                                                                   | The Scope must exist, an exception is thrown if we create a Stream in a nonexistent Scope.                                                                                                               |
 |                 |                                                                   | A Stream Configuration is built using a builder pattern.                                                                                                               |
 |                 |                                                                   | Returns _True_ if the Stream is created, returns _False_ if the Stream already exists.                                                                                                               |
 |                 |                                                                   | This method can be called even if the Stream is already existing.                                                                                                               |
-| `updateStream`    | (String scopeName, String streamName, StreamConfiguration config) | Swap out the Stream's configuration.                                                                           |
+| `updateStream`    | (String `scopeName`, String `streamName`, `StreamConfiguration config`) | Swap out the Stream's configuration.                                                                           |
 |                 |                                                                   |  The Stream must already exist, an exception is thrown if we update a nonexistent Stream.                                                                                                              |
 |                 |                                                                   | Returns _True_ if the Stream was changed.                                                                                                               |
-| `sealStream`      | (String scopeName, String streamName)                             | Prevent any further writes to a Stream.                                                                        |
+| `sealStream`      | (String `scopeName`, String `streamName`)                             | Prevent any further writes to a Stream.                                                                        |
 |                 |                                                                   | The Stream must already exist, an exception is thrown if you seal a nonexistent Stream.                                                                                                                |
 |                 |                                                                   | Returns _True_ if the Stream is successfully sealed.                                                                                                               |
-| `deleteStream`    | (String scopeName, String streamName)                             | Remove the Stream from Pravega and recover any resources used by that Stream.                                  |
+| `deleteStream`    | (String `scopeName`, String `streamName`)                             | Remove the Stream from Pravega and recover any resources used by that Stream.                                  |
 |                 |                                                                   | The Stream must already exist, an exception is thrown if we delete a nonexistent Stream.                                                                                                              |
 |                 |                                                                   | Returns _True_ if the Stream was deleted.                                                                                                               |
 
@@ -116,7 +116,7 @@ The minimum number of Segments is a factor that sets the minimum degree of read 
 created; at some point in the future, update stream will allow this factor to be
 used to change the minimum degree of read parallelism on an existing Stream.
 
-Once the Stream Configuration (`streamConfig`) object is created, creating the Stream is straight
+Once the Stream Configuration (`streamConfig`) object is built, creating the Stream is straight
 forward using `createStream()`. After the Stream is created, we are all set to start writing
 Event(s) to the Stream.
 
@@ -134,24 +134,23 @@ also needs a URI to one of the Pravega Controllers (`ClientFactory.withScope(sco
 
 As the `ClientFactory` and the objects it creates consumes resources from
 Pravega, it is a good practice to create these objects using a try-with-resources
-statement. Since the `ClientFactory` and the objects it creates, implements
-`Autocloseable` feature, the try-with-resources approach makes sure that, regardless of how
+statement. Given that `ClientFactory` and the objects it creates all implement `Autocloseable` feature, the try-with-resources approach makes sure that, regardless of how
 the application ends, the Pravega resources will be properly closed in the
 right order.
 
-Once the `ClientFactory` is made ready, we can use it to create a Writer. There are
+Once the `ClientFactory` is instantiated, we can use it to create a Writer. There are
 several things a developer needs to know before creating a Writer:
 
-1.  What is the name of the Stream to write to?
-    (**Note:** The Scope has already
+1.  _What is the name of the Stream to write to?_
+    (The Scope has already
     been determined when the `ClientFactory` was created.)
 
-2.  What Type of Event objects will be written to the Stream?
+2.  _What Type of Event objects will be written to the Stream?_
 
-3.  What serializer will be used to convert an Event object to bytes? (Recall
+3.  _What serializer will be used to convert an Event object to bytes?_ (Recall
     that Pravega only knows about sequences of bytes, it is unaware about Java objects.)
 
-4.  Does the Writer need to be configured with any special behavior?
+4.  _Does the Writer need to be configured with any special behavior?_
 
 
 ```Java
@@ -160,26 +159,25 @@ several things a developer needs to know before creating a Writer:
                                                EventWriterConfig.builder().build()))
 ```
 The `EventStreamWriter` writes to the
-Stream specified in the configuration of the `HelloWorldWriter` object itself (by
+Stream specified in the configuration of the `HelloWorldWriter` sample application (by
 default the stream is named "helloStream" in the "examples" Scope). The Writer
 processes Java String objects as Events and uses the built in Java serializer
 for Strings.  
 
 The `EventWriterConfig` allows the developer to specify things like the number of
-attempts to retry a request before giving up and associated exponential back
-settings. Pravega takes care to retry requests in the case where connection
+attempts to retry a request before giving up and associated exponential back-off
+settings. Pravega takes care to retry requests in the presence of connection
 failures or Pravega component outages, which may temporarily prevent a request from
 succeeding, so application logic doesn't need to be complicated with dealing
-with intermittent cluster failures. In Pravega the default settings
-for `EventWriterConfig` was considered.
+with intermittent cluster failures. In the sample application, `EventWriterConfig` was considered as the default settings.
 
 `EventStreamWriter` provides a `writeEvent()` operation that writes the given non-null Event object to
-the Stream using a given `Routing key` to determine which Stream Segment it should
-appear on.  Many operations in Pravega, such as `writeEvent()`, are asynchronous
+the Stream using a given Routing key to determine which Stream Segment it should
+written to.  Many operations in Pravega, such as `writeEvent()`, are asynchronous
 and return some sort of `Future` object. If the application needed to make sure
 the Event was durably written to Pravega and available for Readers, it could
 wait on the `Future` before proceeding. In the case of Pravega's `HelloWorld`
-example, it does wait on the `Future`, the user application can choose to wait on it.
+example, it does wait on the `Future`.
 
 `EventStreamWriter` can also be used to begin a Transaction.  We cover
 Transactions in more detail in [Working with Pravega:
@@ -241,20 +239,17 @@ the `EventStreamReader` and using it to read Events from the Stream (`createRead
 
 ## ReaderGroup Basics
 
-Any Reader in Pravega belongs to some Reader Group.  A Reader Group is a grouping
+Any Reader in Pravega belongs to some `ReaderGroup`.  A `ReaderGroup` is a grouping
 of one or more Readers that consume from a Stream in parallel. Before we create
-a Reader, we need to either create a Reader Group (or be aware of the name of an
-existing Reader Group). This application only uses the basics from Reader Group.
+a Reader, we need to either create a `ReaderGroup` (or be aware of the name of an
+existing `ReaderGroup`). This application only uses the basics from Reader Group.
 
-Reader Group objects are created from a `ReaderGroupManager` object. The `ReaderGroupManager` object, in turn, is created on a given Scope with a URI to one of the Pravega Controllers, very much
-like a `ClientFactory` is created. Note that, the `createReaderGroup()` is also in a try-with-resources statement to make sure that the `ReaderGroupManager` is properly cleaned up. The `ReaderGroupManager` allows a developer to create, delete and retrieve Reader Group objects using the name.
+`ReaderGroup` objects are created from a `ReaderGroupManager` object. The `ReaderGroupManager` object, in turn, is created on a given Scope with a URI to one of the Pravega Controllers, very much
+like a `ClientFactory` is created. Note that, the `createReaderGroup()` is also in a try-with-resources statement to make sure that the `ReaderGroupManager` is properly cleaned up. The `ReaderGroupManager` allows a developer to create, delete and retrieve `ReaderGroup` objects using the name.
 
-To create a Reader Group, the developer needs a name for the Reader Group, a
-configuration with a set of one or more Streams to read from. The Reader Group's name might be meaningful to the application, like
-"WebClickStreamReaders".  In our example ```UUID.randomUUID().toString().replace("-", "")``` we have a simple UUID as the
-name (*note the modification of the UUID string to remove the "-" character
-because Reader Group names can only have letters and numbers*). In cases where
-we require multiple Readers reading in parallel and each Reader in a separate
+To create a `ReaderGroup`, the developer needs a name for the Reader Group, a
+configuration with a set of one or more Streams to read from. The Reader Group's name (alphanumeric) might be meaningful to the application, like
+"WebClickStreamReaders".  In cases where we require multiple Readers reading in parallel and each Reader in a separate
 process, it is helpful to have a human readable name for the Reader Group. In this example, we have one Reader, reading in isolation, so a UUID is a safe way to
 name the Reader Group. The Reader Group is created via the
 `ReaderGroupManager` and since the `ReaderGroupManager` is created within the
