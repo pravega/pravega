@@ -85,6 +85,62 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to iterate through a certain range of attributes in the Index.
+     */
+    @Test
+    public void testIterator() {
+        final int count = 2000;
+        final int checkSkipCount = 10;
+        val attributes = IntStream.range(-count / 2, count / 2).mapToObj(i -> new UUID(i, -i)).collect(Collectors.toList());
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        populateSegments(context);
+
+        // 1. Populate and verify first index.
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val expectedValues = new HashMap<UUID, Long>();
+
+        // Populate data.
+        AtomicLong nextValue = new AtomicLong(0);
+        for (UUID attributeId : attributes) {
+            long value = nextValue.getAndIncrement();
+            expectedValues.put(attributeId, value);
+        }
+
+        idx.put(expectedValues, TIMEOUT).join();
+
+        // Check iterator.
+        // Sort the keys using natural order (UUID comparator).
+        val sortedKeys = expectedValues.keySet().stream().sorted().collect(Collectors.toList());
+
+        // Add some values outside of the bounds.
+        sortedKeys.add(0, new UUID(Long.MIN_VALUE, Long.MIN_VALUE));
+        sortedKeys.add(new UUID(Long.MAX_VALUE, Long.MAX_VALUE));
+
+        // Check various combinations.
+        for (int startIndex = 0; startIndex < sortedKeys.size() / 2; startIndex += checkSkipCount) {
+            int lastIndex = sortedKeys.size() - startIndex - 1;
+            val fromId = sortedKeys.get(startIndex);
+            val toId = sortedKeys.get(lastIndex);
+
+            // The expected keys are all the Keys from the start index to the end index, excluding the outside-the-bounds values.
+            val expectedIterator = sortedKeys.subList(Math.max(1, startIndex), Math.min(sortedKeys.size() - 1, lastIndex + 1)).iterator();
+            val iterator = idx.iterator(fromId, toId, TIMEOUT);
+            iterator.forEachRemaining(batch -> batch.forEach(attribute -> {
+                Assert.assertTrue("Not expecting any more attributes in the iteration.", expectedIterator.hasNext());
+                val expectedId = expectedIterator.next();
+                val expectedValue = expectedValues.get(expectedId);
+                Assert.assertEquals("Unexpected Id.", expectedId, attribute.getKey());
+                Assert.assertEquals("Unexpected value for " + expectedId, expectedValue, attribute.getValue());
+
+            }), executorService()).join();
+
+            // Verify there are no more attributes that we are expecting.
+            Assert.assertFalse("Not all expected attributes were returned.", expectedIterator.hasNext());
+        }
+    }
+
+    /**
      * Tests the ability to Seal an Attribute Segment (create a final snapshot and disallow new changes).
      */
     @Test

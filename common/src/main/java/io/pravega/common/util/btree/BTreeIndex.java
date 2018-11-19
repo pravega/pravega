@@ -293,8 +293,8 @@ public class BTreeIndex {
     }
 
     /**
-     * Returns an AsyncIterator that will iterate through all the keys within the specified bounds. All iterated keys will
-     * be returned in order (smallest to largest).
+     * Returns an {@link AsyncIterator} that will iterate through all the keys within the specified bounds. All iterated keys will
+     * be returned in lexicographic order (smallest to largest). See {@link ByteArrayComparator} for ordering details.
      *
      * @param firstKey          A ByteArraySegment representing the lower bound of the iteration.
      * @param firstKeyInclusive If true, firstKey will be included in the iteration (if it exists in the index), otherwise
@@ -716,7 +716,10 @@ public class BTreeIndex {
 
     private ByteArraySegment generateMinKey() {
         byte[] result = new byte[this.indexPageConfig.getKeyLength()];
-        Arrays.fill(result, Byte.MIN_VALUE);
+        if (ByteArrayComparator.MIN_VALUE != 0) {
+            Arrays.fill(result, ByteArrayComparator.MIN_VALUE);
+        }
+
         return new ByteArraySegment(result);
     }
 
