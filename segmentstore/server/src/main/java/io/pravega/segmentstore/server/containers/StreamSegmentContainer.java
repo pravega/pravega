@@ -719,7 +719,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.attributeIndex.forSegment(segmentId, timeout)
                 .thenApplyAsync(index -> {
                     AttributeIterator indexIterator = index.iterator(fromId, toId, timeout);
-                    return new AttributeMixer(indexIterator, this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
+                    return new SegmentAttributeIterator(indexIterator, this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
                 }, this.executor);
     }
 

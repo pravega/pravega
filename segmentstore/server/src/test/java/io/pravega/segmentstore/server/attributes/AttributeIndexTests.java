@@ -41,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -212,6 +213,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Check index after deleting.
         checkIndex(idx, Collections.emptyMap());
+
+        // ... and after cleaning up the cache.
+        idx.removeAllCacheEntries();
+        checkIndex(idx, Collections.emptyMap());
     }
 
     /**
@@ -344,6 +349,62 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected value after reconciliation.", lastWrittenValue.get(), (long) value1);
         Assert.assertEquals("Unexpected value for second attribute after reconciliation.", 0L, (long) value2);
         Assert.assertTrue("No interception was done.", intercepted.get());
+    }
+
+    /**
+     * Tests reading from the Attribute Segment while a truncation was in progress. Scenario:
+     * 1. We have a concurrent get() and put()/delete(), where get() starts executing first.
+     * 2. get() manages to fetch the location of the root page, but doesn't read it yet.
+     * 3. The put() causes the previous root page to become obsolete and truncates the segment after it.
+     * 4. The code should be able to handle and recover from this.
+     */
+    @Test
+    public void testTruncatedSegment() throws Exception {
+        val attributeId = UUID.randomUUID();
+        val lastWrittenValue = new AtomicLong(0);
+        val config = AttributeIndexConfig.builder()
+                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10) // Very, very frequent rollovers.
+                .build();
+        @Cleanup
+        val context = new TestContext(config);
+        populateSegments(context);
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+
+        // Write one value.
+        idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
+
+        // Clear the cache so we are guaranteed to attempt to read from Storage.
+        idx.removeAllCacheEntries();
+
+        // Initiate a get(), but block it right after the first read.
+        val intercepted = new AtomicBoolean(false);
+        val blockRead = new CompletableFuture<Void>();
+        val waitForInterception = new CompletableFuture<Void>();
+        context.storage.readInterceptor = (name, offset, storage) -> {
+            if (intercepted.compareAndSet(false, true)) {
+                // This should attempt to read the Root Page; return the future to wait on and clear the interceptor.
+                context.storage.readInterceptor = null;
+                waitForInterception.complete(null);
+                return blockRead;
+            } else {
+                Assert.fail("Not expecting to get here.");
+                return null;
+            }
+        };
+        val get = idx.get(Collections.singleton(attributeId), TIMEOUT);
+        waitForInterception.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // Make sure we got the the part where we read the root.
+
+        // Initiate (and complete) a put(), this should truncate the segment beyond the first root, causing the get to fail.
+        idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
+
+        // Release the read.
+        Assert.assertFalse("Not expecting the read to be done yet.", get.isDone());
+        blockRead.complete(null);
+
+        // Finally, verify we can read the data we want to.
+        long value = get.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).get(attributeId);
+        Assert.assertEquals("Unexpected value read.", lastWrittenValue.get(), value);
+        Assert.assertTrue("No interception done.", intercepted.get());
     }
 
     /**

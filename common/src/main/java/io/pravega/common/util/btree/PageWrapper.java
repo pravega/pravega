@@ -31,6 +31,7 @@ class PageWrapper {
     @Getter
     private final boolean newPage;
     private final AtomicLong offset;
+    private final AtomicLong minOffset;
     private final AtomicBoolean needsFirstKeyUpdate;
 
     //endregion
@@ -43,6 +44,7 @@ class PageWrapper {
         this.pointer = pointer;
         this.newPage = newPage;
         this.offset = new AtomicLong(this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getOffset());
+        this.minOffset = new AtomicLong(this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getMinOffset());
         this.needsFirstKeyUpdate = new AtomicBoolean(false);
     }
 
@@ -79,6 +81,13 @@ class PageWrapper {
      */
     BTreePage getPage() {
         return this.page.get();
+    }
+
+    /**
+     * Gets a value indicating whether the wrapped BTreePage is new or has been modified since it was loaded.
+     */
+    boolean isModified() {
+        return isNewPage() || getOffset() != (this.pointer == null ? PagePointer.NO_OFFSET : this.pointer.getOffset());
     }
 
     /**
@@ -133,6 +142,23 @@ class PageWrapper {
         }
 
         this.offset.set(value);
+    }
+
+    /**
+     * Gets a value indicating the Minimum Page Offset for this Page (which is the smallest Offset of this page and any
+     * pages descending from it).
+     */
+    long getMinOffset() {
+        return this.minOffset.get();
+    }
+
+    /**
+     * Updates the Minimum Page Offset for this Page.
+     *
+     * @param value The offset to set.
+     */
+    void setMinOffset(long value) {
+        this.minOffset.set(value);
     }
 
     /**
