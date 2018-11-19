@@ -269,12 +269,11 @@ that will be available through the `ReaderGroupConfig`.
 
 The Reader Group can be configured to read from multiple Streams. For example, imagine a situation where there is a collection of Stream of sensor data coming from a factory floor, each machine has its own Stream of sensor data.  We can build applications that uses a Reader Group per Stream so that the
 application reasons about data from exactly one machine. We can build other applications that
-use a Reader Group configured to read from all of the Streams. In the sample application, the Reader Group only reads from one Stream.
+use a Reader Group configured to read from all of the Streams. To keep it simple, in the sample application the Reader Group only reads from one Stream.
 
-We can call `createReaderGroup()` with the same parameters multiple times and the same Reader Group will be returned each time after it is initially created.
+We can call `createReaderGroup()` with the same parameters multiple times and the same Reader Group will be returned each time after it is initially created. Note that in other cases, if the developer knows the name of the Reader Group to use and knows it has already been created, they can use `getReaderGroup()` on `ReaderGroupManager` to retrieve the `ReaderGroup` object by name.
 
-In cases when the developer knows the name of the required existing Reader Group, they can use `getReaderGroup()` on
-`ReaderGroupManager` to retrieve the Reader Group object by name. Once, the Scope and Stream is set up, then the Reader Group can be created using the API `createReaderGroup()` and we can create a Reader and start reading Events.
+At this point, we have the Scope and Stream is set up and the `ReaderGroup` object created. Next, we need to create a Reader and start reading Events.
 
 ## Reading Event using an EventStreamReader
 
@@ -300,21 +299,20 @@ convert the bytes read from the stream into String objects. Finally, the
 associated with a Reader, so the empty `ReaderConfig` is just a place holder as
 Pravega evolves to include configuration items on Readers.
 
-Note that you cannot create the same Reader multiple times. Basically overtime
-you can call `createReader()` and it tries to add the Reader to the Reader Group. If the
-Reader Group already contains a Reader with that name, an exception is thrown.
+Note that you cannot create the same Reader multiple times. That is, an application may call `createReader()` to add new Readers to the Reader Group. But if the Reader Group already contains a Reader with that name, an exception is thrown.
 
 After creating an `EventStreamReader`, we can use it to read
 Events from the stream. The `readNextEvent()` operation returns the next Event available on the Stream, or if there is no such Event, blocks for a specified time. After the expiry of the timeout period, if no Event is available for reading, then _Null_ is returned. The null check (`EventRead<String> event = null`) is used to avoid printing out a spurious _Null_ event message to the console and also used to terminate the loop. Note that the Event itself is wrapped in an `EventRead` object.
 
-It is worth noting that `readNextEvent()` may throw an exception and this exception would be handled in cases where the Readers in the Reader Group need to reset to a checkpoint or the Reader Group itself has been altered and the set of Streams being read has been therefore changed.
+It is worth noting that `readNextEvent()` may throw an exception and this exception would be handled in cases where the Readers in the Reader Group need to reset to a Checkpoint or the Reader Group itself has been altered and the set of Streams being read has been therefore changed.
 
 Thus, the simple `HelloWorldReader` loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
 
 # Experimental Batch Reader
 
-`BatchClient` is used for applications that requires batch reads of historical stream data. Using the Batch Reader all the segments in a Stream can be listed and read from. Hence, the Events for a given Routing Key which can reside on multiple segments are not read in order.
+`BatchClient` is used for applications that require parallel, unordered reads of historical stream data.
+Using the Batch Reader all the segments in a Stream can be listed and read from. Hence, the Events for a given Routing Key which can reside on multiple segments are not read in order.
 
 Obviously this API is not for every application, the main advantage is that it allows for low level integration with batch processing frameworks such as `MapReduce`.
 
