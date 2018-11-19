@@ -1359,7 +1359,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.dataSource.clearAppendData();
 
         // Call flush() and verify it throws DataCorruptionException.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "flush() did not throw when unable to read data from ReadIndex.",
                 () -> context.segmentAggregator.flush(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
@@ -1586,7 +1586,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.delete(context.storage.openWrite(transactionAggregator.getMetadata().getName()).join(), TIMEOUT).join();
 
         // Verify the first invocation to flush() fails.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected Segment to not exist.",
                 () -> transactionAggregator.flush(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);

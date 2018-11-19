@@ -168,7 +168,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     private void assertUnsupported(String name, Supplier<CompletableFuture<?>> toTest) {
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 name + "did not throw expected exception.",
                 toTest::get,
                 ex -> ex instanceof UnsupportedOperationException);

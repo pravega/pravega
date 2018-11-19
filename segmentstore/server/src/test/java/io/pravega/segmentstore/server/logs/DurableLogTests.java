@@ -594,7 +594,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertFalse("read() returned a completed future when there is no data available.", Futures.isSuccessful(readFuture));
 
         CompletableFuture<Void> controlFuture = Futures.delayedFuture(Duration.ofMillis(2000), setup.executorService);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Future from read() operation did not fail with a TimeoutException after the timeout expired.",
                 () -> CompletableFuture.anyOf(controlFuture, readFuture),
                 ex -> ex instanceof TimeoutException);

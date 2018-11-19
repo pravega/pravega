@@ -280,7 +280,7 @@ public abstract class DurableDataLogTestBase extends ThreadPooledTestSuite {
                 AssertExtensions.assertGreaterThan("Unexpected value from getEpoch() on empty log initialization.", initialEpoch, secondEpoch);
 
                 // Verify we cannot write to the first log.
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "The first log was not fenced out.",
                         () -> log1.append(new ByteArraySegment(new byte[1]), TIMEOUT),
                         ex -> ex instanceof DataLogWriterNotPrimaryException);
