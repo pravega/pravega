@@ -26,8 +26,18 @@ k8() {
 }
 
 init_kubernetes() {
-    local ns=$(cat /etc/podinfo/namespace)
-    local podname=$(cat /etc/podinfo/podname)
+    if [ -z "${POD_NAMESPACE}" ]; then
+      echo "POD_NAMESPACE variable not set. Exiting..."
+      exit 1
+    fi
+
+    if [ -z "${POD_NAME}" ]; then
+      echo "POD_NAME variable not set. Exiting..."
+      exit 1
+    fi
+
+    local ns=${POD_NAMESPACE}
+    local podname=${POD_NAME}
 
     if [ -d "/var/run/secrets/kubernetes.io" ] && [ ! -z "${K8_EXTERNAL_ACCESS}" ]; then
         echo "Running in a Kubernetes environment and managed by the Pravega Operator with external access enabled"
@@ -44,7 +54,6 @@ init_kubernetes() {
                 export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[].ip" )
                 export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             done
-            echo "Found external service endpoint: ${PUBLISHED_ADDRESS}:${PUBLISHED_PORT}"
         elif [ "${service_type}" == "NodePort" ]; then
             nodename=$( k8 "${ns}" "pods" "${podname}" ".spec.nodeName" )
             export PUBLISHED_ADDRESS=$( k8 "" "nodes" "${nodename}" ".status.addresses[] | select(.type == \"ExternalIP\") | .address" )
@@ -62,5 +71,6 @@ init_kubernetes() {
             echo "Unexpected service type ${service_type}. Exiting..."
             exit 1
         fi
+        echo "Found external service endpoint: ${PUBLISHED_ADDRESS}:${PUBLISHED_PORT}"
     fi
 }
