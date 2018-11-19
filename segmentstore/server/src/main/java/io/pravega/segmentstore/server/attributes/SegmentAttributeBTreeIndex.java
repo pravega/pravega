@@ -11,10 +11,12 @@ package io.pravega.segmentstore.server.attributes;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
@@ -25,7 +27,9 @@ import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -54,6 +58,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -69,9 +74,19 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      * For Attribute Segment Appends, we want to write conditionally based on the offset, and retry the operation if
      * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to put().
      */
-    private static final Retry.RetryAndThrowBase<Exception> INDEX_RETRY = Retry
+    private static final Retry.RetryAndThrowBase<Exception> UPDATE_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
             .retryingOn(BadOffsetException.class)
+            .throwingOn(Exception.class);
+
+    /**
+     * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
+     * if we stumble upon a segment truncation.
+     */
+    private static final Retry.RetryAndThrowBase<Exception> READ_RETRY = Retry
+            .withExpBackoff(10, 2, 10, 1000)
+            .retryingOn(StreamSegmentTruncatedException.class)
             .throwingOn(Exception.class);
 
     private static final int KEY_LENGTH = 2 * Long.BYTES; // UUID
@@ -291,8 +306,9 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             serializedKeys.add(serializeKey(key));
         }
 
-        return this.index
-                .get(serializedKeys, timeout)
+        // Fetch the raw data from the index, but retry (as needed) if we run across a truncated part of the attribute
+        // segment file (see READ_RETRY Javadoc).
+        return READ_RETRY.runAsync(() -> this.index.get(serializedKeys, timeout), this.executor)
                 .thenApply(entries -> {
                     assert entries.size() == keys.size() : "Unexpected number of entries returned by the index search.";
 
@@ -310,6 +326,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     return result;
                 })
                 .exceptionally(this::handleIndexOperationException);
+
     }
 
     @Override
@@ -332,6 +349,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                             .thenRun(() -> log.info("{}: Sealed.", this.traceObjectId)),
                 ex -> ex instanceof StreamSegmentSealedException,
                 null);
+    }
+
+    @Override
+    public AttributeIterator iterator(UUID fromId, UUID toId, Duration fetchTimeout) {
+        ensureInitialized();
+        val indexIterator = this.index
+                .iterator(serializeKey(fromId), true, serializeKey(toId), true, fetchTimeout);
+        return new AttributeIteratorImpl(indexIterator);
     }
 
     //endregion
@@ -357,7 +382,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      */
     private CompletableFuture<Void> executeConditionally(Function<Duration, CompletableFuture<Long>> indexOperation, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return INDEX_RETRY
+        return UPDATE_RETRY
                 .runAsync(() -> executeConditionallyOnce(indexOperation, timer), this.executor)
                 .exceptionally(this::handleIndexOperationException)
                 .thenAccept(Callbacks::doNothing);
@@ -396,13 +421,23 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     }
 
     private ByteArraySegment serializeKey(UUID key) {
+        // Keys are serialized using Unsigned Longs. This ensures that they will be stored in the Attribute Index in their
+        // natural order (i.e., the same as the one done by UUID.compare()).
         byte[] result = new byte[KEY_LENGTH];
-        BitConverter.writeLong(result, 0, key.getMostSignificantBits());
-        BitConverter.writeLong(result, Long.BYTES, key.getLeastSignificantBits());
+        BitConverter.writeUnsignedLong(result, 0, key.getMostSignificantBits());
+        BitConverter.writeUnsignedLong(result, Long.BYTES, key.getLeastSignificantBits());
         return new ByteArraySegment(result);
     }
 
+    private UUID deserializeKey(ByteArraySegment key) {
+        Preconditions.checkArgument(key.getLength() == KEY_LENGTH, "Unexpected key length.");
+        long msb = BitConverter.readUnsignedLong(key, 0);
+        long lsb = BitConverter.readUnsignedLong(key, Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
     private ByteArraySegment serializeValue(long value) {
+        // Values are not sorted, so we can use the simpler serialization.
         byte[] result = new byte[VALUE_LENGTH];
         BitConverter.writeLong(result, 0, value);
         return new ByteArraySegment(result);
@@ -435,7 +470,8 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                            }, this.executor);
     }
 
-    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets, Duration timeout) {
+    private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
+                                               long truncateOffset, Duration timeout) {
         // The write offset is the offset of the first page to be written in the list.
         long writeOffset = pages.get(0).getKey();
 
@@ -455,14 +491,25 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
         // Stitch the collected Input Streams and write them to Storage.
         val toWrite = new SequenceInputStream(Collections.enumeration(streams));
-        return this.storage.write(this.handle.get(), writeOffset, toWrite, length.get(), timeout)
-                           .thenApplyAsync(v -> {
-                               // Store data in cache and remove obsolete pages.
-                               storeInCache(pages, obsoleteOffsets);
+        TimeoutTimer timer = new TimeoutTimer(timeout);
+        return this.storage
+                .write(this.handle.get(), writeOffset, toWrite, length.get(), timer.getRemaining())
+                .thenComposeAsync(v -> {
+                    if (this.storage.supportsTruncation() && truncateOffset >= 0) {
+                        return this.storage.truncate(this.handle.get(), truncateOffset, timer.getRemaining());
+                    } else {
+                        log.debug("{}: Not truncating attribute segment. SupportsTruncation = {}, TruncateOffset = {}.",
+                                this.traceObjectId, this.storage.supportsTruncation(), truncateOffset);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor)
+                .thenApplyAsync(v -> {
+                    // Store data in cache and remove obsolete pages.
+                    storeInCache(pages, obsoleteOffsets);
 
-                               // Return the current length of the Segment Attribute Index.
-                               return writeOffset + length.get();
-                           }, this.executor);
+                    // Return the current length of the Segment Attribute Index.
+                    return writeOffset + length.get();
+                }, this.executor);
     }
 
     private byte[] getFromCache(long offset, int length) {
@@ -592,6 +639,31 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
          */
         synchronized void setGeneration(int value) {
             this.generation = value;
+        }
+    }
+
+    //endregion
+
+    //region AttributeIteratorImpl
+
+    /**
+     * Converts a Page Entry Iterator into an Attribute Iterator.
+     */
+    @RequiredArgsConstructor
+    private class AttributeIteratorImpl implements AttributeIterator {
+        private final AsyncIterator<List<PageEntry>> pageEntryIterator;
+
+        @Override
+        public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
+            return this.pageEntryIterator.getNext().thenApply(pageEntries -> {
+                if (pageEntries == null) {
+                    return null;
+                }
+
+                return pageEntries.stream()
+                                  .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                                  .collect(Collectors.toList());
+            });
         }
     }
 

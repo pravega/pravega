@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
@@ -119,6 +120,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public boolean isActive() {
         throw new UnsupportedOperationException("isActive() is not supported on " + getClass().getName());
+    }
+
+    @Override
+    public SegmentProperties getSnapshot() {
+        throw new UnsupportedOperationException("getSnapshot() is not supported on " + getClass().getName());
     }
 
     @Override

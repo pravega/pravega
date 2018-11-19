@@ -72,7 +72,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         final List<InetSocketAddress> addresses = Splitter.on(',').splitToList(authority).stream().map(host -> {
             final String[] strings = host.split(":");
             Preconditions.checkArgument(strings.length == 2, "URI should have both address and port");
-            return InetSocketAddress.createUnresolved(strings[0], Integer.valueOf(strings[1]));
+            return InetSocketAddress.createUnresolved(strings[0], Integer.parseInt(strings[1]));
         }).collect(Collectors.toList());
 
         return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme));

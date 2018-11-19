@@ -61,7 +61,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
                         .hostname(serviceName)
                         .labels(labels)
-                        .healthcheck(ContainerConfig.Healthcheck.builder().test(customHealthCheck("netstat -plnt | grep "+ ZKSERVICE_ZKPORT+" || exit 1")).build()).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(ZKSERVICE_ZKPORT)).build()).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())
