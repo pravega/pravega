@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -109,7 +110,7 @@ public class ReaderGroupStreamCutUpdateTest {
 
         // Write some events in the stream.
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         writeEvents(clientFactory, stream, numEvents);
 
         // Read the events and test that positions are getting updated.

@@ -385,7 +385,7 @@ public class EndToEndTruncationTest {
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
@@ -438,7 +438,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         streamManager.createScope(scope);
 
         // Test truncation in new and re-created tests.
@@ -572,7 +572,7 @@ public class EndToEndTruncationTest {
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
 
         // Write totalEvents to the Stream.
         writeDummyEvents(clientFactory, streamName, totalEvents);

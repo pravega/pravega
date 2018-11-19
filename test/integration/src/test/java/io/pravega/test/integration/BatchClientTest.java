@@ -12,6 +12,7 @@ package io.pravega.test.integration;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
@@ -118,7 +119,7 @@ public class BatchClientTest {
     @Test
     public void testBatchClient() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
 
         BatchClientFactory batchClient = clientFactory.createBatchClient();
@@ -150,7 +151,7 @@ public class BatchClientTest {
     @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
         BatchClientFactory batchClient = clientFactory.createBatchClient();
 
@@ -171,7 +172,7 @@ public class BatchClientTest {
     @Test(expected = TruncatedDataException.class)
     public void testBatchClientWithStreamTruncationPostGetSegments() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
         BatchClientFactory batchClient = clientFactory.createBatchClient();
 

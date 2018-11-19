@@ -176,7 +176,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                                                                            EventWriterConfig.builder().build());
@@ -230,7 +230,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                                                                            EventWriterConfig.builder().build());
@@ -298,7 +298,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(2));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                                                                            EventWriterConfig.builder().build());
@@ -387,7 +387,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     private void writeTestEvent(String scope, String streamName, int eventId) {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
 

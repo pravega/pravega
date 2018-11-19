@@ -170,7 +170,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
             if (j % 2 == 0) {
                 log.info("Writing events in stream {}/{}.", scope, stream);
                 @Cleanup
-                ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+                ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
                 writeEvents(clientFactory, stream, NUM_EVENTS);
             }
 

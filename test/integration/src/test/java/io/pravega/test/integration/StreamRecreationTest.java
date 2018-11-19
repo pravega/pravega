@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -117,7 +118,7 @@ public class StreamRecreationTest {
 
             // Write a single event.
             @Cleanup
-            ClientFactory clientFactory = ClientFactory.withScope(myScope, controllerURI);
+            ClientFactory clientFactory = ClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
 
