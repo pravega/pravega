@@ -166,7 +166,7 @@ public class StreamMetadataTasksTest {
                 "abortStream", new EventStreamWriterMock<>());
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         streamStorePartialMock.createScope(SCOPE).join();
 
         long start = System.currentTimeMillis();
@@ -203,8 +203,6 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(5)).build();
 
         StreamConfigurationRecord configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
@@ -219,8 +217,6 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration));
 
         streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
 
         // 2. change state to scaling
@@ -247,8 +243,6 @@ public class StreamMetadataTasksTest {
 
         // 3. multiple back to back updates.
         StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 1, 2)).build();
 
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture1 = streamMetadataTasks.updateStream(SCOPE, stream1,
@@ -266,8 +260,6 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && configProp.isUpdating());
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(7)).build();
 
         // post the second update request. This should fail here itself as previous one has started.
@@ -294,7 +286,7 @@ public class StreamMetadataTasksTest {
     public void truncateStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -414,7 +406,7 @@ public class StreamMetadataTasksTest {
                 .retentionParam(Duration.ofMinutes(60).toMillis())
                 .build();
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy)
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
@@ -531,7 +523,7 @@ public class StreamMetadataTasksTest {
                 .retentionType(RetentionPolicy.RetentionType.SIZE).retentionParam(100L).build();
 
         String streamName = "test";
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(streamName).scalingPolicy(policy)
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
         streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), null, executor).get();
@@ -868,7 +860,7 @@ public class StreamMetadataTasksTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
         String stream = "test";
-        final StreamConfiguration noRetentionConfig = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration noRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         // add stream without retention policy
         streamMetadataTasks.createStreamBody(SCOPE, stream, noRetentionConfig, System.currentTimeMillis()).join();
@@ -884,7 +876,7 @@ public class StreamMetadataTasksTest {
                 .retentionParam(Duration.ofMinutes(60).toMillis())
                 .build();
 
-        final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(policy)
+        final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
         // now update stream with a retention policy
@@ -948,7 +940,7 @@ public class StreamMetadataTasksTest {
         // region seal a stream with transactions
         long start = System.currentTimeMillis();
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(streamWithTxn).scalingPolicy(policy).build();
+        final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, streamWithTxn, config, start, null, executor).get();
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
@@ -1050,7 +1042,7 @@ public class StreamMetadataTasksTest {
     public void eventWriterInitializationTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -1081,7 +1073,7 @@ public class StreamMetadataTasksTest {
     public void manualScaleTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();

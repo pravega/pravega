@@ -77,7 +77,7 @@ public class TransactionTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
-        streamManager.createStream("scope", streamName, StreamConfiguration.builder().scope("scope").streamName(streamName).build());
+        streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
         streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
@@ -170,7 +170,7 @@ public class TransactionTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
-        streamManager.createStream("scope", streamName, StreamConfiguration.builder().scope("scope").streamName(streamName).build());
+        streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
         streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup

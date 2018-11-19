@@ -82,8 +82,6 @@ public class ReaderGroupTest {
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, servicePort);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
-                                                                   .scope(SCOPE)
-                                                                   .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
         @Cleanup
@@ -129,8 +127,6 @@ public class ReaderGroupTest {
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, servicePort);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
-                                                                   .scope(SCOPE)
-                                                                   .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
         @Cleanup

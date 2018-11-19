@@ -58,8 +58,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     private final String scope = "testReadWriteAndAutoScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;

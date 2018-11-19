@@ -85,7 +85,7 @@ public class ZkStreamTest {
 
         final String streamName = "testfail";
 
-        final StreamConfiguration streamConfig = StreamConfiguration.builder().scope(streamName).streamName(streamName).scalingPolicy(policy).build();
+        final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         zkTestServer.stop();
 
@@ -105,8 +105,6 @@ public class ZkStreamTest {
         final String streamName = "testfail";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 
@@ -174,7 +172,7 @@ public class ZkStreamTest {
         store.createScope("Scope3").get();
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
         final StreamConfiguration streamConfig =
-                StreamConfiguration.builder().scope("Scope3").streamName("Stream3").scalingPolicy(policy).build();
+                StreamConfiguration.builder().scalingPolicy(policy).build();
 
         store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope3", "Stream3", State.ACTIVE, null, executor).get();
@@ -230,8 +228,6 @@ public class ZkStreamTest {
         store.createScope(SCOPE).get();
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 
@@ -446,8 +442,6 @@ public class ZkStreamTest {
                 ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException;
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 
@@ -558,8 +552,7 @@ public class ZkStreamTest {
         final int startingSegmentNumber = 0;
         storeHelper.createZNodeIfNotExist("/store/scope").join();
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope("scope").streamName("stream").scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         stream.create(configuration1, System.currentTimeMillis(), startingSegmentNumber).join();
         stream.updateState(State.ACTIVE).join();
         UUID txId = stream.generateNewTxnId(0, 0L).join();

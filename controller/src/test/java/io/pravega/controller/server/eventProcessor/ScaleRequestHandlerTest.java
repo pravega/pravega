@@ -96,7 +96,7 @@ import static org.mockito.Mockito.*;
 public class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
             ScalingPolicy.byEventRate(1, 2, 3)).build();
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -336,7 +336,7 @@ public class ScaleRequestHandlerTest {
         // This test checks a scenario where after rolling txn, if an outstanding scale request
         // was present, its epoch consistency should fail
         String stream = "newStream";
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 2)).build();
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
@@ -394,7 +394,7 @@ public class ScaleRequestHandlerTest {
         // This test checks a scenario where after rolling txn, if an outstanding scale request
         // was present, its epoch consistency should fail
         String stream = "newStream";
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 2)).build();
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
@@ -531,7 +531,7 @@ public class ScaleRequestHandlerTest {
                                              Map<String, Integer> invocationCount) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -687,7 +687,7 @@ public class ScaleRequestHandlerTest {
                                     Map<String, Integer> invocationCount) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -747,7 +747,7 @@ public class ScaleRequestHandlerTest {
     public void testScaleStateReset() {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         String stream = "testResetState";
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();

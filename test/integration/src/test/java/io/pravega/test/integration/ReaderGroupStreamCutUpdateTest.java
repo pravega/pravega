@@ -102,8 +102,6 @@ public class ReaderGroupStreamCutUpdateTest {
         StreamManager streamManager = StreamManager.create(controllerURI);
         Assert.assertTrue(streamManager.createScope(scope));
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                     .scope(scope)
-                                                                     .streamName(stream)
                                                                      .scalingPolicy(ScalingPolicy.fixed(2))
                                                                      .build();
         streamManager.createStream(scope, stream, streamConfiguration);

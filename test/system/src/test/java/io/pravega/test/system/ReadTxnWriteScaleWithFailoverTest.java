@@ -63,8 +63,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     private final String stream = "testReadTxnWriteScaleStream";
     private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(stream).scalingPolicy(scalingPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;

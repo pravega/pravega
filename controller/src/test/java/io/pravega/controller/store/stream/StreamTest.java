@@ -151,8 +151,6 @@ public class StreamTest {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 

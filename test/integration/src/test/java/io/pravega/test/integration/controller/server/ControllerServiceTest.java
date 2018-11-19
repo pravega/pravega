@@ -243,8 +243,6 @@ public class ControllerServiceTest {
 
     private static void updateConfigOfNonExistantStream(Controller controller) {
         assertFalse(Futures.await(controller.updateStream("scope", "streamName", StreamConfiguration.builder()
-                                                                             .scope("scope")
-                                                                             .streamName("streamName")
                                                                              .scalingPolicy(ScalingPolicy.byEventRate(200, 2, 3))
                                                                              .build())));
     }

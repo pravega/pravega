@@ -69,8 +69,7 @@ public class MetricsTest {
     String scope = "testMetricsScope";
     String readerGroupName = "testMetricsReaderGroup";
     ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
     ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private TestingServer zkTestServer = null;

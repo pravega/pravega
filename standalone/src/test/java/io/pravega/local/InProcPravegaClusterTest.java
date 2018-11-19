@@ -91,8 +91,6 @@ public class InProcPravegaClusterTest {
         streamManager.createScope(scope);
         Assert.assertTrue("Stream creation is not successful ",
                 streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                   .scope(scope)
-                                   .streamName(streamName)
                                    .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                    .build()));
         log.info("Created stream: " + streamName);

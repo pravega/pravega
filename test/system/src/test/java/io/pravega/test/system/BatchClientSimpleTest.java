@@ -66,8 +66,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(RG_PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-                                                                  .streamName(STREAM)
+    private final StreamConfiguration config = StreamConfiguration.builder()
                                                                   .scalingPolicy(scalingPolicy).build();
     private URI controllerURI = null;
     private StreamManager streamManager = null;

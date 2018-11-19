@@ -106,10 +106,10 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream one", streamManager.createStream(SCOPE, STREAM_ONE,
-                StreamConfiguration.builder().scope(SCOPE).streamName(STREAM_ONE)
+                StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(RG_PARALLELISM_ONE)).build()));
         assertTrue("Creating stream two", streamManager.createStream(SCOPE, STREAM_TWO,
-                StreamConfiguration.builder().scope(SCOPE).streamName(STREAM_TWO)
+                StreamConfiguration.builder()
                                    .scalingPolicy(ScalingPolicy.fixed(RG_PARALLELISM_TWO)).build()));
     }
 

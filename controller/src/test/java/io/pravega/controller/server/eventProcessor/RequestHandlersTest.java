@@ -79,7 +79,7 @@ import static org.mockito.Mockito.verify;
 public class RequestHandlersTest {
     private final String scope = "scope";
     private final String stream = "stream";
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
             ScalingPolicy.byEventRate(1, 2, 3)).build();
     private RequestTracker requestTracker = new RequestTracker(true);
 
@@ -174,7 +174,7 @@ public class RequestHandlersTest {
                                      Map<String, Integer> invocationCount, int expectedVersion) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -272,7 +272,7 @@ public class RequestHandlersTest {
                                             Map<String, Integer> invocationCount, int expectedVersion) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -402,7 +402,7 @@ public class RequestHandlersTest {
         String stream = "update";
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -448,7 +448,7 @@ public class RequestHandlersTest {
         String stream = "update";
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();

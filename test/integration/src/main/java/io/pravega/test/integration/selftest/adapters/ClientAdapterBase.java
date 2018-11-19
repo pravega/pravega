@@ -114,10 +114,8 @@ abstract class ClientAdapterBase extends StoreAdapter {
             }
 
             StreamConfiguration config = StreamConfiguration
-                    .builder()
-                    .streamName(streamName)
-                    .scalingPolicy(ScalingPolicy.fixed(this.testConfig.getSegmentsPerStream()))
-                    .scope(SCOPE)
+            .builder()
+            .scalingPolicy(ScalingPolicy.fixed(this.testConfig.getSegmentsPerStream()))
                     .build();
             if (!getStreamManager().createStream(SCOPE, streamName, config)) {
                 throw new CompletionException(new StreamingException(String.format("Unable to create Stream '%s'.", streamName)));

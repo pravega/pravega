@@ -110,8 +110,6 @@ public class StreamMetaDataTests {
     private final StreamProperty streamResponseExpected2 = new StreamProperty();
     private final StreamProperty streamResponseExpected3 = new StreamProperty();
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-            .scope(scope1)
-            .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
             .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
             .build();

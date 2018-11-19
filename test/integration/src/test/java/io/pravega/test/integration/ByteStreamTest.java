@@ -97,7 +97,7 @@ public class ByteStreamTest {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
@@ -144,7 +144,7 @@ public class ByteStreamTest {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
@@ -187,7 +187,7 @@ public class ByteStreamTest {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope

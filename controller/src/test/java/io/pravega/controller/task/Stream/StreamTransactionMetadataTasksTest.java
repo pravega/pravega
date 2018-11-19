@@ -212,8 +212,7 @@ public class StreamTransactionMetadataTasksTest {
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
@@ -255,8 +254,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create test scope and stream.
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
                 streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
@@ -382,8 +380,7 @@ public class StreamTransactionMetadataTasksTest {
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
@@ -460,8 +457,7 @@ public class StreamTransactionMetadataTasksTest {
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
@@ -503,8 +499,7 @@ public class StreamTransactionMetadataTasksTest {
                 abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         streamStoreMock.createScope(SCOPE).join();

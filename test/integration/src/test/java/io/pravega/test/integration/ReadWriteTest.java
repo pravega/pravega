@@ -124,8 +124,7 @@ public class ReadWriteTest {
         String readerGroupName = "testMultiReaderWriterReaderGroup";
         //20  readers -> 20 stream segments ( to have max read parallelism)
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-                .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventData = new AtomicLong(); //data used by each of the writers.

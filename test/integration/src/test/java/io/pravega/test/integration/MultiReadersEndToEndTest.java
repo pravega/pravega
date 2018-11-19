@@ -110,8 +110,6 @@ public class MultiReadersEndToEndTest {
             streamManager.createStream(SETUP_UTILS.getScope(),
                                        stream,
                                        StreamConfiguration.builder()
-                                               .scope(SETUP_UTILS.getScope())
-                                               .streamName(stream)
                                                .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                .build());
             log.info("Created stream: {}", stream);
@@ -203,8 +201,6 @@ public class MultiReadersEndToEndTest {
             streamManager.createStream("scope",
                                        stream,
                                        StreamConfiguration.builder()
-                                       .scope("scope")
-                                       .streamName(stream)
                                        .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                        .build());
             EventStreamWriter<Integer> eventWriter = clientFactory.createEventWriter(stream,

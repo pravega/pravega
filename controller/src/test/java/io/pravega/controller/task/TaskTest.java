@@ -80,7 +80,7 @@ public class TaskTest {
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore;
@@ -120,8 +120,8 @@ public class TaskTest {
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
         // region createStream
         streamStore.createScope(SCOPE).join();
@@ -266,8 +266,8 @@ public class TaskTest {
         final String stream1 = "parallelSweeper1";
         final String stream2 = "parallelSweeper2";
 
-        final StreamConfiguration config1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration config2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy1).build();
+        final StreamConfiguration config1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration config2 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();

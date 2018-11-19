@@ -105,7 +105,7 @@ public class ControllerEventProcessorTest {
 
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
         streamStore.createStream(SCOPE, STREAM, configuration1, start, null, executor).join();

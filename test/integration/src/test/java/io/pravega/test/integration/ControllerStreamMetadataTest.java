@@ -73,8 +73,6 @@ public class ControllerStreamMetadataTest {
             this.controllerWrapper.awaitRunning();
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
-                    .scope(SCOPE)
-                    .streamName(STREAM)
                     .scalingPolicy(ScalingPolicy.fixed(1))
                     .build();
         } catch (Exception e) {

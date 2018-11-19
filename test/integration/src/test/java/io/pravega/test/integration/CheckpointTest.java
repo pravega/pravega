@@ -88,8 +88,6 @@ public class CheckpointTest {
                                                          .stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                         .scope(scope)
-                                                                         .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
@@ -176,8 +174,6 @@ public class CheckpointTest {
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                         .scope(scope)
-                                                                         .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
@@ -250,8 +246,6 @@ public class CheckpointTest {
                 .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
@@ -337,8 +331,6 @@ public class CheckpointTest {
                                                          .stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                         .scope(scope)
-                                                                         .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);

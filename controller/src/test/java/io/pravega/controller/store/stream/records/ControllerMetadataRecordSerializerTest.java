@@ -156,11 +156,11 @@ public class ControllerMetadataRecordSerializerTest {
 
     @Test
     public void configurationRecordTest() throws IOException {
-        StreamConfiguration withScalingAndRetention = StreamConfiguration.builder().streamName("a").scope("a")
+        StreamConfiguration withScalingAndRetention = StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(1)).retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
-        StreamConfiguration withScalingOnly = StreamConfiguration.builder().streamName("a").scope("a")
+        StreamConfiguration withScalingOnly = StreamConfiguration.builder()
                                                                  .retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
-        StreamConfiguration withRetentiononly = StreamConfiguration.builder().streamName("a").scope("a")
+        StreamConfiguration withRetentiononly = StreamConfiguration.builder()
                                                                    .retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
 
         StreamConfigurationRecord record = StreamConfigurationRecord.builder().streamConfiguration(withScalingAndRetention)

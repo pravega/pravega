@@ -69,8 +69,7 @@ public class ByteClientTest extends AbstractSystemTest {
     @Rule
     public final Timeout globalTimeout = Timeout.seconds(8 * 60);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(STREAM)
+    private final StreamConfiguration config = StreamConfiguration.builder()
             .scalingPolicy(scalingPolicy).build();
     private URI controllerURI = null;
     private StreamManager streamManager = null;

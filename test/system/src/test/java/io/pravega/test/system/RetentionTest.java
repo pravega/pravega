@@ -64,8 +64,7 @@ public class RetentionTest extends AbstractSystemTest {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
     private final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(1));
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(STREAM).scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;
 

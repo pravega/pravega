@@ -61,8 +61,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-                                                                  .streamName(STREAM)
+    private final StreamConfiguration config = StreamConfiguration.builder()
                                                                   .scalingPolicy(scalingPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;

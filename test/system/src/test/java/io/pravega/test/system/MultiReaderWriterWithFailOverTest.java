@@ -55,8 +55,7 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
     private final String scope = "testMultiReaderWriterScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testMultiReaderWriterReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;

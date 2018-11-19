@@ -133,8 +133,6 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
 
         // Create stream with large number of segments so that most segment containers are used.
         Assert.assertTrue(streamManager.createStream(scope, stream, StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(stream)
                 .scalingPolicy(ScalingPolicy.fixed(10))
                 .build()));
 

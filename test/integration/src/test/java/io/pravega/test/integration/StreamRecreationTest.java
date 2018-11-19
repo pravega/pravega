@@ -110,8 +110,6 @@ public class StreamRecreationTest {
             log.info("Stream re-creation iteration {}.", i);
             final String eventContent = "myEvent" + String.valueOf(i);
             StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                         .scope(myScope)
-                                                                         .streamName(myStream)
                                                                          .scalingPolicy(ScalingPolicy.fixed(i + 1))
                                                                          .build();
             streamManager.createStream(myScope, myStream, streamConfiguration);
