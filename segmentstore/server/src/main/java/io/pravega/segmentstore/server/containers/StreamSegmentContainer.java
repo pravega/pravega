@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.ContainerOfflineException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -714,6 +715,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         });
     }
 
+    private CompletableFuture<AttributeIterator> attributeIterator(long segmentId, UUID fromId, UUID toId, Duration timeout) {
+        return this.attributeIndex.forSegment(segmentId, timeout)
+                .thenApplyAsync(index -> {
+                    AttributeIterator indexIterator = index.iterator(fromId, toId, timeout);
+                    return new SegmentAttributeIterator(indexIterator, this.metadata.getStreamSegmentMetadata(segmentId), fromId, toId);
+                }, this.executor);
+    }
+
     /**
      * Callback that notifies eligible components that the given Segments' metadatas has been removed from the metadata,
      * regardless of the trigger (eviction or deletion).
@@ -826,6 +835,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             ensureRunning();
             logRequest("truncateStreamSegment", this.segmentId);
             return StreamSegmentContainer.this.truncate(this.segmentId, offset, timeout);
+        }
+
+        @Override
+        public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+            ensureRunning();
+            logRequest("attributeIterator", this.segmentId, fromId, toId);
+            return StreamSegmentContainer.this.attributeIterator(this.segmentId, fromId, toId, timeout);
         }
     }
 

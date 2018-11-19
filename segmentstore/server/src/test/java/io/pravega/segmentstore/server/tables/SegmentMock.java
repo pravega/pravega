@@ -16,12 +16,18 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.server.AttributeIterator;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
+import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -195,6 +201,43 @@ class SegmentMock implements DirectSegmentAccess {
     @Override
     public CompletableFuture<Void> truncate(long offset, Duration timeout) {
         throw new UnsupportedOperationException("offset");
+    }
+
+    @Override
+    public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+        return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
+    }
+
+    //endregion
+
+    //region AttributeIterator
+
+    private class AttributeIteratorImpl implements AttributeIterator {
+        private final int maxBatchSize = 5;
+        @GuardedBy("attributes")
+        private final ArrayDeque<Map.Entry<UUID, Long>> attributes;
+
+        AttributeIteratorImpl(SegmentMetadata metadata, UUID fromId, UUID toId) {
+            this.attributes = metadata
+                    .getAttributes().entrySet().stream()
+                    .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
+                    .sorted(Comparator.comparing(Map.Entry::getKey, UUID::compareTo))
+                    .collect(Collectors.toCollection(ArrayDeque::new));
+        }
+
+        @Override
+        public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
+            return CompletableFuture.supplyAsync(() -> {
+                synchronized (this.attributes) {
+                    val result = new ArrayList<Map.Entry<UUID, Long>>();
+                    while (!this.attributes.isEmpty() && result.size() < maxBatchSize) {
+                        result.add(this.attributes.removeFirst());
+                    }
+
+                    return result.isEmpty() ? null : result;
+                }
+            }, executor);
+        }
     }
 
     //endregion

@@ -716,6 +716,7 @@ class BTreePage {
     @RequiredArgsConstructor
     @Getter
     static class Config {
+        private static final int MAX_PAGE_SIZE = Short.MAX_VALUE; // 2-byte (signed) short.
         /**
          * The length, in bytes, for all Keys.
          */
@@ -746,6 +747,7 @@ class BTreePage {
          * @param isIndexPage Whether this is an Index Page or not.
          */
         Config(int keyLength, int valueLength, int maxPageSize, boolean isIndexPage) {
+            Preconditions.checkArgument(maxPageSize <= MAX_PAGE_SIZE, "maxPageSize must be at most %s, given %s.", MAX_PAGE_SIZE, maxPageSize);
             Preconditions.checkArgument(keyLength > 0, "keyLength must be a positive integer.");
             Preconditions.checkArgument(valueLength > 0, "valueLength must be a positive integer.");
             Preconditions.checkArgument(keyLength + valueLength + DATA_OFFSET + FOOTER_LENGTH <= maxPageSize,

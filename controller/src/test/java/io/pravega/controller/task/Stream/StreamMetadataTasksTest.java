@@ -431,7 +431,7 @@ public class StreamMetadataTasksTest {
         StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, Long.MIN_VALUE, map1);
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any()); 
+                anyString(), anyString(), any(), any(), any());
 
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null, "").get();
         // verify that one streamCut is generated and added.
@@ -440,7 +440,7 @@ public class StreamMetadataTasksTest {
                 streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
                                       .thenCompose(retentionSet -> {
                                           return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test", 
+                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
                                                               x, null, executor))
                                           .collect(Collectors.toList()));
                                       }).join();
@@ -1099,7 +1099,7 @@ public class StreamMetadataTasksTest {
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", false, context, executor).get(), State.ACTIVE);
 
         // Now when runScale runs even after that we should get the state as active.
-        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L), 
+        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L),
                 new LinkedList<>(newRanges), 30, null, null, executor).get();
         assertEquals(response.getObject().getActiveEpoch(), 0);
         VersionedMetadata<State> versionedState = streamStorePartialMock.getVersionedState(SCOPE, "test", context, executor).get();
@@ -1112,10 +1112,16 @@ public class StreamMetadataTasksTest {
         ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
         task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
         Map<Long, Map.Entry<Double, Double>> segments = response.getObject().getNewSegmentsWithRange();
-        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(1, 1) && x.getValue().getKey() == 0.0 && x.getValue().getValue() == 0.5));
-        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(2, 1) && x.getValue().getKey() == 0.5 && x.getValue().getValue() == 1.0));
+        assertTrue(segments.entrySet().stream()
+                .anyMatch(x -> x.getKey() == computeSegmentId(1, 1)
+                             && AssertExtensions.nearlyEquals(x.getValue().getKey(), 0.0, 0)
+                             && AssertExtensions.nearlyEquals(x.getValue().getValue(), 0.5, 0)));
+        assertTrue(segments.entrySet().stream()
+                .anyMatch(x -> x.getKey() == computeSegmentId(2, 1)
+                             && AssertExtensions.nearlyEquals(x.getValue().getKey(), 0.5, 0)
+                             && AssertExtensions.nearlyEquals(x.getValue().getValue(), 1.0, 0)));
     }
-    
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)

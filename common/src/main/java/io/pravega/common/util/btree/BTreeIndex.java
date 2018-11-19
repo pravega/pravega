@@ -31,6 +31,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
@@ -80,6 +81,15 @@ import lombok.val;
  * the caller to decide how to properly recover from the situation - the BTreeIndex has insufficient information to make
  * such a decision.
  *
+ * Compaction:
+ * * B+Trees on an append-only storage suffer from write amplification problems, which means every update will have to
+ * rewrite the affected leaf page(s) and all their parent page(s), up to, and including the root. These updates cause the
+ * index file to grow fast.
+ * * This B+Tree implementation keeps track of the page with smallest offset within the index, and every time it performs
+ * an update (insert, update, delete) which causes pages to be written to the data source, it moves the page with the
+ * smallest offset to the tail of the index. This allows the external data source to truncate unused data out of the
+ * index file (every update also recalculates the smallest such offset, which is communicated to the data source).
+ *
  * Versioning:
  * * BTreePages have built-in versioning; please refer to the BTreePage class for details. It is possible to mix different
  * BTreePage versions in the same BTreeIndex structure.
@@ -96,7 +106,7 @@ import lombok.val;
 public class BTreeIndex {
     //region Members
 
-    private static final int INDEX_VALUE_LENGTH = Long.BYTES + Integer.BYTES;
+    private static final int INDEX_VALUE_LENGTH = Long.BYTES + Short.BYTES + Long.BYTES; // Offset, PageLength, MinOffset.
     private static final int FOOTER_LENGTH = Long.BYTES + Integer.BYTES;
     private static final ByteArrayComparator KEY_COMPARATOR = new ByteArrayComparator();
     private final BTreePage.Config indexPageConfig;
@@ -298,8 +308,8 @@ public class BTreeIndex {
     }
 
     /**
-     * Returns an AsyncIterator that will iterate through all the keys within the specified bounds. All iterated keys will
-     * be returned in order (smallest to largest).
+     * Returns an {@link AsyncIterator} that will iterate through all the keys within the specified bounds. All iterated keys will
+     * be returned in lexicographic order (smallest to largest). See {@link ByteArrayComparator} for ordering details.
      *
      * @param firstKey          A ByteArraySegment representing the lower bound of the iteration.
      * @param firstKeyInclusive If true, firstKey will be included in the iteration (if it exists in the index), otherwise
@@ -334,7 +344,29 @@ public class BTreeIndex {
      */
     private <T> CompletableFuture<Long> performUpdate(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
                                                       BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
-        PageCollection pageCollection = new PageCollection(this.state.get().length);
+        return applyUpdates(updates, getKey, action, timer)
+                .thenComposeAsync(
+                        pageCollection -> loadSmallestOffsetPage(pageCollection, timer)
+                                .thenRun(() -> processModifiedPages(pageCollection))
+                                .thenComposeAsync(v -> writePages(pageCollection, timer.getRemaining()), this.executor),
+                        this.executor);
+    }
+
+    /**
+     * Executes the given updates on the index. Loads up any necessary BTreePage instances in memory but does not persist
+     * the changes to the external data source, nor does it reassign offsets to the modified pages, perform splits, etc.
+     *
+     * @param updates An Iterator of the updates to execute. The Iterator must return the updates in sorted order (by key).
+     * @param getKey  A Function that, when applied to an Update, will return the Key which it updates.
+     * @param action  A BiConsumer that, when applied to a BTreePage and a Collection of actions that need to operate on
+     *                that page, will apply the actions to that BTreePage.
+     * @param timer   Timer for the operation.
+     * @param <T>     Type of the action to execute.
+     * @return A CompletableFuture that will contain a PageCollection with all touched pages.
+     */
+    private <T> CompletableFuture<UpdateablePageCollection> applyUpdates(Iterator<T> updates, Function<T, ByteArraySegment> getKey,
+                                                                         BiConsumer<BTreePage, Collection<T>> action, TimeoutTimer timer) {
+        UpdateablePageCollection pageCollection = new UpdateablePageCollection(this.state.get().length);
         AtomicReference<PageWrapper> lastPage = new AtomicReference<>(null);
         val lastPageUpdates = new ArrayList<T>();
         return Futures.loop(
@@ -349,7 +381,7 @@ public class BTreeIndex {
                             .thenAccept(page -> {
                                 PageWrapper last = lastPage.get();
                                 if (page != last) {
-                                    // This update goes to a different page than the one we were looking at.
+                                    // This key goes to a different page than the one we were looking at.
                                     if (last != null) {
                                         // Commit the outstanding updates.
                                         action.accept(last.getPage(), lastPageUpdates);
@@ -365,18 +397,37 @@ public class BTreeIndex {
                             });
                 },
                 this.executor)
-                      .thenComposeAsync(v -> {
+                      .thenApplyAsync(v -> {
                           // We need not forget to apply the last batch of updates from the last page.
                           if (lastPage.get() != null) {
                               action.accept(lastPage.get().getPage(), lastPageUpdates);
                           }
-
-                          // Process all modified pages: resolve splits, empty pages, assign offsets, etc.
-                          processModifiedPages(pageCollection);
-
-                          // Write pages to the external data source.
-                          return writePages(pageCollection, timer.getRemaining());
+                          return pageCollection;
                       }, this.executor);
+    }
+
+    /**
+     * Loads the BTreePage with the smallest offset from the DataSource. The purpose of this is for incremental compaction.
+     * The page with the smallest offset will be moved to the end of the index, which allows the external data source to
+     * perform any truncation necessary in order to free up space.
+     *
+     * @param pageCollection A PageCollection containing all pages loaded so far. The new page (and its ancestors) will
+     *                       also be loaded here.
+     * @param timer          Timer for the operation.
+     * @return A CompletableFuture that will indicate when the operation is complete.
+     */
+    private CompletableFuture<?> loadSmallestOffsetPage(PageCollection pageCollection, TimeoutTimer timer) {
+        if (pageCollection.getCount() <= 1) {
+            // We only modified at most one page. This means have at most one page in the index, so no point in re-loading it.
+            return CompletableFuture.completedFuture(null);
+        }
+
+        long minOffset = calculateMinOffset(pageCollection.getRootPage());
+        return locatePage(
+                page -> getPagePointer(minOffset, page),
+                page -> !page.isIndexPage() || page.getOffset() == minOffset,
+                pageCollection,
+                timer);
     }
 
     /**
@@ -391,9 +442,9 @@ public class BTreeIndex {
      * - All non-leaf pages will be updated to point to the same leaf pages, but with new offsets.
      * - A new root (index) page may be created.
      *
-     * @param pageCollection A PageCollection containing pages to be processed.
+     * @param pageCollection An UpdateablePageCollection containing pages to be processed.
      */
-    private void processModifiedPages(PageCollection pageCollection) {
+    private void processModifiedPages(UpdateablePageCollection pageCollection) {
         val currentBatch = new ArrayList<PageWrapper>();
         pageCollection.collectLeafPages(currentBatch);
         while (!currentBatch.isEmpty()) {
@@ -463,23 +514,30 @@ public class BTreeIndex {
             val page = splitResult.get(i);
             ByteArraySegment newPageKey;
             long newOffset;
+            long minOffset;
+            PageWrapper processedPage;
             if (i == 0) {
                 // The original page will be replaced by the first split. Nothing changes about its pointer key.
                 originalPage.setPage(page);
                 newPageKey = originalPage.getPageKey();
                 context.getPageCollection().complete(originalPage);
-                newOffset = originalPage.getOffset();
+                processedPage = originalPage;
             } else {
                 // Insert the new pages and assign them new virtual offsets. Each page will use its first
                 // Key as a Page Key.
                 newPageKey = page.getKeyAt(0);
-                PageWrapper newPage = PageWrapper.wrapNew(page, originalPage.getParent(), new PagePointer(newPageKey, PagePointer.NO_OFFSET, page.getLength()));
-                context.getPageCollection().insert(newPage);
-                context.getPageCollection().complete(newPage);
-                newOffset = newPage.getOffset();
+                processedPage = PageWrapper.wrapNew(page, originalPage.getParent(), new PagePointer(newPageKey, PagePointer.NO_OFFSET, page.getLength()));
+                context.getPageCollection().insert(processedPage);
+                context.getPageCollection().complete(processedPage);
             }
 
-            context.updatePagePointer(new PagePointer(newPageKey, newOffset, page.getLength()));
+            // Fetch new offset, and update minimum offsets.
+            newOffset = processedPage.getOffset();
+            minOffset = calculateMinOffset(processedPage);
+            processedPage.setMinOffset(minOffset);
+
+            // Record changes.
+            context.updatePagePointer(new PagePointer(newPageKey, newOffset, page.getLength(), minOffset));
         }
     }
 
@@ -506,8 +564,35 @@ public class BTreeIndex {
 
             // Assign a new offset to the page and record its new Page Pointer.
             context.pageCollection.complete(page);
-            context.updatePagePointer(new PagePointer(pageKey, page.getOffset(), page.getPage().getLength()));
+            page.setMinOffset(calculateMinOffset(page));
+            context.updatePagePointer(new PagePointer(pageKey, page.getOffset(), page.getPage().getLength(), page.getMinOffset()));
         }
+    }
+
+    /**
+     * Calculates the Minimum Page Offset for this PageWrapper.
+     * The Minimum Page Offset is the smallest of this PageWrapper's offset and the MinOffsets of all this PageWrapper's
+     * direct children.
+     *
+     * @param pageWrapper The PageWrapper to calculate the Minimum Page Offset for.
+     * @return The result.
+     */
+    private long calculateMinOffset(PageWrapper pageWrapper) {
+        // Minimum within {PageOffset, All PagePointers' MinLength fields}.
+        long min = pageWrapper.getOffset();
+        if (!pageWrapper.isIndexPage()) {
+            // Leaf pages do not have PagePointers, so the result is their actual offsets.
+            return min;
+        }
+
+        BTreePage page = pageWrapper.getPage();
+        int count = page.getCount();
+        for (int pos = 0; pos < count; pos++) {
+            long ppMinOffset = deserializePointerMinOffset(page.getValueAt(pos));
+            min = Math.min(min, ppMinOffset);
+        }
+
+        return min;
     }
 
     /**
@@ -554,6 +639,22 @@ public class BTreeIndex {
             return CompletableFuture.completedFuture(pageCollection.insert(PageWrapper.wrapNew(createEmptyLeafPage(), null, null)));
         }
 
+        // Locate the page by searching on the Key (within the page).
+        return locatePage(page -> getPagePointer(key, page), page -> !page.isIndexPage(), pageCollection, timer);
+    }
+
+    /**
+     * Locates the BTreePage according to the given criteria.
+     *
+     * @param getChildPointer A Function that, when applied to a BTreePage, will return a PagePointer which can be used
+     *                        to load up the next page.
+     * @param found           A Predicate that, when applied to a PageWrapper, will indicate if this is the sought page.
+     * @param pageCollection  A PageCollection to query for already loaded pages, as well as to store newly loaded ones.
+     * @param timer           Timer for the operation.
+     * @return A CompletableFuture with a PageWrapper for the sought page.
+     */
+    private CompletableFuture<PageWrapper> locatePage(Function<BTreePage, PagePointer> getChildPointer, Predicate<PageWrapper> found,
+                                                      PageCollection pageCollection, TimeoutTimer timer) {
         AtomicReference<PagePointer> pagePointer = new AtomicReference<>(new PagePointer(null, this.state.get().rootPageOffset, this.state.get().rootPageLength));
         CompletableFuture<PageWrapper> result = new CompletableFuture<>();
         AtomicReference<PageWrapper> parentPage = new AtomicReference<>(null);
@@ -561,20 +662,20 @@ public class BTreeIndex {
                 () -> !result.isDone(),
                 () -> fetchPage(pagePointer.get(), parentPage.get(), pageCollection, timer.getRemaining())
                         .thenAccept(page -> {
-                            if (page.isIndexPage()) {
-                                PagePointer childPointer = getPagePointer(key, page.getPage());
+                            if (found.test(page)) {
+                                // We are done.
+                                result.complete(page);
+                            } else {
+                                PagePointer childPointer = getChildPointer.apply(page.getPage());
                                 pagePointer.set(childPointer);
                                 parentPage.set(page);
-                            } else {
-                                // Leaf (data) page. We are done.
-                                result.complete(page);
                             }
                         }),
                 this.executor)
-                .exceptionally(ex -> {
-                    result.completeExceptionally(ex);
-                    return null;
-                });
+               .exceptionally(ex -> {
+                   result.completeExceptionally(ex);
+                   return null;
+               });
 
         return result;
     }
@@ -622,22 +723,45 @@ public class BTreeIndex {
         return deserializePointer(page.getValueAt(pos), page.getKeyAt(pos));
     }
 
+    private PagePointer getPagePointer(long minOffset, BTreePage page) {
+        int count = page.getCount();
+        for (int pos = 0; pos < count; pos++) {
+            long ppMinOffset = deserializePointerMinOffset(page.getValueAt(pos));
+            if (ppMinOffset == minOffset) {
+                return deserializePointer(page.getValueAt(pos), page.getKeyAt(pos));
+            }
+        }
+
+        // Nothing was found.
+        return null;
+    }
+
     private ByteArraySegment serializePointer(PagePointer pointer) {
-        ByteArraySegment result = new ByteArraySegment(new byte[Long.BYTES + Integer.BYTES]);
+        assert pointer.getLength() <= Short.MAX_VALUE : "PagePointer.length too large";
+        ByteArraySegment result = new ByteArraySegment(new byte[this.indexPageConfig.getValueLength()]);
         BitConverter.writeLong(result, 0, pointer.getOffset());
-        BitConverter.writeInt(result, Long.BYTES, pointer.getLength());
+        BitConverter.writeShort(result, Long.BYTES, (short) pointer.getLength());
+        BitConverter.writeLong(result, Long.BYTES + Short.BYTES, pointer.getMinOffset());
         return result;
     }
 
     private PagePointer deserializePointer(ByteArraySegment serialization, ByteArraySegment pageKey) {
         long pageOffset = BitConverter.readLong(serialization, 0);
-        int pageLength = BitConverter.readInt(serialization, Long.BYTES);
-        return new PagePointer(pageKey, pageOffset, pageLength);
+        int pageLength = BitConverter.readShort(serialization, Long.BYTES);
+        long minOffset = deserializePointerMinOffset(serialization);
+        return new PagePointer(pageKey, pageOffset, pageLength, minOffset);
+    }
+
+    private long deserializePointerMinOffset(ByteArraySegment serialization) {
+        return BitConverter.readLong(serialization, Long.BYTES + Short.BYTES);
     }
 
     private ByteArraySegment generateMinKey() {
         byte[] result = new byte[this.indexPageConfig.getKeyLength()];
-        Arrays.fill(result, Byte.MIN_VALUE);
+        if (ByteArrayComparator.MIN_VALUE != 0) {
+            Arrays.fill(result, ByteArrayComparator.MIN_VALUE);
+        }
+
         return new ByteArraySegment(result);
     }
 
@@ -660,11 +784,11 @@ public class BTreeIndex {
     /**
      * Writes the contents of all the BTreePages in the given PageCollection to the external data source.
      *
-     * @param pageCollection PageCollection with pages.
+     * @param pageCollection UpdateablePageCollection with pages.
      * @param timeout        Timeout for the operation.
      * @return A CompletableFuture with a Long representing the current length of the index in the external data source.
      */
-    private CompletableFuture<Long> writePages(PageCollection pageCollection, Duration timeout) {
+    private CompletableFuture<Long> writePages(UpdateablePageCollection pageCollection, Duration timeout) {
         IndexState state = this.state.get();
         Preconditions.checkState(state != null, "Cannot write without fetching the state first.");
 
@@ -693,17 +817,22 @@ public class BTreeIndex {
         Preconditions.checkArgument(pageCollection.getIndexLength() == offset, "IndexLength mismatch.");
         pages.add(new AbstractMap.SimpleImmutableEntry<>(offset, getFooter(lastPage.getOffset(), lastPage.getPage().getLength())));
 
-        // Also collect the old footer's offset, as it will be replaced by a more recent value.
+        // Collect the old footer's offset, as it will be replaced by a more recent value.
         long oldFooterOffset = getFooterOffset(state.length);
         if (oldFooterOffset >= 0) {
             oldOffsets.add(oldFooterOffset);
         }
 
+        // Collect the offsets of removed pages. These are no longer needed.
+        pageCollection.collectRemovedPageOffsets(oldOffsets);
+
         // Write it.
-        long lastPageOffset = lastPage.getOffset();
-        int lastPageLength = lastPage.getPage().getContents().getLength();
-        return this.write.apply(pages, oldOffsets, timeout)
-                         .thenApply(indexLength -> setState(indexLength, lastPageOffset, lastPageLength).length);
+        long rootOffset = lastPage.getOffset();
+        int rootLength = lastPage.getPage().getContents().getLength();
+        long rootMinOffset = lastPage.getMinOffset();
+        assert rootMinOffset >= 0 : "root.MinOffset not set";
+        return this.write.apply(pages, oldOffsets, rootMinOffset, timeout)
+                         .thenApply(indexLength -> setState(indexLength, rootOffset, rootLength).length);
     }
 
     private IndexState setState(long length, long rootPageOffset, int rootPageLength) {
@@ -744,7 +873,7 @@ public class BTreeIndex {
     @Getter
     private static class PageModificationContext {
         private final PageWrapper pageWrapper;
-        private final PageCollection pageCollection;
+        private final UpdateablePageCollection pageCollection;
         private final List<PagePointer> updatedPagePointers = new ArrayList<>();
         @Setter
         private ByteArraySegment deletedPageKey;
@@ -814,11 +943,15 @@ public class BTreeIndex {
          * @param obsoleteOffsets A Collection of offsets for Pages that are no longer relevant. It should be safe to evict
          *                        these from any caching structure involved, however the data should not be removed from
          *                        the data source.
+         * @param truncateOffset  An offset within the external data source before which there is no useful data anymore.
+         *                        Any data prior to this offset can be safely truncated out (as long as subsequent offsets
+         *                        are preserved and do not "shift" downwards - i.e., we have consistent reads).
          * @param timeout         Timeout for the operation.
          * @return A CompletableFuture that, when completed, will contain the current length (in bytes) of the index in the
          * external data source.
          */
-        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Collection<Long> obsoleteOffsets, Duration timeout);
+        CompletableFuture<Long> apply(List<Map.Entry<Long, ByteArraySegment>> pageContents, Collection<Long> obsoleteOffsets,
+                                      long truncateOffset, Duration timeout);
     }
 
     //endregion

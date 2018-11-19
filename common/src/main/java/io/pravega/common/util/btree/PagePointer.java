@@ -24,24 +24,38 @@ class PagePointer {
     private final ByteArraySegment key;
     private final long offset;
     private final int length;
+    private final long minOffset;
 
     /**
      * Creates a new instance of the PagePointer class.
      *
      * @param key    A ByteArraySegment representing the key. If supplied (may be null), a copy of this will be kept.
-     * @param offset Desired Pages's Offset.
+     * @param offset Desired Page's Offset.
      * @param length Desired Page's Length.
      */
     PagePointer(ByteArraySegment key, long offset, int length) {
+        this(key, offset, length, NO_OFFSET);
+    }
+
+    /**
+     * Creates a new instance of the PagePointer class.
+     *
+     * @param key       A ByteArraySegment representing the key. If supplied (may be null), a copy of this will be kept.
+     * @param offset    Desired Page's Offset.
+     * @param length    Desired Page's Length.
+     * @param minOffset Desired page's MinOffset (including that of any of its descendants).
+     */
+    PagePointer(ByteArraySegment key, long offset, int length, long minOffset) {
         // Make a copy of the key. ByteArraySegments are views into another array (of the BTreePage). As such, if the
         // BTreePage is modified (in case the first key is deleted), this view may return a different set of bytes.
         this.key = key == null ? null : new ByteArraySegment(key.getCopy());
         this.offset = offset;
         this.length = length;
+        this.minOffset = minOffset;
     }
 
     @Override
     public String toString() {
-        return String.format("Offset = %s, Length = %s", this.offset, this.length);
+        return String.format("Offset = %s, Length = %s, MinOffset = %s", this.offset, this.length, this.minOffset);
     }
 }

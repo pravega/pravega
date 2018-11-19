@@ -365,7 +365,7 @@ public class AssertExtensions {
 
     /**
      * Asserts that the provided function blocks until the second function is run.
-     * 
+     *
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      * @return The result of the blockingFunction.
@@ -414,7 +414,7 @@ public class AssertExtensions {
 
     /**
      * Asserts that the provided function blocks until the second function is run.
-     * 
+     *
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      */
@@ -464,6 +464,26 @@ public class AssertExtensions {
         }
         if (exception.get() != null) {
             throw new RuntimeException(exception.get());
-        } 
+        }
+    }
+
+    /**
+    * Compares two floating point values with a given precision.
+    *
+    * @param a the first operand.
+    * @param b the second operand.
+    * @param precision the maximum absolute difference between the two values.
+    * @return true if the two operands are both null or the represent the same
+    * value within the given precision
+    */
+    public static boolean nearlyEquals(Double a, Double b, double precision) {
+        if (a == null && b == null) {
+            return true;
+        } else if (a == null && b != null) {
+            return false;
+        } else if (a != null && b == null) {
+            return false;
+        }
+        return Math.abs(a - b) <= precision;
     }
 }
