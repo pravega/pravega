@@ -81,12 +81,12 @@ import lombok.val;
  * such a decision.
  *
  * Compaction:
- * * B+Trees on an append-only storage suffer from copy-on-write problems, which means every update will have to rewrite
- * the affected leaf page(s) and all their parent page(s), up to, and including the root. This can be cause for a very fast
- * growing index file.
+ * * B+Trees on an append-only storage suffer from write amplification problems, which means every update will have to
+ * rewrite the affected leaf page(s) and all their parent page(s), up to, and including the root. These updates cause the
+ * index file to grow fast.
  * * This B+Tree implementation keeps track of the page with smallest offset within the index, and every time it performs
  * an update (insert, update, delete) which causes pages to be written to the data source, it moves the page with the
- * smallest offset to the end of the index. This allows the external data source to truncate unused data out of the
+ * smallest offset to the tail of the index. This allows the external data source to truncate unused data out of the
  * index file (every update also recalculates the smallest such offset, which is communicated to the data source).
  *
  * Versioning:

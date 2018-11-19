@@ -24,6 +24,8 @@ The following is the list of configuration parameters for different Pravega comp
 |autoScale.tokenSigningKey|Signing key used to sign the delegation token sent from controller to segment store| Empty|
 |bookkeeper.tlsEnabled|Enable TLS for communication between segment store and Apache Bookkeeper| False|
 |bookkeeper.tlsTrustStorePath| Truststore for TLS communication between segment store and Apache Bookkeeper| Empty |
+|pravegaservice.secureZK|Enable TLS for communication between segment store and Apache Zookeeper| False|
+|bookkeeper.zkTrustStore| Truststore for TLS communication between segment store and Apache Zookeeper| Empty |
 
 ## Pravega Controller <a name ="pravega-controller"></a>
 
@@ -35,6 +37,8 @@ The following is the list of configuration parameters for different Pravega comp
 |config.controller.server.tlsCertFile|Public key certificate for communication between Pravega client and controller|Empty|
 |config.controller.server.tokenSigningKey|Signing key used to sign the delegation token passed on to the segment store|Empty|
 |config.controller.server.userPasswordFile|File containing user details for default _auth_ implementation for Pravega (similar to `/etc/passwd`)|Empty|
+|config.controller.server.zk.secureConnectionToZooKeeper|Enable TLS for connection to Apache ZooKeeper| False|
+|config.controller.server.zk.trustStorePath|Truststore for TLS communications with Apache ZooKeeper| False|
 
 ## Pravega Standalone
 For ease of use Pravega standalone hides some of the configurations that are mentioned above. Below is the table containing relevant configurations for Pravega Standalone:

@@ -221,8 +221,4 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         return channelGroup.stream().filter(Channel::isActive).collect(Collectors.toList());
     }
 
-    @Override
-    protected void finalize() {
-        close();
-    }
 }

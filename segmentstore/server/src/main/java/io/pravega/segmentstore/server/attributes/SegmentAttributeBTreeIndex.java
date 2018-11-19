@@ -77,7 +77,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             .throwingOn(Exception.class);
 
     /**
-     * Calls to get() and update() can execute concurrently, which means we can have concurrent reads and writes from/to the
+     * Calls to get() and put() can execute concurrently, which means we can have concurrent reads and writes from/to the
      * Attribute Segment, which in turn means we can truncate the segment while reading from it. We need to retry reads
      * if we stumble upon a segment truncation.
      */

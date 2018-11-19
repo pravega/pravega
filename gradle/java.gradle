@@ -10,12 +10,15 @@
  */
 plugins.withId('java') {
     apply plugin: 'checkstyle'
-    apply plugin: 'findbugs'
+    apply plugin: 'com.github.spotbugs'
     apply plugin: 'jacoco'
     apply plugin: 'signing'
     apply plugin: 'maven'
 
     compileJava {
+        sourceCompatibility = "8"
+        targetCompatibility = "8"
+        
         options.compilerArgs.addAll([
                 "-Xlint:deprecation",
                 "-Xlint:divzero",
