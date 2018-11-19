@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
@@ -59,7 +60,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
-    private final ConcurrentDependentProcessor<ContainerKeyCache.CacheKey> conditionalUpdateProcessor;
+    private final ConcurrentDependentProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
     private final RecoveryTracker recoveryTracker;
     private final AtomicBoolean closed;
 
@@ -138,7 +139,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 // track of it so we can look it up.
                 result.put(hash, TableKey.NOT_EXISTS);
                 toLookup.add(hash);
-            } else if (existingValue.isPresent()) {
+            } else if (!existingValue.isRemoval()) {
                 // Key Hash exists.
                 result.put(hash, existingValue.getSegmentOffset());
             } else {
@@ -253,8 +254,8 @@ class ContainerKeyIndex implements AutoCloseable {
             // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
             // serialize execution across them.
             val keys = batch.getVersionedItems().stream()
-                    .map(item -> new ContainerKeyCache.CacheKey(segment.getSegmentId(), item.getHash()))
-                    .collect(Collectors.toList());
+                            .map(item -> Maps.immutableEntry(segment.getSegmentId(), item.getHash()))
+                            .collect(Collectors.toList());
 
             // Serialize the execution (queue it up to run only after all other currently queued up conditional updates
             // for touched keys have finished).
