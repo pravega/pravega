@@ -248,7 +248,7 @@ public class S3FileSystemImpl extends S3ImplBase {
         }
         try {
             partMap.forEach((index, copyPart) -> {
-                if (copyPart.getKey() != copyPart.getSourceKey()) {
+                if (!copyPart.getKey().equals(copyPart.getSourceKey())) {
                     Path sourcePath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getSourceKey());
                     Path targetPath = Paths.get(this.baseDir, copyPart.getBucketName(), copyPart.getKey());
                     try (FileChannel sourceChannel = FileChannel.open(sourcePath, StandardOpenOption.READ);
