@@ -399,7 +399,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will contain the desired result. This Future will wait on any
      * Segment-specific recovery to complete before executing.
      */
-    CompletableFuture<Map<UUID, Long>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
+    CompletableFuture<Map<UUID, CacheBucketOffset>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.recoveryTracker.waitIfNeeded(segment,
                 () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));

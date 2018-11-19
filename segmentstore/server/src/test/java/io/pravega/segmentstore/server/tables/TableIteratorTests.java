@@ -161,9 +161,9 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
                 } while (expectedResult.containsKey(hash));
             }
 
-            long segmentOffset = rnd.nextLong();
+            long segmentOffset = rnd.nextInt(Integer.MAX_VALUE);
             expectedResult.put(hash, new TableBucket(hash, segmentOffset));
-            builder.cacheHash(hash, segmentOffset);
+            builder.cacheHash(hash, new CacheBucketOffset(segmentOffset, false));
         }
 
         return builder.expectedResult(expectedResult.values().stream()
@@ -189,7 +189,7 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
         @Singular
         private final List<List<Map.Entry<UUID, Long>>> baseIteratorHashes;
         @Singular
-        private final Map<UUID, Long> cacheHashes;
+        private final Map<UUID, CacheBucketOffset> cacheHashes;
         private final List<TableBucket> expectedResult;
         private final DirectSegmentAccess segment = new TestSegment();
         private final ScheduledExecutorService executor;

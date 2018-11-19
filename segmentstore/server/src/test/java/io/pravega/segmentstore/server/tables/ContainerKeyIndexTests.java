@@ -505,7 +505,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         // Check unindexed key hashes.
-        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join();
+        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join().entrySet().stream()
+                                           .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getSegmentOffset()));
         val expectedHashes = highestUpdate.batch.getItems().stream()
                                                 .collect(Collectors.toMap(TableKeyBatch.Item::getHash, i -> highestUpdate.offset.get() + i.getOffset()));
         AssertExtensions.assertMapEquals("Unexpected result from getUnindexedKeyHashes", expectedHashes, unindexedHashes);

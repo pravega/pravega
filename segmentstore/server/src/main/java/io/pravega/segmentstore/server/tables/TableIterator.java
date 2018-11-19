@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.tables;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -205,7 +206,7 @@ class TableIterator<T> implements AsyncIterator<T> {
      */
     static class Builder<T> {
         private DirectSegmentAccess segment;
-        private Map<UUID, Long> cacheHashes;
+        private Map<UUID, CacheBucketOffset> cacheHashes;
         private UUID firstHash;
         private ConvertResult<T> resultConverter;
         private ScheduledExecutorService executor;
@@ -226,10 +227,10 @@ class TableIterator<T> implements AsyncIterator<T> {
          * Sets the Key Hashes that are currently cached. These values will augment and/or supersede the values loaded
          * from the Table Segment's Index.
          *
-         * @param cacheHashes A Map of Key Hashes to Segment Offsets.
+         * @param cacheHashes A Map of Key Hashes to Segment Offsets (represented by {@link CacheBucketOffset}).
          * @return This object.
          */
-        Builder<T> cacheHashes(@NonNull Map<UUID, Long> cacheHashes) {
+        Builder<T> cacheHashes(@NonNull Map<UUID, CacheBucketOffset> cacheHashes) {
             this.cacheHashes = cacheHashes;
             return this;
         }
@@ -295,11 +296,12 @@ class TableIterator<T> implements AsyncIterator<T> {
                     new TableIterator<>(attributeIterator, this.resultConverter, cacheHashes, this.executor));
         }
 
-        private ArrayDeque<Map.Entry<UUID, Long>> getCacheHashes(Map<UUID, Long> unindexedKeyHashes, UUID firstHash) {
+        private ArrayDeque<Map.Entry<UUID, Long>> getCacheHashes(Map<UUID, CacheBucketOffset> unindexedKeyHashes, UUID firstHash) {
             // Filter out the Hashes which are below our first hash, then sort them.
             return unindexedKeyHashes.entrySet().stream()
                                      .filter(e -> e.getKey().compareTo(firstHash) >= 0)
                                      .sorted(Comparator.comparing(Map.Entry::getKey))
+                                     .map(e -> Maps.immutableEntry(e.getKey(), e.getValue().getSegmentOffset()))
                                      .collect(Collectors.toCollection(ArrayDeque::new));
         }
     }
