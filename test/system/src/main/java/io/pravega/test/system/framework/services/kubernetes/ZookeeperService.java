@@ -55,13 +55,13 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 public class ZookeeperService implements Service {
 
     private static final String NAMESPACE = "default";
-    private static final Integer MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
+    private static final String ID = "zk";
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
     private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeper-clusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
-    private static final String ID = "zk";
     private static final String OPERATOR_ID = "zookeeper-operator";
+    private static final int MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
     private static final int ZKPORT = 2181;
     private static final String TCP = "tcp://";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
