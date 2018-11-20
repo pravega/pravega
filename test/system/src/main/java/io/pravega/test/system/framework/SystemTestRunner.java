@@ -24,6 +24,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.common.Exceptions.unwrap;
 import static io.pravega.test.system.framework.Utils.getConfig;
 
 /**
@@ -80,7 +81,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
                 eachNotifier.fireTestStarted();
                 execute(type, method.getMethod()).get();
             } catch (Throwable e) {
-                eachNotifier.addFailure(e);
+                eachNotifier.addFailure(unwrap(e));
             } finally {
                 eachNotifier.fireTestFinished();
             }

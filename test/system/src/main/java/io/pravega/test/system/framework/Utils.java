@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -18,12 +19,14 @@ import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
-import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+
 import java.net.URI;
 
 /**
  * Utility methods used inside the TestFramework.
  */
+@Slf4j
 public class Utils {
 
     public static final int DOCKER_CONTROLLER_PORT = 9090;
@@ -45,8 +48,17 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
-        return DOCKER_BASED ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        TestExecutorFactory.TestExecutorType r = TestExecutorFactory.getTestExecutionType();
+        log.debug("Test executor type is {}", r);
+        switch (r) {
+            case DOCKER:
+                return new ZookeeperDockerService("zookeeper");
+            case K8:
+                return new ZookeeperService();
+            case REMOTE_SEQUENTIAL:
+            default:
+                return new io.pravega.test.system.framework.services.marathon.ZookeeperService("zookeeper");
+        }
     }
 
     public static Service createBookkeeperService(final URI zkUri) {
@@ -86,11 +98,11 @@ public class Utils {
      *  true: Already deployed services are used for running tests.
      *  false: Services are deployed on the cluster before running tests.
      *
-     * Default value is true
+     * Default value is false
      * @return
      */
     public static boolean isSkipServiceInstallationEnabled() {
-        String config = getConfig("skipServiceInstallation", "true");
+        String config = getConfig("skipServiceInstallation", "false");
         return config.trim().equalsIgnoreCase("true") ? true : false;
     }
 

@@ -9,8 +9,11 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.kubernetes.K8SequentialExecutor;
 import lombok.Getter;
 import org.apache.commons.lang3.NotImplementedException;
+
+import static io.pravega.test.system.framework.Utils.getConfig;
 
 public class TestExecutorFactory {
     @Getter(lazy = true)
@@ -22,21 +25,28 @@ public class TestExecutorFactory {
     public enum TestExecutorType {
         LOCAL,
         DOCKER,
+        K8,
         REMOTE_SEQUENTIAL,
         REMOTE_DISTRIBUTED //TODO: https://github.com/pravega/pravega/issues/2074.
     }
 
-    public TestExecutor getTestExecutor(TestExecutorType type) {
+    TestExecutor getTestExecutor(TestExecutorType type) {
         switch (type) {
             case DOCKER:
                 return getDockerExecutor();
             case REMOTE_SEQUENTIAL:
                 return getMarathonSequentialExecutor();
+            case K8:
+                 return new K8SequentialExecutor();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             case LOCAL:
             default:
                 throw new IllegalArgumentException("Invalid Executor specified: " + type);
         }
+    }
+
+    static TestExecutorType getTestExecutionType() {
+        return TestExecutorType.valueOf(getConfig("execType", "LOCAL"));
     }
 }
