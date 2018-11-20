@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
@@ -87,13 +88,33 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     public void close() {
         this.connectionFactory.close();
     }
-
+    
+    /**
+     * Create a new batch client. A batch client can be used to perform bulk unordered reads without
+     * the need to create a reader group.
+     *
+     * Please note this is an experimental API.
+     *
+     * @return A batch client
+     * @deprecated Use {@link BatchClientFactory#withScope(String, ClientConfig)}
+     */
     @Override
+    @Deprecated
     public BatchClientFactoryImpl createBatchClient() {
         return impl.createBatchClient();
     }
 
+    /**
+     * Creates a new ByteStreamClient. The byteStreamClient can create readers and writers that work
+     * on a stream of bytes. The stream must be pre-created with a single fixed segment. Sharing a
+     * stream between the byte stream API and the Event stream readers/writers will CORRUPT YOUR
+     * DATA in an unrecoverable way.
+     * 
+     * @return A byteStreamClient
+     * @deprecated Use {@link ByteStreamClientFactory#withScope(String, ClientConfig)}
+     */
     @Override
+    @Deprecated
     public ByteStreamClientFactory createByteStreamClient() {
         return impl.createByteStreamClient();
     }

@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
@@ -199,12 +200,32 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));
     }
     
+    /**
+     * Create a new batch client. A batch client can be used to perform bulk unordered reads without
+     * the need to create a reader group.
+     *
+     * Please note this is an experimental API.
+     *
+     * @return A batch client
+     * @deprecated Use {@link BatchClientFactory#withScope(String, ClientConfig)}
+     */
     @Override
+    @Deprecated
     public BatchClientFactoryImpl createBatchClient() {
         return new BatchClientFactoryImpl(controller, connectionFactory);
     }
     
+    /**
+     * Creates a new ByteStreamClient. The byteStreamClient can create readers and writers that work
+     * on a stream of bytes. The stream must be pre-created with a single fixed segment. Sharing a
+     * stream between the byte stream API and the Event stream readers/writers will CORRUPT YOUR
+     * DATA in an unrecoverable way.
+     * 
+     * @return A byteStreamClient
+     * @deprecated Use {@link ByteStreamClientFactory#withScope(String, ClientConfig)}
+     */
     @Override
+    @Deprecated
     public ByteStreamClientFactory createByteStreamClient() {
         return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
     }
