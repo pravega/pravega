@@ -838,7 +838,7 @@ public class StreamMetaDataTests {
         // Test to list large number of reader groups.
         streamsList = new HashMap<>();
         for (int i = 0; i < 50000; i++) {
-            streamsList.put("readerGroup" + i, readerGroup1);
+            streamsList.put(getStreamForReaderGroup("readerGroup" + i), readerGroup1);
         }
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
                 CompletableFuture.completedFuture(streamsList));
