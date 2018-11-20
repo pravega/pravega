@@ -11,15 +11,11 @@ package io.pravega.test.integration;
 
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.io.StreamHelpers;
@@ -107,11 +103,7 @@ public class ByteStreamTest {
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
 
-        @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = ByteStreamClientFactory.withScope(scope, ClientConfig.builder().build());
 
         byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         byte[] readBuffer = new byte[10];
@@ -153,12 +145,8 @@ public class ByteStreamTest {
         // create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
-
-        @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
+        
+        ByteStreamClientFactory client = ByteStreamClientFactory.withScope(scope, ClientConfig.builder().build());
 
         byte[] payload = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 2];
         Arrays.fill(payload, (byte) 7);
@@ -196,12 +184,8 @@ public class ByteStreamTest {
         // create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
-
-        @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
+        
+        ByteStreamClientFactory client = ByteStreamClientFactory.withScope(scope, ClientConfig.builder().build());
 
         byte[] payload = new byte[100];
         Arrays.fill(payload, (byte) 1);

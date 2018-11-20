@@ -161,8 +161,10 @@ public interface ClientFactory extends AutoCloseable {
      * DATA in an unrecoverable way.
      * 
      * @return A byteStreamClient
+     * @deprecated Use {@link ByteStreamClientFactory#withScope(String, ClientConfig)}
      */
     @Beta
+    @Deprecated
     ByteStreamClientFactory createByteStreamClient();
     
     /**
@@ -172,9 +174,11 @@ public interface ClientFactory extends AutoCloseable {
      * Please note this is an experimental API.
      *
      * @return A batch client
+     * @deprecated Use {@link BatchClientFactory#withScope(String, ClientConfig)}
      */
     @Beta
-    BatchClientFactory createBatchClient();
+    @Deprecated
+    io.pravega.client.batch.BatchClient createBatchClient();
 
     /**
      * Closes the client factory. This will close any connections created through it.

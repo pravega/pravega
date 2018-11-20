@@ -10,11 +10,10 @@
 package io.pravega.client.byteStream;
 
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -39,7 +38,7 @@ public class ByteStreamReaderTest {
     private static final String STREAM = "stream";
     private MockConnectionFactoryImpl connectionFactory;
     private MockController controller;
-    private ClientFactory clientFactory;
+    private ByteStreamClientFactory clientFactory;
 
     @Before
     public void setup() throws ConnectionFailedException {
@@ -62,27 +61,25 @@ public class ByteStreamReaderTest {
                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                    .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory, streamFactory,
-                                              streamFactory, streamFactory);
+        clientFactory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory, streamFactory, streamFactory,
+                                              streamFactory);
     }
 
     @After
     public void teardown() {
-        clientFactory.close();
         controller.close();
         connectionFactory.close();
     }
     
     @Test(timeout = 5000)
     public void testReadWritten() throws Exception {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         writer.write(value);
         writer.flush();
         @Cleanup
-        ByteStreamReader reader = client.createByteStreamReader(STREAM);
+        ByteStreamReader reader = clientFactory.createByteStreamReader(STREAM);
         for (int i = 0; i < 10; i++) {
             assertEquals(i, reader.read());
         }
@@ -101,11 +98,10 @@ public class ByteStreamReaderTest {
 
     @Test(timeout = 5000)
     public void testAvailable() throws Exception {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         @Cleanup
-        ByteStreamReader reader = client.createByteStreamReader(STREAM);
+        ByteStreamReader reader = clientFactory.createByteStreamReader(STREAM);
         assertEquals(0, reader.available());
         byte[] value = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         writer.write(value);
@@ -115,11 +111,10 @@ public class ByteStreamReaderTest {
 
     @Test(timeout = 5000)
     public void testSkip() throws Exception {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         @Cleanup
-        ByteStreamReader reader = client.createByteStreamReader(STREAM);
+        ByteStreamReader reader = clientFactory.createByteStreamReader(STREAM);
         for (int i = 0; i < 5; i++) {
             writer.write(new byte[] { (byte) i });
         }

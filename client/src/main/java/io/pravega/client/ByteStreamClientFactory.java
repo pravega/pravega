@@ -45,7 +45,7 @@ public interface ByteStreamClientFactory {
         SegmentInputStreamFactoryImpl inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         SegmentOutputStreamFactoryImpl outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
         SegmentMetadataClientFactoryImpl metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        return new ByteStreamClientImpl(scope, controller, inFactory, outFactory, metaFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
     }
 
     /**

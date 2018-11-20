@@ -9,12 +9,11 @@
 package io.pravega.client.byteStream;
 
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.byteStream.impl.BufferedByteStreamWriterImpl;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -42,7 +41,7 @@ public class ByteStreamWriterTest {
     private static final String STREAM = "stream";
     private MockConnectionFactoryImpl connectionFactory;
     private MockController controller;
-    private ClientFactory clientFactory;
+    private ByteStreamClientFactory clientFactory;
 
     @Before
     public void setup() throws ConnectionFailedException {
@@ -65,22 +64,20 @@ public class ByteStreamWriterTest {
                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                    .build());
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory, streamFactory, streamFactory,
-                                              streamFactory, streamFactory);
+        clientFactory = new ByteStreamClientImpl(SCOPE, controller, connectionFactory, streamFactory, streamFactory,
+                                                 streamFactory);
     }
 
     @After
     public void teardown() {
-        clientFactory.close();
         controller.close();
         connectionFactory.close();
     }
 
     @Test(timeout = 5000)
     public void testWrite() throws Exception {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         byte[] value = new byte[] { 1, 2, 3, 4, 5 };
         writer.write(value);
         writer.flush();
@@ -93,9 +90,8 @@ public class ByteStreamWriterTest {
 
     @Test(timeout = 5000)
     public void testSingleByteWrite() throws Exception {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         int numBytes = BufferedByteStreamWriterImpl.BUFFER_SIZE * 2 + 1;
         for (int i = 0; i < numBytes; i++) {
             writer.write(i);
@@ -106,9 +102,8 @@ public class ByteStreamWriterTest {
 
     @Test(timeout = 5000)
     public void testLargeWrite() throws Exception {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         byte[] value = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 10];
         Arrays.fill(value, (byte) 1);
         writer.write(value);
@@ -124,9 +119,8 @@ public class ByteStreamWriterTest {
 
     @Test
     public void testCloseAndSeal() throws IOException {
-        ByteStreamClientFactory client = clientFactory.createByteStreamClient();
         @Cleanup
-        ByteStreamWriter writer = client.createByteStreamWriter(STREAM);
+        ByteStreamWriter writer = clientFactory.createByteStreamWriter(STREAM);
         ByteBuffer toWrite = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4 });
         writer.write(toWrite);
         writer.closeAndSeal();

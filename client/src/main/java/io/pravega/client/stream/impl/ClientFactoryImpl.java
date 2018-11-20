@@ -11,14 +11,13 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.batch.impl.BatchClientImpl;
+import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -201,13 +200,13 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
     
     @Override
-    public BatchClientFactory createBatchClient() {
-        return new BatchClientImpl(controller, connectionFactory);
+    public BatchClientFactoryImpl createBatchClient() {
+        return new BatchClientFactoryImpl(controller, connectionFactory);
     }
     
     @Override
     public ByteStreamClientFactory createByteStreamClient() {
-        return new ByteStreamClientImpl(scope, controller, inFactory, outFactory, metaFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
     }
 
     @Override

@@ -7,22 +7,16 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client;
+package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.batch.SegmentIterator;
-import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamSegmentsIterator;
-import io.pravega.client.batch.impl.BatchClientFactoryImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.ControllerImpl;
-import io.pravega.client.stream.impl.ControllerImplConfig;
-import lombok.val;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Please note this is an experimental API.
@@ -34,24 +28,24 @@ import lombok.val;
  * Events within a segment are strictly ordered, but as this API allows for reading from multiple
  * segments in parallel without adhering to time ordering. This allows for events greater
  * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
+ * 
+ * @deprecated {@link BatchClientFactory} instead. 
  */
 @Beta
-public interface BatchClientFactory {
+@Deprecated
+public interface BatchClient {
 
     /**
-     * Creates a new instance of Client Factory.
+     * Get information about a given Stream, {@link StreamInfo}.
+     * @deprecated
+     *   Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
      *
-     * @param scope The scope string.
-     * @param config Configuration for the client.
-     * @return Instance of ClientFactory implementation.
+     * @param stream the stream.
+     * @return stream information.
      */
-    static BatchClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new ConnectionFactoryImpl(config);
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
-                           connectionFactory.getInternalExecutor());
-        return new BatchClientFactoryImpl(controller, connectionFactory);
-    }
-    
+    @Deprecated
+    CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
+
     /**
      * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
      * Passing StreamCut.UNBOUNDED or null to fromStreamCut and toStreamCut will result in using the current start of

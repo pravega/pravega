@@ -15,6 +15,7 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
@@ -124,7 +125,7 @@ public class ByteClientTest extends AbstractSystemTest {
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
 
-        ByteStreamClientFactory byteStreamClient = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller);
         @Cleanup("closeAndSeal")
         ByteStreamWriter writer = byteStreamClient.createByteStreamWriter(STREAM);
         @Cleanup

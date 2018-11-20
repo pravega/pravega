@@ -15,6 +15,7 @@ import com.google.common.collect.Iterators;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.admin.impl.StreamCutHelper;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
@@ -47,7 +48,8 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 @Beta
 @Slf4j
-public class BatchClientImpl implements BatchClientFactory {
+@SuppressWarnings("deprecation")
+public class BatchClientFactoryImpl implements BatchClientFactory, BatchClient {
 
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
@@ -58,7 +60,7 @@ public class BatchClientImpl implements BatchClientFactory {
     @GuardedBy("this")
     private final AtomicReference<String> latestDelegationToken;
 
-    public BatchClientImpl(Controller controller, ConnectionFactory connectionFactory) {
+    public BatchClientFactoryImpl(Controller controller, ConnectionFactory connectionFactory) {
         this.controller = controller;
         this.connectionFactory = connectionFactory;
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
