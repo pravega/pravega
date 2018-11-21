@@ -26,22 +26,22 @@ k8() {
 }
 
 init_kubernetes() {
-    if [ -z "${POD_NAMESPACE}" ]; then
-      echo "POD_NAMESPACE variable not set. Exiting..."
-      exit 1
-    fi
-
-    if [ -z "${POD_NAME}" ]; then
-      echo "POD_NAME variable not set. Exiting..."
-      exit 1
-    fi
-
-    local ns=${POD_NAMESPACE}
-    local podname=${POD_NAME}
-
     if [ -d "/var/run/secrets/kubernetes.io" ] && [ ! -z "${K8_EXTERNAL_ACCESS}" ]; then
         echo "Running in a Kubernetes environment and managed by the Pravega Operator with external access enabled"
         echo "Trying to obtain the external service endpoint..."
+
+        if [ -z "${POD_NAMESPACE}" ]; then
+          echo "POD_NAMESPACE variable not set. Exiting..."
+          exit 1
+        fi
+
+        if [ -z "${POD_NAME}" ]; then
+          echo "POD_NAME variable not set. Exiting..."
+          exit 1
+        fi
+
+        local ns=${POD_NAMESPACE}
+        local podname=${POD_NAME}
 
         service_type=$( k8 "${ns}" "services" "${podname}" ".spec.type" )
         if [ "${service_type}" == "LoadBalancer" ]; then
