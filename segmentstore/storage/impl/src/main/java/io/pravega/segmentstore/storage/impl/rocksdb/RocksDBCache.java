@@ -179,7 +179,7 @@ class RocksDBCache implements Cache {
             throw convert(ex, "insert key '%s'", key);
         }
 
-        RocksDBMetrics.insert(timer.getElapsedMillis(), serializedKey.length + data.length);
+        RocksDBMetrics.insert(timer.getElapsedMillis(), serializedKey.length + ((data != null) ? data.length : 0));
     }
 
     @Override

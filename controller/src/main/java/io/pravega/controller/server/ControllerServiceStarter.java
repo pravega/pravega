@@ -338,11 +338,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of auto retention");
                 streamCutService.awaitTerminated();
             }
-
-            if (streamMetrics != null) {
-                streamMetrics.close();
-                transactionMetrics.close();
-            }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;
@@ -364,6 +359,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
+
+            // Close metrics.
+            if (streamMetrics != null) {
+                streamMetrics.close();
+                transactionMetrics.close();
+            }
 
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

@@ -90,15 +90,15 @@ public class Main {
             controllerServiceMain.startAsync();
             controllerServiceMain.awaitTerminated();
 
-            statsProvider.close();
             log.info("Controller service exited");
             System.exit(0);
         } catch (Throwable e) {
             log.error("Controller service failed", e);
+            System.exit(-1);
+        } finally {
             if (statsProvider != null) {
                 statsProvider.close();
             }
-            System.exit(-1);
         }
     }
 }
