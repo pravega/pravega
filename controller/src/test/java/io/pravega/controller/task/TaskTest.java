@@ -246,7 +246,8 @@ public class TaskTest {
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
         Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        Assert.assertTrue(streams.keySet().stream().allMatch(x -> !x.equals(stream)));
+        assertEquals(3, streams.size());
+        assertEquals(configuration1, streams.get(stream));
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
