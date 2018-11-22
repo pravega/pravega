@@ -33,6 +33,8 @@ import io.kubernetes.client.models.V1PodStatus;
 import io.kubernetes.client.models.V1beta1ClusterRole;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
+import io.kubernetes.client.models.V1beta1Role;
+import io.kubernetes.client.models.V1beta1RoleBinding;
 import io.kubernetes.client.util.Config;
 import io.kubernetes.client.util.Watch;
 import io.pravega.common.Exceptions;
@@ -421,7 +423,7 @@ public class K8Client implements AutoCloseable {
 
     /**
      * Create a cluster role.
-     * @param role Role.
+     * @param role Cluster Role.
      * @return A future indicating the status of this operation.
      */
     @SneakyThrows(ApiException.class)
@@ -447,9 +449,37 @@ public class K8Client implements AutoCloseable {
     }
 
     /**
-     * Create a cluster role binding.
-     * @param binding The binding.
-     * @return A future representing the status of this operation.
+     * Create a role.
+     * @param namespace Namespace where the role is created.
+     * @param role Role.
+     * @return A future indicating the status of this operation.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1beta1Role> createRole(String namespace, V1beta1Role role) {
+        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
+        K8AsyncCallback<V1beta1Role> callback = new K8AsyncCallback<>("createRole");
+        api.createNamespacedRoleAsync(namespace, role, PRETTY_PRINT, callback);
+
+        return callback.getFuture().handle((r, ex) -> {
+            if (ex == null) {
+                return r;
+            } else {
+                if (ex instanceof ApiException) {
+                    ApiException e = (ApiException) ex;
+                    if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                        log.info("Role {} is already created, ignoring the exception.", role.getMetadata().getName());
+                        return null;
+                    }
+                }
+                throw new CompletionException(ex);
+            }
+        });
+    }
+
+    /**
+     * Create cluster role binding.
+     * @param binding The cluster role binding.
+     * @return A future indicating the status of the create role binding operation.
      */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<V1beta1ClusterRoleBinding> createClusterRoleBinding(V1beta1ClusterRoleBinding binding) {
@@ -470,7 +500,33 @@ public class K8Client implements AutoCloseable {
                 throw new CompletionException(ex);
             }
         });
+    }
 
+    /**
+     * Create role binding.
+     * @param namespace The namespece where the binding should be created.
+     * @param binding The cluster role binding.
+     * @return A future indicating the status of the create role binding operation.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1beta1RoleBinding> createRoleBinding(String namespace, V1beta1RoleBinding binding) {
+        RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
+        K8AsyncCallback<V1beta1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding");
+        api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, callback);
+        return callback.getFuture().handle((r, ex) -> {
+            if (ex == null) {
+                return r;
+            } else {
+                if (ex instanceof ApiException) {
+                    ApiException e = (ApiException) ex;
+                    if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                        log.info("Role binding {} is already present, ignoring the exception.", binding.getMetadata().getName());
+                        return null;
+                    }
+                }
+                throw new CompletionException(ex);
+            }
+        });
     }
 
     /**
@@ -558,20 +614,27 @@ public class K8Client implements AutoCloseable {
         return Futures.loop(shouldRetry::get,
                             () -> Futures.delayedFuture(Duration.ofSeconds(5), executor) // wait for 5 seconds before checking for status.
                                          .thenCompose(v -> getStatusOfPodWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
-                                         .thenApply(podStatuses -> podStatuses.stream()
-                                                                              // check for pods where all containers are running.
-                                                                              .filter(podStatus -> podStatus.getContainerStatuses()
-                                                                                                            .stream()
-                                                                                                            .allMatch(st -> st.getState().getRunning() != null))
-                                                                              .count()),
+                                         .thenApply(podStatuses -> {
+                                             return podStatuses.stream()
+                                                               // check for pods where all containers are running.
+                                                               .filter(podStatus -> {
+                                                                   if (podStatus.getContainerStatuses() == null) {
+                                                                       return false;
+                                                                   } else {
+                                                                       return podStatus.getContainerStatuses()
+                                                                                       .stream()
+                                                                                       .allMatch(st -> st.getState().getRunning() != null);
+                                                                   }
+                                                               })
+                                                               .count();
+                                         }),
                             runCount -> { // Number of pods which are running
                                 log.debug("Expected pod count : {}, actual pod count :{}.", expectedPodCount, runCount);
                                 if (runCount == expectedPodCount) {
                                     shouldRetry.set(false);
                                 }
                             }, executor);
-
-    }
+        }
 
 
     /**

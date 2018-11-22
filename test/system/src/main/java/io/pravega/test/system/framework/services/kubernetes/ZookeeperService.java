@@ -36,8 +36,6 @@ import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
-import io.pravega.test.system.framework.kubernetes.K8Client;
-import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -52,23 +50,19 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
  * Manage Zookeeper service on k8 cluster.
  */
 @Slf4j
-public class ZookeeperService implements Service {
+public class ZookeeperService extends AbstractService {
 
-    private static final String NAMESPACE = "default";
     private static final String ID = "zk";
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
     private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeper-clusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final String OPERATOR_ID = "zookeeper-operator";
-    private static final int MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
-    private static final int ZKPORT = 2181;
     private static final String TCP = "tcp://";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
-    private final K8Client k8Client;
 
     public ZookeeperService() {
-        k8Client = new K8Client();
+        super(ID);
     }
 
     @Override
@@ -100,11 +94,6 @@ public class ZookeeperService implements Service {
 
     @Override
     public void clean() {
-    }
-
-    @Override
-    public String getID() {
-        return ID;
     }
 
     @Override
@@ -254,5 +243,14 @@ public class ZookeeperService implements Service {
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.of("size", clusterSize))
                 .build();
+    }
+
+    public static void main(String[] args) {
+        ZookeeperService zk = new ZookeeperService();
+        if (!zk.isRunning()) {
+            zk.start(true);
+            System.out.println("===> Zk has started");
+        }
+        System.out.println(zk.getServiceDetails());
     }
 }
