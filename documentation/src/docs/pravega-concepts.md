@@ -11,8 +11,6 @@ You may obtain a copy of the License at
 
 Pravega is an open source storage system implementing **Streams** as first-class primitive for storing/serving continuous and unbounded data.
 
-
-
 Next, we overview the key concepts in Pravega. For a concise definition of key terms of Pravega concepts, please see [Terminology](terminology.md).
 
 ## Streams
@@ -133,7 +131,7 @@ determines how a Stream handles the varying changes in its load. Pravega has thr
 
 2.  **Data-based**: Pravega splits a Stream Segment into multiple ones (i.e., Scale-up Event) if the number of bytes per second written to that Stream Segment increases beyond a defined threshold. Similarly, Pravega merges two adjacent Stream Segments (i.e., Scale-down Event) if the number of bytes written to them fall below a defined threshold. Note that, even if the load for a Stream Segment reaches the defined threshold, Pravega does not immediately trigger a Scale-up/down Event. Instead, the load should be satisfying the scaling policy threshold for a [sufficient amount of time](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java).
 
-3.  **Event-based**: To the data-based scaling policy, but it uses number of Events instead of bytes.
+3.  **Event-based**: Similar to the data-based scaling policy, but it uses number of Events instead of bytes.
 
 ### Events, Stream Segments and AutoScaling
 
@@ -362,3 +360,11 @@ Tier 2 Storage provides a highly-scalable, high-throughput cost-effective
 storage. We expect this Tier 2 to be typically deployed on spinning disks. Pravega
 asynchronously migrates Events from Tier 1 to Tier 2 to reflect the different
 access patterns to Stream data. Tier 2 Storage is based on an HDFS model. 
+
+Pravega allows users to store data in Tier 2 as long as there is storage capacity available. But sometimes, users may not be interested to keep all the historical data related to a Stream. Instead, there are use-cases in which it may be useful to retain just a fraction of a Stream's data. For this reason, Streams can be configured with **Retention Policies**.  
+
+Pravega supports two types of Retention Policies:
+
+ - **Time-based Retention**: It allows the developer to control for how long the data is kept in a Stream before it is deleted. The developer can specify the time limit (milliseconds) in the Stream policy, which is ideal for situations like regulatory compliance that mandate certain retention periods.
+
+- **Size-based Retention**: Retains the newest subset of a Stream's data that does not exceed the specified size in bytes.
