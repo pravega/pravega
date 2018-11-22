@@ -11,9 +11,7 @@ You may obtain a copy of the License at
 
 Lets examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
 Writer that writes to a Stream. A simple sample application of both can be
-found in the [Pravega Samples](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These sample applications
-provide a very basic example of how a Java application could use the Pravega's
-Java Client Library to access Pravega functionality.
+found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
 
 Instructions for running the sample applications can be found in the [Pravega
 Samples](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md). Get familiar with the [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/)
@@ -33,17 +31,17 @@ public void run(String routingKey, String message) {
 
     final boolean scopeCreation = streamManager.createScope(scope);
     StreamConfiguration streamConfig = StreamConfiguration.builder()
-            .scalingPolicy(ScalingPolicy.fixed(1))
-            .build();
+                                                          .scalingPolicy(ScalingPolicy.fixed(1))
+                                                          .build();
     final boolean streamCreation = streamManager.createStream(scope, streamName, streamConfig);
 
     try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
          EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                                                           new JavaSerializer<String>(),
-                                                   EventWriterConfig.builder().build())) {
+                                                          EventWriterConfig.builder().build())) {
 
          System.out.format("Writing message: '%s' with routing-key: '%s' to stream '%s / %s'%n",
-                message, routingKey, scope, streamName);
+                                                        message, routingKey, scope, streamName);
          final CompletableFuture<Void> writeFuture = writer.writeEvent(routingKey, message);
     }
 }
@@ -75,7 +73,7 @@ related to Scopes and Streams:
 |                 |                                                                   | If the Scope contains Streams, the `deleteScope` operation will fail with an exception.                                                                                                               |
 |                 |                                                                   | If we delete a nonexistent Scope, the method will succeed and return _False_.                                                                                                               |
 | `createStream`    | (String `scopeName`, String `streamName`, `StreamConfiguration config`) | Create a Stream within a given Scope.                                                                          |
-|                 |                                                                   | Both Scope name and Stream name are limited using the following characters: ( Letters (a-z A-Z), numbers (0-9) and delimiters: "." and "-") are allowed.                                                                                                               |
+|                 |                                                                   | Both Scope name and Stream name are limited using the following characters: Letters (a-z A-Z), numbers (0-9) and delimiters: "." and "-" are allowed.                                                                                                               |
 |                 |                                                                   | The Scope must exist, an exception is thrown if we create a Stream in a nonexistent Scope.                                                                                                               |
 |                 |                                                                   | A Stream Configuration is built using a builder pattern.                                                                                                               |
 |                 |                                                                   | Returns _True_ if the Stream is created, returns _False_ if the Stream already exists.                                                                                                               |
@@ -271,7 +269,7 @@ The Reader Group can be configured to read from multiple Streams. For example, 
 application reasons about data from exactly one machine. We can build other applications that
 use a Reader Group configured to read from all of the Streams. To keep it simple, in the sample application the Reader Group only reads from one Stream.
 
-We can call `createReaderGroup()` with the same parameters multiple times and the same Reader Group will be returned each time after it is initially created. Note that in other cases, if the developer knows the name of the Reader Group to use and knows it has already been created, they can use `getReaderGroup()` on `ReaderGroupManager` to retrieve the `ReaderGroup` object by name.
+We can call `createReaderGroup()` with the same parameters multiple times and the same Reader Group will be returned each time after it is initially created (idempotent operation). Note that in other cases, if the developer knows the name of the Reader Group to use and knows it has already been created, they can use `getReaderGroup()` on `ReaderGroupManager` to retrieve the `ReaderGroup` object by name.
 
 At this point, we have the Scope and Stream is set up and the `ReaderGroup` object created. Next, we need to create a Reader and start reading Events.
 
