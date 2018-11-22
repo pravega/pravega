@@ -38,7 +38,8 @@ public void run(String routingKey, String message) {
     try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
          EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                                                           new JavaSerializer<String>(),
-                                                          EventWriterConfig.builder().build())) {
+                                                          EventWriterConfig.builder().build()))
+    {
 
          System.out.format("Writing message: '%s' with routing-key: '%s' to stream '%s / %s'%n",
                                                         message, routingKey, scope, streamName);
@@ -154,7 +155,7 @@ several things a developer needs to know before creating a Writer:
 ```Java
      EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                                                       new JavaSerializer<String>(),
-                                               EventWriterConfig.builder().build()))
+                                                      EventWriterConfig.builder().build()))
 ```
 The `EventStreamWriter` writes to the
 Stream specified in the configuration of the `HelloWorldWriter` sample application (by
@@ -197,23 +198,25 @@ public void run() {
 
    final boolean scopeIsNew = streamManager.createScope(scope);
    StreamConfiguration streamConfig = StreamConfiguration.builder()
-           .scalingPolicy(ScalingPolicy.fixed(1))
-           .build();
+                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                         .build();
    final boolean streamIsNew = streamManager.createStream(scope, streamName, streamConfig);
 
    final String readerGroup = UUID.randomUUID().toString().replace("-", "");
    final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                                                                 .stream(Stream.of(scope, streamName))
                                                                 .build();
-   try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI)) {
+   try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI))
+    {
        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
    }
 
    try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
         EventStreamReader<String> reader = clientFactory.createReader("reader",
                                                                       readerGroup,
-                                                     new JavaSerializer<String>(),
-                                                  ReaderConfig.builder().build())) {
+                                                                      new JavaSerializer<String>(),
+                                                                      ReaderConfig.builder().build()))
+        {
         System.out.format("Reading all the events from %s/%s%n", scope, streamName);
         EventRead<String> event = null;
         do {
@@ -287,8 +290,8 @@ objects and a `ReaderConfig`.
 ```Java
 EventStreamReader<String> reader = clientFactory.createReader("reader",
                                                               readerGroup,
-                                             new JavaSerializer<String>(),
-                                          ReaderConfig.builder().build()))
+                                                             new JavaSerializer<String>(),
+                                                             ReaderConfig.builder().build()))
   ```                                        
 The name of the Reader can be any valid Pravega naming convention (numbers and letters). Note that the name of the Reader is namespaced within the Scope. `EventStreamWriter` and `EventStreamReader` uses Java generic types to allow a developer to specify a type safe Reader. In the sample application,
 we read Strings from the stream and use the standard Java String Serializer to
@@ -325,7 +328,8 @@ SegmentRange segmentInfo = segments.next();
 To read the events from a segment:
 ```Java
 SegmentIterator<T> events = client.readSegment(segmentInfo, deserializer);
-while (events.hasNext()) {
+while (events.hasNext())
+{
     processEvent(events.next());
 }
 ```
