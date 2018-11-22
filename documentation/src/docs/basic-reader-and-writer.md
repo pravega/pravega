@@ -98,7 +98,7 @@ The execution of API `createScope(scope)` establishes that the Scope exists. The
 
 The most interesting task is to create the Stream Configuration (`streamConfig`). Like many objects in Pravega, a Stream takes a configuration object that allows
 a developer to control various behaviors of the Stream.  All configuration
-objects in Pravega use a builder pattern for construction. [**Retention Policy**](pravega-concepts.md/#a-note-on-tiered-storage) and [**Scaling
+objects in Pravega use a builder pattern for construction. [**Retention Policy**](pravega-concepts.md#retention-policy) and [**Scaling
 Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the two important configuration items related to streams.   
 
 The minimum number of Segments is a factor that sets the minimum degree of read parallelism to be maintained; for example if this value is set as three, there will always be three Stream Segments available on the Stream.  Currently, this property is effective only when the stream is
