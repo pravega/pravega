@@ -58,7 +58,6 @@ public class ZookeeperService extends AbstractService {
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeper-clusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final String OPERATOR_ID = "zookeeper-operator";
-    private static final String TCP = "tcp://";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
 
     public ZookeeperService() {

@@ -9,13 +9,13 @@
  */
 package io.pravega.test.system.framework;
 
-import io.pravega.test.system.framework.services.kubernetes.ZookeeperService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
@@ -36,6 +36,7 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
+    private static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
 
     /**
      * Get Configuration from environment or system property.
@@ -48,29 +49,42 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
-        TestExecutorFactory.TestExecutorType r = TestExecutorFactory.getTestExecutionType();
-        log.debug("Test executor type is {}", r);
-        switch (r) {
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new io.pravega.test.system.framework.services.marathon.ZookeeperService("zookeeper");
             case DOCKER:
                 return new ZookeeperDockerService("zookeeper");
             case K8:
-                return new ZookeeperService();
-            case REMOTE_SEQUENTIAL:
             default:
-                return new io.pravega.test.system.framework.services.marathon.ZookeeperService("zookeeper");
+                return new ZookeeperService();
+
         }
     }
 
     public static Service createBookkeeperService(final URI zkUri) {
-        return DOCKER_BASED ?
-                new BookkeeperDockerService("bookkeeper", zkUri) :
-                new BookkeeperService("bookkeeper", zkUri);
+        String serviceId = "bookkeeper";
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new BookkeeperService(serviceId, zkUri);
+            case DOCKER:
+                return new BookkeeperDockerService(serviceId, zkUri);
+            case K8:
+            default:
+                return new io.pravega.test.system.framework.services.kubernetes.BookkeeperService(serviceId, zkUri);
+        }
     }
 
     public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
-        return DOCKER_BASED
-                ? new PravegaControllerDockerService(serviceName, zkUri)
-                : new PravegaControllerService(serviceName, zkUri);
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new PravegaControllerService(serviceName, zkUri);
+            case DOCKER:
+                return new PravegaControllerDockerService(serviceName, zkUri);
+            case K8:
+            default:
+                return new io.pravega.test.system.framework.services.kubernetes.PravegaControllerService(serviceName, zkUri);
+        }
+
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
@@ -86,9 +100,17 @@ public class Utils {
             }
             hdfsUri = hdfsService.getServiceDetails().get(0);
         }
-        return DOCKER_BASED ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, hdfsUri, contUri)
-                : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
+
+        String serviceId = "segmentstore";
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new PravegaSegmentStoreService(serviceId, zkUri, contUri);
+            case DOCKER:
+                return  new PravegaSegmentStoreDockerService(serviceId, zkUri, hdfsUri, contUri);
+            case K8:
+            default:
+                return new io.pravega.test.system.framework.services.kubernetes.PravegaSegmentStoreService(serviceId, zkUri);
+        }
     }
 
     /**

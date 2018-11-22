@@ -17,16 +17,15 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 @Slf4j
-public class PravegaControllerService extends AbstractService {
+public class PravegaSegmentStoreService extends AbstractService {
 
     private final URI zkUri;
 
-    public PravegaControllerService(final String id, final URI zkUri) {
+    public PravegaSegmentStoreService(final String id, final URI zkUri) {
         super(id);
         this.zkUri = zkUri;
     }
@@ -36,8 +35,8 @@ public class PravegaControllerService extends AbstractService {
         Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
-                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-controller service, check the operator logs", t));
+            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, DEFAULT_SEGMENTSTORE_COUNT),
+                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-segmentStore service, check the operator logs", t));
         }
     }
 
@@ -52,18 +51,22 @@ public class PravegaControllerService extends AbstractService {
 
     }
 
+    @Override
+    public void clean() {
+    }
+
 
     @Override
     public boolean isRunning() {
-        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
+        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
                        .thenApply(statuses -> statuses.stream()
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
                                                       .count())
-                       .thenApply(runCount -> runCount == DEFAULT_CONTROLLER_COUNT)
+                       .thenApply(runCount -> runCount == DEFAULT_SEGMENTSTORE_COUNT)
                        .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pods " + PRAVEGA_CONTROLLER_LABEL, t);
+                           log.warn("Exception observed while checking status of pods " + PRAVEGA_SEGMENTSTORE_LABEL, t);
                            return false;
                        }).join();
     }
@@ -71,12 +74,11 @@ public class PravegaControllerService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
-        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
+        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
                                                       .thenApply(statuses -> statuses.stream()
-                                                                                     .flatMap(s -> Stream.of(URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
-                                                                                                             URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
+                                                                                     .map(s -> URI.create(TCP + s.getPodIP() + ":" + SEGMENTSTORE_PORT))
                                                                                      .collect(Collectors.toList())),
-                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-controller", t));
+                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-segmentstore", t));
     }
 
     @Override
@@ -84,38 +86,4 @@ public class PravegaControllerService extends AbstractService {
         return null;
     }
 
-    @Override
-    public void clean() {
-
-    }
-
-
-    public static void main(String[] args) {
-        ZookeeperService zkSer = new ZookeeperService();
-        if (!zkSer.isRunning()) {
-            zkSer.start(true);
-        }
-        URI zkUri = zkSer.getServiceDetails().get(0);
-        System.out.println("===> " + zkUri);
-        PravegaControllerService ser = new PravegaControllerService("controller", zkUri);
-
-        if (!ser.isRunning()) {
-            ser.start(true);
-        }
-        System.out.println("==>" + ser.getServiceDetails());
-
-        PravegaSegmentStoreService sss = new PravegaSegmentStoreService("segmentStore", zkUri);
-        if (!sss.isRunning()) {
-            sss.start(true);
-        }
-        System.out.println("==>" + sss.getServiceDetails());
-
-        BookkeeperService bk = new BookkeeperService("bk", zkUri);
-        if (!bk.isRunning()) {
-            bk.start(true);
-        }
-        System.out.println("==>" + bk.getServiceDetails());
-        System.out.println("finish");
-
-    }
 }
