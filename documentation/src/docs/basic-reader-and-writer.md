@@ -228,7 +228,7 @@ The API `streamManager.createScope()` and `streamManager.createStream()` set up 
 application. The API `ReaderGroupConfig` set up the Reader Group as the prerequisite to creating
 the `EventStreamReader` and using it to read Events from the Stream (`createReader()`,`reader.readNextEvent()`).
 
-## ReaderGroup Basics
+## Reader Group Basics
 
 Any Reader in Pravega belongs to some `ReaderGroup`.  A `ReaderGroup` is a grouping
 of one or more Readers that consume from a Stream in parallel. Before we create
@@ -280,8 +280,8 @@ objects and a `ReaderConfig`.
 ```Java
 EventStreamReader<String> reader = clientFactory.createReader("reader",
                                                               readerGroup,
-                                                             new JavaSerializer<String>(),
-                                                             ReaderConfig.builder().build()))
+                                                              new JavaSerializer<String>(),
+                                                              ReaderConfig.builder().build()))
   ```                                        
 The name of the Reader can be any valid Pravega naming convention (numbers and letters). Note that the name of the Reader is namespaced within the Scope. `EventStreamWriter` and `EventStreamReader` uses Java generic types to allow a developer to specify a type safe Reader. In the sample application,
 we read Strings from the stream and use the standard Java String Serializer to
