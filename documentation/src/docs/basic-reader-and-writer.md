@@ -38,8 +38,7 @@ public void run(String routingKey, String message) {
     try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
          EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                                                           new JavaSerializer<String>(),
-                                                          EventWriterConfig.builder().build()))
-    {
+                                                          EventWriterConfig.builder().build())) {
 
          System.out.format("Writing message: '%s' with routing-key: '%s' to stream '%s / %s'%n",
                                                         message, routingKey, scope, streamName);
@@ -99,17 +98,8 @@ The execution of API `createScope(scope)` establishes that the Scope exists. The
 
 The most interesting task is to create the Stream Configuration (`streamConfig`). Like many objects in Pravega, a Stream takes a configuration object that allows
 a developer to control various behaviors of the Stream.  All configuration
-objects in Pravega use a builder pattern for construction. **Retention Policy** and **Scaling
-Policy** are the two important configuration items related to streams.   
-
-**Retention Policy:**  Pravega supports the following two types of Retentions:
-
- - **Time based Retention**: It allows the developer to control how long the data is kept in a Stream before it is deleted. The developer can specify the time limit (milliseconds) to keep the data for a certain period of time (ideal for situations like regulatory compliance that mandate
-certain retention periods).
- - **Size based Retention**: Retains the newest subset of a Stream's data that does not exceed the specified size in bytes.
-
-**Scaling Policy:** When a Stream is created, it is configured with a Scaling Policy that determines how a Stream handles the varying changes in its load. Developers configure a Stream to take advantage
-of Pravega's [Auto Scaling](pravega-concepts.md#elastic-streams-auto-scaling) feature.
+objects in Pravega use a builder pattern for construction. [**Retention Policy**](pravega-concepts.md/#a-note-on-tiered-storage) and [**Scaling
+Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the two important configuration items related to streams.   
 
 The minimum number of Segments is a factor that sets the minimum degree of read parallelism to be maintained; for example if this value is set as three, there will always be three Stream Segments available on the Stream.  Currently, this property is effective only when the stream is
 created; at some point in the future, update stream will allow this factor to be
@@ -262,8 +252,8 @@ upper bounds. In the sample application, we start at the beginning of the Stream
 
 ```Java
 final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
-                                                                .stream(Stream.of(scope, streamName))
-                                                                .build();
+                                                             .stream(Stream.of(scope, streamName))
+                                                             .build();
 ```
 Other configuration items, such as specifying checkpointing etc., are options
 that will be available through the `ReaderGroupConfig`.
