@@ -103,38 +103,4 @@ public class PravegaControllerService extends AbstractService {
                            }
                        });
     }
-
-    public static void main(String[] args) {
-        ZookeeperService zkSer = new ZookeeperService();
-        if (!zkSer.isRunning()) {
-            zkSer.start(true);
-        }
-        URI zkUri = zkSer.getServiceDetails().get(0);
-        System.out.println("===> " + zkUri);
-        PravegaControllerService ser = new PravegaControllerService("controller", zkUri);
-
-        if (!ser.isRunning()) {
-            ser.start(true);
-        }
-
-        CompletableFuture<Void> f = ser.scaleService(2);
-
-        System.out.println("==>" + ser.getServiceDetails());
-
-        PravegaSegmentStoreService sss = new PravegaSegmentStoreService("segmentStore", zkUri);
-        if (!sss.isRunning()) {
-            sss.start(true);
-        }
-        System.out.println("==>" + sss.getServiceDetails());
-        CompletableFuture<Void> f2 = sss.scaleService(2);
-        Futures.await(f2);
-
-        BookkeeperService bk = new BookkeeperService("bk", zkUri);
-        if (!bk.isRunning()) {
-            bk.start(true);
-        }
-        System.out.println("==>" + bk.getServiceDetails());
-        System.out.println("finish");
-
-    }
 }

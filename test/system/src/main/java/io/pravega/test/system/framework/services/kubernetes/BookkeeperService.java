@@ -78,6 +78,7 @@ public class BookkeeperService extends AbstractService {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public CompletableFuture<Void> scaleService(int newInstanceCount) {
 
         return k8Client.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)

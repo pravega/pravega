@@ -127,48 +127,6 @@ public class K8Client implements AutoCloseable {
     }
 
     /**
-     * Method to create a namespace. This is the non blocking version of the api.
-     * Note: If the namespace already exists then it can cause K8 client to stop responding, blocking version of the api
-     * is preferred.
-     * @param namespace Namespace.
-     * @return A future of type V1Namespace.
-     */
-    @SneakyThrows(ApiException.class)
-    public CompletableFuture<V1Namespace> createNameSpace(final String namespace) {
-        // Namespace create operation on an already existing namespace causes K8 to stop responding, use the blocking version of api.
-        V1Namespace body = new V1Namespace();
-
-        // Set the required api version and kind of resource
-        body.setApiVersion("v1");
-        body.setKind("Namespace");
-
-        // Setup the standard object metadata
-        V1ObjectMeta meta = new V1ObjectMeta();
-        meta.setName(namespace);
-        body.setMetadata(meta);
-
-        CoreV1Api api = new CoreV1Api();
-        K8AsyncCallback<V1Namespace> callback = new K8AsyncCallback<>("createNamespace");
-
-        api.createNamespaceAsync(body, PRETTY_PRINT, callback);
-        return callback.getFuture()
-                       .handle((r, t) -> {
-                           if (t == null) {
-                               return r;
-                           } else {
-                               if (t instanceof ApiException) {
-                                   ApiException e = (ApiException) t;
-                                   if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
-                                       log.info("Namespace {} already present, ignoring the exception.", namespace);
-                                       return null;
-                                   }
-                               }
-                               throw new CompletionException(t);
-                           }
-                       });
-    }
-
-    /**
      * Deploy a pod. This ignores exception incase the pod has already been deployed.
      * @param namespace Namespace.
      * @param pod Pod details.
@@ -312,7 +270,7 @@ public class K8Client implements AutoCloseable {
      * @param namespace Namespace.
      * @param plural Plural of the CRD.
      * @param request Actual request.
-     * @return
+     * @return A Future representing the status of create/update.
      */
     @SuppressWarnings("unchecked")
     public CompletableFuture<Object> createAndUpdateCustomObject(String customResourceGroup, String version, String namespace,
