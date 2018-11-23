@@ -23,6 +23,7 @@ import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.btree.BTreeIndex;
 import io.pravega.common.util.btree.PageEntry;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -72,7 +73,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     /**
      * For Attribute Segment Appends, we want to write conditionally based on the offset, and retry the operation if
-     * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to put().
+     * it failed for that reason. That guarantees that we won't be losing any data if we get concurrent calls to update().
      */
     private static final Retry.RetryAndThrowBase<Exception> UPDATE_RETRY = Retry
             .withExpBackoff(10, 2, 10, 1000)
@@ -279,7 +280,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     //region AttributeIndex Implementation
 
     @Override
-    public CompletableFuture<Void> put(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
+    public CompletableFuture<Void> update(@NonNull Map<UUID, Long> values, @NonNull Duration timeout) {
         ensureInitialized();
         if (values.isEmpty()) {
             // Nothing to do.
@@ -287,7 +288,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         }
 
         Collection<PageEntry> entries = values.entrySet().stream().map(this::serialize).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.put(entries, tm), timeout);
+        return executeConditionally(tm -> this.index.update(entries, tm), timeout);
     }
 
     @Override
@@ -327,18 +328,6 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                 })
                 .exceptionally(this::handleIndexOperationException);
 
-    }
-
-    @Override
-    public CompletableFuture<Void> remove(@NonNull Collection<UUID> keys, @NonNull Duration timeout) {
-        ensureInitialized();
-        if (keys.isEmpty()) {
-            // Nothing to do.
-            return CompletableFuture.completedFuture(null);
-        }
-
-        Collection<ByteArraySegment> serializedKeys = keys.stream().map(this::serializeKey).collect(Collectors.toList());
-        return executeConditionally(tm -> this.index.remove(serializedKeys, tm), timeout);
     }
 
     @Override
@@ -435,8 +424,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         return new UUID(msb, lsb);
     }
 
-    private ByteArraySegment serializeValue(long value) {
-        // Values are not sorted, so we can use the simpler serialization.
+    private ByteArraySegment serializeValue(Long value) {
+        if (value == null || value == Attributes.NULL_ATTRIBUTE_VALUE) {
+            // Deletion.
+            return null;
+        }
+
         byte[] result = new byte[VALUE_LENGTH];
         BitConverter.writeLong(result, 0, value);
         return new ByteArraySegment(result);

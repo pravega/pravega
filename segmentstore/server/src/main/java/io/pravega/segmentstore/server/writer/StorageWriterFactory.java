@@ -97,7 +97,7 @@ public class StorageWriterFactory implements WriterFactory {
             TimeoutTimer timer = new TimeoutTimer(timeout);
             return this.attributeIndex
                     .forSegment(streamSegmentId, timer.getRemaining())
-                    .thenCompose(ai -> ai.put(attributes, timer.getRemaining()));
+                    .thenCompose(ai -> ai.update(attributes, timer.getRemaining()));
         }
 
         @Override
