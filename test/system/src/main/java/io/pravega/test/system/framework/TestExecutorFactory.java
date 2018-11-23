@@ -25,7 +25,7 @@ public class TestExecutorFactory {
     public enum TestExecutorType {
         LOCAL,
         DOCKER,
-        K8,
+        K8s,
         REMOTE_SEQUENTIAL,
         REMOTE_DISTRIBUTED //TODO: https://github.com/pravega/pravega/issues/2074.
     }
@@ -36,7 +36,7 @@ public class TestExecutorFactory {
                 return getDockerExecutor();
             case REMOTE_SEQUENTIAL:
                 return getMarathonSequentialExecutor();
-            case K8:
+            case K8s:
                  return new K8SequentialExecutor();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");

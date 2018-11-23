@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
-import io.pravega.test.system.framework.services.kubernetes.ZookeeperService;
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperK8sService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -19,6 +19,7 @@ import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -36,6 +37,7 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
+    private static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
 
     /**
      * Get Configuration from environment or system property.
@@ -48,16 +50,15 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
-        TestExecutorFactory.TestExecutorType r = TestExecutorFactory.getTestExecutionType();
-        log.debug("Test executor type is {}", r);
-        switch (r) {
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new ZookeeperService("zookeeper");
             case DOCKER:
                 return new ZookeeperDockerService("zookeeper");
-            case K8:
-                return new ZookeeperService();
-            case REMOTE_SEQUENTIAL:
+            case K8s:
             default:
-                return new io.pravega.test.system.framework.services.marathon.ZookeeperService("zookeeper");
+                return new ZookeeperK8sService();
+
         }
     }
 

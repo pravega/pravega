@@ -26,15 +26,15 @@ import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 @Slf4j
 public class K8SequentialExecutor implements TestExecutor {
 
-    private static final String NAMESPACE = "default"; // K8 namespace where the tests run.
+    private static final String NAMESPACE = "default"; // K8s namespace where the tests run.
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
         final String className = testMethod.getDeclaringClass().getName();
         final String methodName = testMethod.getName();
-        // pod name is the combination of a test class and test method name.
-        final String podName = (className.replace(".", "-") + "-" + methodName + "-" + randomAlphanumeric(5)).toLowerCase();
-        log.info("Start execution of test {}#{} on the K8 Cluster", className, methodName);
+        // pod name is the combination of a test method name and random Alphanumeric. It cannot be more than 63 characters.
+        final String podName = (methodName + "-" + randomAlphanumeric(5)).toLowerCase();
+        log.info("Start execution of test {}#{} on the K8s Cluster", className, methodName);
 
         final K8Client client = new K8Client();
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
@@ -74,7 +74,7 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withArgs("-c",
                           "wget " + repoUrl + "/io/pravega/pravega-test-system/" + testVersion + "/pravega-test-system-" + testVersion +".jar && "
                                   + "echo \"download of system test jar complete\" && "
-                                  + "java -DexecType=K8 -cp ./pravega-test-system-" + testVersion + ".jar io.pravega.test.system.SingleJUnitTestRunner "
+                                  + "java -DexecType=K8s -cp ./pravega-test-system-" + testVersion + ".jar io.pravega.test.system.SingleJUnitTestRunner "
                                   + className + "#" +methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .endContainer()
                 .withRestartPolicy("Never")

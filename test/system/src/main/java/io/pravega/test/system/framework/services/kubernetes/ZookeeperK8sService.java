@@ -49,10 +49,10 @@ import java.util.stream.Collectors;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 /**
- * Manage Zookeeper service on k8 cluster.
+ * Manage Zookeeper service on K8s cluster.
  */
 @Slf4j
-public class ZookeeperService implements Service {
+public class ZookeeperK8sService implements Service {
 
     private static final String NAMESPACE = "default";
     private static final String ID = "zk";
@@ -67,7 +67,7 @@ public class ZookeeperService implements Service {
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
     private final K8Client k8Client;
 
-    public ZookeeperService() {
+    public ZookeeperK8sService() {
         k8Client = new K8Client();
     }
 
@@ -125,7 +125,7 @@ public class ZookeeperService implements Service {
 
     @Override
     public List<URI> getServiceDetails() {
-        //fetch the URI.
+        // Fetch the URI.
         return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
                                                       .thenApply(statuses -> statuses.stream().map(s -> URI.create(TCP + s.getPodIP() + ":" + ZKPORT))
                                                                                      .collect(Collectors.toList())),
@@ -134,8 +134,8 @@ public class ZookeeperService implements Service {
 
     @Override
     public CompletableFuture<Void> scaleService(int instanceCount) {
-        //Update the instance count.
-        // request operator to deploy zookeeper nodes.
+        // Update the instance count.
+        // Request operator to deploy zookeeper nodes.
         return k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL,
                                                     getZookeeperDeployment(getID(), instanceCount))
                        .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
@@ -154,8 +154,7 @@ public class ZookeeperService implements Service {
                                                      .withRoleRef(new V1beta1RoleRefBuilder().withKind("ClusterRole")
                                                                                              .withName("zookeeper-operator")
                                                                                              .withApiGroup("rbac.authorization.k8s.io")
-                                                                                             .build())
-                                                     .build();
+                                                                                             .build()).build();
     }
 
     private V1beta1CustomResourceDefinition getZKOperatorCRD() {
@@ -215,16 +214,12 @@ public class ZookeeperService implements Service {
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()
                                                                                                                                    .withFieldPath("metadata.namespace")
-                                                                                                                                   .build())
-                                                                                                             .build())
-                                                                                      .build(),
+                                                                                                                                   .build()).build()).build(),
                                                                  new V1EnvVarBuilder().withName("OPERATOR_NAME")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()
                                                                                                                                    .withFieldPath("metadata.name")
-                                                                                                                                   .build())
-                                                                                                             .build())
-                                                                                      .build())
+                                                                                                                                   .build()).build()).build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName("zookeeper-operator")
                                                                                .withNamespace(NAMESPACE)
@@ -241,9 +236,7 @@ public class ZookeeperService implements Service {
                                                                                                                            .build())
                                                                                                      .withSpec(new V1PodSpecBuilder()
                                                                                                                        .withContainers(container)
-                                                                                                                       .build())
-                                                                                                     .build())
-                                                                               .build())
+                                                                                                                       .build()).build()).build())
                                         .build();
     }
 
