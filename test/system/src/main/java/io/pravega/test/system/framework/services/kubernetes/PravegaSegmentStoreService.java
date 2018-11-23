@@ -53,11 +53,6 @@ public class PravegaSegmentStoreService extends AbstractService {
     }
 
     @Override
-    public void clean() {
-    }
-
-
-    @Override
     public boolean isRunning() {
         return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
                        .thenApply(statuses -> statuses.stream()

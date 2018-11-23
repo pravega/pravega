@@ -248,4 +248,9 @@ public abstract class AbstractService implements Service {
                                                                                .build())
                                         .build();
     }
+
+    @Override
+    public void clean() {
+        // this is a NOP for K8 based implementation.
+    }
 }

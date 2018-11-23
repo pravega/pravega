@@ -104,12 +104,6 @@ public class PravegaControllerService extends AbstractService {
                        });
     }
 
-    @Override
-    public void clean() {
-
-    }
-
-
     public static void main(String[] args) {
         ZookeeperService zkSer = new ZookeeperService();
         if (!zkSer.isRunning()) {

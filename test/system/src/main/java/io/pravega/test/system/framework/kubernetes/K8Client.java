@@ -661,7 +661,7 @@ public class K8Client implements AutoCloseable {
         private final String method;
         private final CompletableFuture<T> future = new CompletableFuture<>();
 
-        public K8AsyncCallback(String method) {
+        K8AsyncCallback(String method) {
             this.method = method;
         }
 

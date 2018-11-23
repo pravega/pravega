@@ -53,11 +53,6 @@ public class BookkeeperService extends AbstractService {
     }
 
     @Override
-    public void clean() {
-    }
-
-
-    @Override
     public boolean isRunning() {
         return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
                        .thenApply(statuses -> statuses.stream()
