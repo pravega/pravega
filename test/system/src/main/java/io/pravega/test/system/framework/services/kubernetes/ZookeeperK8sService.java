@@ -50,7 +50,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
  * Manage Zookeeper service on k8 cluster.
  */
 @Slf4j
-public class ZookeeperService extends AbstractService {
+public class ZookeeperK8sService extends AbstractService {
 
     private static final String ID = "zk";
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
@@ -60,7 +60,7 @@ public class ZookeeperService extends AbstractService {
     private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
 
-    public ZookeeperService() {
+    public ZookeeperK8sService() {
         super(ID);
     }
 
@@ -69,7 +69,7 @@ public class ZookeeperService extends AbstractService {
         Futures.getAndHandleExceptions(k8Client.createCRD(getZKOperatorCRD())
                                                .thenCompose(v -> k8Client.createClusterRole(getClusterRole()))
                                                .thenCompose(v -> k8Client.createClusterRoleBinding(getClusterRoleBinding()))
-                                               //deploy zk operator.
+                                               // deploy zk operator.
                                                .thenCompose(v -> k8Client.createDeployment(NAMESPACE, getDeployment()))
                                                // wait until zk operator is running, only one instance of operator is running.
                                                .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "name", OPERATOR_ID, 1))
@@ -113,7 +113,7 @@ public class ZookeeperService extends AbstractService {
 
     @Override
     public List<URI> getServiceDetails() {
-        //fetch the URI.
+        // Fetch the URI.
         return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
                                                       .thenApply(statuses -> statuses.stream().map(s -> URI.create(TCP + s.getPodIP() + ":" + ZKPORT))
                                                                                      .collect(Collectors.toList())),
@@ -122,8 +122,8 @@ public class ZookeeperService extends AbstractService {
 
     @Override
     public CompletableFuture<Void> scaleService(int instanceCount) {
-        //Update the instance count.
-        // request operator to deploy zookeeper nodes.
+        // Update the instance count.
+        // Request operator to deploy zookeeper nodes.
         return k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL,
                                                     getZookeeperDeployment(getID(), instanceCount))
                        .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
@@ -142,8 +142,7 @@ public class ZookeeperService extends AbstractService {
                                                      .withRoleRef(new V1beta1RoleRefBuilder().withKind("ClusterRole")
                                                                                              .withName("zookeeper-operator")
                                                                                              .withApiGroup("rbac.authorization.k8s.io")
-                                                                                             .build())
-                                                     .build();
+                                                                                             .build()).build();
     }
 
     private V1beta1CustomResourceDefinition getZKOperatorCRD() {
@@ -203,16 +202,12 @@ public class ZookeeperService extends AbstractService {
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()
                                                                                                                                    .withFieldPath("metadata.namespace")
-                                                                                                                                   .build())
-                                                                                                             .build())
-                                                                                      .build(),
+                                                                                                                                   .build()).build()).build(),
                                                                  new V1EnvVarBuilder().withName("OPERATOR_NAME")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()
                                                                                                                                    .withFieldPath("metadata.name")
-                                                                                                                                   .build())
-                                                                                                             .build())
-                                                                                      .build())
+                                                                                                                                   .build()).build()).build())
                                                         .build();
         return new V1DeploymentBuilder().withMetadata(new V1ObjectMetaBuilder().withName("zookeeper-operator")
                                                                                .withNamespace(NAMESPACE)
@@ -229,9 +224,7 @@ public class ZookeeperService extends AbstractService {
                                                                                                                            .build())
                                                                                                      .withSpec(new V1PodSpecBuilder()
                                                                                                                        .withContainers(container)
-                                                                                                                       .build())
-                                                                                                     .build())
-                                                                               .build())
+                                                                                                                       .build()).build()).build())
                                         .build();
     }
 
@@ -242,14 +235,5 @@ public class ZookeeperService extends AbstractService {
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.of("size", clusterSize))
                 .build();
-    }
-
-    public static void main(String[] args) {
-        ZookeeperService zk = new ZookeeperService();
-        if (!zk.isRunning()) {
-            zk.start(true);
-            System.out.println("===> Zk has started");
-        }
-        System.out.println(zk.getServiceDetails());
     }
 }

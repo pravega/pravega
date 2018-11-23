@@ -18,16 +18,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 @Slf4j
-public class PravegaControllerService extends AbstractService {
+public class BookkeeperK8sService extends AbstractService {
 
     private final URI zkUri;
 
-    public PravegaControllerService(final String id, final URI zkUri) {
+    public BookkeeperK8sService(final String id, final URI zkUri) {
         super(id);
         this.zkUri = zkUri;
     }
@@ -37,8 +36,8 @@ public class PravegaControllerService extends AbstractService {
         Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
-                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-controller service, check the operator logs", t));
+            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, DEFAULT_BOOKIE_COUNT),
+                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy bookkeeper service, check the operator logs", t));
         }
     }
 
@@ -53,18 +52,17 @@ public class PravegaControllerService extends AbstractService {
 
     }
 
-
     @Override
     public boolean isRunning() {
-        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
+        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
                        .thenApply(statuses -> statuses.stream()
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
                                                       .count())
-                       .thenApply(runCount -> runCount == DEFAULT_CONTROLLER_COUNT)
+                       .thenApply(runCount -> runCount == DEFAULT_BOOKIE_COUNT)
                        .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pods " + PRAVEGA_CONTROLLER_LABEL, t);
+                           log.warn("Exception observed while checking status of pods " + BOOKKEEPER_LABEL, t);
                            return false;
                        }).join();
     }
@@ -72,12 +70,11 @@ public class PravegaControllerService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
-        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
+        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
                                                       .thenApply(statuses -> statuses.stream()
-                                                                                     .flatMap(s -> Stream.of(URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_GRPC_PORT),
-                                                                                                             URI.create(TCP + s.getPodIP() + ":" + CONTROLLER_REST_PORT)))
+                                                                                     .map(s -> URI.create(TCP + s.getPodIP() + ":" + BOOKKEEPER_PORT))
                                                                                      .collect(Collectors.toList())),
-                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-controller", t));
+                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for bookkeeper", t));
     }
 
     @Override
@@ -95,12 +92,13 @@ public class PravegaControllerService extends AbstractService {
                            int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                      currentControllerCount, currentSegmentStoreCount);
-                           if (currentControllerCount != newInstanceCount) {
-                               return deployPravegaUsingOperator(zkUri, newInstanceCount, currentSegmentStoreCount, currentBookkeeperCount)
+                           if (currentBookkeeperCount != newInstanceCount) {
+                               return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount)
                                        .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);
                            }
                        });
     }
+
 }

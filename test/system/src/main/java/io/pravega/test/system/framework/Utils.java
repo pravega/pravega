@@ -15,10 +15,14 @@ import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
-import io.pravega.test.system.framework.services.kubernetes.ZookeeperService;
+import io.pravega.test.system.framework.services.kubernetes.BookkeeperK8sService;
+import io.pravega.test.system.framework.services.kubernetes.PravegaControllerK8sService;
+import io.pravega.test.system.framework.services.kubernetes.PravegaSegmentStoreK8sService;
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperK8sService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
+import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -51,12 +55,12 @@ public class Utils {
     public static Service createZookeeperService() {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
-                return new io.pravega.test.system.framework.services.marathon.ZookeeperService("zookeeper");
+                return new ZookeeperService("zookeeper");
             case DOCKER:
                 return new ZookeeperDockerService("zookeeper");
-            case K8:
+            case K8s:
             default:
-                return new ZookeeperService();
+                return new ZookeeperK8sService();
 
         }
     }
@@ -68,9 +72,9 @@ public class Utils {
                 return new BookkeeperService(serviceId, zkUri);
             case DOCKER:
                 return new BookkeeperDockerService(serviceId, zkUri);
-            case K8:
+            case K8s:
             default:
-                return new io.pravega.test.system.framework.services.kubernetes.BookkeeperService(serviceId, zkUri);
+                return new BookkeeperK8sService(serviceId, zkUri);
         }
     }
 
@@ -80,9 +84,9 @@ public class Utils {
                 return new PravegaControllerService(serviceName, zkUri);
             case DOCKER:
                 return new PravegaControllerDockerService(serviceName, zkUri);
-            case K8:
+            case K8s:
             default:
-                return new io.pravega.test.system.framework.services.kubernetes.PravegaControllerService(serviceName, zkUri);
+                return new PravegaControllerK8sService(serviceName, zkUri);
         }
 
     }
@@ -107,9 +111,9 @@ public class Utils {
                 return new PravegaSegmentStoreService(serviceId, zkUri, contUri);
             case DOCKER:
                 return  new PravegaSegmentStoreDockerService(serviceId, zkUri, hdfsUri, contUri);
-            case K8:
+            case K8s:
             default:
-                return new io.pravega.test.system.framework.services.kubernetes.PravegaSegmentStoreService(serviceId, zkUri);
+                return new PravegaSegmentStoreK8sService(serviceId, zkUri);
         }
     }
 

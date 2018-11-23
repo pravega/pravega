@@ -251,6 +251,6 @@ public abstract class AbstractService implements Service {
 
     @Override
     public void clean() {
-        // this is a NOP for K8 based implementation.
+        // this is a NOP for K8s based implementation.
     }
 }

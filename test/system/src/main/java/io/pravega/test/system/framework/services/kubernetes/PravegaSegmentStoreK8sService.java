@@ -22,11 +22,11 @@ import java.util.stream.Collectors;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 @Slf4j
-public class BookkeeperService extends AbstractService {
+public class PravegaSegmentStoreK8sService extends AbstractService {
 
     private final URI zkUri;
 
-    public BookkeeperService(final String id, final URI zkUri) {
+    public PravegaSegmentStoreK8sService(final String id, final URI zkUri) {
         super(id);
         this.zkUri = zkUri;
     }
@@ -36,8 +36,8 @@ public class BookkeeperService extends AbstractService {
         Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, DEFAULT_BOOKIE_COUNT),
-                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy bookkeeper service, check the operator logs", t));
+            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, DEFAULT_SEGMENTSTORE_COUNT),
+                                           t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-segmentStore service, check the operator logs", t));
         }
     }
 
@@ -54,15 +54,15 @@ public class BookkeeperService extends AbstractService {
 
     @Override
     public boolean isRunning() {
-        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
+        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
                        .thenApply(statuses -> statuses.stream()
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
                                                       .count())
-                       .thenApply(runCount -> runCount == DEFAULT_BOOKIE_COUNT)
+                       .thenApply(runCount -> runCount == DEFAULT_SEGMENTSTORE_COUNT)
                        .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pods " + BOOKKEEPER_LABEL, t);
+                           log.warn("Exception observed while checking status of pods " + PRAVEGA_SEGMENTSTORE_LABEL, t);
                            return false;
                        }).join();
     }
@@ -70,11 +70,11 @@ public class BookkeeperService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
-        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
+        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
                                                       .thenApply(statuses -> statuses.stream()
-                                                                                     .map(s -> URI.create(TCP + s.getPodIP() + ":" + BOOKKEEPER_PORT))
+                                                                                     .map(s -> URI.create(TCP + s.getPodIP() + ":" + SEGMENTSTORE_PORT))
                                                                                      .collect(Collectors.toList())),
-                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for bookkeeper", t));
+                                              t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-segmentstore", t));
     }
 
     @Override
@@ -92,8 +92,8 @@ public class BookkeeperService extends AbstractService {
                            int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                      currentControllerCount, currentSegmentStoreCount);
-                           if (currentBookkeeperCount != newInstanceCount) {
-                               return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount)
+                           if (currentSegmentStoreCount != newInstanceCount) {
+                               return deployPravegaUsingOperator(zkUri, currentControllerCount, newInstanceCount, currentBookkeeperCount)
                                        .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);

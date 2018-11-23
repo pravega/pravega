@@ -725,12 +725,12 @@ project('test:system') {
     //This is  used to invoke systemTests
     task startK8SystemTests(type: Test) {
 
-        description 'Used to invoke K8 based System Tests, example usage: gradle startK8SystemTests'
+        description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
-        systemProperty "execType", "K8"
+        systemProperty "execType", "K8s"
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
         systemProperty "skipServiceInstallation", "false"
