@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -80,8 +81,27 @@ public class PravegaControllerService extends AbstractService {
     }
 
     @Override
-    public CompletableFuture<Void> scaleService(int instanceCount) {
-        return null;
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<Void> scaleService(int newInstanceCount) {
+
+        return k8Client.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
+                       .thenCompose(o -> {
+                           Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
+                           Map<String, Object> pravegaSpec = (Map<String, Object>) spec.get("pravega");
+                           Map<String, Object> bookkeeperSpec = (Map<String, Object>) spec.get("bookkeeper");
+
+                           int currentControllerCount = ((Double) pravegaSpec.get("controllerReplicas")).intValue();
+                           int currentSegmentStoreCount = ((Double) pravegaSpec.get("segmentStoreReplicas")).intValue();
+                           int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
+                           log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
+                                     currentControllerCount, currentSegmentStoreCount);
+                           if (currentControllerCount != newInstanceCount) {
+                               return deployPravegaUsingOperator(zkUri, newInstanceCount, currentSegmentStoreCount, currentBookkeeperCount)
+                                       .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
+                           } else {
+                               return CompletableFuture.completedFuture(null);
+                           }
+                       });
     }
 
     @Override
@@ -102,6 +122,9 @@ public class PravegaControllerService extends AbstractService {
         if (!ser.isRunning()) {
             ser.start(true);
         }
+
+        CompletableFuture<Void> f = ser.scaleService(2);
+
         System.out.println("==>" + ser.getServiceDetails());
 
         PravegaSegmentStoreService sss = new PravegaSegmentStoreService("segmentStore", zkUri);
@@ -109,6 +132,8 @@ public class PravegaControllerService extends AbstractService {
             sss.start(true);
         }
         System.out.println("==>" + sss.getServiceDetails());
+        CompletableFuture<Void> f2 = sss.scaleService(2);
+        Futures.await(f2);
 
         BookkeeperService bk = new BookkeeperService("bk", zkUri);
         if (!bk.isRunning()) {

@@ -32,8 +32,8 @@ public class K8SequentialExecutor implements TestExecutor {
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
         final String className = testMethod.getDeclaringClass().getName();
         final String methodName = testMethod.getName();
-        // pod name is the combination of a test class and test method name.
-        final String podName = (className.replace(".", "-") + "-" + methodName + "-" + randomAlphanumeric(5)).toLowerCase();
+        // pod name is the combination of a test method name and random Alphanumeric. It cannot be more than 63 characters.
+        final String podName = (methodName + "-" + randomAlphanumeric(5)).toLowerCase();
         log.info("Start execution of test {}#{} on the K8 Cluster", className, methodName);
 
         final K8Client client = new K8Client();

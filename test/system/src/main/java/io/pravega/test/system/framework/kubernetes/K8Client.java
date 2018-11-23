@@ -250,24 +250,24 @@ public class K8Client implements AutoCloseable {
     public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) {
         AppsV1Api api = new AppsV1Api();
         K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("deployment");
-        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, callback );
+        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, callback);
 
         return callback.getFuture()
-                .handle((r, t) -> {
-                    if (t == null) {
-                        return r;
-                    } else {
-                        if (t instanceof ApiException) {
-                            ApiException e = (ApiException) t;
-                            if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
-                                log.info("Deployment {} is already running in namespace {}, ignoring the exception.",
-                                         deploy.getMetadata().getName(), namespace);
-                                return null;
-                            }
-                        }
-                        throw new CompletionException(t);
-                    }
-                });
+                       .handle((r, t) -> {
+                           if (t == null) {
+                               return r;
+                           } else {
+                               if (t instanceof ApiException) {
+                                   ApiException e = (ApiException) t;
+                                   if (e.getCode() == Response.Status.CONFLICT.getStatusCode()) {
+                                       log.info("Deployment {} is already running in namespace {}, ignoring the exception.",
+                                                deploy.getMetadata().getName(), namespace);
+                                       return null;
+                                   }
+                               }
+                               throw new CompletionException(t);
+                           }
+                       });
     }
 
     /**
@@ -297,7 +297,7 @@ public class K8Client implements AutoCloseable {
      */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<Object> createCustomObject(String customResourceGroup, String version, String namespace,
-                                                         String plural, Map<String, Object> request) {
+                                                        String plural, Map<String, Object> request) {
         CustomObjectsApi api = new CustomObjectsApi();
         K8AsyncCallback<Object> callback = new K8AsyncCallback<>("createCustomObject");
         api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, callback);
@@ -316,7 +316,7 @@ public class K8Client implements AutoCloseable {
      */
     @SuppressWarnings("unchecked")
     public CompletableFuture<Object> createAndUpdateCustomObject(String customResourceGroup, String version, String namespace,
-                                                        String plural, Map<String, Object> request) {
+                                                                 String plural, Map<String, Object> request) {
         CustomObjectsApi api = new CustomObjectsApi();
 
         //Fetch the name of the custom object.
@@ -382,7 +382,7 @@ public class K8Client implements AutoCloseable {
      */
     @SneakyThrows(ApiException.class)
     public CompletableFuture<Object> deleteCustomObject(String customResourceGroup, String version, String namespace,
-                                                      String plural, String name) {
+                                                        String plural, String name) {
 
         CustomObjectsApi api = new CustomObjectsApi();
         V1DeleteOptions options = new V1DeleteOptions();
@@ -550,27 +550,28 @@ public class K8Client implements AutoCloseable {
                     log.error("Exception while fetching status of pod", ex);
                     return false;
                 });
-        CompletableFuture<Void> r = retryConfig.runAsync(() -> CompletableFuture.supplyAsync(() -> {
+
+        retryConfig.runInExecutor(() -> {
             Optional<V1ContainerStateTerminated> state = createAWatchAndReturnOnTermination(namespace, podName);
             if (state.isPresent()) {
                 future.complete(state.get());
             } else {
                 throw new RuntimeException("Watch did not return terminated state for pod " + podName);
             }
-            return null;
-        }), executor);
-        return future;
+        }, executor);
 
+        return future;
     }
 
     /**
      * Create a Watch for a pod and return once the pod has terminated.
      * @param namespace Namespace.
      * @param podName Name of the pod.
-     * @return
+     * @return V1ContainerStateTerminated.
      */
     @SneakyThrows({ApiException.class, IOException.class})
     private Optional<V1ContainerStateTerminated> createAWatchAndReturnOnTermination(String namespace, String podName) {
+        log.debug("Creating a watch for pod {}/{}", namespace, podName);
         CoreV1Api api = new CoreV1Api();
         @Cleanup
         Watch<V1Pod> watch = Watch.createWatch(
@@ -614,28 +615,24 @@ public class K8Client implements AutoCloseable {
         return Futures.loop(shouldRetry::get,
                             () -> Futures.delayedFuture(Duration.ofSeconds(5), executor) // wait for 5 seconds before checking for status.
                                          .thenCompose(v -> getStatusOfPodWithLabel(namespace, labelName, labelValue)) // fetch status of pods with the given label.
-                                         .thenApply(podStatuses -> {
-                                             return podStatuses.stream()
-                                                               // check for pods where all containers are running.
-                                                               .filter(podStatus -> {
-                                                                   if (podStatus.getContainerStatuses() == null) {
-                                                                       return false;
-                                                                   } else {
-                                                                       return podStatus.getContainerStatuses()
-                                                                                       .stream()
-                                                                                       .allMatch(st -> st.getState().getRunning() != null);
-                                                                   }
-                                                               })
-                                                               .count();
-                                         }),
+                                         .thenApply(podStatuses -> podStatuses.stream()
+                                                                              // check for pods where all containers are running.
+                                                                              .filter(podStatus -> {
+                                                                                  if (podStatus.getContainerStatuses() == null) {
+                                                                                      return false;
+                                                                                  } else {
+                                                                                      return podStatus.getContainerStatuses()
+                                                                                                      .stream()
+                                                                                                      .allMatch(st -> st.getState().getRunning() != null);
+                                                                                  }
+                                                                              }).count()),
                             runCount -> { // Number of pods which are running
-                                log.debug("Expected pod count : {}, actual pod count :{}.", expectedPodCount, runCount);
+                                log.debug("Expected running pod count : {}, actual running pod count :{}.", expectedPodCount, runCount);
                                 if (runCount == expectedPodCount) {
                                     shouldRetry.set(false);
                                 }
                             }, executor);
-        }
-
+    }
 
     /**
      * Save logs of the specified pod.
@@ -649,7 +646,7 @@ public class K8Client implements AutoCloseable {
             InputStream r = logUtility.streamNamespacedPodLog(fromPod);
             Files.copy(r, Paths.get(toFile));
         } catch (ApiException | IOException e) {
-          log.error("Error while copying files from pod {}.", fromPod.getMetadata().getName());
+            log.error("Error while copying files from pod {}.", fromPod.getMetadata().getName());
         }
 
     }
