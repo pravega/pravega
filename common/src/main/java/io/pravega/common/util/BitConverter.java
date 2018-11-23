@@ -19,6 +19,32 @@ import java.io.OutputStream;
  */
 public final class BitConverter {
     /**
+     * Writes the given 16-bit Short to the given ArrayView at the given offset.
+     *
+     * @param target The ArrayView to write to.
+     * @param offset The offset within the ArrayView to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeShort(ArrayView target, int offset, short value) {
+        return writeShort(target.array(), target.arrayOffset() + offset, value);
+    }
+
+    /**
+     * Writes the given 16-bit Short to the given byte array at the given offset.
+     *
+     * @param target The byte array to write to.
+     * @param offset The offset within the byte array to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeShort(byte[] target, int offset, short value) {
+        target[offset] = (byte) (value >>> 8 & 255);
+        target[offset + 1] = (byte) (value & 255);
+        return Short.BYTES;
+    }
+
+    /**
      * Writes the given 32-bit Integer to the given ArrayView at the given offset.
      *
      * @param target The ArrayView to write to.
@@ -60,6 +86,30 @@ public final class BitConverter {
         target.write(value >>> 8);
         target.write(value);
         return Integer.BYTES;
+    }
+
+    /**
+     * Reads a 16-bit Short from the given byte array starting at the given position.
+     *
+     * @param source   The byte array to read from.
+     * @param position The position in the byte array to start reading at.
+     * @return The read number.
+     */
+    public static short readShort(byte[] source, int position) {
+        return (short) ((source[position] & 0xFF) << 8
+                | (source[position + 1] & 0xFF));
+    }
+
+    /**
+     * Reads a 16-bit Short from the given ArrayView starting at the given position.
+     *
+     * @param source   The ArrayView to read from.
+     * @param position The position in the ArrayView to start reading at.
+     * @return The read number.
+     */
+    public static short readShort(ArrayView source, int position) {
+        return (short) ((source.get(position) & 0xFF) << 8
+                | (source.get(position + 1) & 0xFF));
     }
 
     /**
@@ -175,5 +225,36 @@ public final class BitConverter {
                 | (source[position + 5] & 0xFF) << 16
                 | (source[position + 6] & 0xFF) << 8
                 | (source[position + 7] & 0xFF);
+    }
+
+    /**
+     * Writes the given 64-bit Unsigned Long to the given byte array at the given offset. This value can then be
+     * deserialized using {@link #readUnsignedLong}. This method is not interoperable with {@link #readLong}.
+     *
+     * The advantage of serializing as Unsigned Long (vs. a normal Signed Long) is that the serialization will have the
+     * same natural order as the input value type (i.e., if compared using a lexicographic bitwise comparator such as
+     * ByteArrayComparator, it will have the same ordering as the typical Long type).
+     *
+     * @param target The byte array to write to.
+     * @param offset The offset within the byte array to write at.
+     * @param value  The (signed) value to write. The value will be converted into the range [0, 2^64-1] before
+     *               serialization by flipping the high order bit (so positive values will begin with 1 and negative values
+     *               will begin with 0).
+     * @return The number of bytes written.
+     */
+    public static int writeUnsignedLong(byte[] target, int offset, long value) {
+        return writeLong(target, offset, value ^ Long.MIN_VALUE);
+    }
+
+    /**
+     * Reads a 64-bit Unsigned Long from the given byte array starting at the given position. This value must have been
+     * serialized using {@link #writeUnsignedLong} for proper results. This method is not interoperable with {@link #writeLong}.
+     *
+     * @param source   The byte array to read from.
+     * @param position The position in the byte array to start reading at.
+     * @return The read number.
+     */
+    public static long readUnsignedLong(ArrayView source, int position) {
+        return readLong(source, position) ^ Long.MIN_VALUE;
     }
 }

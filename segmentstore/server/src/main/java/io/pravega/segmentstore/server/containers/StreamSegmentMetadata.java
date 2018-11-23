@@ -15,6 +15,8 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -308,6 +310,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized boolean isActive() {
         return this.active;
+    }
+
+    @Override
+    public synchronized SegmentProperties getSnapshot() {
+        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
     }
 
     /**

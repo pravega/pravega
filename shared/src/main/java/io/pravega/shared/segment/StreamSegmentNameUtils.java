@@ -30,7 +30,7 @@ public final class StreamSegmentNameUtils {
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
      */
-    private static final String ATTRIBUTE_SUFFIX = "$attributes";
+    private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its Rolling Storage Header.

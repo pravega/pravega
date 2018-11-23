@@ -11,7 +11,7 @@
     <Match> <!-- No practical consequence and generate a lot of warnings -->
         <Bug pattern="SS_SHOULD_BE_STATIC" />
     </Match>
-    <Match> <!-- Usually doen in a context where the developer knows the value to be positive -->
+    <Match> <!-- Usually done in a context where the developer knows the value to be positive -->
         <Bug pattern="IM_BAD_CHECK_FOR_ODD" />
     </Match>
     <Match> <!-- No practical consequence and generate a lot of warnings -->
@@ -25,6 +25,9 @@
     </Match>
     <Match> <!-- Lots of harmless calls to System.exit() in our codebase -->
         <Bug pattern="DM_EXIT" />
+    </Match>
+    <Match> <!-- Returning a java.lang.Boolean is common with Streams/Lambdas -->
+        <Bug pattern="NP_BOOLEAN_RETURN_NULL" />
     </Match>
     <Match> <!-- This is intended in these and only these classes -->
         <Or>
