@@ -361,7 +361,7 @@ storage. We expect this Tier 2 to be typically deployed on spinning disks. Prave
 asynchronously migrates Events from Tier 1 to Tier 2 to reflect the different
 access patterns to Stream data. Tier 2 Storage is based on an HDFS model. 
 
-### Retention Policy
+### Stream Retention Policies
 
 Pravega allows users to store data in Tier 2 as long as there is storage capacity available. But sometimes, users may not be interested to keep all the historical data related to a Stream. Instead, there are use-cases in which it may be useful to retain just a fraction of a Stream's data. For this reason, Streams can be configured with **Retention Policies**.  
 
