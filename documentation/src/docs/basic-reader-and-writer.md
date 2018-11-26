@@ -97,7 +97,7 @@ The execution of API `createScope(scope)` establishes that the Scope exists. The
 - Stream Configuration.
 
 The most interesting task is to create the Stream Configuration (`streamConfig`). Like many objects in Pravega, a Stream takes a configuration object that allows
-a developer to control various behaviors of the Stream. All configuration object instantiated via builder pattern. That allows a developer to control various aspects of a Stream's behavior in terms of _policies_; [**Retention Policy**](pravega-concepts.md#retention-policy) and [**Scaling
+a developer to control various behaviors of the Stream. All configuration object instantiated via builder pattern. That allows a developer to control various aspects of a Stream's behavior in terms of _policies_; [**Retention Policy**](pravega-concepts.md#stream-retention-policies) and [**Scaling
 Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the most important ones related to Streams. For the sake of simplicity, in our sample application we instantiate a Stream with a single segment (`ScalingPolicy.fixed(1)`) and without any kind of retention policy.
 
 Once the Stream Configuration (`streamConfig`) object is built, creating the Stream is straight
