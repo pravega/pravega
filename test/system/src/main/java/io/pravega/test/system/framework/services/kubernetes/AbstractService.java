@@ -120,7 +120,7 @@ public abstract class AbstractService implements Service {
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
                                                                                       .put("options", ImmutableMap.of("log.level", "DEBUG"))
                                                                                       .put("image", getImageSpec("pravega/pravega", "latest"))
-                                                                                      //.put("tier2", tier2Spec("pravega-tier2"))
+                                                                                      .put("tier2", tier2Spec("pravega-tier2"))
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", "pravega.pravega.io/v1alpha1")

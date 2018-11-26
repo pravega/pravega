@@ -549,14 +549,12 @@ public class K8sClient {
 
         @Override
         public void onUploadProgress(long bytesWritten, long contentLength, boolean done) {
-            log.trace("UploadProgress callback invoked bytesWritten:{} for contentLength: {} done: {}", bytesWritten,
-                      contentLength, done);
+            // NOP.
         }
 
         @Override
         public void onDownloadProgress(long bytesRead, long contentLength, boolean done) {
-            log.trace("DownloadProgress callback invoked, bytesRead: {} for contentLength: {} done: {}", bytesRead,
-                      contentLength, done);
+            // NOP.
         }
 
         CompletableFuture<T> getFuture() {
