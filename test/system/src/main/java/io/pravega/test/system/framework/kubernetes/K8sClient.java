@@ -67,7 +67,7 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Conne
 import static javax.ws.rs.core.Response.Status.CONFLICT;
 
 @Slf4j
-public class K8Client implements AutoCloseable {
+public class K8sClient {
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 60; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
@@ -75,7 +75,7 @@ public class K8Client implements AutoCloseable {
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "pravega-k8-client");
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "pravega-k8s-client");
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
     private final Predicate<Throwable> isConflict = t -> {
         if (t instanceof ApiException && ((ApiException) t).getCode() == CONFLICT.getStatusCode()) {
@@ -86,23 +86,31 @@ public class K8Client implements AutoCloseable {
         return false;
     };
 
+    K8sClient() {
+        this.client = initializeApiClient();
+        this.logUtility = new PodLogs();
+    }
+
     /**
-     * Create an instance of K8Client. The k8 config used follows the below pattern.
+     * Create an instance of K8 api client and initialize with the K8s config. The config used follows the below pattern.
      *      1. If $KUBECONFIG is defined, use that config file.
      *      2. If $HOME/.kube/config can be found, use that.
      *      3. If the in-cluster service account can be found, assume in cluster config.
-     *      4.Default to localhost:8080 as a last resort.
+     *      4. Default to localhost:8080 as a last resort.
      */
-    public K8Client() {
+    private ApiClient initializeApiClient() {
+        ApiClient client;
         try {
-            this.client = Config.defaultClient();
-            this.client.setDebugging(false); // this can be set to true enable http dump.
-            this.client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            Configuration.setDefaultApiClient(this.client);
-            this.logUtility = new PodLogs();
+            log.debug("Initialize K8s api client");
+            client = Config.defaultClient();
+            client.setDebugging(false); // this can be set to true enable http dump.
+            client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            Configuration.setDefaultApiClient(client);
+            Runtime.getRuntime().addShutdownHook(new Thread(this::close));
         } catch (IOException e) {
             throw new TestFrameworkException(ConnectionFailed, "Connection to the k8 cluster failed, ensure .kube/config is configured correctly.", e);
         }
+        return client;
     }
 
     /**
@@ -510,8 +518,11 @@ public class K8Client implements AutoCloseable {
 
     }
 
-    @Override
+    /**
+     * Close resources used by K8s client.
+     */
     public void close() {
+        log.debug("Shutting down executor used by K8sClient");
         ExecutorServiceHelpers.shutdown(executor);
 
     }

@@ -13,7 +13,8 @@ import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodBuilder;
 import io.pravega.test.system.framework.TestExecutor;
-import io.pravega.test.system.framework.kubernetes.K8Client;
+import io.pravega.test.system.framework.kubernetes.ClientFactory;
+import io.pravega.test.system.framework.kubernetes.K8sClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -36,29 +37,26 @@ public class K8SequentialExecutor implements TestExecutor {
         final String podName = (methodName + "-" + randomAlphanumeric(5)).toLowerCase();
         log.info("Start execution of test {}#{} on the K8s Cluster", className, methodName);
 
-        final K8Client client = new K8Client();
+        final K8sClient client = ClientFactory.INSTANCE.getK8sClient();
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
 
-        CompletableFuture<Void> testFuture = client.deployPod(NAMESPACE, pod)
-                                                   .thenCompose(v -> client.waitUntilPodCompletes(NAMESPACE, podName))
-                                                   .handle((s, t) -> {
-                                                       if (t == null) {
-                                                           log.info("Test execution completed with status {}", s);
-                                                           client.saveLogs(pod, "./build/test-results/" +podName); //save test log.
-                                                           if (s.getExitCode() != 0) {
-                                                               log.error("Test {}#{} failed. Details: {}", className, methodName, s);
-                                                               throw new AssertionError(methodName + " test failed.");
-                                                           } else {
-                                                               return null;
-                                                           }
+        return client.deployPod(NAMESPACE, pod)
+                     .thenCompose(v -> client.waitUntilPodCompletes(NAMESPACE, podName))
+                     .handle((s, t) -> {
+                         if (t == null) {
+                             log.info("Test execution completed with status {}", s);
+                             client.saveLogs(pod, "./build/test-results/" + podName); //save test log.
+                             if (s.getExitCode() != 0) {
+                                 log.error("Test {}#{} failed. Details: {}", className, methodName, s);
+                                 throw new AssertionError(methodName + " test failed.");
+                             } else {
+                                 return null;
+                             }
 
-                                                       } else {
-                                                           throw new CompletionException("Error while invoking the test " + podName, t);
-                                                       }
-                                                   });
-
-        testFuture.thenRun(client::close); // close the client.
-        return testFuture;
+                         } else {
+                             throw new CompletionException("Error while invoking the test " + podName, t);
+                         }
+                     });
     }
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
