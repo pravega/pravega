@@ -34,7 +34,8 @@ import io.kubernetes.client.models.V1beta1RoleBindingBuilder;
 import io.kubernetes.client.models.V1beta1RoleBuilder;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
-import io.pravega.test.system.framework.kubernetes.K8Client;
+import io.pravega.test.system.framework.kubernetes.ClientFactory;
+import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
 import java.net.URI;
@@ -68,11 +69,11 @@ public abstract class AbstractService implements Service {
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
 
-    final K8Client k8Client;
+    final K8sClient k8sClient;
     private final String id;
 
     AbstractService(final String id) {
-        this.k8Client = new K8Client();
+        this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
         this.id = id;
     }
 
@@ -82,17 +83,17 @@ public abstract class AbstractService implements Service {
     }
 
     CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount) {
-        return k8Client.createCRD(getPravegaCRD())
-                       .thenCompose(v -> k8Client.createRole(NAMESPACE, getPravegaOperatorRole()))
-                       .thenCompose(v -> k8Client.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
-                       //deploy pravega operator.
-                       .thenCompose(v -> k8Client.createDeployment(NAMESPACE, getPravegaOperatorDeployment()))
-                       // wait until pravega operator is running, only one instance of operator is running.
-                       .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "name", PRAVEGA_OPERATOR, 1))
-                       // request operator to deploy zookeeper nodes.
-                       .thenCompose(v -> k8Client.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
-                                                                              NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-                                                                              getPravegaDeployment(zkUri.getAuthority(),
+        return k8sClient.createCRD(getPravegaCRD())
+                        .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
+                        .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
+                        //deploy pravega operator.
+                        .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getPravegaOperatorDeployment()))
+                        // wait until pravega operator is running, only one instance of operator is running.
+                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "name", PRAVEGA_OPERATOR, 1))
+                        // request operator to deploy zookeeper nodes.
+                        .thenCompose(v -> k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA,
+                                                                                NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA,
+                                                                                getPravegaDeployment(zkUri.getAuthority(),
                                                                                                    controllerCount,
                                                                                                    segmentStoreCount,
                                                                                                    bookieCount)));

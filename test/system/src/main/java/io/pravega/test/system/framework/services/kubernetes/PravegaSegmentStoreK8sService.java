@@ -36,32 +36,32 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
         Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, DEFAULT_SEGMENTSTORE_COUNT),
+            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, DEFAULT_SEGMENTSTORE_COUNT),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega-segmentStore service, check the operator logs", t));
         }
     }
 
     @Override
     public void stop() {
-        Futures.getAndHandleExceptions(k8Client.deleteCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA,
-                                                                   CUSTOM_RESOURCE_VERSION_PRAVEGA,
-                                                                   NAMESPACE,
-                                                                   CUSTOM_RESOURCE_PLURAL_PRAVEGA,
-                                                                   PRAVEGA_ID),
+        Futures.getAndHandleExceptions(k8sClient.deleteCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA,
+                                                                    CUSTOM_RESOURCE_VERSION_PRAVEGA,
+                                                                    NAMESPACE,
+                                                                    CUSTOM_RESOURCE_PLURAL_PRAVEGA,
+                                                                    PRAVEGA_ID),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to stop pravega", t));
 
     }
 
     @Override
     public boolean isRunning() {
-        return k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
-                       .thenApply(statuses -> statuses.stream()
+        return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
+                        .thenApply(statuses -> statuses.stream()
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
                                                       .count())
-                       .thenApply(runCount -> runCount == DEFAULT_SEGMENTSTORE_COUNT)
-                       .exceptionally(t -> {
+                        .thenApply(runCount -> runCount == DEFAULT_SEGMENTSTORE_COUNT)
+                        .exceptionally(t -> {
                            log.warn("Exception observed while checking status of pods " + PRAVEGA_SEGMENTSTORE_LABEL, t);
                            return false;
                        }).join();
@@ -70,8 +70,8 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         //fetch the URI.
-        return Futures.getAndHandleExceptions(k8Client.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
-                                                      .thenApply(statuses -> statuses.stream()
+        return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL)
+                                                       .thenApply(statuses -> statuses.stream()
                                                                                      .map(s -> URI.create(TCP + s.getPodIP() + ":" + SEGMENTSTORE_PORT))
                                                                                      .collect(Collectors.toList())),
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-segmentstore", t));
@@ -81,8 +81,8 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
     @SuppressWarnings("unchecked")
     public CompletableFuture<Void> scaleService(int newInstanceCount) {
 
-        return k8Client.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
-                       .thenCompose(o -> {
+        return k8sClient.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
+                        .thenCompose(o -> {
                            Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
                            Map<String, Object> pravegaSpec = (Map<String, Object>) spec.get("pravega");
                            Map<String, Object> bookkeeperSpec = (Map<String, Object>) spec.get("bookkeeper");
@@ -94,7 +94,7 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentSegmentStoreCount != newInstanceCount) {
                                return deployPravegaUsingOperator(zkUri, currentControllerCount, newInstanceCount, currentBookkeeperCount)
-                                       .thenCompose(v -> k8Client.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
+                                       .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);
                            }
