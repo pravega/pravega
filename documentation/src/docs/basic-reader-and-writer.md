@@ -97,13 +97,8 @@ The execution of API `createScope(scope)` establishes that the Scope exists. The
 - Stream Configuration.
 
 The most interesting task is to create the Stream Configuration (`streamConfig`). Like many objects in Pravega, a Stream takes a configuration object that allows
-a developer to control various behaviors of the Stream.  All configuration
-objects in Pravega use a builder pattern for construction. [**Retention Policy**](pravega-concepts.md#retention-policy) and [**Scaling
-Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the two important configuration items related to streams.   
-
-The minimum number of Segments is a factor that sets the minimum degree of read parallelism to be maintained; for example if this value is set as three, there will always be three Stream Segments available on the Stream.  Currently, this property is effective only when the stream is
-created; at some point in the future, update stream will allow this factor to be
-used to change the minimum degree of read parallelism on an existing Stream.
+a developer to control various behaviors of the Stream. All configuration object instantiated via builder pattern. That allows a developer to control various aspects of a Stream's behavior in terms of _policies_; [**Retention Policy**](pravega-concepts.md#retention-policy) and [**Scaling
+Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the most important ones related to Streams. For the sake of simplicity, in our sample application we instantiate a Stream with a single segment (`ScalingPolicy.fixed(1)`) and without any kind of retention policy.
 
 Once the Stream Configuration (`streamConfig`) object is built, creating the Stream is straight
 forward using `createStream()`. After the Stream is created, we are all set to start writing
@@ -121,11 +116,8 @@ Synchronizer](state-synchronizer.md)).
 A `ClientFactory` is created in the context of a Scope, since all Readers, Writers and other Clients created by the `ClientFactory` are created in the context of that Scope. The `ClientFactory`
 also needs a URI to one of the Pravega Controllers (`ClientFactory.withScope(scope, controllerURI)`) , just like `StreamManager`.
 
-As the `ClientFactory` and the objects it creates consumes resources from
-Pravega, it is a good practice to create these objects using a try-with-resources
-statement. Given that `ClientFactory` and the objects it creates all implement `Autocloseable` feature, the try-with-resources approach makes sure that, regardless of how
-the application ends, the Pravega resources will be properly closed in the
-right order.
+As the `ClientFactory` and the objects it creates consume resources from Pravega and implement `AutoCloseable`, it is a good practice to create these objects using a try-with-resources. By doing this, we make sure that, regardless of how the application ends, the Pravega resources will be properly closed in the right order.
+
 
 Once the `ClientFactory` is instantiated, we can use it to create a Writer. There are
 several things a developer needs to know before creating a Writer:
@@ -157,7 +149,7 @@ The `EventWriterConfig` allows the developer to specify things like the number o
 attempts to retry a request before giving up and associated exponential back-off
 settings. Pravega takes care to retry requests in the presence of connection
 failures or Pravega component outages, which may temporarily prevent a request from
-succeeding, so application logic doesn't need to be complicated with dealing
+succeeding, so application logic doesn't need to be complicated by dealing
 with intermittent cluster failures. In the sample application, `EventWriterConfig` was considered as the default settings.
 
 `EventStreamWriter` provides a `writeEvent()` operation that writes the given non-null Event object to
@@ -238,7 +230,7 @@ existing `ReaderGroup`). This application only uses the basics from Reader Group
 `ReaderGroup` objects are created from a `ReaderGroupManager` object. The `ReaderGroupManager` object, in turn, is created on a given Scope with a URI to one of the Pravega Controllers, very much
 like a `ClientFactory` is created. Note that, the `createReaderGroup()` is also in a try-with-resources statement to make sure that the `ReaderGroupManager` is properly cleaned up. The `ReaderGroupManager` allows a developer to create, delete and retrieve `ReaderGroup` objects using the name.
 
-To create a `ReaderGroup`, the developer needs a name for the Reader Group, a
+To create a `ReaderGroup`, the developer needs a name for the Reader Group and a
 configuration with a set of one or more Streams to read from. The Reader Group's name (alphanumeric) might be meaningful to the application, like
 "WebClickStreamReaders".  In cases where we require multiple Readers reading in parallel and each Reader in a separate
 process, it is helpful to have a human readable name for the Reader Group. In this example, we have one Reader, reading in isolation, so a UUID is a safe way to
@@ -255,7 +247,7 @@ final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                                                              .stream(Stream.of(scope, streamName))
                                                              .build();
 ```
-Other configuration items, such as specifying checkpointing etc., are options
+Other configuration items, such as Checkpointing are options
 that will be available through the `ReaderGroupConfig`.
 
 The Reader Group can be configured to read from multiple Streams. For example, imagine a situation where there is a collection of Stream of sensor data coming from a factory floor, each machine has its own Stream of sensor data.  We can build applications that uses a Reader Group per Stream so that the
@@ -285,15 +277,12 @@ EventStreamReader<String> reader = clientFactory.createReader("reader",
   ```                                        
 The name of the Reader can be any valid Pravega naming convention (numbers and letters). Note that the name of the Reader is namespaced within the Scope. `EventStreamWriter` and `EventStreamReader` uses Java generic types to allow a developer to specify a type safe Reader. In the sample application,
 we read Strings from the stream and use the standard Java String Serializer to
-convert the bytes read from the stream into String objects. Finally, the
-`ReaderConfig` is created, but at the moment, there are no configuration items
-associated with a Reader, so the empty `ReaderConfig` is just a place holder as
-Pravega evolves to include configuration items on Readers.
+convert the bytes read from the stream into String objects. Finally, we use a `ReaderConfig` object with default values.
 
 Note that you cannot create the same Reader multiple times. That is, an application may call `createReader()` to add new Readers to the Reader Group. But if the Reader Group already contains a Reader with that name, an exception is thrown.
 
 After creating an `EventStreamReader`, we can use it to read
-Events from the stream. The `readNextEvent()` operation returns the next Event available on the Stream, or if there is no such Event, blocks for a specified time. After the expiry of the timeout period, if no Event is available for reading, then _Null_ is returned. The null check (`EventRead<String> event = null`) is used to avoid printing out a spurious _Null_ event message to the console and also used to terminate the loop. Note that the Event itself is wrapped in an `EventRead` object.
+Events from the Stream. The `readNextEvent()` operation returns the next Event available on the Stream, or if there is no such Event, blocks for a specified time. After the expiry of the timeout period, if no Event is available for reading, then _Null_ is returned. The null check (`EventRead<String> event = null`) is used to avoid printing out a spurious _Null_ event message to the console and also used to terminate the loop. Note that the Event itself is wrapped in an `EventRead` object.
 
 It is worth noting that `readNextEvent()` may throw an exception and this exception would be handled in cases where the Readers in the Reader Group need to reset to a Checkpoint or the Reader Group itself has been altered and the set of Streams being read has been therefore changed.
 
