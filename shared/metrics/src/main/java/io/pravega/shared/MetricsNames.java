@@ -26,6 +26,8 @@ package io.pravega.shared;
  * - controller.segments: metrics about segments, per stream (e.g., count, splits, merges)
  * - controller.transactions: metrics related to transactions (e.g., created, committed, aborted)
  * - controller.retention: metrics related to data retention, per stream (e.g., frequency, size of truncated data)
+ * - controller.hosts: metrics related to Pravega servers in the cluster (e.g., number of servers, failures)
+ * - controller.container: metrics related to container lifecycle (e.g., failovers)
  */
 
 
@@ -96,7 +98,7 @@ public final class MetricsNames {
     public static final String THREAD_POOL_ACTIVE_THREADS = "segmentstore.thread_pool.active_threads";  // Histogram
 
     // Metrics in Controller
-    // Stream request counts (Static)
+    // Stream request counts
     public static final String CREATE_STREAM = "controller.stream.created";                         // Counter
     public static final String CREATE_STREAM_LATENCY = "controller.stream.created_latency_ms";      // Histogram
     public static final String CREATE_STREAM_FAILED = "controller.stream.create_failed";            // Counter and Per-stream Counter
@@ -113,7 +115,7 @@ public final class MetricsNames {
     public static final String TRUNCATE_STREAM_LATENCY = "controller.stream.truncated_latency_ms";  // Histogram
     public static final String TRUNCATE_STREAM_FAILED = "controller.stream.truncate_failed";        // Counter and Per-stream Counter
 
-    // Transaction request Operations (Dynamic)
+    // Transaction request Operations
     public static final String CREATE_TRANSACTION = "controller.transactions.created";                      // Counter and Per-stream Counter
     public static final String CREATE_TRANSACTION_LATENCY = "controller.transactions.created_latency_ms";   // Histogram
     public static final String CREATE_TRANSACTION_FAILED = "controller.transactions.create_failed";         // Counter and Per-stream Counter
@@ -124,7 +126,7 @@ public final class MetricsNames {
     public static final String ABORT_TRANSACTION_LATENCY = "controller.transactions.aborted_latency_ms";    // Histogram
     public static final String ABORT_TRANSACTION_FAILED = "controller.transactions.abort_failed";           // Counter, Per-stream Counter, Per-transaction Counter
     public static final String OPEN_TRANSACTIONS = "controller.transactions.opened";                        // Per-stream Gauge
-    public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";                  // Per-stream Dynamic Counter
+    public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";                  // Per-stream Counter
 
     // Host metrics
     public static final String SEGMENT_STORE_HOST_NUMBER = "controller.hosts.count";                    // Gauge
@@ -134,12 +136,12 @@ public final class MetricsNames {
     // Container lifecycle metrics
     public static final String CONTAINER_FAILOVERS = "controller.container.failovers";    // Counter and Per-container Counter
 
-    // Stream segment counts (Dynamic)
+    // Stream segment counts
     public static final String SEGMENTS_COUNT = "controller.segments.count";    // Per-stream Gauge
     public static final String SEGMENTS_SPLITS = "controller.segment.splits";   // Per-stream Counter
     public static final String SEGMENTS_MERGES = "controller.segment.merges";   // Per-stream Counter
 
-    // Stream retention operations (Dynamic)
+    // Stream retention operations
     public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Per-stream Counter
     public static final String TRUNCATED_SIZE = "controller.retention.truncated_size";   // Per-stream Gauge
 
