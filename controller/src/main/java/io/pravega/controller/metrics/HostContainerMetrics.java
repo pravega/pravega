@@ -27,9 +27,9 @@ import static io.pravega.shared.MetricsNames.nameFromHost;
 public final class HostContainerMetrics extends AbstractControllerMetrics {
 
     /**
-     * This method reports the number available Segment Store hosts managing Containers, as well as the number of
+     * This method reports the number of available Segment Store hosts managing Containers, as well as the number of
      * Containers assigned to each host. Moreover, this method also reports failures for hosts and Containers; we
-     * consider a failure the situation in which a host in present in the oldMapping, but not present in newMapping.
+     * consider a failure the situation in which a host is present in the oldMapping, but not present in newMapping.
      *
      * @param oldMapping    Previous host to Container relationships.
      * @param newMapping    Updated host to Container relationships.

@@ -78,6 +78,20 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
+    public ControllerService(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks,
+                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
+                             Executor executor, Cluster cluster) {
+        this.streamStore = streamStore;
+        this.hostStore = hostStore;
+        this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.cluster = cluster;
+        this.streamMetrics = new StreamMetrics();
+        this.transactionMetrics = new TransactionMetrics();
+    }
+
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
             return Futures.failedFuture(new IllegalStateException("Controller cluster not initialized"));
@@ -112,21 +126,21 @@ public class ControllerService {
                                                 stream,
                                                 streamConfig,
                                                 createTimestamp)
-                                  .thenApplyAsync(status -> {
-                                      reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(),
-                                              status, timer.getElapsed());
-                                      return CreateStreamStatus.newBuilder().setStatus(status).build();
-                                  }, executor);
+                  .thenApplyAsync(status -> {
+                       reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
+                                timer.getElapsed());
+                       return CreateStreamStatus.newBuilder().setStatus(status).build();
+                  }, executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Timer timer = new Timer();
         return streamMetadataTasks.updateStream(scope, stream, streamConfig, null)
-                                  .thenApplyAsync(status -> {
-                                      reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
-                                      return UpdateStreamStatus.newBuilder().setStatus(status).build();
-                                  }, executor);
+                  .thenApplyAsync(status -> {
+                      reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
+                      return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                  }, executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> truncateStream(final String scope, final String stream,

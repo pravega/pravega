@@ -363,6 +363,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Close metrics.
             if (streamMetrics != null) {
                 streamMetrics.close();
+            }
+
+            if (transactionMetrics != null) {
                 transactionMetrics.close();
             }
 

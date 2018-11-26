@@ -19,8 +19,6 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -121,7 +119,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster, new StreamMetrics(), new TransactionMetrics());
+                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
         controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), requestTracker, true);
     }
 

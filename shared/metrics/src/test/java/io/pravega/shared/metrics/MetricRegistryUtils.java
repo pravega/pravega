@@ -28,7 +28,7 @@ public class MetricRegistryUtils {
     }
 
     public static Gauge getGauge(String metricsName) {
-        return  (Gauge) getMetric(metricsName);
+        return (Gauge) getMetric(metricsName);
     }
 
     public static Timer getTimer(String metricsName) {

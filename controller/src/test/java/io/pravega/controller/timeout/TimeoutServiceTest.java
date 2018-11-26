@@ -17,8 +17,6 @@ import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -119,8 +117,8 @@ public class TimeoutServiceTest {
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
 
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(), executor, null, new StreamMetrics(), new TransactionMetrics());
+        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, new SegmentHelper(), executor, null);
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();
@@ -262,7 +260,7 @@ public class TimeoutServiceTest {
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
         ControllerService controllerService2 = new ControllerService(streamStore2, hostStore, streamMetadataTasks2,
-                streamTransactionMetadataTasks2, new SegmentHelper(), executor, null, new StreamMetrics(), new TransactionMetrics());
+                streamTransactionMetadataTasks2, new SegmentHelper(), executor, null);
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE)
                 .thenApply(x -> ModelHelper.decode(x.getKey()))

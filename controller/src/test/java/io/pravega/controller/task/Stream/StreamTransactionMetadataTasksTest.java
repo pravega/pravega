@@ -29,8 +29,6 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
-import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
@@ -210,8 +208,8 @@ public class StreamTransactionMetadataTasksTest {
                 abortWriter);
 
         // Create ControllerService.
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, segmentHelperMock,
-                executor, null, new StreamMetrics(), new TransactionMetrics());
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
+                segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
@@ -251,8 +249,8 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
                 abortWriter);
 
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, segmentHelperMock,
-                executor, null, new StreamMetrics(), new TransactionMetrics());
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
+                segmentHelperMock, executor, null);
 
         // Create test scope and stream.
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -378,8 +376,8 @@ public class StreamTransactionMetadataTasksTest {
                 connectionFactory, AuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
 
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, segmentHelperMock, executor,
-                null, new StreamMetrics(), new TransactionMetrics());
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
+                segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
@@ -455,8 +453,8 @@ public class StreamTransactionMetadataTasksTest {
                 abortWriter);
 
         // Create ControllerService.
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks, segmentHelperMock,
-                executor, null, new StreamMetrics(), new TransactionMetrics());
+        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
+                segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
