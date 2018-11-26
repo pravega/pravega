@@ -254,7 +254,6 @@ store.
 
 ### Stream Metadata
 
-<<<<<<< HEAD
 Clients need information about what segments constitute a stream to
 start their processing and they obtain it from the epoch information the
 Controller stores in the stream store. A reader client typically starts
@@ -280,7 +279,7 @@ and predecessors for any arbitrary segment.
 To enable serving queries like those mentioned above, we need to efficiently store a time series of these segment transitions and index them against time.
 We store this information about the current and historical state of a stream-segments in a set of records which are designed to optimize on aforementioned queries.
 Apart from segment specific metadata record, the current state of stream comprises of other metadata types that are described henceforth.
-=======
+
 Clients need information about what segments constitute a Stream to
 start their processing and they obtain it from the _epoch_ information the
 Controller stores in the Stream store. A **Reader** client typically starts
@@ -311,12 +310,10 @@ and predecessors for any arbitrary Segment.
 To enable serving queries like those mentioned above, we need to efficiently store a time series of these Stream Segment transitions and index them against time.
 We store this information about the current and historical state of a Stream Segments in a set of tables which are designed to optimize on aforementioned queries.
 Apart from Segment specific metadata record, the current state of Stream comprises of other metadata types that are described henceforth.
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 
 #### Records  
 We store the stream time series as a series of records where each record corresponds to an epoch. As stream scales and transitions from one epoch to another, we create a new record that has complete information about segments that form the epoch.
 
-<<<<<<< HEAD
 - **Epoch Records**:  
 _Epoch: ⟨time, list-of-segments-in-epoch⟩_
  We store the series of _active_ Stream Segments as they transition from one epoch to another into individual epoch records. Each epoch record corresponds to an epoch which captures a logically consistent (as defined earlier) set of Stream Segments that form the Stream and are valid through the lifespan of the epoch. The epoch record is stored against the epoch number. This record is optimized to answer to query Segments from an epoch with a single call into the store that also enables retrieval of all Stream Segment records in the epoch in _O(1)_. This record is also used for fetching a Stream Segment specific record by first computing Stream Segment's creation epoch from Stream Segment Id and then retrieving the epoch record.
@@ -334,46 +331,6 @@ The following are three most commonly used scenarios where we want to efficientl
 - **Segment Records**:
 _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
 The Controller stores Stream Segment information within each epoch record. The Stream Segment Id composed of two parts, and is encoded as a _64 bit_ number. The _high 32 bit_ identifies the creation epoch of the Stream Segment and the _low 32 bit_ uniquely identifies the Stream Segment. To retrieve Stream Segment record given a Stream Segment Id, we first need to extract the creation epoch and then retrieve the Stream Segment record from the epoch record.
-=======
-To efficiently store and query the Stream Segment information, we have split
-Stream Segment data into the following three append only tables.
-
-  - **Segment Table**:  
-_Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_  
-The Controller stores the Segment Table in an append-only table with
-**i**-**th** row corresponding to metadata for Segment _Id_ (**i**). It is important
-to note that each row in the Segment Table is of fixed size. As new
-Stream Segments are added, they are assigned new Stream Segment *Ids* in a strictly
-increasing order. So this table is very efficient in creating new
-Stream Segments and querying Stream Segment information response with *O(1)* processing
-for both these operations.
-
- - **History Table**:  
-_Epoch: ⟨time, list-of-segments-in-epoch⟩_
-The History Table stores a series of active Stream Segments as they transition
-from one _epoch_ to another. Each row in the History Table stores an _epoch_
-which captures a logically consistent (as defined earlier) set of
-Stream Segments that form the Stream and are valid through the lifespan of the
-_epoch_. This table is designed to optimize queries to find set of
-Segments that form the Stream at any arbitrary time. There are three
-most commonly used scenarios where we want to efficiently know the set
-of Segments that form the Stream (_initial set of segments, current set
-of segments_ and _segments at any arbitrary time_).  First two queries are
-very efficiently answered in _O(1)_ time because they correspond to first
-and last rows in the table.
-Since rows in the table are sorted by increasing order of time and
-capture time series of Streams Segment set changes, so we could easily
-perform Binary Search to find row which corresponds to Stream Segment sets at
-any arbitrary time.
-
- - **Index Table**  
-_Index: ⟨time, offset-in-history-table⟩_  
-Since history rows are of variable length, we index history rows for
-timestamps in the Index Table. This enables us to navigate the History
-Table and perform Binary Search to efficiently answer queries to get
-Stream Segment set at any arbitrary time. We also perform Binary Searches on
-History Table to determine successors of any given Stream Segment.
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 
 #### Stream Configuration
  Znode under which Stream configuration is serialized and persisted. A
@@ -403,11 +360,7 @@ History Table to determine successors of any given Stream Segment.
  and *sealed*. Once _active_, a Stream transitions between performing a
  specific operation and remanis _active_ until it is sealed. A transition map is
  defined in the
-<<<<<<< HEAD
  [State](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/controller/store/stream/State.java)
-=======
- [State](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/controller/store/Stream/tables/State.java)
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
  class which allows and prohibits various state transitions.
  Stream State describes the _current state_ of the Stream. It transitions
  from _active_ to respective action based on the action being performed
@@ -426,21 +379,19 @@ History Table to determine successors of any given Stream Segment.
  record and return Stream Segments that are strictly greater than or equal to
  the `StreamCut` in truncation record.
 
-<<<<<<< HEAD
 #### Sealed Segments Maps
 Once The Stream Segments are sealed, controller needs to store additional information about the Stream Segment. Presently, we have two types of information that we store namely:
 
- - Epoch it was sealed in
+ - Epoch it was sealed in.
  - Size of the Stream Segment at the time of sealing.
 
  These records have two different characteristics and are used in different types of queries. For example, sealing epoch is important for querying _successor Stream Segments_; Stream Segment sizes are used during truncation workflows. Successor queries are performed on a single Stream Segment whereas truncation workflows work on a group of Stream Segments. So we maintain two kinds of records for these two types of records. For each Stream Segment we store its sealing epoch directly in the metadata store. For sealed sizes, we store it in a map of Segment to size at the time of sealing. This ensures that during truncation we are able to retrieve sealed sizes for multiple Stream Segments with minimal number of calls into underlying metadata store. Since we could have arbitrarily large number of Stream Segments that have been sealed away, we cannot store all of the information in a single map and hence we shard the map and store it. The sharding function we use is to hash the creation epoch and get the shard number.
-=======
+
 #### Sealed Segments Record
  Since the Segment Table is append only, any additional information
  that we need to persist when a Stream Segment is sealed and is stored in sealed
  Stream Segments record. At present, it contains a map of Stream Segment number
  to its sealed size.
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 
 The following are the Transaction Related metadata records:
 
@@ -708,20 +659,12 @@ policy. Now the state is reset to *Active*.
 
 Scale can be invoked either by explicit API call (referred to as manual
 scale) or performed automatically based on scale policy (referred to as
-<<<<<<< HEAD
 auto-scale). We first write the Event followed by updating the metadata store to capture our intent to scale a Stream. This step is idempotent and ensures that if an existing ongoing scale operation is in progress, then this attempt to start a new scale is ignored. Also, if there is an ongoing scale operation with a conflicting request input parameters, then the new request is rejected. Which essentially guarantees that there can be exactly one scale operation that can be performed at any given point in time. The start of processing is similar to mechanism followed in update Stream. If metadata is updated, the Event processes and proceeds with executing the task. If the metadata is not updated within the desired time frame, the Event is discarded.
 
-=======
-Auto scaling). First write the Event followed by updating the Segment
-Table by creating new entries for the creation of desired Stream Segments. This
-step is idempotent and ensures that if an existing ongoing scale
-operation is in progress, then this attempt to start a new scale fails.
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 The start of processing is similar to mechanism followed in update
 Stream. If metadata is updated, the event processes and proceeds with
 executing the task. If the metadata is not updated within the desired
-<<<<<<< HEAD
-time frame, the event is discarded.
+time frame, the Event is discarded.
 
 Once scale processing starts, it first sets the stream state *Scaling*.
 This is followed by creating new segments in Segment Stores. After
@@ -740,8 +683,6 @@ sealing old segments and completing the scale. After old segments are
 sealed successfully, the partial record in history table is now
 completed whereby completing the scale workflow. The state is now reset
 to *Active*.
-=======
-time frame, the Event is discarded.
 
 - Once scale processing starts, it first sets the Stream State to *Scaling*.
 - Then creates new Stream Segments in Segment Store. After
@@ -758,7 +699,6 @@ are sure there are no Transactions on old _epoch_, we can proceed with sealing o
 
 - After old Stream Segments are sealed successfully, the partial record in History Table is now
 completed whereby completing the scale workflow. The Stream State is now reset to *Active*.
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 
 ### Truncate Stream
 
@@ -877,37 +817,15 @@ The create Transaction function in the module performs the following steps:
 3. It creates a new Transaction record in the Zookeeper using the metadata store interface.
 4. It then requests Segment Store to create special Transaction Segments that are inherently linked to the parent _active_ Stream Segments.
 
-<<<<<<< HEAD
 Controller creates shadow Stream Segments for current _active_ Segments by associating Transaction Id to compute unique shadow Stream Segment identifiers. The lifecycle of shadow Stream Segments are not linked to original Stream Segments and original Stream Segments can be sealed, truncated or deleted without affecting the lifecycle of shadow Stream Segment.
-
-=======
-While creating Transactions, Controller ensures that parent Stream segments are not sealed as we attempt to create corresponding Transaction Segments.
-And during the lifespan of a Transaction, should a scale commence, it should wait for Transactions on older _epoch_ to finish before the scale proceeds
-to seal Stream Segments from old _epoch_.
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 
 ### Commit Transaction
 
 Upon receiving request to commit a Transaction, Controller Service passes the request to Transaction Utility module.
-<<<<<<< HEAD
 This module first tries to mark the Transaction for commit in the transaction specific metadata record via metadata store.
 Following this, it posts a commit Event in the internal Commit Stream. The commit event only captures the epoch in which the Transaction has to be committed. Commit Transaction workflow is implemented on commit Event processor and thereby processed asynchronously. When commit workflow starts, it opportunistically collects all available Transactions that have been marked for commit in the given epoch and proceeds to commit them in order one Transaction at a time. A Transaction commit entails merging the Transaction Segment into its parent Segment. This works perfectly in absence of scale. However, because of scaling of a Stream, some of the parent Segments for Transaction's shadow Stream Segments could have been sealed away. In such instance, when we attempt to commit a Transactions we may not have parent Segments in which Transaction Segments could be merged into. One approach to mitigate this could have been to prevent scaling operation while there were ongoing Transactions. However, this could stall scaling for arbitrarily large periods of time and would be detrimental. Instead, controller decouples scale and Transactions and allows either to occur concurrently without impacting workings of the other.
 
 This is achieved by using a scheme where controller allows Transaction Segments to outlive their parent Segments and whenever their commits are issued, at a logical level controller elevates the Transaction Segments as first class Segments and includes them in a new epoch in the epoch timeseries of the Stream. This scheme is called **Rolling Transactions**. It is named as such because Transactions are created in an older epoch and when they are attempted to be committed, the latest epoch is sealed, Transactions are rolled over and included and then a duplicate of latest epoch is created for Stream to restore its previous state before rolling of Transactions. This ensures that Transactions could be created at any time and then be committed at any time without interfering with any other Stream processing. The commit workflow on controller guarantees that once started it will attempt to commit each of the identified Transactions with indefinite retries until they all succeed. Once a Transaction is committed successfully, the record for the Transaction is removed from under its epoch root.
-
-=======
-
-1. This module first tries to mark the Transaction for commit in the Transaction specific metadata record via metadata store.
-2. Then, it posts a commit event in the internal Commit Stream.
-3. Commit Transaction workflow is implemented on commit event processor and thereby processed asynchronously.
-4. The commit transaction workflow checks for eligibility of Transaction to be committed, and if true,
-it performs the commit workflow with indefinite retries until it succeeds. If the Transaction is not eligible for commit, which typically happens if Transaction is created on a new epoch while the old _epoch_ is still _active_, then such Events are reposted into the internal Stream to
-be picked later.
-
-Once a Transaction is committed successfully, the record for the Transaction is removed from under its _epoch_ root. Then if there is an ongoing scale, then it calls to attempt to complete the ongoing scale.
-Trying to complete scale hinges on ability to delete old _epoch_ which can
-be deleted if and only if there are no outstanding active Transactions against the said _epoch_ (Refer to [scale workflow](#scale-stream) for more details).   
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 
 ### Abort Transaction
 
@@ -918,11 +836,6 @@ Abort, like commit, can be requested explicitly by the application. However, abo
 3. There is no ordering requirement for abort Transaction and hence it is
 performed concurrently and across Streams.
 
-<<<<<<< HEAD
-=======
-Like commit, once the Transaction is aborted, its node is deleted from its _epoch_ root and if there is an ongoing scale, it complete scale flow is attempted.
-
->>>>>>> 7d2aef92d21ca8aa3b341dfc6294818dbcffe85a
 ### Ping Transaction
 
 Since Controller has no visibility into data path with respect to data
