@@ -165,7 +165,7 @@ public interface ClientFactory extends AutoCloseable {
      */
     @Beta
     @Deprecated
-    ByteStreamClientFactory createByteStreamClient();
+    io.pravega.client.byteStream.ByteStreamClient createByteStreamClient();
     
     /**
      * Create a new batch client. A batch client can be used to perform bulk unordered reads without

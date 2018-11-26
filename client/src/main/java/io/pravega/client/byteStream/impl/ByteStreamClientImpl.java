@@ -31,7 +31,8 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
-public class ByteStreamClientImpl implements ByteStreamClientFactory {
+@SuppressWarnings("deprecation")
+public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega.client.byteStream.ByteStreamClient {
     @NonNull
     private final String scope;
     @NonNull

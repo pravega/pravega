@@ -14,6 +14,7 @@ import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -115,7 +116,7 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
      */
     @Override
     @Deprecated
-    public ByteStreamClientFactory createByteStreamClient() {
+    public ByteStreamClientImpl createByteStreamClient() {
         return impl.createByteStreamClient();
     }
 }
