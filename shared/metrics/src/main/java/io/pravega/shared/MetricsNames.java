@@ -28,6 +28,20 @@ package io.pravega.shared;
  * - controller.retention: metrics related to data retention, per stream (e.g., frequency, size of truncated data)
  * - controller.hosts: metrics related to Pravega servers in the cluster (e.g., number of servers, failures)
  * - controller.container: metrics related to container lifecycle (e.g., failovers)
+ *
+ * We have two types of metrics:
+ * - Simple metric: Values are directly associated to the metric name that appears in this file. They are convenient if
+ *   we want to report global metric values. For instance, STORAGE_READ_BYTES can be classified as a simple metric.
+ *
+ * - Object-based metric: Sometimes, we may want to report metrics based on specific objects, such as Streams or Segments.
+ *   This kind of metrics use as a base name the metric name in this file and are "dynamically" created based on the
+ *   objects to be measured. For instance, in CONTAINER_APPEND_COUNT we actually report multiple metrics, one per each
+ *   containerId measured: segmentstore.container.append_count.$containerId.
+ *
+ * There are cases in which we may want both a simple and object-based versions for the same metric. For example, regarding
+ * SEGMENT_READ_BYTES we publish the a simple counter (segmentstore.segment.read_bytes) to easily get the global number
+ * of read bytes, as well as the object-based (per-segment) version of it (segmentstore.segment.read_bytes.$segmentName)
+ * to report in a finer granularity the events read per segment.
  */
 
 
@@ -59,7 +73,7 @@ public final class MetricsNames {
     // DurableDataLog (Tier1) stats
     public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency_ms";   // Including Queue. Per-container Histogram.
     public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency_ms";               // Exclusively the write to BK. Per-container Histogram.
-    public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                      // Global Counter
+    public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                      // Counter
     public static final String BK_WRITE_QUEUE_SIZE = "segmentstore.bookkeeper.write_queue_size";            // Per-container Histogram
     public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.bookkeeper.write_queue_fill";       // Per-container Histogram
     public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.bookkeeper_ledger_count";         // Per-container Gauge
