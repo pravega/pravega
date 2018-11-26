@@ -15,6 +15,11 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -30,6 +35,7 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import lombok.Cleanup;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -102,8 +108,8 @@ public class ByteStreamTest {
         // create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
-
-        ByteStreamClientFactory client = ByteStreamClientFactory.withScope(scope, ClientConfig.builder().build());
+        
+        ByteStreamClientFactory client = createClientFactory(scope);
 
         byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         byte[] readBuffer = new byte[10];
@@ -146,7 +152,7 @@ public class ByteStreamTest {
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
         
-        ByteStreamClientFactory client = ByteStreamClientFactory.withScope(scope, ClientConfig.builder().build());
+        ByteStreamClientFactory client = createClientFactory(scope);
 
         byte[] payload = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 2];
         Arrays.fill(payload, (byte) 7);
@@ -185,7 +191,7 @@ public class ByteStreamTest {
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
         
-        ByteStreamClientFactory client = ByteStreamClientFactory.withScope(scope, ClientConfig.builder().build());
+        ByteStreamClientFactory client = createClientFactory(scope);
 
         byte[] payload = new byte[100];
         Arrays.fill(payload, (byte) 1);
@@ -212,6 +218,14 @@ public class ByteStreamTest {
         }, () -> writer.write(payload));
         writer.closeAndSeal();
         assertEquals(-1, reader.read());
+    }
+    
+    ByteStreamClientFactory createClientFactory(String scope) {
+        val connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        val inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
+        val outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        val metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
     }
 
 }

@@ -140,7 +140,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
         EventRead<String> event = reader.readNextEvent(10000);
         assertNotNull(event);
