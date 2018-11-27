@@ -359,12 +359,12 @@ segmentstore.segment.read_latency_ms
 segmentstore.segment.write_latency_ms 
 ```
 
-- Segment Store total and per-segment read/write metrics (counters):
+- Segment Store global and per-segment read/write metrics (counters):
 ```
-// Total counters
-segmentstore.segment.read_bytes.Counter
-segmentstore.segment.write_bytes.Counter
-segmentstore.segment.write_events.Counter
+// Global counters
+segmentstore.segment.read_bytes_global.Counter
+segmentstore.segment.write_bytes_global.Counter
+segmentstore.segment.write_events_global.Counter
 
 // Per segment counters
 segmentstore.segment.write_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
@@ -455,7 +455,6 @@ segmentstore.container.truncate_count.$containerId.Meter
 - Segment Store active Segments (gauge) and thread pool status (histogram) metrics:
 ```
 // Gauge
-segmentstore.active_segments.Gauge
 segmentstore.active_segments.$containerId.Gauge
 
 // Histograms
@@ -477,19 +476,21 @@ controller.stream.truncated_latency_ms
 - Controller global and per-Stream operation metrics (counters):
 ```
 controller.stream.created.Counter
-controller.stream.create_failed.Counter
+controller.stream.create_failed_global.Counter
 controller.stream.create_failed.$scope.$stream.Counter
 controller.stream.sealed.Counter
-controller.stream.seal_failed.Counter
+controller.stream.seal_failed_global.Counter
 controller.stream.seal_failed.$scope.$stream.Counter
 controller.stream.deleted.Counter
-controller.stream.delete_failed.Counter
+controller.stream.delete_failed_global.Counter
 controller.stream.delete_failed.$scope.$stream.Counter
-controller.stream.updated.Counter
-controller.stream.update_failed.Counter
+controller.stream.updated_global.Counter
+controller.stream.updated.$scope.$stream.Counter
+controller.stream.update_failed_global.Counter
 controller.stream.update_failed.$scope.$stream.Counter
-controller.stream.truncated.Counter
-controller.stream.truncate_failed.Counter
+controller.stream.truncated_global.Counter
+controller.stream.truncated.$scope.$stream.Counter
+controller.stream.truncate_failed_global.Counter
 controller.stream.truncate_failed.$scope.$stream.Counter
 ```
 
@@ -517,30 +518,34 @@ controller.transactions.aborted_latency_ms
 
 - Controller Transaction operation counter metrics:
 ```
-controller.transactions.created.Counter
+controller.transactions.created_global.Counter
 controller.transactions.created.$scope.$stream.Counter
-controller.transactions.create_failed.Counter
+controller.transactions.create_failed_global.Counter
 controller.transactions.create_failed.$scope.$stream.Counter
-controller.transactions.committed.Counter
+controller.transactions.committed_global.Counter
 controller.transactions.committed.$scope.$stream.Counter
-controller.transactions.commit_failed.Counter
+controller.transactions.commit_failed_global.Counter
 controller.transactions.commit_failed.$scope.$stream.Counter
-controller.transactions.aborted.Counter
+controller.transactions.commit_failed.$scope.$stream.$txnId.Counter
+controller.transactions.aborted_global.Counter
 controller.transactions.aborted.$scope.$stream.Counter
-controller.transactions.abort_failed.Counter
+controller.transactions.abort_failed_global.Counter
 controller.transactions.abort_failed.$scope.$stream.Counter
+controller.transactions.abort_failed.$scope.$stream.$txnId.Counter
 ```
 
 - Controller hosts available (gauge) and host failure (counter) metrics:
 ```
 controller.hosts.count.Gauge
-controller.hosts.failures.Counter
+controller.hosts.failures_global.Counter
+controller.hosts.failures.$host.Counter
 ```
 
 - Controller Container count per host (gauge) and failover (counter) metrics:
 ```
 controller.hosts.container_count.Gauge
-controller.container.failovers.Counter
+controller.container.failovers_global.Counter
+controller.container.failovers.$containerId.Counter
 ```
 
 # 6. Useful links

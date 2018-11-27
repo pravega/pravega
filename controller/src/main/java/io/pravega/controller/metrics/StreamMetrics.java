@@ -56,7 +56,7 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param latency           Latency of the createStream operation.
      */
     public void createStream(String scope, String streamName, int minNumSegments, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_STREAM), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM, 1);
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), 0);
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, streamName), minNumSegments);
         DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, streamName), 0);
@@ -85,7 +85,7 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param latency       Latency of the deleteStream operation.
      */
     public void deleteStream(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_STREAM), 1);
+        DYNAMIC_LOGGER.incCounterValue(DELETE_STREAM, 1);
         deleteStreamLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -110,7 +110,7 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param latency       Latency of the sealStream operation.
      */
     public void sealStream(String scope, String streamName, Duration latency) {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEAL_STREAM), 1);
+        DYNAMIC_LOGGER.incCounterValue(SEAL_STREAM, 1);
         DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), 0);
         sealStreamLatency.reportSuccessValue(latency.toMillis());
     }

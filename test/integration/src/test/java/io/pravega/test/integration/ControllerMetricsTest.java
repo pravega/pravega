@@ -137,7 +137,7 @@ public class ControllerMetricsTest {
         final int eventsWritten = 10;
         int streamCount = 6;
         int iterations = 3;
-        Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(CREATE_STREAM)));
+        Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
 
         // At this point, we have 6 internal streams.
         Assert.assertEquals(streamCount, createdStreamsCounter.getCount());
@@ -194,10 +194,10 @@ public class ControllerMetricsTest {
 
             // Check metrics accounting for sealed and deleted streams.
             streamManager.sealStream(scope, iterationStreamName);
-            Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(SEAL_STREAM)));
+            Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(SEAL_STREAM));
             Assert.assertTrue(i + 1 <= streamSealCounter.getCount());
             streamManager.deleteStream(scope, iterationStreamName);
-            Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(DELETE_STREAM)));
+            Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(DELETE_STREAM));
             Assert.assertTrue(i + 1 <= streamDeleteCounter.getCount());
         }
 
