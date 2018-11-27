@@ -312,17 +312,19 @@ We store this information about the current and historical state of a Stream Seg
 Apart from Segment specific metadata record, the current state of Stream comprises of other metadata types that are described henceforth.
 
 #### Records  
+
 Stream time series is stored as as a series of records where each record corresponds to an epoch. As Stream scales and transitions from one epoch to another, a new record is created that has complete information about Stream Segments that form the epoch.
 
 - **Epoch Records**:  
-_Epoch: ⟨time, list-of-segments-in-epoch⟩_
+  _Epoch: ⟨time, list-of-segments-in-epoch⟩._
 
  We store the series of _active_ Stream Segments as they transition from one epoch to another into individual epoch records. Each epoch record corresponds to an epoch which captures a logically consistent (as defined earlier) set of Stream Segments that form the Stream and are valid through the lifespan of the epoch. The epoch record is stored against the epoch number. This record is optimized to answer to query Segments from an epoch with a single call into the store that also enables retrieval of all Stream Segment records in the epoch in _O(1)_. This record is also used for fetching a Stream Segment specific record by first computing Stream Segment's creation epoch from Stream Segment ID and then retrieving the epoch record.
 
-     - **Current Epoch**:
+    - **Current Epoch**:
  A special epoch record called `currentEpoch`. This is the currently _active_ epoch in the Stream. At any time exactly one epoch is marked as current epoch. Typically this is the latest epoch with highest epoch number. However, during an ongoing Stream update workflow like _scale_ or _rolling Transaction_, the current epoch may not necessarily be the latest epoch. However, at the completion of these workflows the current epoch is marked as the latest epoch in the stream.
 
 The following are three most commonly used scenarios where we want to efficiently know the set of Segments that form the Stream:
+
         1. _Initial set of Stream Segments_:
 The **head** of the Stream computation is very efficient as it is typically either the first epoch record or the latest truncation record.
        2. _Current set of Stream Segments_: The **tail** of the Stream is identified by the current epoch record.
