@@ -139,8 +139,8 @@ public class ControllerMetricsTest {
         int iterations = 3;
         Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
 
-        // At this point, we have 6 internal streams.
-        Assert.assertEquals(streamCount, createdStreamsCounter.getCount());
+        // At this point, we have at least 6 internal streams.
+        Assert.assertTrue(streamCount <= createdStreamsCounter.getCount());
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(parallelism))
                                                                      .build();
