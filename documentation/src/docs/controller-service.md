@@ -322,13 +322,17 @@ _Epoch: ⟨time, list-of-segments-in-epoch⟩_
  A special epoch record called `currentEpoch`. This is the currently _active_ epoch in the Stream. At any time exactly one epoch is marked as current epoch. Typically this is the latest epoch with highest epoch number. However, during an ongoing Stream update workflow like _scale_ or _rolling Transaction_, the current epoch may not necessarily be the latest epoch. However, at the completion of these workflows the current epoch is marked as the latest epoch in the stream.
 
 The following are three most commonly used scenarios where we want to efficiently know the set of Segments that form the Stream:
+
     - _Initial set of Stream Segments_:
 The **head** of the Stream computation is very efficient as it is typically either the first epoch record or the latest truncation record.
+
     - _Current set of Stream Segments_: The **tail** of the Stream is identified by the current epoch record.
+
     - _Successors of a particular Stream Segment_:
   The successor query results in two calls into the store to retrieve Stream Segment's sealed epoch and the corresponding epoch record. The successors are computed as the Stream Segments that overlap with the given Stream Segment.
 
 - **Segment Records**:
+
 _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
 The Controller stores Stream Segment information within each epoch record. The Stream Segment ID is composed of two parts, and is encoded as a _64 bit_ number. The _high 32 bit_ identifies the creation epoch of the Stream Segment and the _low 32 bit_ uniquely identifies the Stream Segment.
 
