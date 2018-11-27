@@ -315,11 +315,11 @@ Apart from Segment specific metadata record, the current state of Stream compris
 
 Stream time series is stored as as a series of records where each record corresponds to an epoch. As Stream scales and transitions from one epoch to another, a new record is created that has complete information about Stream Segments that form the epoch.
 
-- **Epoch Records**  
+- **Epoch Records:**  
 _Epoch: ⟨time, list-of-segments-in-epoch⟩_
 We store the series of _active_ Stream Segments as they transition from one epoch to another into individual epoch records. Each epoch record corresponds to an epoch which captures a logically consistent (as defined earlier) set of Stream Segments that form the Stream and are valid through the lifespan of the epoch. The epoch record is stored against the epoch number. This record is optimized to answer to query Segments from an epoch with a single call into the store that also enables retrieval of all Stream Segment records in the epoch in _O(1)_. This record is also used for fetching a Stream Segment specific record by first computing Stream Segment's creation epoch from Stream Segment ID and then retrieving the epoch record.
 
- - **Current Epoch**
+ - **Current Epoch:**
  A special epoch record called `currentEpoch`. This is the currently _active_ epoch in the Stream. At any time exactly one epoch is marked as current epoch. Typically this is the latest epoch with highest epoch number. However, during an ongoing Stream update workflow like _scale_ or _rolling Transaction_, the current epoch may not necessarily be the latest epoch. However, at the completion of these workflows the current epoch is marked as the latest epoch in the stream.
 
   The following are three most commonly used scenarios where we want to efficiently know the set of Segments that form the Stream:
@@ -327,7 +327,7 @@ We store the series of _active_ Stream Segments as they transition from one epoc
    2. _Current set of Stream Segments_: The **tail** of the Stream is identified by the     current epoch record.
    3. _Successors of a particular Stream Segment_: The successor query results in two calls into the store to retrieve Stream Segment's sealed epoch and the corresponding epoch record. The successors are computed as the Stream Segments that overlap with the given Stream Segment.
 
-- **Segment Records**
+- **Segment Records:**
 _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
  The Controller stores Stream Segment information within each epoch record. The Stream Segment ID is composed of two parts, and is encoded as a _64 bit_ number. The _high 32 bit_ identifies the creation epoch of the Stream Segment and the _low 32 bit_ uniquely identifies the Stream Segment.
 
@@ -816,12 +816,13 @@ Following this, it posts a commit Event in the internal Commit Stream. The commi
 
 #### Rolling Transactions
 
- This is achieved by using a scheme (Rolling Transactions) where controller allows Transaction Segments to outlive their parent Segments and whenever their commits are issued, at a logical level controller elevates the Transaction Segments as first class Segments and includes them in a new epoch in the epoch time series of the Stream. It is named as such because  
-     1. Transactions are created in an older epoch and when they are attempted to be committed.
-     2. The latest epoch is sealed, Transactions are rolled over and included and then a duplicate of latest epoch is created for Stream to restore its previous state before rolling of Transactions.
-     3. This ensures that Transactions could be created at any time and then be committed at any time without interfering with any other Stream processing.
-     4. The commit workflow on controller guarantees that once started it will attempt to commit each of the identified Transactions with indefinite retries until they all succeed.
-     5. Once a Transaction is committed successfully, the record for the Transaction is removed from under its epoch root.
+This is achieved by using a scheme (Rolling Transactions) where controller allows Transaction Segments to outlive their parent Segments and whenever their commits are issued, at a logical level controller elevates the Transaction Segments as first class Segments and includes them in a new epoch in the epoch time series of the Stream.
+
+1. Transactions are created in an older epoch and when they are attempted to be committed.
+2. The latest epoch is sealed, Transactions are rolled over and included and then a duplicate of latest epoch is created for Stream to restore its previous state before rolling of Transactions.
+3. This ensures that Transactions could be created at any time and then be committed at any time without interfering with any other Stream processing.
+4. The commit workflow on controller guarantees that once started it will attempt to commit each of the identified Transactions with indefinite retries until they all succeed.
+5. Once a Transaction is committed successfully, the record for the Transaction is removed from under its epoch root.
 
 ### Abort Transaction
 
