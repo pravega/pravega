@@ -55,6 +55,7 @@ import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsNames.nameFromStream;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
@@ -136,7 +137,7 @@ public class ControllerMetricsTest {
         final int eventsWritten = 10;
         int streamCount = 6;
         int iterations = 3;
-        Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
+        Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(CREATE_STREAM)));
 
         // At this point, we have 6 internal streams.
         Assert.assertEquals(streamCount, createdStreamsCounter.getCount());
@@ -169,7 +170,7 @@ public class ControllerMetricsTest {
                 ReaderGroup readerGroup = groupManager.getReaderGroup(iterationReaderGroupName);
                 // Update the Stream and check that the number of updated streams and per-stream updates is incremented.
                 streamManager.updateStream(scope, iterationStreamName, streamConfiguration);
-                Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(UPDATE_STREAM));
+                Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
                         getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
                 Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.getCount());
@@ -184,7 +185,7 @@ public class ControllerMetricsTest {
 
                 // Truncate the Stream and check that the number of truncated Streams and per-Stream truncations is incremented.
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);
-                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(UPDATE_STREAM));
+                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
                         getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
                 Assert.assertTrue(iterations * i + j <= streamTruncationCounter.getCount());
@@ -193,10 +194,10 @@ public class ControllerMetricsTest {
 
             // Check metrics accounting for sealed and deleted streams.
             streamManager.sealStream(scope, iterationStreamName);
-            Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(SEAL_STREAM));
+            Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(SEAL_STREAM)));
             Assert.assertTrue(i + 1 <= streamSealCounter.getCount());
             streamManager.deleteStream(scope, iterationStreamName);
-            Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(DELETE_STREAM));
+            Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(DELETE_STREAM)));
             Assert.assertTrue(i + 1 <= streamDeleteCounter.getCount());
         }
 

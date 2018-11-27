@@ -30,18 +30,21 @@ package io.pravega.shared;
  * - controller.container: metrics related to container lifecycle (e.g., failovers)
  *
  * We have two types of metrics:
- * - Simple metric: Values are directly associated to the metric name that appears in this file. They are convenient if
- *   we want to report global metric values. For instance, STORAGE_READ_BYTES can be classified as a simple metric.
+ * - Global metric: Values are directly associated to the metric name that appears in this file. They are convenient if
+ *   we want to report metric values that apply to the whole Pravega cluster (e.g., number of bytes written, operations).
+ *   For instance, STORAGE_READ_BYTES can be classified as a global metric.
  *
  * - Object-based metric: Sometimes, we may want to report metrics based on specific objects, such as Streams or Segments.
  *   This kind of metrics use as a base name the metric name in this file and are "dynamically" created based on the
  *   objects to be measured. For instance, in CONTAINER_APPEND_COUNT we actually report multiple metrics, one per each
  *   containerId measured: segmentstore.container.append_count.$containerId.
  *
- * There are cases in which we may want both a simple and object-based versions for the same metric. For example, regarding
- * SEGMENT_READ_BYTES we publish the a simple counter (segmentstore.segment.read_bytes) to easily get the global number
- * of read bytes, as well as the object-based (per-segment) version of it (segmentstore.segment.read_bytes.$segmentName)
- * to report in a finer granularity the events read per segment.
+ * There are cases in which we may want both a global and object-based versions for the same metric. For example,
+ * regarding SEGMENT_READ_BYTES we publish the a simple counter (segmentstore.segment.read_bytes_global) to easily get
+ * the global number of bytes read, as well as the per-segment version of it (segmentstore.segment.read_bytes.$segmentName)
+ * to report in a finer granularity the events read per segment. As can be noted, when a metric is used to simultaneously
+ * get both global and object-based variants, we add the "_global" suffix to the global metric name to avoid naming
+ * collisions.
  */
 
 
@@ -186,5 +189,9 @@ public final class MetricsNames {
     public static String nameFromContainer(String metric, int containerId) {
         String name = metric + "." + containerId;
         return escapeSpecialChar(name);
+    }
+
+    public static String globalMetricName(String stringName) {
+        return stringName + "_global";
     }
 }

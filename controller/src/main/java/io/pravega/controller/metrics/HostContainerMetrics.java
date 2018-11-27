@@ -18,6 +18,7 @@ import static io.pravega.shared.MetricsNames.CONTAINER_FAILOVERS;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_CONTAINER_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_FAILURES;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_NUMBER;
+import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsNames.nameFromContainer;
 import static io.pravega.shared.MetricsNames.nameFromHost;
 
@@ -69,14 +70,14 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
     }
 
     private void reportHostFailures(Host failedHost) {
-        DYNAMIC_LOGGER.incCounterValue(SEGMENT_STORE_HOST_FAILURES, 1);
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_STORE_HOST_FAILURES), 1);
         DYNAMIC_LOGGER.incCounterValue(nameFromHost(SEGMENT_STORE_HOST_FAILURES, failedHost.toString()), 1);
         // Set to 0 the number of containers for the failed host.
         DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, failedHost.toString()), 0);
     }
 
     private void reportContainerFailovers(Set<Integer> failedContainers) {
-        DYNAMIC_LOGGER.incCounterValue(CONTAINER_FAILOVERS, failedContainers.size());
+        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CONTAINER_FAILOVERS), failedContainers.size());
         for (Integer containerId: failedContainers) {
             DYNAMIC_LOGGER.incCounterValue(nameFromContainer(CONTAINER_FAILOVERS, containerId), 1);
         }
