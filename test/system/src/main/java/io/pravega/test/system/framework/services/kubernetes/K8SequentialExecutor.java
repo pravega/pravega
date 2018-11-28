@@ -45,7 +45,7 @@ public class K8SequentialExecutor implements TestExecutor {
                      .handle((s, t) -> {
                          if (t == null) {
                              log.info("Test execution completed with status {}", s);
-                             client.saveLogs(pod, "./build/test-results/" + podName); //save test log.
+                             client.saveLogs(pod, "./build/test-results/" + podName + ".log"); //save test log.
                              if (s.getExitCode() != 0) {
                                  log.error("Test {}#{} failed. Details: {}", className, methodName, s);
                                  throw new AssertionError(methodName + " test failed.");

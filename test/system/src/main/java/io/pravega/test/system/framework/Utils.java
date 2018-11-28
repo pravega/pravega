@@ -26,6 +26,7 @@ import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
+import java.util.function.Predicate;
 
 /**
  * Utility methods used inside the TestFramework.
@@ -40,7 +41,8 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
-    private static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
+    public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
+
 
     /**
      * Get Configuration from environment or system property.

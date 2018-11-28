@@ -46,6 +46,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -87,22 +88,22 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
         // Verify controller is running.
         controllerInstance = Utils.createPravegaControllerService(zkUri);
-        assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
+        assertFalse(conURIs.isEmpty());
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                :  uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+        final List<String> uris = conURIs.stream().filter(isGRPC).map(URI::getAuthority)
                 .collect(Collectors.toList());
-
+        log.debug("controller uris {}", uris);
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, controllerURIDirect);
-        assertTrue(segmentStoreInstance.isRunning());
-        log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
+        List<URI> segmentStoreUris = segmentStoreInstance.getServiceDetails();
+        assertFalse(segmentStoreUris.isEmpty());
+        log.info("Pravega Segmentstore service instance details: {}", segmentStoreUris);
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,

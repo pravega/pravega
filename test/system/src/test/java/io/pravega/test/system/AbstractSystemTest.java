@@ -12,11 +12,15 @@ package io.pravega.test.system;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import lombok.extern.slf4j.Slf4j;
+
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.test.system.framework.Utils.EXECUTOR_TYPE;
 
 /**
  * Abstract class containing utilities to initialize Pravega services that are necessary in most system tests.
@@ -24,6 +28,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 abstract class AbstractSystemTest {
 
+    static Predicate<URI> isGRPC = uri -> {
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return uri.getPort() == Utils.MARATHON_CONTROLLER_PORT;
+            case DOCKER:
+            case K8s:
+            default:
+                return uri.getPort() == Utils.DOCKER_CONTROLLER_PORT;
+        }
+    };
     static URI startZookeeperInstance() {
         Service zkService = Utils.createZookeeperService();
         if (!zkService.isRunning()) {
@@ -75,9 +89,7 @@ abstract class AbstractSystemTest {
         log.info("Pravega Controller service  details: {}", conUris);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                                         .collect(Collectors.toList());
+        final List<String> uris = conUris.stream().filter(isGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         URI controllerURI = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);

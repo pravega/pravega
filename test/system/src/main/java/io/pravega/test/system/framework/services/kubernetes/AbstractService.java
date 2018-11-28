@@ -102,7 +102,7 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount) {
 
         // generate BookkeeperSpec.
-        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("1Gi", "standard");
+        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         final Map<String, Object> bookeeperSpec = ImmutableMap.<String, Object>builder().put("image", getImageSpec("pravega/bookkeeper", "latest"))
                                                                                         .put("replicas", bookieCount)
                                                                                         .put("storage", ImmutableMap.builder()
@@ -113,7 +113,7 @@ public abstract class AbstractService implements Service {
                                                                                         .build();
 
         // generate Pravega Spec.
-        final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("2Gi", "standard");
+        final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
                                                                                       .put("debugLogging", true)
@@ -213,7 +213,8 @@ public abstract class AbstractService implements Service {
 
     private V1Deployment getPravegaOperatorDeployment() {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        .withImage("pravega/pravega-operator:latest")
+                                                        //.withImage("pravega/pravega-operator:latest")
+                                                        .withImage("adrianmo/pravega-operator:issue-82-1")
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
                                                         .withImagePullPolicy(DEFAULT_IMAGE_PULL_POLICY)
