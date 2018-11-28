@@ -114,11 +114,23 @@ public abstract class AbstractService implements Service {
 
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
+        final ImmutableMap<String, String> options = ImmutableMap.<String, String>builder()
+                // Segment store properties.
+                .put("autoScale.muteInSeconds", "120")
+                .put("autoScale.cooldownInSeconds", "120")
+                .put("autoScale.cacheExpiryInSeconds", "120")
+                .put("autoScale.cacheCleanUpInSeconds", "120")
+                .put("curator-default-session-timeout", "30000")
+                // Controller properties.
+                .put("MAX_LEASE_VALUE", "60000")
+                .put("RETENTION_FREQUENCY_MINUTES", "2")
+                .put("log.level", "DEBUG")
+                .build();
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                                                                                      .put("options", ImmutableMap.of("log.level", "DEBUG"))
+                                                                                      .put("options", options)
                                                                                       .put("image", getImageSpec("pravega/pravega", "latest"))
                                                                                       .put("tier2", tier2Spec("pravega-tier2"))
                                                                                       .build();

@@ -62,7 +62,6 @@ public class K8SequentialExecutor implements TestExecutor {
                              } else {
                                  return null;
                              }
-
                          } else {
                              throw new CompletionException("Error while invoking the test " + podName, t);
                          }
