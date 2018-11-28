@@ -30,6 +30,7 @@ import io.kubernetes.client.models.V1ObjectMeta;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodList;
 import io.kubernetes.client.models.V1PodStatus;
+import io.kubernetes.client.models.V1ServiceAccount;
 import io.kubernetes.client.models.V1beta1ClusterRole;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
@@ -385,7 +386,7 @@ public class K8sClient {
 
     /**
      * Create role binding.
-     * @param namespace The namespece where the binding should be created.
+     * @param namespace The namespace where the binding should be created.
      * @param binding The cluster role binding.
      * @return A future indicating the status of the create role binding operation.
      */
@@ -394,6 +395,20 @@ public class K8sClient {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding");
         api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, callback);
+        return exceptionallyExpecting(callback.getFuture(), isConflict, null);
+    }
+
+    /**
+     * Create a service account.
+     * @param namespace The namespace.
+     * @param account Service Account.
+     * @return A future indicating the status of create service account operation.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1ServiceAccount> createServiceAccount(String namespace, V1ServiceAccount account) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1ServiceAccount> callback = new K8AsyncCallback<>("createServiceAccount");
+        api.createNamespacedServiceAccountAsync(namespace, account, PRETTY_PRINT, callback );
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
