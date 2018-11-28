@@ -64,15 +64,11 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public void start() {
         init();
+        log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
         if (conf.isEnableCSVReporter()) {
             // NOTE:  metrics output files are exclusive to a given process
-            File outdir;
-            if (!Strings.isNullOrEmpty(conf.getMetricsPrefix())) {
-                outdir = new File(conf.getCsvEndpoint(), conf.getMetricsPrefix());
-            } else {
-                outdir = new File(conf.getCsvEndpoint());
-            }
+            File outdir = new File(conf.getCsvEndpoint(), conf.getMetricsPrefix());
             outdir.mkdirs();
             log.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
             reporters.add(CsvReporter.forRegistry(getMetrics())

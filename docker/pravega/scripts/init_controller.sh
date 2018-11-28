@@ -10,7 +10,7 @@
 #
 
 init_controller() {
-    [ ! -z "$HOST" ] && add_system_property "metrics.metricsPrefix" "${HOST}"
+    [ ! -z "$HOST" ] && add_system_property "config.controller.metricmetricsPrefix" "${HOST}"
     add_system_property "config.controller.server.zk.url" "${ZK_URL}"
     add_system_property "config.controller.server.store.host.type" "Zookeeper"
     echo "JAVA_OPTS=${JAVA_OPTS}"
