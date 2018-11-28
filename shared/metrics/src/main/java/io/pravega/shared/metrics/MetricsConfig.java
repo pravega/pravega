@@ -14,19 +14,23 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import lombok.Getter;
 import java.time.Duration;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * General configuration for Metrics.
  */
+@Slf4j
 public class MetricsConfig {
     //region Config Names
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMs", 30);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
-    public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
+    public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", getHostName());
     public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
@@ -209,4 +213,21 @@ public class MetricsConfig {
     }
 
     //endregion
+
+    /**
+     * Tries to get the host name for this host. If the operation does not succeed, this method returns the legacy
+     * default value as a prefix for metrics (i.e., "pravega").
+     *
+     * @return Default hostname as a prefix for metrics reporters.
+     */
+    private static String getHostName() {
+        String hostname = "pravega";
+        try {
+            hostname = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            log.warn("Unable to get host name for reporter prefix, falling back to default one '{}' : {}.", hostname, e);
+        }
+
+        return hostname;
+    }
 }
