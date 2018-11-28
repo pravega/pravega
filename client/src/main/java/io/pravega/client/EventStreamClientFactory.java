@@ -25,7 +25,7 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import lombok.val;
 
 /**
- * Used to create Writers, Readers, and Synchronizers operating on a stream.
+ * Used to create Writers and Readers operating on a stream.
  * <p>
  * Events that are written to a stream can be read by a reader. All events can be processed with
  * exactly once semantics provided the reader has the ability to restore to the correct position
