@@ -116,7 +116,7 @@ class IndexWriter extends IndexReader {
      * @param lastIndexedOffset  The last offset in the Segment that is indexed. The Segment's {@link Attributes#TABLE_INDEX_OFFSET}
      *                           will be updated to this value (atomically) upon a successful completion of his call.
      * @param timeout            Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the number attribute updates. If the
+     * @return A CompletableFuture that, when completed, will contain the number of attribute updates. If the
      * operation failed, it will be failed with the appropriate exception. Notable exceptions:
      * <ul>
      * <li>{@link BadAttributeUpdateException} if the update failed due to firstIndexOffset not matching the Segment's

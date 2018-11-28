@@ -82,7 +82,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableProcessor[%d-%d]", this.connector.getMetadata().getContainerId(), this.connector.getMetadata().getId());
-
     }
 
     //endregion
@@ -124,7 +123,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             // We haven't processed any operation so far (this is the first). Verify that we are resuming from an expected
             // offset and not skipping any updates.
             if (this.aggregator.getLastIndexedOffset() < append.getStreamSegmentOffset()) {
-                throw new DataCorruptionException(String.format("Operation '%s' begins after LAST_INDEXED_OFFSET. Expected: %s, actual: %d.",
+                throw new DataCorruptionException(String.format("Operation '%s' begins after TABLE_INDEX_OFFSET. Expected: %s, actual: %d.",
                         operation, this.aggregator.getLastIndexedOffset(), append.getStreamSegmentOffset()));
             }
         }
