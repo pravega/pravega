@@ -79,9 +79,7 @@ public class MultiControllerTest extends AbstractSystemTest {
         List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() ==  Utils.ALTERNATIVE_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
