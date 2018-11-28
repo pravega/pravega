@@ -62,7 +62,7 @@ public class PravegaControllerK8sService extends AbstractService {
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
                                                       .count())
-                        .thenApply(runCount -> runCount == DEFAULT_CONTROLLER_COUNT)
+                        .thenApply(runCount -> runCount >= DEFAULT_CONTROLLER_COUNT)
                         .exceptionally(t -> {
                            log.warn("Exception observed while checking status of pods " + PRAVEGA_CONTROLLER_LABEL, t);
                            return false;
@@ -83,7 +83,7 @@ public class PravegaControllerK8sService extends AbstractService {
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<Void> scaleService(int newInstanceCount) {
-
+        log.info("Scaling Pravega controller service to {} instances.", newInstanceCount);
         return k8sClient.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
                         .thenCompose(o -> {
                            Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));

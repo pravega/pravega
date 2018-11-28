@@ -47,7 +47,6 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -93,8 +92,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         assertFalse(conURIs.isEmpty());
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(isGRPC).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority)
+                                         .collect(Collectors.toList());
         log.debug("controller uris {}", uris);
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);

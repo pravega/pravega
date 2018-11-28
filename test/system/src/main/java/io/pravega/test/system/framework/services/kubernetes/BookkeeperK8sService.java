@@ -60,7 +60,7 @@ public class BookkeeperK8sService extends AbstractService {
                                                                                     .stream()
                                                                                     .allMatch(st -> st.getState().getRunning() != null))
                                                       .count())
-                        .thenApply(runCount -> runCount == DEFAULT_BOOKIE_COUNT)
+                        .thenApply(runCount -> runCount >= DEFAULT_BOOKIE_COUNT)
                         .exceptionally(t -> {
                            log.warn("Exception observed while checking status of pods " + BOOKKEEPER_LABEL, t);
                            return false;
@@ -80,7 +80,7 @@ public class BookkeeperK8sService extends AbstractService {
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<Void> scaleService(int newInstanceCount) {
-
+        log.info("Scaling Bookkeeper service to {} instances.", newInstanceCount);
         return k8sClient.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
                         .thenCompose(o -> {
                            Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
@@ -94,7 +94,7 @@ public class BookkeeperK8sService extends AbstractService {
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentBookkeeperCount != newInstanceCount) {
                                return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount)
-                                       .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
+                                       .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);
                            }

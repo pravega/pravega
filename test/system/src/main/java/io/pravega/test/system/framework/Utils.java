@@ -26,7 +26,6 @@ import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
-import java.util.function.Predicate;
 
 /**
  * Utility methods used inside the TestFramework.

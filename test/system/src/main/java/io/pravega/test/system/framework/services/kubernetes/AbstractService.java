@@ -213,7 +213,7 @@ public abstract class AbstractService implements Service {
 
     private V1Deployment getPravegaOperatorDeployment() {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        //.withImage("pravega/pravega-operator:latest")
+                                                        //.withImage("pravega/pravega-operator:latest") //TODO: depends on issue pravega/pravega-operator/issues/82
                                                         .withImage("adrianmo/pravega-operator:issue-82-1")
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)

@@ -28,7 +28,7 @@ import static io.pravega.test.system.framework.Utils.EXECUTOR_TYPE;
 @Slf4j
 abstract class AbstractSystemTest {
 
-    static Predicate<URI> isGRPC = uri -> {
+    static final Predicate<URI> ISGRPC = uri -> {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return uri.getPort() == Utils.MARATHON_CONTROLLER_PORT;
@@ -89,7 +89,7 @@ abstract class AbstractSystemTest {
         log.info("Pravega Controller service  details: {}", conUris);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(isGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         URI controllerURI = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURI);
