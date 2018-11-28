@@ -124,7 +124,7 @@ public class ByteClientTest extends AbstractSystemTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
-
+        @Cleanup
         ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller);
         @Cleanup("closeAndSeal")
         ByteStreamWriter writer = byteStreamClient.createByteStreamWriter(STREAM);

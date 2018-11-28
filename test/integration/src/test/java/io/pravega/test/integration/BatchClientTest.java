@@ -123,7 +123,7 @@ public class BatchClientTest {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
-
+        @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
 
         // List out all the segments in the stream.
@@ -156,6 +156,7 @@ public class BatchClientTest {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
+        @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
 
         // 1. Create a StreamCut after 2 events(offset = 2 * 30 = 60).
@@ -177,6 +178,7 @@ public class BatchClientTest {
         @Cleanup
         ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
+        @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
 
         // 1. Fetch Segments.

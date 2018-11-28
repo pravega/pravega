@@ -84,4 +84,10 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
                                                                                                                        delegationToken)));
     }
 
+    @Override
+    public void close() {
+        controller.close();
+        connectionFactory.close();
+    }
+
 }

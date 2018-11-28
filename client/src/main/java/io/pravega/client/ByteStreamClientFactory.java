@@ -29,7 +29,7 @@ import lombok.val;
  * the Event stream readers/writers will CORRUPT YOUR DATA in an unrecoverable way.
  */
 @Beta
-public interface ByteStreamClientFactory {
+public interface ByteStreamClientFactory extends AutoCloseable {
 
     /**
      * Creates a new instance of Client Factory.
@@ -66,4 +66,10 @@ public interface ByteStreamClientFactory {
     @Beta
     ByteStreamWriter createByteStreamWriter(String streamName);
 
+    /**
+     * Closes the client factory. This will close any connections created through it.
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 }

@@ -36,7 +36,7 @@ import lombok.val;
  * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
  */
 @Beta
-public interface BatchClientFactory {
+public interface BatchClientFactory extends AutoCloseable {
 
     /**
      * Creates a new instance of Client Factory.
@@ -80,4 +80,10 @@ public interface BatchClientFactory {
      */
     <T> SegmentIterator<T> readSegment(SegmentRange segment, Serializer<T> deserializer);
 
+    /**
+     * Closes the client factory. This will close any connections created through it.
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 }

@@ -168,4 +168,11 @@ public class BatchClientFactoryImpl implements BatchClientFactory, io.pravega.cl
         }
         return segmentRangeBuilder.build();
     }
+
+    @Override
+    public void close() {
+        controller.close();
+        connectionFactory.close();
+    }
+
 }

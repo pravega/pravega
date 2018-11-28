@@ -121,6 +121,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
                                                                             connectionFactory.getInternalExecutor());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().build());
         log.info("Invoking batchClientSimpleTest test with Controller URI: {}", controllerURI);
         @Cleanup

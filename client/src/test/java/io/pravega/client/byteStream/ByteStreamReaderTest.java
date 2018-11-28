@@ -67,6 +67,7 @@ public class ByteStreamReaderTest {
 
     @After
     public void teardown() {
+        clientFactory.close();
         controller.close();
         connectionFactory.close();
     }
