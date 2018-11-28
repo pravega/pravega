@@ -181,7 +181,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         Timer insertTimer = new Timer();
         AtomicInteger lastReport = new AtomicInteger();
         executeInBatches(attributeCount, batchSize, false, (count, batch) -> {
-            idx.put(batch, TIMEOUT).join();
+            idx.update(batch, TIMEOUT).join();
             if (count - lastReport.get() >= REPORT_EVERY) {
                 System.out.println(String.format("\tInserted %s.", count));
                 lastReport.set(count);
@@ -226,7 +226,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         val idx = context.index.forSegment(context.segmentId, TIMEOUT).join();
 
         // Bulk upload.
-        executeInBatches(attributeCount, UPDATE_INSERT_BATCH_SIZE, false, (count, batch) -> idx.put(batch, TIMEOUT).join());
+        executeInBatches(attributeCount, UPDATE_INSERT_BATCH_SIZE, false, (count, batch) -> idx.update(batch, TIMEOUT).join());
         val insertInfo = context.storage.getStreamSegmentInfo(context.attributeSegmentName, TIMEOUT).join();
         long startOffset = getStartOffset(insertInfo, context);
         long theoreticalDataSize = (long) attributeCount * (RevisionDataOutput.UUID_BYTES + Long.BYTES);
@@ -236,7 +236,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         Timer updateTimer = new Timer();
         AtomicInteger lastReport = new AtomicInteger();
         executeInBatches(attributeCount, batchSize, true, (count, batch) -> {
-            idx.put(batch, TIMEOUT).join();
+            idx.update(batch, TIMEOUT).join();
             if (count - lastReport.get() >= REPORT_EVERY) {
                 System.out.println(String.format("\tUpdated %s.", count));
                 lastReport.set(count);
