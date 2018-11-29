@@ -127,6 +127,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
@@ -136,6 +137,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
     
     @Override
+    @SuppressWarnings("deprecation")
     public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
@@ -145,6 +147,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s,
                                                  ReaderConfig config) {
         log.info("Creating reader: {} under readerGroup: {} with configuration: {}", readerId, readerGroup, config);
@@ -167,6 +170,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
     
     @Override
+    @SuppressWarnings("deprecation")
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
@@ -186,6 +190,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     public <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>> StateSynchronizer<StateT>
         createStateSynchronizer(String streamName,
                                 Serializer<UpdateT> updateSerializer,
