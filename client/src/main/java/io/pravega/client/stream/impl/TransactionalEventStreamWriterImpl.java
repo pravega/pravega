@@ -20,20 +20,19 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 
 /**
- * This class takes in events, finds out which segment they belong to and then calls write on the appropriate segment.
- * It deals with segments that are sealed by re-sending the unacked events to the new correct segment.
+ * This class creates transactions, and manages their lifecycle.
  * 
  * @param <Type> The type of event that is sent
  */
@@ -47,39 +46,31 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     private final Controller controller;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final EventWriterConfig config;
-    private final ExecutorService retransmitPool;
     private final Pinger pinger;
     
     TransactionalEventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
+            Serializer<Type> serializer, EventWriterConfig config) {
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
-        this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
         this.pinger = new Pinger(config, stream, controller);
     }
 
+    @RequiredArgsConstructor
     private static class TransactionImpl<Type> implements Transaction<Type> {
 
-        private final Map<Segment, SegmentTransaction<Type>> inner;
+        @NonNull
         private final UUID txId;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final Map<Segment, SegmentTransaction<Type>> inner;
+        private final StreamSegments segments;
+        @NonNull
         private final Controller controller;
+        @NonNull
         private final Stream stream;
         private final Pinger pinger;
-        private StreamSegments segments;
-
-        TransactionImpl(UUID txId, Map<Segment, SegmentTransaction<Type>> transactions, StreamSegments segments,
-                Controller controller, Stream stream, Pinger pinger) {
-            this.txId = txId;
-            this.inner = transactions;
-            this.segments = segments;
-            this.controller = controller;
-            this.stream = stream;
-            this.pinger = pinger;
-        }
+        private final AtomicBoolean closed = new AtomicBoolean(false);
         
         /**
          * Create closed transaction
@@ -203,7 +194,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             return;
         }
         pinger.close();
-        ExecutorServiceHelpers.shutdown(retransmitPool);
     }
 
     @Override

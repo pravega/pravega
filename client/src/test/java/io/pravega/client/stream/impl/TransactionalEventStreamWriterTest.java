@@ -68,7 +68,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         TransactionalEventStreamWriter<String> writer = new TransactionalEventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
-                config, executorService());
+                config);
         Transaction<String> txn = writer.beginTxn();
         txn.writeEvent("Foo");
         assertTrue(bad.unacked.isEmpty());
@@ -101,7 +101,7 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
         TransactionalEventStreamWriter<String> writer = new TransactionalEventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
-                config, executorService());
+                config);
         Transaction<String> txn = writer.beginTxn();
         outputStream.invokeSealedCallBack();
         try {

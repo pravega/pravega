@@ -237,7 +237,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     }
                     return resp;
                 }).exceptionally(exception -> {
-                             log.warn("createStream for {}/{} failed {}: ", scopeName, streamName, exception);
+                             log.warn("createStream for {}/{} failed: ", scopeName, streamName, exception);
                              return Response.status(Status.INTERNAL_SERVER_ERROR).build();
                 }).thenApply(asyncResponse::resume)
                 .thenAccept(x -> LoggerHelpers.traceLeave(log, "createStream", traceId));
