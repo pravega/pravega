@@ -10,7 +10,6 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -55,7 +54,7 @@ public class EndToEndAutoScaleDownTest {
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
