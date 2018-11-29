@@ -10,7 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
@@ -31,7 +31,7 @@ class ExternalAdapter extends ClientAdapterBase {
     //region Members
 
     private final AtomicReference<StreamManager> streamManager;
-    private final AtomicReference<ClientFactory> clientFactory;
+    private final AtomicReference<EventStreamClientFactory> clientFactory;
 
     //endregion
 
@@ -70,7 +70,7 @@ class ExternalAdapter extends ClientAdapterBase {
                  .run(() -> this.streamManager.get().createScope(SCOPE));
 
             // Create Client Factory.
-            this.clientFactory.set(ClientFactory.withScope(SCOPE, ClientConfig.builder()
+            this.clientFactory.set(EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder()
                     .trustStore("../../config/cert.pem")
                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                     .validateHostName(false)
@@ -128,7 +128,7 @@ class ExternalAdapter extends ClientAdapterBase {
     }
 
     @Override
-    protected ClientFactory getClientFactory() {
+    protected EventStreamClientFactory getClientFactory() {
         return this.clientFactory.get();
     }
 

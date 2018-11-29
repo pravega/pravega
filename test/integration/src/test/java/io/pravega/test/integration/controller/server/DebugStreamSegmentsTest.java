@@ -9,7 +9,7 @@
 package io.pravega.test.integration.controller.server;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -121,9 +121,7 @@ public class DebugStreamSegmentsTest {
 
         // 2.Create clientFactory.
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
-        @Cleanup
-        ClientFactory clientFactoryInternal = ClientFactory.withScope("_system", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactoryInternal = EventStreamClientFactory.withScope("_system", ClientConfig.builder().controllerURI(controllerUri).build());
 
         @Cleanup
         final Controller controller = controllerWrapper.getController();
@@ -148,7 +146,7 @@ public class DebugStreamSegmentsTest {
         }
     }
 
-    private void randomScaleUpScaleDown(final ClientFactory clientFactory, final Controller controller) {
+    private void randomScaleUpScaleDown(final EventStreamClientFactory clientFactory, final Controller controller) {
         @Cleanup
         EventStreamWriter<AutoScaleEvent> requestStreamWriter = clientFactory.createEventWriter("_requeststream",
                                                                                                 autoScaleEventSerializer,

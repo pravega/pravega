@@ -10,7 +10,6 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -150,7 +149,7 @@ public class MetricsTest {
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<String>(),

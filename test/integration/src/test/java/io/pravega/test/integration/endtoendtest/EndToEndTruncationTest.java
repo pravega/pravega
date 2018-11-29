@@ -12,7 +12,7 @@ package io.pravega.test.integration.endtoendtest;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -44,8 +44,8 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockStreamManager;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.eventProcessor.LocalController;
@@ -78,12 +78,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static java.util.stream.Collectors.toList;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 @Slf4j
 public class EndToEndTruncationTest {
@@ -199,7 +199,7 @@ public class EndToEndTruncationTest {
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -253,7 +253,7 @@ public class EndToEndTruncationTest {
                 .controllerURI(URI.create("tcp://" + serviceHost))
                 .build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -318,7 +318,7 @@ public class EndToEndTruncationTest {
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -385,7 +385,7 @@ public class EndToEndTruncationTest {
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
@@ -438,7 +438,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         streamManager.createScope(scope);
 
         // Test truncation in new and re-created tests.
@@ -497,7 +497,7 @@ public class EndToEndTruncationTest {
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI)
                                                                                     .build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
         // Write half of totalEvents to the Stream.
         writeDummyEvents(clientFactory, streamName, totalEvents / 2);
@@ -572,7 +572,7 @@ public class EndToEndTruncationTest {
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
 
         // Write totalEvents to the Stream.
         writeDummyEvents(clientFactory, streamName, totalEvents);
@@ -595,7 +595,7 @@ public class EndToEndTruncationTest {
 
     // start region utils
 
-    private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory client, String rGroup, int numReaders, int limit) {
+    private List<CompletableFuture<Integer>> readDummyEvents(EventStreamClientFactory client, String rGroup, int numReaders, int limit) {
         List<EventStreamReader<String>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
             readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
@@ -604,7 +604,7 @@ public class EndToEndTruncationTest {
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit))).collect(toList());
     }
 
-    private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory clientFactory, String readerGroup, int numReaders) {
+    private List<CompletableFuture<Integer>> readDummyEvents(EventStreamClientFactory clientFactory, String readerGroup, int numReaders) {
         return readDummyEvents(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
@@ -638,7 +638,7 @@ public class EndToEndTruncationTest {
         return validEvents;
     }
 
-    private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents, int offset) {
+    private void writeDummyEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int offset) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -648,7 +648,7 @@ public class EndToEndTruncationTest {
         }
     }
 
-    private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
+    private void writeDummyEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents) {
         writeDummyEvents(clientFactory, streamName, totalEvents, 0);
     }
 

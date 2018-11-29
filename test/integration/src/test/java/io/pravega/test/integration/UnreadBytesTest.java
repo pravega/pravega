@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
@@ -106,7 +106,7 @@ public class UnreadBytesTest {
         controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -163,7 +163,7 @@ public class UnreadBytesTest {
         controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());

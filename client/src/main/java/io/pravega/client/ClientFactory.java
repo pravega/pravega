@@ -88,7 +88,9 @@ public interface ClientFactory extends AutoCloseable {
      * @param s The Serializer.
      * @param <T> The type of events.
      * @return Newly created writer object
+     * @Deprecated Use {@link EventStreamClientFactory#createEventWriter(String, Serializer, EventWriterConfig)} instead
      */
+    @Deprecated
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
     
     /**
@@ -99,7 +101,9 @@ public interface ClientFactory extends AutoCloseable {
      * @param s The Serializer.
      * @param <T> The type of events.
      * @return Newly created writer object
+     * @Deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead.
      */
+    @Deprecated
     <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
 
     /**
@@ -121,7 +125,9 @@ public interface ClientFactory extends AutoCloseable {
      * @param config The readers configuration.
      * @param <T> The type of events.
      * @return Newly created reader object that is a part of reader group
+     * @Deprecated Use {@link EventStreamClientFactory#createReader(String, String, Serializer, ReaderConfig)} instead
      */
+    @Deprecated
     <T> EventStreamReader<T> createReader(String readerId, String readerGroup, Serializer<T> s, ReaderConfig config);
 
     /**
@@ -132,7 +138,9 @@ public interface ClientFactory extends AutoCloseable {
      * @param config The client configuration
      * @param <T> The type of events
      * @return Revisioned stream client
+     * @Deprecated Use {@link SynchronizerClientFactory#createRevisionedStreamClient(String, Serializer, SynchronizerConfig)} instead.
      */
+    @Deprecated
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
     
@@ -147,7 +155,9 @@ public interface ClientFactory extends AutoCloseable {
      * @param initSerializer The serializer for the initial update.
      * @param config The synchronizer configuration
      * @return Newly created StateSynchronizer that will work on the given stream
+     * @Deprecated Use {@link SynchronizerClientFactory#createStateSynchronizer(String, Serializer, Serializer, SynchronizerConfig)} instead.
      */
+    @Deprecated
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,
                                                       Serializer<UpdateT> updateSerializer,

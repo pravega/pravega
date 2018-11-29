@@ -12,6 +12,7 @@ package io.pravega.controller.task.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -104,7 +105,7 @@ public class StreamMetadataTasks extends TaskBase {
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
-    private ClientFactory clientFactory;
+    private EventStreamClientFactory clientFactory;
     private String requestStreamName;
 
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
@@ -133,7 +134,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.setReady();
     }
 
-    public void initializeStreamWriters(final ClientFactory clientFactory,
+    public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
         this.requestStreamName = streamName;
         this.clientFactory = clientFactory;

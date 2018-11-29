@@ -10,7 +10,7 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -115,7 +115,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
         TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
@@ -161,7 +161,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
         TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter(STREAM, new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
@@ -192,7 +192,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         // create writers with different configs and try creating transactions against those configs
         EventWriterConfig defaultConfig = EventWriterConfig.builder().build();
@@ -210,7 +210,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
                 () -> createTxn(clientFactory, highTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
     }
 
-    private UUID createTxn(ClientFactory clientFactory, EventWriterConfig config, String streamName) {
+    private UUID createTxn(EventStreamClientFactory clientFactory, EventWriterConfig config, String streamName) {
         @Cleanup
         TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter(streamName, new JavaSerializer<>(),
                 config);

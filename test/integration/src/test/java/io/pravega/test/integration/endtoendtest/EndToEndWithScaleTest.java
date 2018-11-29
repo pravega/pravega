@@ -10,7 +10,6 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -115,7 +114,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
             @Cleanup
-            ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
             @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());

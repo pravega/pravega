@@ -10,7 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventRead;
@@ -108,7 +108,7 @@ public class ReaderGroupStreamCutUpdateTest {
 
         // Write some events in the stream.
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         writeEvents(clientFactory, stream, numEvents);
 
         // Read the events and test that positions are getting updated.
@@ -147,7 +147,7 @@ public class ReaderGroupStreamCutUpdateTest {
         } while ((eventRead.isCheckpoint() || eventRead.getEvent() != null) && iteration < numEvents);
     }
 
-    private void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents, int offset) {
+    private void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int offset) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -157,7 +157,7 @@ public class ReaderGroupStreamCutUpdateTest {
         }
     }
 
-    private void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
+    private void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents) {
         writeEvents(clientFactory, streamName, totalEvents, 0);
     }
 }

@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -57,7 +56,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     private final String readerGroupName = "testMultiReaderWriterTxnReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(NUM_READERS);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
-    private ClientFactory clientFactory;
+    private ClientFactoryImpl clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
 

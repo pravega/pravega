@@ -11,7 +11,7 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -55,7 +55,7 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     private final String scope;
-    private final ClientFactory clientFactory;
+    private final SynchronizerClientFactory clientFactory;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
 
@@ -68,7 +68,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
-    public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory, ConnectionFactory connectionFactory) {
+    public ReaderGroupManagerImpl(String scope, Controller controller, SynchronizerClientFactory clientFactory, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;

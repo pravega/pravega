@@ -10,7 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -46,7 +46,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -142,7 +141,7 @@ public class ReadWriteTest {
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
 
             //start writing events to the stream
@@ -204,7 +203,7 @@ public class ReadWriteTest {
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
-                                                   final ClientFactory clientFactory) {
+                                                   final EventStreamClientFactory clientFactory) {
         return CompletableFuture.runAsync(() -> {
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
@@ -226,7 +225,7 @@ public class ReadWriteTest {
         });
     }
 
-    private CompletableFuture<Void> startNewReader(final String id, final ClientFactory clientFactory, final String
+    private CompletableFuture<Void> startNewReader(final String id, final EventStreamClientFactory clientFactory, final String
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
                                                    AtomicLong readCount, final  AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {

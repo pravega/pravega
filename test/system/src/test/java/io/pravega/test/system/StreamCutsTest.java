@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventRead;
@@ -56,6 +56,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -133,7 +134,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     @Test
     public void streamCutsTest() {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
         readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder()
@@ -176,7 +177,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
 
     // Start utils region
 
-    private List<Map<Stream, StreamCut>> writeEventsAndCheckSlices(ClientFactory clientFactory, ReaderGroup readerGroup,
+    private List<Map<Stream, StreamCut>> writeEventsAndCheckSlices(EventStreamClientFactory clientFactory, ReaderGroup readerGroup,
                                                                    ReaderGroupManager readerGroupManager, int parallelSegments) {
         // First, write half of total events before scaling (1/4 in each Stream).
         writeEvents(clientFactory, STREAM_ONE, TOTAL_EVENTS / 4);
@@ -229,7 +230,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      * @param parallelSegments Number of parallel segments that indicates the number of parallel readers to instantiate.
      * @param streamSlices StreamCuts lists to be combined and tested via bounded processing.
      */
-    private void combineSlicesAndVerify(ReaderGroupManager manager, ClientFactory clientFactory, int parallelSegments,
+    private void combineSlicesAndVerify(ReaderGroupManager manager, EventStreamClientFactory clientFactory, int parallelSegments,
                                         List<Map<Stream, StreamCut>> streamSlices) {
 
         for (int i = 0; i < streamSlices.size() - 1; i++) {
@@ -267,7 +268,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      * @param clientFactory Client factory to instantiate new readers.
      * @param streamSlices StreamCuts lists to be combined and tested via bounded processing.
      */
-    private void readSliceBySliceAndVerify(ReaderGroupManager manager, ClientFactory clientFactory, int parallelSegments,
+    private void readSliceBySliceAndVerify(ReaderGroupManager manager, EventStreamClientFactory clientFactory, int parallelSegments,
                                            List<Map<Stream, StreamCut>> streamSlices) {
         int readEvents;
         for (int i = 1; i < streamSlices.size(); i++) {
@@ -287,7 +288,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         }
     }
 
-    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(ClientFactory client, ReaderGroup readerGroup,
+    private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(EventStreamClientFactory client, ReaderGroup readerGroup,
                                                                                      int totalEvents) {
         final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
         reader.set(client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),

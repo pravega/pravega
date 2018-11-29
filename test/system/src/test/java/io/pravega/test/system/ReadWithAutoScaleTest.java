@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
@@ -43,6 +43,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static java.time.Duration.ofSeconds;
 
 @Slf4j
@@ -108,7 +109,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
 
         @Cleanup
-        ClientFactory clientFactory = getClientFactory();
+        EventStreamClientFactory clientFactory = getClientFactory();
 
         //1. Start writing events to the Stream.
         List<CompletableFuture<Void>> writers = new ArrayList<>();

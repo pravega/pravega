@@ -10,7 +10,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -272,7 +272,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     /**
      * Gets a reference to the ClientFactory used to create EventStreamWriters and EventStreamReaders.
      */
-    protected abstract ClientFactory getClientFactory();
+    protected abstract EventStreamClientFactory getClientFactory();
 
     /**
      * Gets a String representing the URL to the Controller.

@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamReader;
@@ -42,13 +42,13 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -560,7 +560,7 @@ public class StreamTransactionMetadataTasksTest {
                               final EventStreamReader<T> reader,
                               final EventStreamWriter<T> writer,
                               Supplier<EventProcessor<T>> factory) throws CheckpointStoreException {
-        ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
+        EventStreamClientFactory clientFactory = Mockito.mock(EventStreamClientFactory.class);
         Mockito.when(clientFactory.<T>createReader(anyString(), anyString(), any(), any())).thenReturn(reader);
         Mockito.when(clientFactory.<T>createEventWriter(anyString(), any(), any())).thenReturn(writer);
 

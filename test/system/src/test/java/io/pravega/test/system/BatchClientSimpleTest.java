@@ -12,7 +12,6 @@ package io.pravega.test.system;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
@@ -120,7 +119,7 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
                                                                            .controllerURI(controllerURI).build()).build(),
                                                                             connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().build());
         log.info("Invoking batchClientSimpleTest test with Controller URI: {}", controllerURI);

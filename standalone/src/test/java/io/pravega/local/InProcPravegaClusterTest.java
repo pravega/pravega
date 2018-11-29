@@ -10,7 +10,7 @@
 package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -95,7 +95,7 @@ public class InProcPravegaClusterTest {
                                    .build()));
         log.info("Created stream: " + streamName);
 
-        ClientFactory clientFactory = ClientFactory.withScope(scope, clientConfig);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new JavaSerializer<String>(),
                 EventWriterConfig.builder().build());

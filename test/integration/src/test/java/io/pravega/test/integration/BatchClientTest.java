@@ -13,7 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentIterator;
@@ -51,7 +51,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -121,7 +120,7 @@ public class BatchClientTest {
     @Test
     public void testBatchClient() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
@@ -154,7 +153,7 @@ public class BatchClientTest {
     public void testBatchClientWithStreamTruncation() throws Exception {
         StreamManager streamManager = StreamManager.create(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
@@ -176,7 +175,7 @@ public class BatchClientTest {
     @Test(expected = TruncatedDataException.class)
     public void testBatchClientWithStreamTruncationPostGetSegments() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
@@ -213,7 +212,7 @@ public class BatchClientTest {
      * Create a test stream with 1 segment which is scaled-up to 3 segments and later scaled-down to 2 segments.
      * Events of constant size are written to the stream before and after scale operation.
      */
-    private void createTestStreamWithEvents(ClientFactory clientFactory) throws Exception {
+    private void createTestStreamWithEvents(EventStreamClientFactory clientFactory) throws Exception {
         createStream();
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,

@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
@@ -116,7 +116,7 @@ public class MultiReadersEndToEndTest {
         });
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SETUP_UTILS.getScope(), ClientConfig.builder()
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SETUP_UTILS.getScope(), ClientConfig.builder()
                                                                                                   .controllerURI(SETUP_UTILS.getControllerUri()).build());
         streamNames.stream().forEach(stream -> {
             EventStreamWriter<Integer> eventWriter = clientFactory.createEventWriter(
@@ -146,7 +146,7 @@ public class MultiReadersEndToEndTest {
         readerGroupManager.deleteReaderGroup(readerGroupName);
     }
 
-    private Collection<Integer> readAllEvents(final int numParallelReaders, ClientFactory clientFactory,
+    private Collection<Integer> readAllEvents(final int numParallelReaders, EventStreamClientFactory clientFactory,
                                               final String readerGroupName, final int numSegments) {
         ConcurrentLinkedQueue<Integer> read = new ConcurrentLinkedQueue<>();
         @Cleanup("shutdownNow")

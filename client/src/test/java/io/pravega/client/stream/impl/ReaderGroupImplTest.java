@@ -11,7 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -25,6 +25,7 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,8 +34,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.IntStream;
-
-import io.pravega.test.common.InlineExecutor;
 import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
@@ -61,7 +60,7 @@ public class ReaderGroupImplTest {
     @Mock
     private SynchronizerConfig synchronizerConfig;
     @Mock
-    private ClientFactory clientFactory;
+    private SynchronizerClientFactory clientFactory;
     @Mock
     private Controller controller;
     @Mock
