@@ -29,6 +29,7 @@ import org.apache.zookeeper.ZooKeeper;
  */
 @Slf4j
 public class StoreClientFactory {
+    private static final int CURATOR_MAX_SLEEP_MS = 1000;
 
     public static StoreClient createStoreClient(final StoreClientConfig storeClientConfig) {
         switch (storeClientConfig.getStoreType()) {
@@ -61,7 +62,7 @@ public class StoreClientFactory {
                 .namespace(zkClientConfig.getNamespace())
                 .zookeeperFactory(new ZKClientFactory())
                 .retryPolicy(new ExponentialBackoffRetry(zkClientConfig.getInitialSleepInterval(),
-                        zkClientConfig.getMaxRetries()))
+                        zkClientConfig.getMaxRetries(), CURATOR_MAX_SLEEP_MS))
                 .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
                 .build();
         zkClient.start();
