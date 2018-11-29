@@ -11,6 +11,15 @@ package io.pravega.client.stream;
 
 import java.util.UUID;
 
+/**
+ * A writer that writes Events to an Event stream transactionally. All events that are written as
+ * part of a transaction can be committed atomically by calling {@link Transaction#commit()}. This
+ * will result in either all of those events going into the stream or none of them and the commit
+ * call failing with an exception.
+ * 
+ * Prior to committing a transaction, the events written to it cannot be read or otherwise seen by
+ * readers.
+ */
 public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
     
     /**
@@ -30,7 +39,7 @@ public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
     Transaction<Type> getTxn(UUID transactionId);
 
     /**
-     * Returns the configuration that this writer was create with.
+     * Returns the configuration that this writer was created with.
      *
      * @return Writer configuration
      */
