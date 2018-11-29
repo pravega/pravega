@@ -224,6 +224,11 @@ public class MetricsConfig {
         String hostname = "pravega";
         try {
             hostname = InetAddress.getLocalHost().getHostName();
+
+            // Depending on the environment, we may get the FQDN. In this case, we just get the leftmost part of it (hostname).
+            if (hostname.contains(".")) {
+                hostname = hostname.split(".")[0];
+            }
         } catch (UnknownHostException e) {
             log.warn("Unable to get host name for reporter prefix, falling back to default one '{}' : {}.", hostname, e);
         }
