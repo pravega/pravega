@@ -125,6 +125,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         @Override
         public void abort() {
             if (!closed.get()) {
+                pinger.stopPing(txId);
                 for (SegmentTransaction<Type> tx : inner.values()) {
                     try {
                         tx.close();
@@ -132,7 +133,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                         log.debug("Got exception while writing to transaction on abort: {}", e.getMessage());
                     }
                 }
-                pinger.stopPing(txId);
                 getAndHandleExceptions(controller.abortTransaction(stream, txId), RuntimeException::new);
                 closed.set(true);
             }

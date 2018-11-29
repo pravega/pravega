@@ -22,7 +22,9 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
@@ -31,7 +33,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
-
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     private StreamSegments getSegments(Segment segment) {
         NavigableMap<Double, Segment> segments = new TreeMap<>();
@@ -110,5 +113,4 @@ public class TransactionalEventStreamWriterTest extends ThreadPooledTestSuite {
         assertEquals(1, outputStream.unacked.size());
     }
 
-    
 }

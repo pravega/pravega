@@ -14,9 +14,6 @@ import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import lombok.val;
@@ -42,10 +39,7 @@ public interface ByteStreamClientFactory extends AutoCloseable {
         val connectionFactory = new ConnectionFactoryImpl(config);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
-        SegmentInputStreamFactoryImpl inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        SegmentOutputStreamFactoryImpl outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-        SegmentMetadataClientFactoryImpl metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory);
     }
 
     /**

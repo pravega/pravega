@@ -8,14 +8,11 @@
  */
 package io.pravega.client.byteStream.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientConfig;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
@@ -27,10 +24,10 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
-@RequiredArgsConstructor
+@AllArgsConstructor
 @SuppressWarnings("deprecation")
 public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega.client.byteStream.ByteStreamClient {
     @NonNull
@@ -46,11 +43,10 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
     @NonNull
     private final SegmentMetadataClientFactory metaStreamFactory;
     
-    @VisibleForTesting
-    public ByteStreamClientImpl(String scope, Controller controller) {
-        this.scope = scope;
-        this.controller = controller;
-        this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+    public ByteStreamClientImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
+        this.scope = Preconditions.checkNotNull(scope);
+        this.controller = Preconditions.checkNotNull(controller);
+        this.connectionFactory = Preconditions.checkNotNull(connectionFactory);
         this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
         this.outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
         this.metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);

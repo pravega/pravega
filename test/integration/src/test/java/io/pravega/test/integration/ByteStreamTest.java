@@ -17,9 +17,6 @@ import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
-import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -222,10 +219,7 @@ public class ByteStreamTest {
     
     ByteStreamClientFactory createClientFactory(String scope) {
         val connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        val inFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
-        val outFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
-        val metaFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
-        return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory);
     }
 
 }

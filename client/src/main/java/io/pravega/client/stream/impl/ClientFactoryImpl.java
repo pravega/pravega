@@ -227,7 +227,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     @Override
     @Deprecated
     public ByteStreamClientImpl createByteStreamClient() {
-        return new ByteStreamClientImpl(scope, controller, connectionFactory, inFactory, outFactory, metaFactory);
+        return new ByteStreamClientImpl(scope, controller, connectionFactory);
     }
 
     @Override

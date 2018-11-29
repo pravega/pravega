@@ -259,6 +259,7 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         final long requestId = requestIdGenerator.get();
