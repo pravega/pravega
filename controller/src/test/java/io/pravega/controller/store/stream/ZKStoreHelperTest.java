@@ -61,10 +61,10 @@ public class ZKStoreHelperTest {
     @Test
     public void testAddNode() throws ExecutionException, InterruptedException, IOException {
         Assert.assertNull(zkStoreHelper.addNode("/test/test1").get());
-        AssertExtensions.assertThrows("Should throw NodeExistsException", zkStoreHelper.addNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw NodeExistsException", zkStoreHelper.addNode("/test/test1"),
                 e -> e instanceof StoreException.DataExistsException);
         zkServer.stop();
-        AssertExtensions.assertThrows("Should throw UnknownException", zkStoreHelper.addNode("/test/test2"),
+        AssertExtensions.assertFutureThrows("Should throw UnknownException", zkStoreHelper.addNode("/test/test2"),
                 e -> e instanceof StoreException.StoreConnectionException);
     }
 
@@ -73,16 +73,16 @@ public class ZKStoreHelperTest {
         Assert.assertNull(zkStoreHelper.addNode("/test/test1").get());
 
         Assert.assertNull(zkStoreHelper.addNode("/test/test1/test2").get());
-        AssertExtensions.assertThrows("Should throw NodeNotEmptyException", zkStoreHelper.deleteNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw NodeNotEmptyException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.DataNotEmptyException);
 
         Assert.assertNull(zkStoreHelper.deleteNode("/test/test1/test2").get());
 
         Assert.assertNull(zkStoreHelper.deleteNode("/test/test1").get());
-        AssertExtensions.assertThrows("Should throw NodeNotFoundException", zkStoreHelper.deleteNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw NodeNotFoundException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.DataNotFoundException);
         zkServer.stop();
-        AssertExtensions.assertThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.StoreConnectionException);
     }
 
@@ -97,7 +97,7 @@ public class ZKStoreHelperTest {
         zkStoreHelper2.getClient().close();
         // let session get expired.
         // now read the data again. Verify that node no longer exists
-        AssertExtensions.assertThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral"), 1000, executor),
+        AssertExtensions.assertFutureThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral"), 1000, executor),
                 e -> e instanceof StoreException.DataNotFoundException);
     }
 }

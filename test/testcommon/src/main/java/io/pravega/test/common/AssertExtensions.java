@@ -87,7 +87,8 @@ public class AssertExtensions {
      * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>            The type of the future's result.
      */
-    public static <T> void assertThrows(String message, Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
+    public static <T> void assertSuppliedFutureThrows(String message,
+            Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
         try {
             futureSupplier.get().join();
             Assert.fail(message + " No exception has been thrown.");
@@ -110,7 +111,7 @@ public class AssertExtensions {
      * @param tester  A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>     The type of the future's result.
      */
-    public static <T> void assertThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
+    public static <T> void assertFutureThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
         try {
             future.join();
             Assert.fail(message + " No exception has been thrown.");

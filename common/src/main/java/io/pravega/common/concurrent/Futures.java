@@ -175,7 +175,7 @@ public final class Futures {
                                                                                          Function<Throwable, ExceptionT> exceptionConstructor) throws ExceptionT {
         Preconditions.checkNotNull(exceptionConstructor);
         try {
-            return Exceptions.handleInterrupted(() -> future.get());
+            return Exceptions.handleInterruptedCall(() -> future.get());
         } catch (ExecutionException e) {
             ExceptionT result = exceptionConstructor.apply(e.getCause());
             if (result == null) {
