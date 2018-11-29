@@ -282,7 +282,7 @@ project('segmentstore:server:host') {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
-            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
 
@@ -484,7 +484,7 @@ project('controller') {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
-            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
     applicationDistribution.from('src/conf') {
@@ -565,7 +565,7 @@ project('standalone') {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
-            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
 
