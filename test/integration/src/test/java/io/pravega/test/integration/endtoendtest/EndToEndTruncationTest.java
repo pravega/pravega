@@ -83,6 +83,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static java.util.stream.Collectors.toList;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 @Slf4j
@@ -300,7 +301,7 @@ public class EndToEndTruncationTest {
         assertTrue(controller.deleteStream("test", "test").get());
 
         //write by an existing writer to a deleted stream should complete exceptionally.
-        assertThrows("Should throw NoSuchSegmentException",
+        assertFutureThrows("Should throw NoSuchSegmentException",
                 writer.writeEvent("2", "write to deleted stream"),
                 e -> NoSuchSegmentException.class.isAssignableFrom(e.getClass()));
         

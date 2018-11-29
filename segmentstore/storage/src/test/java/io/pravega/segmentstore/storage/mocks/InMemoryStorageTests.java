@@ -101,13 +101,13 @@ public class InMemoryStorageTests extends StorageTestBase {
         final byte[] writeData = "hello".getBytes();
 
         // Write
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "write did not throw for non-owned Segment",
                 () -> storage.write(handle, 0, new ByteArrayInputStream(writeData), writeData.length, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);
 
         // Seal
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal did not throw for non-owned Segment",
                 () -> storage.seal(handle, TIMEOUT),
                 ex -> ex instanceof StorageNotPrimaryException);

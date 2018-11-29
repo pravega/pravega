@@ -110,7 +110,7 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
         val rr1 = StreamSegmentStorageReader.read(si1, 0, SEGMENT_LENGTH, SEGMENT_APPEND_SIZE - 1, s);
         val firstEntry1 = rr1.next();
         Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, firstEntry1.getType());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when Segment does not exist initially.",
                 () -> {
                     firstEntry1.requestContent(TIMEOUT);
@@ -133,7 +133,7 @@ public class StreamSegmentStorageReaderTests extends ThreadPooledTestSuite {
         s.delete(s.openWrite(SEGMENT_NAME).join(), TIMEOUT).join();
         val secondEntry = rr2.next();
         Assert.assertEquals("Unexpected ReadResultEntryType.", ReadResultEntryType.Storage, secondEntry.getType());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when Segment was deleted while reading.",
                 () -> {
                     secondEntry.requestContent(TIMEOUT);

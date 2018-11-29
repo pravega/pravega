@@ -152,7 +152,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         started1.join();
 
         // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
-        AssertExtensions.assertThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
+        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event21),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         // also verify that store has set the processor name of processor 2.
         String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
@@ -167,7 +167,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         processing11.join();
 
         // 4. submit another processing for processor1. this should get postponed too but processor name should not change.
-        AssertExtensions.assertThrows("This should fail and event should be reposted", requestProcessor1.process(event12),
+        AssertExtensions.assertFutureThrows("This should fail and event should be reposted", requestProcessor1.process(event12),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         TestEvent1 taken1 = requestProcessor1.queue.take();
         assertEquals(taken1, event12);
@@ -177,7 +177,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         started2.join();
         // 6. try to start a new processing on processor 1 while processing on `2` is ongoing. This should fail but should not be able
         // to change the processor name.
-        AssertExtensions.assertThrows("This should fail without even starting", requestProcessor1.process(event12),
+        AssertExtensions.assertFutureThrows("This should fail without even starting", requestProcessor1.process(event12),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();

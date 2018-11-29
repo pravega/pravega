@@ -253,7 +253,7 @@ public class TaskTest {
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
-        AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
+        AssertExtensions.assertFutureThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
         sweeper.handleFailedProcess(hostId).join();
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(hostId).join();
         assertFalse(child.isPresent());

@@ -19,6 +19,7 @@ import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+
 import java.net.URI;
 
 /**
@@ -87,7 +88,7 @@ public class Utils {
      *  false: Services are deployed on the cluster before running tests.
      *
      * Default value is true
-     * @return
+     * @return true if skipServiceInstallation is set, false otherwise.
      */
     public static boolean isSkipServiceInstallationEnabled() {
         String config = getConfig("skipServiceInstallation", "true");

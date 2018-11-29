@@ -41,9 +41,9 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     public abstract void seekToOffset(long offset);
 
     /**
-     * Returns the number of bytes that can be read without blocking. If the number returned is > 0
-     * then a call to {@link #read(byte[]))} will return data from memory without blocking. If the
-     * number returned is 0 then {@link #read(byte[]))} will block. If -1 is returned this indicates
+     * Returns the number of bytes that can be read without blocking. If the number returned is greater than 0
+     * then a call to {@link #read(byte[])} will return data from memory without blocking. If the
+     * number returned is 0 then {@link #read(byte[])} will block. If -1 is returned this indicates
      * the end of the stream has been reached and a call to {@link #read(byte[])} will return -1.
      * 
      * @see java.io.InputStream#available()
@@ -61,7 +61,7 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
     /**
      * Reads a single byte. 
      * Avoid this API if possible as it is very wasteful.
-     * {@see InputStream#read()}. 
+     * See {@link InputStream#read()}.
      */
     @Override
     public abstract int read() throws IOException;
@@ -70,7 +70,7 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * This is equivalent to calling {@code read(b, 0, b.length) }
      * 
      * Will only block if {@link #available()} is 0.
-     * {@see InputStream#read(byte[]))}. 
+     * See {@link InputStream#read(byte[])}.
      */
     @Override
     public abstract int read(byte[] b) throws IOException;
@@ -81,10 +81,12 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * then fill the provided array. This method will only block if {@link #available()} is 0. In
      * which case it will block until some data arrives and return that. (Which may or may not fill
      * the provided buffer)
-     * 
+     *
+     * See {@link java.io.InputStream#read(byte[], int, int)}
+     *
      * @return The number of bytes copied into the provided buffer. Or -1 if the segment is sealed
      *         and there are no more bytes to read.
-     * @see java.io.InputStream#read(byte[], int, int)
+     *
      */
     @Override
     public abstract int read(byte[] b, int off, int len) throws IOException;
@@ -93,6 +95,8 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * Similar to {@link #read(byte[], int, int)} but takes a byteBuffer.
      * 
      * @param dst the destination buffer to read into.
+     * @return The number of bytes copied into the provided buffer. Or -1 if the segment is sealed
+     *         and there are no more bytes to read.
      * @throws IOException If the stream cannot be read from for any reason including if truncation
      *             has deleted the data.
      */
@@ -104,7 +108,8 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * many as possible and return the number skipped.
      * 
      * This method is not affected by truncation.
-     * 
+     * @param n number of bytes to skip.
+     * @return number of bytes skipped.
      * @throws IOException Thrown if an IOError occurs while attempting to obtain the length of the
      *             stream.
      */
@@ -113,8 +118,8 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
 
     /**
      * Closes the reader. 
-     * This may block on an ongoing {@link #read(ByteBuffer)} request if there is one.
-     * @see java.io.InputStream#close()
+     * This may block on an ongoing {@link #read()} request if there is one.
+     * See {@link java.io.InputStream#close()}
      */
     @Override
     public abstract void close();

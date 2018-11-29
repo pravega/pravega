@@ -553,7 +553,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Segment '" + segmentName + "' was not deleted.",
                         () -> store.getStreamSegmentInfo(segmentName, false, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
@@ -673,7 +673,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                 startOffset, readEntry.getStreamSegmentOffset());
 
                         // Verify the ReadResultEntry cannot be used and throws an appropriate exception.
-                        AssertExtensions.assertThrows(
+                        AssertExtensions.assertSuppliedFutureThrows(
                                 "ReadEntry.getContent() did not throw for a Truncated entry.",
                                 readEntry::getContent,
                                 ex -> ex instanceof StreamSegmentTruncatedException);
@@ -746,7 +746,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             if (sp == null) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Segment is marked as deleted in SegmentStore but was not deleted in Storage " + segmentName,
                         () -> readOnlySegmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);

@@ -29,7 +29,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 
 /**
  * Unit tests for FileSystemStorage.
@@ -77,12 +77,12 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
             long expectedMetricsSuccesses = FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents();
             // Invalid handle.
             val readOnlyHandle = s.openRead(segmentName).join();
-            assertThrows(
+            assertSuppliedFutureThrows(
                     "write() did not throw for read-only handle.",
                     () -> s.write(readOnlyHandle, 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException);
 
-            assertThrows(
+            assertSuppliedFutureThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
                     () -> s.write(createInexistentSegmentHandle(s, false), 0,
                             new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
@@ -111,7 +111,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
 
             // Check bad offset.
             final long finalOffset = offset;
-            assertThrows("write() did not throw bad offset write (larger).",
+            assertSuppliedFutureThrows("write() did not throw bad offset write (larger).",
                     () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
@@ -120,7 +120,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
                     expectedMetricsSuccesses, FileSystemMetrics.WRITE_LATENCY.toOpStatsData().getNumSuccessfulEvents());
             // Check post-delete write.
             s.delete(writeHandle, TIMEOUT).join();
-            assertThrows("write() did not throw for a deleted StreamSegment.",
+            assertSuppliedFutureThrows("write() did not throw for a deleted StreamSegment.",
                     () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
             Assert.assertEquals("WRITE_BYTES should not change in case of unsuccessful writes",
