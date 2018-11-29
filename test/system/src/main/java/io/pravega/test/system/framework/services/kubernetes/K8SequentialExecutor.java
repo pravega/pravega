@@ -48,14 +48,15 @@ public class K8SequentialExecutor implements TestExecutor {
         final K8sClient client = ClientFactory.INSTANCE.getK8sClient();
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
 
+        client.saveLogs(pod, "./build/test-results/" + podName + ".log"); //start background log copy.
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
-                     .thenCompose(v1 -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
+                     .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                      .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
                      .thenCompose(v -> client.waitUntilPodCompletes(NAMESPACE, podName))
                      .handle((s, t) -> {
                          if (t == null) {
                              log.info("Test execution completed with status {}", s);
-                             client.saveLogs(pod, "./build/test-results/" + podName + ".log"); //save test log.
+
                              if (s.getExitCode() != 0) {
                                  log.error("Test {}#{} failed. Details: {}", className, methodName, s);
                                  throw new AssertionError(methodName + " test failed.");
@@ -66,6 +67,7 @@ public class K8SequentialExecutor implements TestExecutor {
                              throw new CompletionException("Error while invoking the test " + podName, t);
                          }
                      });
+
     }
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
@@ -80,10 +82,10 @@ public class K8SequentialExecutor implements TestExecutor {
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
                 .withArgs("-c",
-                          "wget " + repoUrl + "/io/pravega/pravega-test-system/" + testVersion + "/pravega-test-system-" + testVersion +".jar && "
+                          "wget " + repoUrl + "/io/pravega/pravega-test-system/" + testVersion + "/pravega-test-system-" + testVersion + ".jar && "
                                   + "echo \"download of system test jar complete\" && "
                                   + "java -DexecType=K8s -cp ./pravega-test-system-" + testVersion + ".jar io.pravega.test.system.SingleJUnitTestRunner "
-                                  + className + "#" +methodName /*+ " > server.log 2>&1 */ + "; exit $?")
+                                  + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
                 .endContainer()
                 .withRestartPolicy("Never")
                 .endSpec().build();

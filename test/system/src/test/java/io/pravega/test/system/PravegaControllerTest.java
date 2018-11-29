@@ -13,15 +13,21 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import java.net.URI;
 import java.util.List;
-import static org.junit.Assert.assertEquals;
+
+import static io.pravega.test.system.framework.Utils.REST_PORT;
+import static io.pravega.test.system.framework.services.kubernetes.AbstractService.CONTROLLER_GRPC_PORT;
+import static io.pravega.test.system.framework.services.kubernetes.AbstractService.CONTROLLER_REST_PORT;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -57,11 +63,17 @@ public class PravegaControllerTest {
         Service con = Utils.createPravegaControllerService(null);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
-        for (int i = 0; i < conUri.size(); i++) {
-            int port = conUri.get(i).getPort();
-            boolean boolPort =  Utils.DOCKER_BASED ? (port == 9090 ||  port == 9091) : (port == 9092 || port == 10080);
-            assertEquals(true, boolPort);
-        }
+        assertTrue(conUri.stream().map(URI::getPort).allMatch(port -> {
+            switch (Utils.EXECUTOR_TYPE) {
+                case REMOTE_SEQUENTIAL:
+                    return port == PravegaControllerService.CONTROLLER_PORT || port == PravegaControllerService.REST_PORT;
+                case DOCKER:
+                    return port == CONTROLLER_GRPC_PORT || port == REST_PORT;
+                case K8s:
+                default:
+                    return port == CONTROLLER_GRPC_PORT || port == CONTROLLER_REST_PORT;
+            }
+        }));
         log.debug("ControllerTest  execution completed");
     }
 }

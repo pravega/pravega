@@ -46,6 +46,8 @@ import static java.util.Collections.singletonList;
 
 public abstract class AbstractService implements Service {
 
+    public static final int CONTROLLER_GRPC_PORT = 9090;
+    public static final int CONTROLLER_REST_PORT = 10080;
     protected static final String TCP = "tcp://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
@@ -53,8 +55,7 @@ public abstract class AbstractService implements Service {
     static final String DEFAULT_IMAGE_PULL_POLICY = "IfNotPresent";
     static final int MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
     static final int ZKPORT = 2181;
-    static final int CONTROLLER_GRPC_PORT = 9090;
-    static final int CONTROLLER_REST_PORT = 10080;
+
     static final int SEGMENTSTORE_PORT = 12345;
     static final int BOOKKEEPER_PORT = 3181;
     static final String NAMESPACE = "default";

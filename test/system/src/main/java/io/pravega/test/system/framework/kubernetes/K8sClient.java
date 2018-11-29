@@ -76,7 +76,8 @@ public class K8sClient {
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "pravega-k8s-client");
+    // size of the executor is 3 (1 thread is used to watch the pod status, 2 threads for background log copy).
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "pravega-k8s-client");
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
     private final Predicate<Throwable> isConflict = t -> {
         if (t instanceof ApiException && ((ApiException) t).getCode() == CONFLICT.getStatusCode()) {
@@ -521,16 +522,22 @@ public class K8sClient {
      * @param fromPod Pod logs to be copied.
      * @param toFile destination file of the logs.
      */
-    public void saveLogs(final V1Pod fromPod, final String toFile) {
-        log.debug("copy logs from pod {} to file {}", fromPod.getMetadata().getName(), toFile);
-        try {
-            @Cleanup
-            InputStream r = logUtility.streamNamespacedPodLog(fromPod);
-            Files.copy(r, Paths.get(toFile));
-        } catch (ApiException | IOException e) {
-            log.error("Error while copying files from pod {}.", fromPod.getMetadata().getName());
-        }
+    public CompletableFuture<Void> saveLogs(final V1Pod fromPod, final String toFile) {
 
+        return Futures.delayedFuture(Duration.ofSeconds(15), executor) // start log copy after a delay.
+                      .thenRunAsync(() -> {
+                          final String podName = fromPod.getMetadata().getName();
+                          log.debug("copy logs from pod {} to file {}", podName, toFile);
+                          try {
+                              @Cleanup
+                              InputStream r = logUtility.streamNamespacedPodLog(fromPod);
+                              Files.copy(r, Paths.get(toFile));
+                              log.debug("log copy completed for pod {}", podName);
+                          } catch (ApiException | IOException e) {
+                              log.error("Error while copying files from pod {}.", podName);
+                              throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
+                          }
+                      }, executor);
     }
 
     /**
