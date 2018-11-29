@@ -60,7 +60,7 @@ public interface ByteStreamClientFactory extends AutoCloseable {
     /**
      * Creates a new ByteStreamWriter on the specified stream.
      * 
-     * @param streamName The name of the stream to read from.
+     * @param streamName The name of the stream to write to.
      * @return A new ByteStreamWriter.
      */
     @Beta

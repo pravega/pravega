@@ -95,7 +95,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         }
 
         /**
-         * Uses the transactionId to generate the routing key so that we only need to use one segment.
+         * Uses the transactionId to generate the routing key so that we only use one segment.
          */
         @Override
         public void writeEvent(Type event) throws TxnFailedException {
@@ -161,7 +161,6 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                 throw new TxnFailedException();
             }
         }
-
     }
 
     @Override
@@ -196,9 +195,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
             transactions.put(s, impl);
         }
         return new TransactionImpl<Type>(txId, transactions, segments, controller, stream, pinger);
-        
     }
-
 
     @Override
     public void close() {

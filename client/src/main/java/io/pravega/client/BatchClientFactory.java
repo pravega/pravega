@@ -28,11 +28,11 @@ import lombok.val;
  * Please note this is an experimental API.
  * 
  * Used to get metadata about and read from an existing streams.
- * <p>
+ * 
  * All events written to a stream will be visible to SegmentIterators
- * <p>
+ * 
  * Events within a segment are strictly ordered, but as this API allows for reading from multiple
- * segments in parallel without adhering to time ordering. This allows for events greater
+ * segments in parallel without adhering to time ordering. This allows for even greater
  * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
  */
 @Beta
@@ -41,7 +41,7 @@ public interface BatchClientFactory extends AutoCloseable {
     /**
      * Creates a new instance of Client Factory.
      *
-     * @param scope The scope string.
+     * @param scope The scope of the stream.
      * @param config Configuration for the client.
      * @return Instance of ClientFactory implementation.
      */
@@ -53,10 +53,10 @@ public interface BatchClientFactory extends AutoCloseable {
     }
     
     /**
-     * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
+     * Provides a list of segments for a given stream between fromStreamCut and toStreamCut.
      * Passing StreamCut.UNBOUNDED or null to fromStreamCut and toStreamCut will result in using the current start of
      * stream and the current end of stream respectively.
-     *<p>
+     *
      * Note: In case of stream truncation: <p>
      * - Passing a null to fromStreamCut will result in using the current start of the Stream post truncation.<p>
      * - Passing a fromStreamCut which points to the truncated stream will result in a {@link NoSuchSegmentException} while

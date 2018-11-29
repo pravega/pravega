@@ -31,12 +31,14 @@ import lombok.val;
  * exactly once semantics provided the reader has the ability to restore to the correct position
  * upon failure. See {@link EventRead#getPosition()}
  * <p>
- * A note on ordering: Events inside of a stream have a strict order, but may need to be divided
- * between multiple readers for scaling. In order to process events in parallel on different hosts
- * and still have some ordering guarantees; events written to a stream have a routingKey see
- * {@link EventStreamWriter#writeEvent(String, Object)}. Events within a routing key are strictly
- * ordered (i.e. They must go the the same reader or its replacement). However because
- * {@link ReaderGroup}s process events in parallel there is no ordering between different readers.
+ * A note on ordering: Events inside of a stream have an order, but may need to be divided between
+ * multiple readers for scaling. In order to process events in parallel on different hosts and still
+ * have some ordering guarantees; events written to a stream have a routingKey see
+ * {@link EventStreamWriter#writeEvent(String, Object)}. Events with the same routing key are
+ * delivered to a reader in order serially (i.e. They must go the the same reader or its
+ * replacement). However because {@link ReaderGroup}s process events in parallel there is no
+ * ordering between events sent to different routing keys because these may end up on different
+ * readers.
  *
  * <p>
  * A note on scaling: Because a stream can grow in its event rate, streams are divided into
@@ -71,7 +73,7 @@ public interface EventStreamClientFactory extends AutoCloseable {
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
     
     /**
-     * Creates a new writer that can write to the specified stream.
+     * Creates a new transactional writer that can write to the specified stream atomically.
      *
      * @param streamName The name of the stream to write to.
      * @param config The writer configuration.
@@ -85,9 +87,9 @@ public interface EventStreamClientFactory extends AutoCloseable {
      * Creates (or recreates) a new reader that is part of a {@link ReaderGroup}. The reader
      * will join the group and the members of the group will automatically rebalance among
      * themselves.
-     * <p>
+     * 
      * In the event that the reader dies, the method {@link ReaderGroup#readerOffline(String, Position)}
-     * should be called, passing the last position of the reader. (Usually done by storing the
+     * should be called, passing the last position of the reader (Usually done by storing the
      * position along with the output when it is processed.) Which will trigger redistribute the
      * events among the remaining readers.
      * <p>

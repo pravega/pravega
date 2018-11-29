@@ -94,7 +94,7 @@ public interface ClientFactory extends AutoCloseable {
     <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config);
     
     /**
-     * Creates a new writer that can write to the specified stream.
+     * Creates a new transactional writer that can write events atomically to the specified stream.
      *
      * @param streamName The name of the stream to write to.
      * @param config The writer configuration.
