@@ -85,7 +85,7 @@ related to Scopes and Streams:
 |                 |                                                                   | The Stream must already exist, an exception is thrown if you seal a non-existent Stream.                                                                                                                |
 |                 |                                                                   | Returns _True_ if the Stream is successfully sealed.                                                                                                               |
 | `deleteStream`    | (String `scopeName`, String `streamName`)                             | Remove the Stream from Pravega and recover any resources used by that Stream.                                  |
-|                 |                                                                   | The Stream must already exist, an exception is thrown if we delete a non-existent Stream.                                                                                                              |
+|                 |                                                                   | Returns _False_ if the Stream is non-existent.                                                                                                              |
 |                 |                                                                   | Returns _True_ if the Stream was deleted.                                                                                                               |
 
 
@@ -143,7 +143,9 @@ The `EventStreamWriter` writes to the
 Stream specified in the configuration of the `HelloWorldWriter` sample application (by
 default the stream is named "helloStream" in the "examples" Scope). The Writer
 processes Java String objects as Events and uses the built in Java serializer
-for Strings.  
+for Strings.
+
+**Note:**  Pravega allows users to write their own serializer. For more information and example, please refer to [Pravega Serializer](https://github.com/pravega/pravega-serializer). 
 
 The `EventWriterConfig` allows the developer to specify things like the number of
 attempts to retry a request before giving up and associated exponential back-off
@@ -277,14 +279,16 @@ EventStreamReader<String> reader = clientFactory.createReader("reader",
   ```                                        
 The name of the Reader can be any valid Pravega naming convention (numbers and letters). Note that the name of the Reader is namespaced within the Scope. `EventStreamWriter` and `EventStreamReader` uses Java generic types to allow a developer to specify a type safe Reader. In the sample application,
 we read Strings from the stream and use the standard Java String Serializer to
-convert the bytes read from the stream into String objects. Finally, we use a `ReaderConfig` object with default values.
+convert the bytes read from the stream into String objects.
 
-Note that you cannot create the same Reader multiple times. That is, an application may call `createReader()` to add new Readers to the Reader Group. But if the Reader Group already contains a Reader with that name, an exception is thrown.
+**Note:**  Pravega allows users to write their own serializer. For more information and example, please refer to [Pravega Serializer](https://github.com/pravega/pravega-serializer). 
+
+Finally, we use a `ReaderConfig` object with default values. Note that you cannot create the same Reader multiple times. That is, an application may call `createReader()` to add new Readers to the Reader Group. But if the Reader Group already contains a Reader with that name, an exception is thrown.
 
 After creating an `EventStreamReader`, we can use it to read
 Events from the Stream. The `readNextEvent()` operation returns the next Event available on the Stream, or if there is no such Event, blocks for a specified time. After the expiry of the timeout period, if no Event is available for reading, then _Null_ is returned. The null check (`EventRead<String> event = null`) is used to avoid printing out a spurious _Null_ event message to the console and also used to terminate the loop. Note that the Event itself is wrapped in an `EventRead` object.
 
-It is worth noting that `readNextEvent()` may throw an exception and this exception would be handled in cases where the Readers in the Reader Group need to reset to a Checkpoint or the Reader Group itself has been altered and the set of Streams being read has been therefore changed.
+It is worth noting that `readNextEvent()` may throw an exception `ReinitializationRequiredException` and the object is reinitialized. This exception would be handled in cases where the Readers in the Reader Group need to reset to a Checkpoint or the Reader Group itself has been altered and the set of Streams being read has been therefore changed. `TruncatedDataException` is thrown when we try to read the deleted data. It is however possible to recover from the later by calling `readNextEvent()` again (it will just skip forward).
 
 Thus, the simple `HelloWorldReader` loops, reading Events from a Stream
 until there are no more Events, and then the application terminates.
