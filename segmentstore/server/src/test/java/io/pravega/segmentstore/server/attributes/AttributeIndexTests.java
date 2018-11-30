@@ -177,7 +177,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // Seal twice (to check idempotence).
         idx.seal(TIMEOUT).join();
         idx.seal(TIMEOUT).join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Index allowed adding new values after being sealed.",
                 () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
@@ -204,12 +204,12 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.index.delete(sm.getName(), TIMEOUT).join();
         context.index.delete(sm.getName(), TIMEOUT).join();
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() worked after delete().",
                 () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal() worked after delete().",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -238,7 +238,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.storage.writeInterceptor = (streamSegmentName, offset, data, length, wrappedStorage) -> {
             throw new IntentionalException();
         };
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() worked with Storage failure.",
                 () -> idx.update(Collections.singletonMap(attributeId, 0L), TIMEOUT),
                 ex -> ex instanceof IntentionalException);
@@ -248,7 +248,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.storage.sealInterceptor = (streamSegmentName, wrappedStorage) -> {
             throw new IntentionalException();
         };
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal() worked with Storage failure.",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof IntentionalException);
@@ -268,7 +268,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         deletedSegment.setLength(0);
         deletedSegment.setStorageLength(0);
         deletedSegment.markDeleted();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "forSegment() worked on deleted segment.",
                 () -> context.index.forSegment(deletedSegment.getId(), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -289,17 +289,17 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.index.delete(sm.getName(), TIMEOUT).join();
 
         // Verify relevant operations cannot proceed.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() worked on deleted segment.",
                 () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "get() worked on deleted segment.",
                 () -> idx.get(Collections.singleton(UUID.randomUUID()), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal() worked on deleted segment.",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -525,13 +525,13 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         idx.removeAllCacheEntries();
 
         // Verify an exception is thrown when we update something
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() succeeded with index corruption.",
                 () -> idx.update(Collections.singletonMap(attributeId, 2L), TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
 
         // Verify an exception is thrown when we read something.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "get() succeeded with index corruption.",
                 () -> idx.get(Collections.singleton(attributeId), TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);

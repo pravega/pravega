@@ -249,7 +249,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
         val newEntry = generateEntry(Byte.MAX_VALUE, (byte) 0);
         ds.setWriteInterceptor(Futures.failedFuture(new IntentionalException()));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected an exception during write.",
                 () -> index.update(Collections.singleton(newEntry), TIMEOUT),
                 ex -> ex instanceof IntentionalException);

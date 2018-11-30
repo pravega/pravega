@@ -69,7 +69,7 @@ public class ProcessStarterTests {
                 .stdOut(ProcessBuilder.Redirect.to(this.stdOutFile))
                 .stdErr(ProcessBuilder.Redirect.to(this.stdErrFile))
                 .start();
-        int r = Exceptions.<Exception, Integer>handleInterrupted(p::waitFor);
+        int r = Exceptions.<Exception, Integer>handleInterruptedCall(p::waitFor);
         Assert.assertEquals("Unexpected response code.", 0, r);
 
         List<String> stdOut = readFile(this.stdOutFile);

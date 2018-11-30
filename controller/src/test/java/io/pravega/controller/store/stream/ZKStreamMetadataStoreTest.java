@@ -184,7 +184,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream1, State.CREATING, null, executor).get();
 
-        AssertExtensions.assertThrows("Should throw IllegalStateException",
+        AssertExtensions.assertFutureThrows("Should throw IllegalStateException",
                 store.getActiveSegments(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof StoreException.IllegalStateException);
     }
@@ -206,16 +206,16 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.StoreConnectionException;
 
         zkServer.close();
-        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
+        AssertExtensions.assertFutureThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
     }
 
     private void testFailure(String host, TxnResource txn, Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
-        AssertExtensions.assertThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
-        AssertExtensions.assertThrows("Remove host fails", store.removeHostFromIndex(host), checker);
-        AssertExtensions.assertThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
-        AssertExtensions.assertThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
-        AssertExtensions.assertThrows("List hosts fails", store.listHostsOwningTxn(), checker);
+        AssertExtensions.assertFutureThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
+        AssertExtensions.assertFutureThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
+        AssertExtensions.assertFutureThrows("Remove host fails", store.removeHostFromIndex(host), checker);
+        AssertExtensions.assertFutureThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
+        AssertExtensions.assertFutureThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
+        AssertExtensions.assertFutureThrows("List hosts fails", store.listHostsOwningTxn(), checker);
     }
 
     @Test

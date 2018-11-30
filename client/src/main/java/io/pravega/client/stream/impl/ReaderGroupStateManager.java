@@ -46,9 +46,9 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 /**
  * Manages the state of the reader group on behalf of a reader.
  * 
- * {@link #initializeReader()} must be called upon reader startup before any other methods.
+ * {@link #initializeReader(long)}  must be called upon reader startup before any other methods.
  * 
- * {@link #readerShutdown(PositionInternal)} should be called when the reader is shutting down. After this
+ * {@link #readerShutdown(Position)}  should be called when the reader is shutting down. After this
  * method is called no other methods should be called on this class.
  * 
  * This class updates makes transitions using the {@link ReaderGroupState} object. If there are available
@@ -59,7 +59,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  * needed by calling {@link #findSegmentToReleaseIfRequired()}
  * 
  * Finally when a segment is sealed it may have one or more successors. So when a reader comes to the end of a
- * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
+ * segment it should call {@link #handleEndOfSegment(Segment, boolean)}  so that it can continue reading from the
  * successor to that segment.
  */
 @Slf4j

@@ -69,7 +69,7 @@ public class ConcurrentEPSerializedRHTest {
 
         CompletableFuture.runAsync(() -> {
             while (!stop.get()) {
-                ControllerEvent take = Exceptions.handleInterrupted(() -> requestStream.take());
+                ControllerEvent take = Exceptions.handleInterruptedCall(() -> requestStream.take());
                 processor.process((TestBase) take, null);
                 Exceptions.handleInterrupted(() -> Thread.sleep(100));
             }

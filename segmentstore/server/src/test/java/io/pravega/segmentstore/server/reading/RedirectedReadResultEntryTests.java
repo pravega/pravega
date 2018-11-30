@@ -137,7 +137,7 @@ public class RedirectedReadResultEntryTests {
             return t1;
         }, 2);
         t1.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when attempting to retry more than once.",
                 e1::getContent,
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -146,7 +146,7 @@ public class RedirectedReadResultEntryTests {
         MockReadResultEntry t2 = new MockReadResultEntry(1, 1);
         RedirectedReadResultEntry e2 = new RedirectedReadResultEntry(t2, 0, (o, l, m) -> t2, 2);
         t2.getContent().completeExceptionally(new IntentionalException());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when an ineligible exception got thrown.",
                 e2::getContent,
                 ex -> ex instanceof IntentionalException);
@@ -155,7 +155,7 @@ public class RedirectedReadResultEntryTests {
         MockReadResultEntry t3 = new MockReadResultEntry(1, 1);
         RedirectedReadResultEntry e3 = new RedirectedReadResultEntry(t3, 0, (o, l, m) -> e1, 2);
         t3.getContent().completeExceptionally(new StreamSegmentNotExistsException("foo"));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when a retry yielded another RedirectReadResultEntry.",
                 e3::getContent,
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -166,7 +166,7 @@ public class RedirectedReadResultEntryTests {
         RedirectedReadResultEntry e4 = new RedirectedReadResultEntry(t4, 0, (o, l, m) -> {
             throw new IntentionalException();
         }, 2);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getContent() did not throw when retry failed.",
                 e4::getContent,
                 ex -> ex instanceof StreamSegmentNotExistsException);
