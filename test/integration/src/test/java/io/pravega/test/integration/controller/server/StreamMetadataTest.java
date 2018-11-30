@@ -68,26 +68,22 @@ public class StreamMetadataTest {
         controllerWrapper.getControllerService().createScope(scope1).get();
         final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
         final StreamConfiguration config1 = StreamConfiguration.builder()
-                                                               .scope(scope1)
-                                                               .streamName(streamName1)
                                                                .scalingPolicy(scalingPolicy)
                                                                .build();
 
         // create stream and seal stream
 
         // CS1:create a stream :given a streamName, scope and config
-        assertTrue(controller.createStream(config1).get());
+        assertTrue(controller.createStream(scope1, streamName1, config1).get());
 
         // Seal a stream given a streamName and scope.
         controllerWrapper.getControllerService().createScope(scopeSeal).get();
 
         final StreamConfiguration configSeal = StreamConfiguration.builder()
-                                                                  .scope(scopeSeal)
-                                                                  .streamName(streamNameSeal)
                                                                   .scalingPolicy(scalingPolicy)
                                                                   .build();
 
-        assertTrue(controller.createStream(configSeal).get());
+        assertTrue(controller.createStream(scopeSeal, streamNameSeal, configSeal).get());
         controller.getCurrentSegments(scopeSeal, streamNameSeal).get();
 
         assertTrue(controller.sealStream(scopeSeal, streamNameSeal).get());
@@ -105,68 +101,54 @@ public class StreamMetadataTest {
                      t -> true);
 
         // CS2:stream duplication not allowed
-        assertFalse(controller.createStream(config1).get());
+        assertFalse(controller.createStream(scope1, streamName1, config1).get());
 
         // CS3:create a stream with same stream name in different scopes
         controllerWrapper.getControllerService().createScope(scope2).get();
 
         final StreamConfiguration config2 = StreamConfiguration.builder()
-                                                               .scope(scope2)
-                                                               .streamName(streamName1)
                                                                .scalingPolicy(scalingPolicy)
                                                                .build();
-        assertTrue(controller.createStream(config2).get());
+        assertTrue(controller.createStream(scope2, streamName1, config2).get());
 
         // CS4:create a stream with different stream name and config in same scope
         final StreamConfiguration config3 = StreamConfiguration.builder()
-                                                               .scope(scope1)
-                                                               .streamName(streamName2)
                                                                .scalingPolicy(ScalingPolicy.fixed(3))
                                                                .build();
 
-        assertTrue(controller.createStream(config3).get());
+        assertTrue(controller.createStream(scope1, streamName2, config3).get());
 
         // update stream config(update Stream)
 
         // AS3:update the type of scaling policy
         final StreamConfiguration config6 = StreamConfiguration.builder()
-                                                               .scope(scope1)
-                                                               .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(100, 2, 2))
                                                                .build();
-        assertTrue(controller.updateStream(config6).get());
+        assertTrue(controller.updateStream(scope1, streamName1, config6).get());
 
         // AS4:update the target rate of scaling policy
         final StreamConfiguration config7 = StreamConfiguration.builder()
-                                                               .scope(scope1)
-                                                               .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(200, 2, 2))
                                                                .build();
-        assertTrue(controller.updateStream(config7).get());
+        assertTrue(controller.updateStream(scope1, streamName1, config7).get());
 
         // AS5:update the scale factor of scaling policy
         final StreamConfiguration config8 = StreamConfiguration.builder()
-                                                               .scope(scope1)
-                                                               .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(200, 4, 2))
                                                                .build();
-        assertTrue(controller.updateStream(config8).get());
+        assertTrue(controller.updateStream(scope1, streamName1, config8).get());
 
         // AS6:update the minNumsegments of scaling policy
         final StreamConfiguration config9 = StreamConfiguration.builder()
-                                                               .scope(scope1)
-                                                               .streamName(streamName1)
                                                                .scalingPolicy(ScalingPolicy.byDataRate(200, 4, 3))
                                                                .build();
-        assertTrue(controller.updateStream(config9).get());
+        assertTrue(controller.updateStream(scope1, streamName1, config9).get());
 
         // AS7:Update configuration of non-existent stream.
         final StreamConfiguration config = StreamConfiguration.builder()
-                                                              .scope("scope")
-                                                              .streamName("streamName")
                                                               .scalingPolicy(ScalingPolicy.fixed(2))
                                                               .build();
-        CompletableFuture<Boolean> updateStatus = controller.updateStream(config);
+        CompletableFuture<Boolean> updateStatus = controller.updateStream("scope", "streamName", config);
         assertFutureThrows("FAILURE: Updating the configuration of a non-existent stream", updateStatus, t -> true);
 
         // get currently active segments

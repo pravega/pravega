@@ -11,7 +11,7 @@ package io.pravega.client.state.examples;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
@@ -67,14 +67,14 @@ public class MembershipSynchronizer extends AbstractService {
     private final MembershipListener listener;
     private ScheduledFuture<?> task;
 
-    MembershipSynchronizer(String streamName, ClientFactory manager, ScheduledExecutorService executor,
+    MembershipSynchronizer(String streamName, SynchronizerClientFactory clientFactory, ScheduledExecutorService executor,
                            MembershipListener listener) {
         Preconditions.checkNotNull(streamName);
-        Preconditions.checkNotNull(manager);
+        Preconditions.checkNotNull(clientFactory);
         Preconditions.checkNotNull(listener);
         this.executor = executor;
         this.listener = listener;
-        stateSync = manager.createStateSynchronizer(streamName,
+        stateSync = clientFactory.createStateSynchronizer(streamName,
                                                     new JavaSerializer<HeartbeatUpdate>(),
                                                     new JavaSerializer<LiveInstances>(),
                                                     null);

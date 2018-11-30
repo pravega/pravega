@@ -10,7 +10,6 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -101,17 +100,15 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakSegmentSealed() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM_NAME)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build(), new InlineExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
 
         //Create a writer.
         @Cleanup
@@ -170,13 +167,11 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakMultiReader() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM_NAME)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup

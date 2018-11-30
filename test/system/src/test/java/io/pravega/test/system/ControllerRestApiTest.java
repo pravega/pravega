@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -251,13 +250,11 @@ public class ControllerRestApiTest extends AbstractSystemTest {
             streamManager.createScope(testScope);
 
             log.info("Creating stream: {}", testStream1);
-            StreamConfiguration streamConf1 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream1).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf1 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream1, streamConf1);
 
             log.info("Creating stream: {}", testStream2);
-            StreamConfiguration streamConf2 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream2).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream2, streamConf2);
         }
 
@@ -270,7 +267,7 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
                                      .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
                                      .build(), executor);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
+        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()

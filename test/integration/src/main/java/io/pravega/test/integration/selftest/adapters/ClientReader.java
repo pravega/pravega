@@ -11,7 +11,7 @@ package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.stream.EventPointer;
@@ -55,7 +55,7 @@ class ClientReader implements StoreReader, AutoCloseable {
             .throwingOn(Exception.class);
     private final URI controllerUri;
     private final TestConfig testConfig;
-    private final ClientFactory clientFactory;
+    private final EventStreamClientFactory clientFactory;
     private final ScheduledExecutorService executor;
     @GuardedBy("readers")
     private final HashMap<String, StreamReader> readers;
@@ -73,7 +73,7 @@ class ClientReader implements StoreReader, AutoCloseable {
      * @param clientFactory A ClientFactory to use.
      * @param executor      An executor to use for background async operations.
      */
-    ClientReader(URI controllerUri, TestConfig testConfig, ClientFactory clientFactory, ScheduledExecutorService executor) {
+    ClientReader(URI controllerUri, TestConfig testConfig, EventStreamClientFactory clientFactory, ScheduledExecutorService executor) {
         this.controllerUri = Preconditions.checkNotNull(controllerUri, "controllerUri");
         this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.clientFactory = Preconditions.checkNotNull(clientFactory, "clientFactory");

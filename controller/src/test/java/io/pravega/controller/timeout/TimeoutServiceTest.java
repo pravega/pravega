@@ -123,8 +123,6 @@ public class TimeoutServiceTest {
         streamStore.createScope(SCOPE).join();
 
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
         streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)

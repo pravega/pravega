@@ -9,18 +9,17 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-import io.pravega.client.ClientFactory;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
 import lombok.Data;
 
 @Data
@@ -43,7 +42,7 @@ public class SegmentStatsFactory implements AutoCloseable {
 
     @VisibleForTesting
     public SegmentStatsRecorder createSegmentStatsRecorder(StreamSegmentStore store,
-                                                           ClientFactory clientFactory,
+                                                           EventStreamClientFactory clientFactory,
                                                            AutoScalerConfig configuration) {
         AutoScaleProcessor monitor = new AutoScaleProcessor(configuration, clientFactory, maintenanceExecutor);
         return new SegmentStatsRecorderImpl(monitor, store,

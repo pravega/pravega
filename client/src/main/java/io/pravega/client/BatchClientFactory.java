@@ -7,50 +7,56 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.batch;
+package io.pravega.client;
 
 import com.google.common.annotations.Beta;
-import io.pravega.client.BatchClientFactory;
+import io.pravega.client.batch.SegmentIterator;
+import io.pravega.client.batch.SegmentRange;
+import io.pravega.client.batch.StreamSegmentsIterator;
+import io.pravega.client.batch.impl.BatchClientFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
-import java.util.concurrent.CompletableFuture;
+import io.pravega.client.stream.impl.ControllerImpl;
+import io.pravega.client.stream.impl.ControllerImplConfig;
+import lombok.val;
 
 /**
  * Please note this is an experimental API.
  * 
  * Used to get metadata about and read from an existing streams.
- * <p>
- * All events written to a stream will be visible to SegmentIterators
- * <p>
- * Events within a segment are strictly ordered, but as this API allows for reading from multiple
- * segments in parallel without adhering to time ordering. This allows for events greater
- * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
  * 
- * @deprecated {@link BatchClientFactory} instead. 
+ * All events written to a stream will be visible to SegmentIterators
+ * 
+ * Events within a segment are strictly ordered, but as this API allows for reading from multiple
+ * segments in parallel without adhering to time ordering. This allows for even greater
+ * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
  */
 @Beta
-@Deprecated
-public interface BatchClient {
+public interface BatchClientFactory extends AutoCloseable {
 
     /**
-     * Get information about a given Stream, {@link StreamInfo}.
-     * @deprecated
-     *   Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
+     * Creates a new instance of BatchClientFactory.
      *
-     * @param stream the stream.
-     * @return stream information.
+     * @param scope The scope of the stream.
+     * @param config Configuration for the client.
+     * @return Instance of BatchClientFactory implementation.
      */
-    @Deprecated
-    CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
-
+    static BatchClientFactory withScope(String scope, ClientConfig config) {
+        val connectionFactory = new ConnectionFactoryImpl(config);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
+                           connectionFactory.getInternalExecutor());
+        return new BatchClientFactoryImpl(controller, connectionFactory);
+    }
+    
     /**
-     * Provide a list of segments for a given stream between fromStreamCut and toStreamCut.
+     * Provides a list of segments for a given stream between fromStreamCut and toStreamCut.
      * Passing StreamCut.UNBOUNDED or null to fromStreamCut and toStreamCut will result in using the current start of
      * stream and the current end of stream respectively.
-     *<p>
+     *
      * Note: In case of stream truncation: <p>
      * - Passing a null to fromStreamCut will result in using the current start of the Stream post truncation.<p>
      * - Passing a fromStreamCut which points to the truncated stream will result in a {@link NoSuchSegmentException} while
@@ -74,4 +80,10 @@ public interface BatchClient {
      */
     <T> SegmentIterator<T> readSegment(SegmentRange segment, Serializer<T> deserializer);
 
+    /**
+     * Closes the client factory. This will close any connections created through it.
+     * @see java.lang.AutoCloseable#close()
+     */
+    @Override
+    void close();
 }

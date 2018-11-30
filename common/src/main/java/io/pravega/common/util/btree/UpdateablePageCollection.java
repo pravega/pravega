@@ -58,6 +58,7 @@ class UpdateablePageCollection extends PageCollection {
      * @throws IllegalArgumentException If this method was previously invoked with a PageWrapper having isNewPage() == true
      *                                  but complete() or remove() have not been called on that PageWrapper yet.
      */
+    @Override
     synchronized PageWrapper insert(PageWrapper page) {
         Preconditions.checkArgument(this.incompleteNewPageOffset == PagePointer.NO_OFFSET, "Cannot insert new page while a new page is incomplete.");
         if (page.isNewPage()) {
@@ -72,6 +73,7 @@ class UpdateablePageCollection extends PageCollection {
      *
      * @param page The PageWrapper to remove. This page will have its offset set to PagePointer.NO_OFFSET.
      */
+    @Override
     synchronized void remove(PageWrapper page) {
         super.remove(page);
         if (this.incompleteNewPageOffset == page.getOffset()) {

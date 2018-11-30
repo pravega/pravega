@@ -1,0 +1,53 @@
+/**
+ * Copyright (c) 2018 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.client.stream;
+
+import java.util.UUID;
+
+/**
+ * A writer that writes Events to an Event stream transactionally. All events that are written as
+ * part of a transaction can be committed atomically by calling {@link Transaction#commit()}. This
+ * will result in either all of those events going into the stream or none of them and the commit
+ * call failing with an exception.
+ * 
+ * Prior to committing a transaction, the events written to it cannot be read or otherwise seen by
+ * readers.
+ */
+public interface TransactionalEventStreamWriter<Type> extends AutoCloseable  {
+    
+    /**
+     * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
+     * Note that transactions can only be open for {@link EventWriterConfig#getTransactionTimeoutTime()}.
+     * 
+     * @return A transaction through which multiple events can be written atomically.
+     */
+    Transaction<Type> beginTxn();
+
+    /**
+     * Returns a previously created transaction.
+     * 
+     * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
+     * @return Transaction object with given UUID
+     */
+    Transaction<Type> getTxn(UUID transactionId);
+
+    /**
+     * Returns the configuration that this writer was created with.
+     *
+     * @return Writer configuration
+     */
+    EventWriterConfig getConfig();
+    
+    /**
+     * Closes the writer. (No further methods may be called)
+     */
+    @Override
+    void close();
+}

@@ -737,9 +737,7 @@ public class ControllerImplTest {
                                                                         .build())
                                     .retryAttempts(1).build(),
                 this.executor);
-        CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
-                .streamName("streamdelayed")
-                .scope("scope1")
+        CompletableFuture<Boolean> createStreamStatus = controller.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
@@ -772,9 +770,7 @@ public class ControllerImplTest {
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(), this.executor);
-        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                .streamName("streamdelayed")
-                .scope("scope1")
+        createStreamStatus = controller1.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
@@ -791,9 +787,7 @@ public class ControllerImplTest {
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                           .trustStore("../config/cert.pem").build())
                 .retryAttempts(3).build(), this.executor);
-        CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                .streamName("streamretryfailure")
-                .scope("scope1")
+        CompletableFuture<Boolean> createStreamStatus = controller1.createStream("scope1", "streamretryfailure", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
@@ -801,9 +795,7 @@ public class ControllerImplTest {
 
         // The following call with retries should fail since number of retries is not sufficient.
         this.retryAttempts.set(0);
-        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                .streamName("streamretrysuccess")
-                .scope("scope1")
+        createStreamStatus = controller1.createStream("scope1", "streamretrysuccess", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
@@ -817,9 +809,7 @@ public class ControllerImplTest {
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                           .trustStore("../config/cert.pem").build())
                 .retryAttempts(4).build(), this.executor);
-        createStreamStatus = controller2.createStream(StreamConfiguration.builder()
-                .streamName("streamretrysuccess")
-                .scope("scope1")
+        createStreamStatus = controller2.createStream("scope1", "streamretrysuccess", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
@@ -835,47 +825,35 @@ public class ControllerImplTest {
         @Test
     public void testCreateStream() throws Exception {
         CompletableFuture<Boolean> createStreamStatus;
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream1")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream1", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertTrue(createStreamStatus.get());
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream2")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream2", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createStreamStatus, Throwable -> true);
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream3")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream3", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createStreamStatus, Throwable -> true);
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream4")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream4", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertFalse(createStreamStatus.get());
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream5")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream5", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 createStreamStatus, Throwable -> true);
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream6")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream6", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
@@ -885,48 +863,36 @@ public class ControllerImplTest {
     @Test
     public void testUpdateStream() throws Exception {
         CompletableFuture<Boolean> updateStreamStatus;
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream1")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream1", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertTrue(updateStreamStatus.get());
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream2")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream2", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream3")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream3", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream4")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream4", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertFutureThrows("Server should throw exception",
                 updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream5")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream5", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
                 updateStreamStatus, throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream6")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream6", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         AssertExtensions.assertFutureThrows("Should throw Exception",
@@ -1217,10 +1183,8 @@ public class ControllerImplTest {
                 for (int j = 0; j < 2; j++) {
                     try {
                         CompletableFuture<Boolean> createStreamStatus;
-                        createStreamStatus = controllerClient.createStream(
+                        createStreamStatus = controllerClient.createStream("scope1", "streamparallel",
                                 StreamConfiguration.builder()
-                                        .streamName("streamparallel")
-                                        .scope("scope1")
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
                         log.info("{}", createStreamStatus.get());

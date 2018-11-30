@@ -43,6 +43,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,7 +54,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
 import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
@@ -263,15 +263,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * List the streams in scope.
      *
      * @param scopeName Name of scope
-     * @return List of streams in scope
+     * @return A map of streams in scope to their configs.
      */
     @Override
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
-            return Futures.allOfWithResults(
-                    streams.stream()
-                            .map(s -> getStream(scopeName, s, null).getConfiguration())
-                            .collect(Collectors.toList()));
+            HashMap<String, CompletableFuture<StreamConfiguration>> result = new HashMap<>();
+            for (String s : streams) {
+                Stream stream = getStream(scopeName, s, null);
+                result.put(stream.getName(), stream.getConfiguration());
+            }
+            return Futures.allOfWithResults(result);
         });
     }
 

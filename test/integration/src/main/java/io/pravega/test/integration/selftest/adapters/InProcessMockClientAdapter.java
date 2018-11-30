@@ -10,7 +10,7 @@
 
 package io.pravega.test.integration.selftest.adapters;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.Futures;
@@ -93,7 +93,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     }
 
     @Override
-    protected ClientFactory getClientFactory() {
+    protected EventStreamClientFactory getClientFactory() {
         return this.streamManager.getClientFactory();
     }
 
