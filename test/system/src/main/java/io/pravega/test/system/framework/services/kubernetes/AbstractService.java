@@ -121,7 +121,7 @@ public abstract class AbstractService implements Service {
                 .put("autoScale.cooldownInSeconds", "120")
                 .put("autoScale.cacheExpiryInSeconds", "120")
                 .put("autoScale.cacheCleanUpInSeconds", "120")
-                .put("curator-default-session-timeout", "30000")
+                .put("curator-default-session-timeout", "10000")
                 // Controller properties.
                 .put("MAX_LEASE_VALUE", "60000")
                 .put("RETENTION_FREQUENCY_MINUTES", "2")
@@ -132,7 +132,7 @@ public abstract class AbstractService implements Service {
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
                                                                                       .put("options", options)
-                                                                                      .put("image", getImageSpec("pravega/pravega", "latest"))
+                                                                                      .put("image", getImageSpec("pravega/pravega", "0.4.0-7a9bdb4-SNAPSHOT"))
                                                                                       .put("tier2", tier2Spec("pravega-tier2"))
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
