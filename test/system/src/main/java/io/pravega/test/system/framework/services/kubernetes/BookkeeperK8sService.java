@@ -9,11 +9,14 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
+import io.kubernetes.client.models.V1Status;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -83,22 +86,35 @@ public class BookkeeperK8sService extends AbstractService {
         log.info("Scaling Bookkeeper service to {} instances.", newInstanceCount);
         return k8sClient.getCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, PRAVEGA_ID)
                         .thenCompose(o -> {
-                           Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
-                           Map<String, Object> pravegaSpec = (Map<String, Object>) spec.get("pravega");
-                           Map<String, Object> bookkeeperSpec = (Map<String, Object>) spec.get("bookkeeper");
+                            Map<String, Object> spec = (Map<String, Object>) (((Map<String, Object>) o).get("spec"));
+                            Map<String, Object> pravegaSpec = (Map<String, Object>) spec.get("pravega");
+                            Map<String, Object> bookkeeperSpec = (Map<String, Object>) spec.get("bookkeeper");
 
-                           int currentControllerCount = ((Double) pravegaSpec.get("controllerReplicas")).intValue();
-                           int currentSegmentStoreCount = ((Double) pravegaSpec.get("segmentStoreReplicas")).intValue();
-                           int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
-                           log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
-                                     currentControllerCount, currentSegmentStoreCount);
-                           if (currentBookkeeperCount != newInstanceCount) {
-                               return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount)
-                                       .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
-                           } else {
-                               return CompletableFuture.completedFuture(null);
-                           }
-                       });
+                            int currentControllerCount = ((Double) pravegaSpec.get("controllerReplicas")).intValue();
+                            int currentSegmentStoreCount = ((Double) pravegaSpec.get("segmentStoreReplicas")).intValue();
+                            int currentBookkeeperCount = ((Double) bookkeeperSpec.get("replicas")).intValue();
+                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
+                                      currentControllerCount, currentSegmentStoreCount);
+                            if (currentBookkeeperCount != newInstanceCount) {
+                                return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount)
+                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount))
+                                        .thenRun(() -> {
+                                            if (currentBookkeeperCount > newInstanceCount) {
+                                                // we are scaling down bookkepeer instances.
+                                                // delete pvc is a workaround for issue pravega/pravega-operator/issues/100
+                                                int bookieIndex = currentBookkeeperCount - 1;
+                                                while (bookieIndex > newInstanceCount - 1) {
+                                                    log.debug("delete Persistent Volume claims for bookie {}", bookieIndex);
+                                                    k8sClient.deletePVC(NAMESPACE, "journal-pravega-bookie-" + bookieIndex);
+                                                    k8sClient.deletePVC(NAMESPACE, "ledger-pravega-bookie-" + bookieIndex);
+                                                    bookieIndex--;
+                                                }
+                                            }
+                                        });
+                            } else {
+                                return CompletableFuture.completedFuture(null);
+                            }
+                        });
     }
 
 }
