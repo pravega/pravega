@@ -16,7 +16,7 @@ You may obtain a copy of the License at
 * [System Diagram](#system-diagram)
 * [Components](#components)
     - [Service Endpoints](#service-endpoints)
-    - [Controller Service](#controller-service)
+    - [Controller Service](#pravega-controller-service)
     - [Stream Metadata Store](#stream-metadata-store)
         - [Stream Metadata](#stream-metadata)
         - [Stream Store Caching](#stream-store-caching)
@@ -47,12 +47,12 @@ You may obtain a copy of the License at
 
 # Introduction
 
-The Controller service is a core component of Pravega that implements
+The Controller Service is a core component of Pravega that implements
 the control plane. It acts as the central coordinator and manager for
 various operations performed in the cluster, the major two
 categories are: **Stream Management** and **Cluster Management**.
 
-The Controller service, referred to simply as **Controller** henceforth, is
+The Controller Service, referred to simply as **Controller** henceforth, is
 responsible for providing the abstraction of a Pravega [Stream](pravega-concepts.md#streams), which is the main abstraction that Pravega exposes to applications. A Pravega Stream
 comprises one or more Stream [Segments](pravega-concepts.md#stream-segments). Each Stream Segment is an append-only data
 structure that stores a sequence of bytes. A Stream Segment on its own is
@@ -113,8 +113,9 @@ retention and scaling.
 
 
   2. **Policy Management**: Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the Stream. In Pravega we
-have two policies that users can define, namely [**Scaling** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and
-[**Retention** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java).
+have two policies that users can define, namely [**Scaling** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
+[**Retention** **Policy**]
+(https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
 
        - **Scaling policy** describes if and under what circumstances a Stream should automatically scale its number of segments.  
        - **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time Based Retention*) and data **size**(*Size Based Retention*).
@@ -161,7 +162,7 @@ delete (CRUD) on entities owned and managed by Controller.
 ### gRPC  
 
 Client Controller communication endpoint is implemented as a [`gRPC`](https://grpc.io/)
-interface. Please check the complete list of [APIs](https://github.com/pravega/pravega/blob/master/shared/Controller-api/src/main/proto/Controller.proto).
+interface. Please check the complete list of [APIs](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/controller.proto).
 This exposes APIs used by Pravega clients (Readers, Writers and Stream
 Manager) and enables Stream management. Requests enabled by this API
 include *creating, modifying,* and *deleting* Streams.
@@ -170,7 +171,7 @@ We use the asynchronous model in our client Controller interactions so that the 
 
 To be able to append to and read data from Streams, Writers and Readers
 query Controller to get active Stream Segment sets, successor and predecessor
-Stream segments while working with a Stream. For Transactions, the client uses
+Stream Segments while working with a Stream. For Transactions, the client uses
 specific API calls to request Controller to _create_ and _commit_
 Transactions.
 
@@ -178,7 +179,7 @@ Transactions.
 For administration, the Controller implements and exposes a `REST`
 interface. This includes API calls for Stream management as well as
 other administration API primarily dealing with _creation_ and _deletion_ of
-[**Scopes**](pravega-concepts.md#streams). We use swagger to describe our `REST` APIs. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/Controller-api/src/main/swagger) file.
+[**Scopes**](pravega-concepts.md#streams). We use swagger to describe our `REST` APIs. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger) file.
 
 ## Pravega Controller Service
 
@@ -213,19 +214,19 @@ starts with an initial set of Segments that is determined by the Stream
 configuration when created and it transitions to new sets of Segments as
 scale operations are performed on the Stream. Each generation of
 Segments that constitute Stream at any given point in time are
-considered to belong to an _epoch_. So a Stream starts with initial _epoch 0_
-and upon each transition, it moves ahead in its _epochs_
+considered to belong to an **epoch**. So a Stream starts with initial epoch 0
+and upon each transition, it moves ahead in its epochs
 to describe the change in generation of Segments in the Stream.
 
 The Controller maintains the Stream, store the information about all
-_epochs_ that constitute a given Stream and also about their transition. The store
+epochs that constitute a given Stream and also about their transition. The store
 is designed to optimally store and query information pertaining to
 Stream Segments and their inter-relationships.
 
-Apart from the _epoch_ information, it keeps some additional metadata,
-such as [state](#Stream-state) and its [policies](#Stream-policy-manager) and ongoing Transactions on the Stream. Various sub-components of Controller access the stored metadata for each
+Apart from the epoch information, it keeps some additional metadata,
+such as [state](#stream-state) and its [policies](#stream-policy-manager) and ongoing Transactions on the Stream. Various sub-components of Controller access the stored metadata for each
 Stream via a well-defined
-[interface](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/controller/store/Stream/StreamMetadataStore.java).
+[interface](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java).
 We currently have two concrete implementations of the Stream store
 interface: _in-memory_ and _Zookeeper_ backed stores. Both share a common
 base implementation that relies on Stream objects for providing
@@ -249,74 +250,38 @@ groups to support a variety of queries against this metadata. All Stream
 specific metadata is stored under a scoped/Stream root node. Queries
 against this metadata include, but not limited to, querying segment sets
 that form the Stream at different points in time, segment specific
-information, segment predecessors and successors. Refer to [Stream metadata](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/Stream/StreamMetadataStore.java) interface for details about APIs exposed by Stream metadata
+information, segment predecessors and successors. Refer to [Stream metadata](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/StreamMetadataStore.java) interface for details about APIs exposed by Stream metadata
 store.
 
 ### Stream Metadata
 
-Clients need information about what segments constitute a stream to
-start their processing and they obtain it from the epoch information the
-Controller stores in the stream store. A reader client typically starts
-from the head of the stream, but it might also choose to access the
-stream starting from any arbitrarily interesting position. Writers on
-the other hand always append to the tail of the stream.
+Clients need information about what Segments constitute a Stream to start their processing and they obtain it from the epoch information the Controller stores in the stream store. Clients need ability to query and find Stream Segments at any of the three cases efficiently:
 
-Clients need ability to query and find segments at any of the three
-cases efficiently. To enable such queries, the stream store provides API
-calls to get initial set of segments, segments at specific time and current set of segments.
+- A Reader client typically starts from the **head** of the Stream,
+- But it might also choose to access the Stream starting from any arbitrarily interesting position.
+- Writers on the other hand always append to the **tail** of the Stream.
 
-As mentioned earlier, a stream can transition from one set of segments
-(epoch) to another set of segments that constitute the stream. A stream
-moves from one epoch to another if there is at least one segment that is
-sealed and that is replaced by one or more set of segments that cover
-precisely the key space of the sealed segments. As clients work on
-streams, they may encounter the end of sealed segments and consequently
-need to find new segments to be able to move forward. To enable the
-clients to query for the next segments, the stream store exposes via the
-Controller service efficient queries for finding immediate successors
-and predecessors for any arbitrary segment.  
+To enable such queries, the Stream store provides API calls to get initial set of Stream Segments, Segments at specific time and current set of segments.
 
-To enable serving queries like those mentioned above, we need to efficiently store a time series of these segment transitions and index them against time.
-We store this information about the current and historical state of a stream-segments in a set of records which are designed to optimize on aforementioned queries.
-Apart from segment specific metadata record, the current state of stream comprises of other metadata types that are described henceforth.
-
-Clients need information about what segments constitute a Stream to
-start their processing and they obtain it from the _epoch_ information the
-Controller stores in the Stream store. A **Reader** client typically starts
-from the **head** of the Stream, but it might also choose to access the
-Stream starting from any arbitrarily interesting position. **Writers** on
-the other hand always append to the **tail** of the Stream.
-
-Clients need ability to query and find segments at any of the following three
-cases efficiently:
-
-- To get initial set of segments.
-- Segments at specific time.
-- Current set of segments.
-
-The Stream store provides API calls, to enable the above client queries.
-
-As mentioned earlier, a Stream can transition from one set of Segments
-(_epoch_) to another set of Segments that constitute the Stream. A Stream
-moves from one _epoch_ to another if there is at least one Stream Segment that is
-sealed and that is replaced by one or more set of Stream Segments that cover
-precisely the key space of the sealed Stream Segments. As clients work on
+As mentioned earlier, a Stream can transition from one set of Stream Segments
+(epoch) to another set of Segments that constitute the Stream. A Stream
+moves from one epoch to another if there is at least one Stream Segment that is
+sealed and replaced by one or more set of Stream Segments that cover
+precisely the key space of the sealed Segments. As clients work on
 Streams, they may encounter the end of sealed Stream Segments and consequently
-need to find new Stream Segments to be able to move forward. To enable the
-clients to query for the next Stream Segments, the Stream store exposes via the
-Controller service, efficient queries for finding immediate successors
+need to find new Segments to be able to move forward. To enable the
+clients to query for the next Segments, the stream store exposes via the
+Controller Service efficient queries for finding immediate successors
 and predecessors for any arbitrary Segment.  
 
-To enable serving queries like those mentioned above, we need to efficiently store a time series of these Stream Segment transitions and index them against time.
-We store this information about the current and historical state of a Stream Segments in a set of tables which are designed to optimize on aforementioned queries.
-Apart from Segment specific metadata record, the current state of Stream comprises of other metadata types that are described henceforth.
+To enable serving queries like those mentioned above, we need to efficiently store a time series of these Segment transitions and index them against time. We store this information about the current and historical state of a Stream Segments in a set of records which are designed to optimize on aforementioned queries. Apart from Stream Segment specific metadata record, the current state of Stream comprises of other metadata types that are described henceforth.
 
 #### Records  
 
-Stream time series is stored as as a series of records where each record corresponds to an epoch. As Stream scales and transitions from one epoch to another, a new record is created that has complete information about Stream Segments that form the epoch.
+Stream time series is stored as as a series of records where each record corresponds to an epoch. As Stream scales and transitions from one epoch to another, a new record is created that has complete information about Stream Segments that forms the epoch.
 
 - **Epoch Records:**  
-_Epoch: ⟨time, list-of-segments-in-epoch⟩_
+_Epoch: ⟨time, list-of-segments-in-epoch⟩_.
 We store the series of _active_ Stream Segments as they transition from one epoch to another into individual epoch records. Each epoch record corresponds to an epoch which captures a logically consistent (as defined earlier) set of Stream Segments that form the Stream and are valid through the lifespan of the epoch. The epoch record is stored against the epoch number. This record is optimized to answer to query Segments from an epoch with a single call into the store that also enables retrieval of all Stream Segment records in the epoch in _O(1)_. This record is also used for fetching a Stream Segment specific record by first computing Stream Segment's creation epoch from Stream Segment ID and then retrieving the epoch record.
 
  - **Current Epoch:**
@@ -328,7 +293,7 @@ We store the series of _active_ Stream Segments as they transition from one epoc
    3. _Successors of a particular Stream Segment_: The successor query results in two calls into the store to retrieve Stream Segment's sealed epoch and the corresponding epoch record. The successors are computed as the Stream Segments that overlap with the given Stream Segment.
 
 - **Segment Records:**
-_Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
+_Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
  The Controller stores Stream Segment information within each epoch record. The Stream Segment ID is composed of two parts, and is encoded as a _64 bit_ number. The _high 32 bit_ identifies the creation epoch of the Stream Segment and the _low 32 bit_ uniquely identifies the Stream Segment.
 
 **Note**: To retrieve Stream Segment record given a Stream Segment ID, we first need to extract the creation epoch and then retrieve the Stream Segment record from the epoch record.
@@ -337,7 +302,7 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
  Znode under which Stream configuration is serialized and persisted. A
  Stream configuration contains Stream policies that need to be
  enforced.
- [Scaling policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and [Retention policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java) are supplied by the application at
+ [Scaling policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java) are supplied by the application at
  the time of Stream creation and enforced by Controller by monitoring
  the rate and size of data in the Stream.
 
@@ -381,15 +346,15 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
  the `StreamCut` in truncation record.
 
 #### Sealed Segments Maps
-Once the Stream Segments are sealed, controller needs to store additional information about the Stream Segment. Presently, we have two types of information:
+Once the Stream Segments are sealed, Controller needs to store additional information about the Stream Segment. Presently, we have two types of information:
 
  - Epoch, the Stream Segment was sealed in.
  - Size of the Stream Segment at the time of sealing.
 
  These records have two different characteristics and are used in different types of queries. For example;
 
- 1. Sealing epoch is important for querying _successor Stream Segments_.(For each Stream Segment we store its sealing epoch directly in the metadata store.)
- 2. Stream Segment sizes are used during truncation workflows.(For sealed sizes, we store it in a map of Segment to size at the time of sealing.)
+ 1. Sealing epoch is important for querying successor Stream Segments. For each Stream Segment we store its sealing epoch directly in the metadata store.
+ 2. Stream Segment sizes are used during truncation workflows. For sealed sizes, we store it in a map of Segment to size at the time of sealing.
  3. Successor queries are performed on a single Stream Segment whereas truncation workflows work on a group of Stream Segments.
 
  This ensures that during truncation we are able to retrieve sealed sizes for multiple Stream Segments with minimal number of calls into underlying metadata store. Since we could have arbitrarily large number of Stream Segments that have been sealed away, we cannot store all of the information in a single map and hence we shard the map and store it. The sharding function we use is to hash the creation epoch and get the shard number.
@@ -433,7 +398,7 @@ on the Stream get the new value for their subsequent steps.
 
 ## Stream Buckets
 
-To enable some scenarios, we may need our background workers to
+To enable some scenarios, we may need the background workers to
 periodically work on each of the Streams in our cluster to perform
 some specific action on them. The concept of Stream Bucket is to
 distribute this periodic background work across all available
@@ -489,9 +454,9 @@ the failed Controller host.
 
 ## Host Store
 
-Host store interface is used to store _Segment Container_ to _Segment Store_
+Host store interface is used to store _Segment Container_ to_Segment Store
 node mapping. It exposes APIs like `getHostForSegment` where it computes
-consistent hash of Segment _Id_ to compute the owner Segment Container.
+consistent hash of Segment ID to compute the owner Segment Container.
 Then based on the container-host mapping, it returns the appropriate URI
 to the caller.
 
@@ -508,7 +473,7 @@ Stream) and allow for tasks to _failover_ from one Controller instance to
 another. However, this model was limiting in its scope and locking
 semantics and had no inherent notion of ordering of tasks as multiple
 tasks could race to acquire working rights (lock) on a resource
-concurrently and any one of them could succeed. To overcome this limitation we came up with a new infrastructure called [**Event Processor**](#event-processor-framework) (It is built using Pravega Streams. Event Processor provides a clear mechanism to ensure **_mutually exclusive_** and **_ordered processing_).**
+concurrently and any one of them could succeed. To overcome this limitation we came up with a new infrastructure called [**Event Processor**](#event-processor-framework). (It is built using Pravega Streams. Event Processor provides a clear mechanism to ensure **_mutually exclusive_** and **_ordered processing_).**
 
 ### Task Framework
 
@@ -561,7 +526,7 @@ Processor specific Stream and are routed to specific Stream Segments using scope
 
 #### Serial Event Processor
 It essentially reads an Event and initiates its processing and waits on it to complete before moving on to next Event. This provides strong ordering guarantees in processing. And it
-checkpoints after processing each event. [Commit Transaction](#commit-transaction) is
+Checkpoints after processing each Event. [Commit Transaction](#commit-transaction) is
 implemented using this Serial Event Processor. The degree of
 parallelism for processing these Events is upper bounded by the number of
 Stream Segments in the internal Stream and lower bounded by number of Readers.
@@ -609,15 +574,15 @@ Client accessing a Stream need to contact the Controller to obtain
 information about Stream Segments.
 
 Clients query Controller in order to know how to navigate Streams. For
-this purpose Controller exposes appropriate APIs to get _active Stream Segments,
-successors, predecessors_ and _Stream Segment information_ and _URIs_. These queries
+this purpose Controller exposes appropriate APIs to get _active_ Stream Segments,
+successors, predecessors and URIs. These queries
 are served using metadata stored and accessed via Stream store
 interface.
 
 Controller also provides workflows to modify state and behavior of the
 Stream. These workflows include _create, scale, truncation, update, seal,_
 and _delete_. These workflows are invoked both via direct APIs and in some
-cases as applicable via background policy manager ([Auto Scaling](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and [Retention](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java)).
+cases as applicable via background policy manager ([Auto Scaling](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java)).
 
 <p>
 <img src="img/Request-Processing_Flow.png" width="880" height="750" alt="request processing">
@@ -641,14 +606,14 @@ Update Stream is implemented as a task on **Serialized Request
 Handler** over Concurrent Event Processor framework.
 
 1. Update Stream is invoked by an explicit API `updateStream()` call into Controller.
-2. It first posts an _Update Request_ event into request Stream.
+2. It first posts an _Update Request_ Event into request Stream.
 3. Following that it tries to create a temporary update property. If it fails to create the temporary update property, the request is failed and the caller is notified of the failure to update a Stream due to conflict with another ongoing update.
-4. The event is picked by **Request Event Processor**. When the processing
+4. The Event is picked by **Request Event Processor**. When the processing
 starts, the update Stream task expects to find the temporary update
 Stream property to be present. If it does not find the property, the
-update processing is delayed by pushing event the back in the in-memory
-queue until it deems the event expired. If it finds the property to be
-updated during this period, before the expiry, the event is processed
+update processing is delayed by pushing Event the back in the in-memory
+queue until it deems the Event expired. If it finds the property to be
+updated during this period, before the expiry, the Event is processed
 and `updateStream()` operation is performed.
 
 - Once the update Stream processing starts, it first sets the Stream state to *Updating*.
@@ -660,7 +625,7 @@ policy. Now the state is reset to *Active*.
 
 Scale can be invoked either by explicit API call (referred to as manual
 scale) or performed automatically based on scale policy (referred to as
-[Auto-scaling](pravega-concepts#elastic-streams-auto-scaling).
+[Auto-scaling](pravega-concepts.md#elastic-streams-auto-scaling)).
 
 We first write the Event followed by updating the metadata store to capture our intent to scale a Stream. This step is idempotent and ensures that if an existing ongoing scale operation is in progress, then this attempt to start a new scale is ignored. Also, if there is an ongoing scale operation with a conflicting request input parameters, then the new request is rejected. Which essentially guarantees that there can be exactly one scale operation that can be performed at any given point in time.
 
@@ -679,7 +644,7 @@ metadata store. Following is the workflow:
 
 ### Truncate Stream
 
-Truncate follows similar mechanism to update and has a temporary
+Truncating a Stream follows similar mechanism to update and has a temporary
 Stream property for truncation that is used to supply input for truncate Stream.
 
 - Once the truncate workflow process starts, the Stream State is set to *Truncating*.
@@ -768,7 +733,7 @@ Transactions. Controller plays active roles in providing guarantees for
 Transactions from the time since they are created till the time they are
 committed or aborted. Controller tracks each Transaction for their
 specified timeouts and if the timeout exceeds, it automatically aborts
-the transaction.
+the Transaction.
 
 Controller is responsible for ensuring that the Transaction and a
 potential concurrent scale operation play well with each other and
@@ -875,4 +840,4 @@ The details about implementation, especially with respect to how the metadata is
 # Resources
 
 - [Pravega](http://pravega.io/)
-- [Code](https://github.com/pravega/pravega/tree/master/Controller)
+- [Code](https://github.com/pravega/pravega/tree/master/controller)
