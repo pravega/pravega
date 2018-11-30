@@ -18,7 +18,6 @@ import io.kubernetes.client.Configuration;
 import io.kubernetes.client.PodLogs;
 import io.kubernetes.client.apis.ApiextensionsV1beta1Api;
 import io.kubernetes.client.apis.AppsV1Api;
-import io.kubernetes.client.apis.CoreApi;
 import io.kubernetes.client.apis.CoreV1Api;
 import io.kubernetes.client.apis.CustomObjectsApi;
 import io.kubernetes.client.apis.RbacAuthorizationV1beta1Api;
@@ -33,7 +32,6 @@ import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodList;
 import io.kubernetes.client.models.V1PodStatus;
 import io.kubernetes.client.models.V1ServiceAccount;
-import io.kubernetes.client.models.V1Status;
 import io.kubernetes.client.models.V1beta1ClusterRole;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
@@ -67,7 +65,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
-import static io.pravega.common.concurrent.Futures.failedFuture;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
 import static javax.ws.rs.core.Response.Status.CONFLICT;
 
@@ -349,10 +346,11 @@ public class K8sClient {
             // https://github.com/kubernetes-client/java/issues/86
             if (e.getCause() instanceof IllegalStateException) {
                 IllegalStateException ise = (IllegalStateException) e.getCause();
-                if (ise.getMessage() != null && ise.getMessage().contains("Expected a string but was BEGIN_OBJECT"))
+                if (ise.getMessage() != null && ise.getMessage().contains("Expected a string but was BEGIN_OBJECT")) {
                     log.debug("Ignoring exception", e);
-                else throw e;
-            } else throw e;
+                }
+            }
+            throw e;
         }
     }
 

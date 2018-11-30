@@ -9,14 +9,11 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
-import io.kubernetes.client.models.V1Status;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
