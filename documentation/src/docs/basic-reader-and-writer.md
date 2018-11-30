@@ -71,21 +71,21 @@ related to Scopes and Streams:
 | `deleteScope`     | (String `scopeName`)                                                | Deletes a Scope with the given name.                                                                           |
 |                 |                                                                   | Returns _True_ if the scope was deleted, returns _False_ otherwise.                                                                                                               |
 |                 |                                                                   | If the Scope contains Streams, the `deleteScope` operation will fail with an exception.                                                                                                               |
-|                 |                                                                   | If we delete a nonexistent Scope, the method will succeed and return _False_.                                                                                                               |
+|                 |                                                                   | If we delete a non-existent Scope, the method will succeed and return _False_.                                                                                                               |
 | `createStream`    | (String `scopeName`, String `streamName`, `StreamConfiguration config`) | Create a Stream within a given Scope.                                                                          |
 |                 |                                                                   | Both Scope name and Stream name are limited using the following characters: Letters (a-z A-Z), numbers (0-9) and delimiters: "." and "-" are allowed.                                                                                                               |
-|                 |                                                                   | The Scope must exist, an exception is thrown if we create a Stream in a nonexistent Scope.                                                                                                               |
+|                 |                                                                   | The Scope must exist, an exception is thrown if we create a Stream in a non-existent Scope.                                                                                                               |
 |                 |                                                                   | A Stream Configuration is built using a builder pattern.                                                                                                               |
 |                 |                                                                   | Returns _True_ if the Stream is created, returns _False_ if the Stream already exists.                                                                                                               |
 |                 |                                                                   | This method can be called even if the Stream is already existing.                                                                                                               |
 | `updateStream`    | (String `scopeName`, String `streamName`, `StreamConfiguration config`) | Swap out the Stream's configuration.                                                                           |
-|                 |                                                                   |  The Stream must already exist, an exception is thrown if we update a nonexistent Stream.                                                                                                              |
+|                 |                                                                   |  The Stream must already exist, an exception is thrown if we update a non-existent Stream.                                                                                                              |
 |                 |                                                                   | Returns _True_ if the Stream was changed.                                                                                                               |
 | `sealStream`      | (String `scopeName`, String `streamName`)                             | Prevent any further writes to a Stream.                                                                        |
-|                 |                                                                   | The Stream must already exist, an exception is thrown if you seal a nonexistent Stream.                                                                                                                |
+|                 |                                                                   | The Stream must already exist, an exception is thrown if you seal a non-existent Stream.                                                                                                                |
 |                 |                                                                   | Returns _True_ if the Stream is successfully sealed.                                                                                                               |
 | `deleteStream`    | (String `scopeName`, String `streamName`)                             | Remove the Stream from Pravega and recover any resources used by that Stream.                                  |
-|                 |                                                                   | The Stream must already exist, an exception is thrown if we delete a nonexistent Stream.                                                                                                              |
+|                 |                                                                   | The Stream must already exist, an exception is thrown if we delete a non-existent Stream.                                                                                                              |
 |                 |                                                                   | Returns _True_ if the Stream was deleted.                                                                                                               |
 
 
@@ -98,7 +98,7 @@ The execution of API `createScope(scope)` establishes that the Scope exists. The
 
 The most interesting task is to create the Stream Configuration (`streamConfig`). Like many objects in Pravega, a Stream takes a configuration object that allows
 a developer to control various behaviors of the Stream. All configuration object instantiated via builder pattern. That allows a developer to control various aspects of a Stream's behavior in terms of _policies_; [**Retention Policy**](pravega-concepts.md#stream-retention-policies) and [**Scaling
-Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the most important ones related to Streams. For the sake of simplicity, in our sample application we instantiate a Stream with a single segment (`ScalingPolicy.fixed(1)`) and without any kind of retention policy.
+Policy**](pravega-concepts.md#elastic-streams-auto-scaling) are the most important ones related to Streams. For the sake of simplicity, in our sample application we instantiate a Stream with a single segment (`ScalingPolicy.fixed(1)`) and using the default (infinite) retention policy.
 
 Once the Stream Configuration (`streamConfig`) object is built, creating the Stream is straight
 forward using `createStream()`. After the Stream is created, we are all set to start writing
@@ -107,8 +107,8 @@ Event(s) to the Stream.
 
 ## Writing an Event using EventWriter
 
-Applications use an `EventStreamWriter` object to write Events to a Stream.  The
-key object to creating the `EventStreamWriter` is the `ClientFactory`.  The
+Applications use an `EventStreamWriter` object to write Events to a Stream. The
+`EventStreamWriter` is created using the `ClientFactory` object.  The
 `ClientFactory` is used to create Readers, Writers and other types of Pravega
 Client objects such as the State Synchronizer (see [Working with Pravega: State
 Synchronizer](state-synchronizer.md)).
@@ -228,7 +228,7 @@ a Reader, we need to either create a `ReaderGroup` (or be aware of the name of a
 existing `ReaderGroup`). This application only uses the basics from Reader Group.
 
 `ReaderGroup` objects are created from a `ReaderGroupManager` object. The `ReaderGroupManager` object, in turn, is created on a given Scope with a URI to one of the Pravega Controllers, very much
-like a `ClientFactory` is created. Note that, the `createReaderGroup()` is also in a try-with-resources statement to make sure that the `ReaderGroupManager` is properly cleaned up. The `ReaderGroupManager` allows a developer to create, delete and retrieve `ReaderGroup` objects using the name.
+like a `ClientFactory` is created. Note that, the `createReaderGroup` is also in a try-with-resources statement to make sure that the `ReaderGroupManager` is properly cleaned up. The `ReaderGroupManager` allows a developer to create, delete and retrieve `ReaderGroup` objects using the name.
 
 To create a `ReaderGroup`, the developer needs a name for the Reader Group and a
 configuration with a set of one or more Streams to read from. The Reader Group's name (alphanumeric) might be meaningful to the application, like
@@ -254,7 +254,7 @@ The Reader Group can be configured to read from multiple Streams. For example, 
 application reasons about data from exactly one machine. We can build other applications that
 use a Reader Group configured to read from all of the Streams. To keep it simple, in the sample application the Reader Group only reads from one Stream.
 
-We can call `createReaderGroup()` with the same parameters multiple times and the same Reader Group will be returned each time after it is initially created (idempotent operation). Note that in other cases, if the developer knows the name of the Reader Group to use and knows it has already been created, they can use `getReaderGroup()` on `ReaderGroupManager` to retrieve the `ReaderGroup` object by name.
+We can call `createReaderGroup` with the same parameters multiple times and the same Reader Group will be returned each time after it is initially created (idempotent operation). Note that in other cases, if the developer knows the name of the Reader Group to use and knows it has already been created, they can use `getReaderGroup()` on `ReaderGroupManager` to retrieve the `ReaderGroup` object by name.
 
 At this point, we have the Scope and Stream is set up and the `ReaderGroup` object created. Next, we need to create a Reader and start reading Events.
 
