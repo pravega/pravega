@@ -42,7 +42,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -198,7 +198,7 @@ public class ReaderGroupImplTest {
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.generateStreamCuts(executor);
-        assertThrows("CheckpointFailedException is expected", () -> readerGroup.generateStreamCuts(executor),
+        assertSuppliedFutureThrows("CheckpointFailedException is expected", () -> readerGroup.generateStreamCuts(executor),
                      t -> t instanceof CheckpointFailedException);
     }
 

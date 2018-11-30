@@ -217,7 +217,7 @@ public class RequestHandlersTest {
         wait.complete(null);
 
         if (expectFailureOnFirstJob) {
-            AssertExtensions.assertThrows("first commit should fail", () -> future1, firstExceptionPredicate);
+            AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                     .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
@@ -315,7 +315,7 @@ public class RequestHandlersTest {
         wait.complete(null);
 
         if (expectFailureOnFirstJob) {
-            AssertExtensions.assertThrows("first commit should fail", () -> future1Rolling, firstExceptionPredicate);
+            AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1Rolling, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                     .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("startRollingTxn"))).startRollingTxn(anyString(), anyString(), anyInt(), any(), any(), any());
@@ -431,7 +431,7 @@ public class RequestHandlersTest {
         requestHandler2.execute(event).join();
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first update job should fail", () -> future1,
+        AssertExtensions.assertSuppliedFutureThrows("first update job should fail", () -> future1,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         // validate rolling txn done
@@ -480,7 +480,7 @@ public class RequestHandlersTest {
         requestHandler2.execute(event).join();
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first truncate job should fail", () -> future1,
+        AssertExtensions.assertSuppliedFutureThrows("first truncate job should fail", () -> future1,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         // validate rolling txn done

@@ -139,10 +139,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
         sort(entries);
-        index.put(entries, TIMEOUT).join();
+        index.update(entries, TIMEOUT).join();
 
         // Delete every 1/3 of the keys
-        val toDelete = new ArrayList<ByteArraySegment>();
         val toUpdate = new ArrayList<PageEntry>();
         val expectedEntries = new ArrayList<PageEntry>(entries);
         val rnd = new Random(0);
@@ -150,13 +149,10 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             PageEntry e = expectedEntries.get(i);
             boolean delete = i % 3 == 0;
             boolean update = i % 2 == 0;
-            if (delete) {
+            if (delete && !update) {
                 // Delete about 1/3 of the entries.
-                toDelete.add(expectedEntries.get(i).getKey());
-                if (!update) {
-                    // We don't want to remove this if we're just about to update it.
+                toUpdate.add(PageEntry.noValue(expectedEntries.get(i).getKey()));
                     expectedEntries.remove(i);
-                }
             }
 
             if (update) {
@@ -170,8 +166,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         }
 
         // Perform the removals and updates.
-        index.remove(toDelete, TIMEOUT).join();
-        index.put(toUpdate, TIMEOUT).join();
+        index.update(toUpdate, TIMEOUT).join();
 
         // Verify final result.
         check("Unexpected index contents.", index, expectedEntries, 0);
@@ -188,7 +183,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
         for (val e : entries) {
-            index.put(Collections.singleton(e), TIMEOUT).join();
+            index.update(Collections.singleton(e), TIMEOUT).join();
             val value = index.get(e.getKey(), TIMEOUT).join();
             assertEquals("Unexpected key.", e.getValue(), value);
         }
@@ -204,9 +199,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
-        index.put(entries, TIMEOUT).join();
-
-        // Sort the entries after we insert them. We want to make sure we get them back in sorted order.
+        index.update(entries, TIMEOUT).join();
         sort(entries);
 
         for (int i = 0; i < entries.size() / 2; i++) {
@@ -252,18 +245,18 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
-        index.put(entries, TIMEOUT).join();
+        index.update(entries, TIMEOUT).join();
 
         val newEntry = generateEntry(Byte.MAX_VALUE, (byte) 0);
         ds.setWriteInterceptor(Futures.failedFuture(new IntentionalException()));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected an exception during write.",
-                () -> index.put(Collections.singleton(newEntry), TIMEOUT),
+                () -> index.update(Collections.singleton(newEntry), TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
         check("Not expecting any change after failed write.", index, entries, 0);
         ds.setWriteInterceptor(null);
-        index.put(Collections.singleton(newEntry), TIMEOUT).join();
+        index.update(Collections.singleton(newEntry), TIMEOUT).join();
         entries.add(newEntry);
         check("Expecting the new entry to have been added.", index, entries, 0);
     }
@@ -279,7 +272,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index1 = defaultBuilder(ds1).build();
         index1.initialize(TIMEOUT).join();
         val entries1 = generate(count);
-        long version = index1.put(entries1, TIMEOUT).join();
+        long version = index1.update(entries1, TIMEOUT).join();
 
         // Create a second index using a cloned DataSource, but which share the exact storage (same EnhancedByteArrayOutputStream).
         val ds2 = new DataSource(ds1);
@@ -296,11 +289,11 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         // the modification "in memory", but not persist it yet.
         CompletableFuture<Void> writeDelay = new CompletableFuture<>();
         ds1.setWriteInterceptor(writeDelay);
-        CompletableFuture<Long> update1 = index1.put(Collections.singleton(newEntry1), TIMEOUT);
+        CompletableFuture<Long> update1 = index1.update(Collections.singleton(newEntry1), TIMEOUT);
         Assert.assertFalse("Not expecting first index's update to be completed yet.", update1.isDone());
 
         // We initiate the update on the second index. This should succeed right away.
-        long version2 = index2.put(Collections.singleton(newEntry2), TIMEOUT).join();
+        long version2 = index2.update(Collections.singleton(newEntry2), TIMEOUT).join();
         AssertExtensions.assertGreaterThan("Expected a larger version.", version, version2);
         val entries2 = new ArrayList<PageEntry>(entries1);
         entries2.add(newEntry2);
@@ -334,15 +327,15 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
-        long lastRetVal = index.put(entries, TIMEOUT).join();
+        long lastRetVal = index.update(entries, TIMEOUT).join();
 
         int firstIndex = 0;
         int lastCheck = -1;
         while (firstIndex < count) {
             int batchSize = Math.min(deleteBatchSize, count - firstIndex);
             val toDelete = entries.subList(firstIndex, firstIndex + batchSize)
-                    .stream().map(PageEntry::getKey).collect(Collectors.toList());
-            long retVal = index.remove(toDelete, TIMEOUT).join();
+                    .stream().map(e -> PageEntry.noValue(e.getKey())).collect(Collectors.toList());
+            long retVal = index.update(toDelete, TIMEOUT).join();
             AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
 
             // Determine if it's time to check the index.
@@ -391,11 +384,11 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         }
 
         if (bulk) {
-            index.put(entries, TIMEOUT).join();
+            index.update(entries, TIMEOUT).join();
         } else {
             long lastRetVal = 0;
             for (val e : entries) {
-                long retVal = index.put(Collections.singleton(e), TIMEOUT).join();
+                long retVal = index.update(Collections.singleton(e), TIMEOUT).join();
                 AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
                 lastRetVal = retVal;
             }

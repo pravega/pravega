@@ -557,12 +557,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             if (badUpdate) {
                 // For every other segment, try to do a bad update, then a good one. This helps us verify both direct
                 // conditional operations, failed conditional operations and conditional operations with cached attributes.
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Conditional append succeeded with incorrect compare value.",
                         () -> localContainer.append(segmentName, getAppendData(segmentName, 0),
                                 Collections.singleton(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare - 1)), TIMEOUT),
                         ex -> (ex instanceof BadAttributeUpdateException) && !((BadAttributeUpdateException) ex).isPreviousValueMissing());
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Conditional update-attributes succeeded with incorrect compare value.",
                         () -> localContainer.updateAttributes(segmentName,
                                 Collections.singleton(new AttributeUpdate(ea2, AttributeUpdateType.ReplaceIfEquals, set, compare - 1)), TIMEOUT),
@@ -736,7 +736,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             byte[] appendData = getAppendData(segmentName, appendId);
             long offset = lengths.get(segmentName) + (appendId % 2 == 0 ? 1 : -1);
 
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "append did not fail with the appropriate exception when passed a bad offset.",
                     () -> context.container.append(segmentName, offset, appendData, null, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
@@ -833,7 +833,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 ReadResultEntry readEntry = readResult.next();
                 if (readEntry.getStreamSegmentOffset() >= segmentLength) {
                     Assert.assertEquals("Unexpected value for isEndOfStreamSegment when reaching the end of sealed segment " + segmentName, ReadResultEntryType.EndOfStreamSegment, readEntry.getType());
-                    AssertExtensions.assertThrows(
+                    AssertExtensions.assertSuppliedFutureThrows(
                             "ReadResultEntry.getContent() returned a result when reached the end of sealed segment " + segmentName,
                             readEntry::getContent,
                             ex -> ex instanceof IllegalStateException);
@@ -912,7 +912,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 3. Delete the empty segment (twice).
         context.container.deleteStreamSegment(emptySegmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Empty segment was not deleted.",
                 () -> context.container.deleteStreamSegment(emptySegmentName, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -1321,12 +1321,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // At this point, the active segments should be: 2, 4 and 5.
         // Verify we cannot activate any other segment.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
                 () -> activateSegment(segments.get(1), localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getSegmentId() allowed mapping more segments than the metadata can support.",
                 () -> activateSegment(segments.get(0), localContainer),
                 ex -> ex instanceof TooManyActiveSegmentsException);
@@ -1425,7 +1425,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val container2 = context.containerFactory.createStreamSegmentContainer(CONTAINER_ID);
         container2.startAsync().awaitRunning();
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Original container did not reject an append operation after being fenced out.",
                 () -> container1.append(segmentNames.get(0), new byte[1], null, TIMEOUT),
                 ex -> ex instanceof DataLogWriterNotPrimaryException);
@@ -1523,15 +1523,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             container.startAsync().awaitRunning();
             Assert.assertTrue("Expecting Segment Container to be offline.", container.isOffline());
 
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "append() worked in offline mode.",
                     () -> container.append("foo", new byte[1], null, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "getStreamSegmentInfo() worked in offline mode.",
                     () -> container.getStreamSegmentInfo("foo", false, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "read() worked in offline mode.",
                     () -> container.read("foo", 0, 1, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);

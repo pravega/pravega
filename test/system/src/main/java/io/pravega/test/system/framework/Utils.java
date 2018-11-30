@@ -100,7 +100,7 @@ public class Utils {
      *  false: Services are deployed on the cluster before running tests.
      *
      * Default value is false
-     * @return
+     * @return true if skipServiceInstallation is set, false otherwise.
      */
     public static boolean isSkipServiceInstallationEnabled() {
         String config = getConfig("skipServiceInstallation", "false");

@@ -41,6 +41,7 @@ plugins.withId('java') {
 
     task generateJavadoc(type: Javadoc) {
         source = sourceSets.main.allJava
+        classpath = sourceSets.main.runtimeClasspath
         failOnError = false
     }
     task javadocJar(type: Jar) {

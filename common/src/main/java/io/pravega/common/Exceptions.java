@@ -107,7 +107,7 @@ public final class Exceptions {
      * @return The result of the call.
      */
     @SneakyThrows(InterruptedException.class)
-    public static <ExceptionT extends Exception, ResultT> ResultT handleInterrupted(InterruptibleCall<ExceptionT, ResultT> call)
+    public static <ExceptionT extends Exception, ResultT> ResultT handleInterruptedCall(InterruptibleCall<ExceptionT, ResultT> call)
             throws ExceptionT {
         try {
             return call.call();
