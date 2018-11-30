@@ -622,7 +622,8 @@ policy. Now the state is reset to *Active*.
 ### Scale Stream
 
 Scale can be invoked either by explicit API call (referred to as manual
-scale) or performed automatically based on [Auto-scaling](pravega-concepts.md#elastic-streams-auto-scaling).
+scale) or performed automatically based on scale policy (referred to as
+[Auto-scaling](pravega-concepts.md#elastic-streams-auto-scaling)).
 
 We first write the Event followed by updating the metadata store to capture our intent to scale a Stream. This step is idempotent and ensures that if an existing ongoing scale operation is in progress, then this attempt to start a new scale is ignored. Also, if there is an ongoing scale operation with a conflicting request input parameters, then the new request is rejected. Which essentially guarantees that there can be exactly one scale operation that can be performed at any given point in time.
 
