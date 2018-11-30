@@ -9,6 +9,9 @@
  *
  */
 plugins.withId('jacoco') {
+    jacoco {
+        toolVersion = jacocoVersion
+    }
     jacocoTestReport {
         reports {
             xml.enabled true

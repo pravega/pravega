@@ -302,7 +302,7 @@ public class StreamTransactionMetadataTasksTest {
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
-        AssertExtensions.assertThrows("IllegalStateException before initialization",
+        AssertExtensions.assertFutureThrows("IllegalStateException before initialization",
                 txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")),
                 ex -> ex instanceof IllegalStateException);
 
@@ -467,7 +467,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create partial transaction
         final long lease = 10000;
 
-        AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
+        AssertExtensions.assertFutureThrows("Transaction creation fails, although a new txn id gets added to the store",
                 txnTasks.createTxn(SCOPE, STREAM, lease, null),
                 e -> e instanceof RuntimeException);
 

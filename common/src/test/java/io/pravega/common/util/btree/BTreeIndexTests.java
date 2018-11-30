@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -112,7 +112,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the remove() method using multiple keys at once..
+     * Tests the remove() method using multiple keys at once.
      */
     @Test
     public void testRemoveBulk() {
@@ -139,10 +139,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
         sort(entries);
-        index.put(entries, TIMEOUT).join();
+        index.update(entries, TIMEOUT).join();
 
         // Delete every 1/3 of the keys
-        val toDelete = new ArrayList<ByteArraySegment>();
         val toUpdate = new ArrayList<PageEntry>();
         val expectedEntries = new ArrayList<PageEntry>(entries);
         val rnd = new Random(0);
@@ -150,13 +149,10 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             PageEntry e = expectedEntries.get(i);
             boolean delete = i % 3 == 0;
             boolean update = i % 2 == 0;
-            if (delete) {
+            if (delete && !update) {
                 // Delete about 1/3 of the entries.
-                toDelete.add(expectedEntries.get(i).getKey());
-                if (!update) {
-                    // We don't want to remove this if we're just about to update it.
+                toUpdate.add(PageEntry.noValue(expectedEntries.get(i).getKey()));
                     expectedEntries.remove(i);
-                }
             }
 
             if (update) {
@@ -170,8 +166,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         }
 
         // Perform the removals and updates.
-        index.remove(toDelete, TIMEOUT).join();
-        index.put(toUpdate, TIMEOUT).join();
+        index.update(toUpdate, TIMEOUT).join();
 
         // Verify final result.
         check("Unexpected index contents.", index, expectedEntries, 0);
@@ -188,23 +183,23 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
         for (val e : entries) {
-            index.put(Collections.singleton(e), TIMEOUT).join();
+            index.update(Collections.singleton(e), TIMEOUT).join();
             val value = index.get(e.getKey(), TIMEOUT).join();
             assertEquals("Unexpected key.", e.getValue(), value);
         }
     }
 
     /**
-     * Tests the ability to iterate through keys using iterator().
+     * Tests the ability to iterate through entries using {@link BTreeIndex#iterator}.
      */
     @Test
-    public void testIterateKeys() {
+    public void testIterator() {
         final int count = 1000;
         val ds = new DataSource();
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
-        index.put(entries, TIMEOUT).join();
+        index.update(entries, TIMEOUT).join();
         sort(entries);
 
         for (int i = 0; i < entries.size() / 2; i++) {
@@ -250,22 +245,25 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
-        index.put(entries, TIMEOUT).join();
+        index.update(entries, TIMEOUT).join();
 
         val newEntry = generateEntry(Byte.MAX_VALUE, (byte) 0);
         ds.setWriteInterceptor(Futures.failedFuture(new IntentionalException()));
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected an exception during write.",
-                () -> index.put(Collections.singleton(newEntry), TIMEOUT),
+                () -> index.update(Collections.singleton(newEntry), TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
         check("Not expecting any change after failed write.", index, entries, 0);
         ds.setWriteInterceptor(null);
-        index.put(Collections.singleton(newEntry), TIMEOUT).join();
+        index.update(Collections.singleton(newEntry), TIMEOUT).join();
         entries.add(newEntry);
         check("Expecting the new entry to have been added.", index, entries, 0);
     }
 
+    /**
+     * Tests the behavior of the BTreeIndex when there are more than one writers modifying the index at the same time.
+     */
     @Test
     public void testConcurrentModification() {
         final int count = 1000;
@@ -274,7 +272,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index1 = defaultBuilder(ds1).build();
         index1.initialize(TIMEOUT).join();
         val entries1 = generate(count);
-        long version = index1.put(entries1, TIMEOUT).join();
+        long version = index1.update(entries1, TIMEOUT).join();
 
         // Create a second index using a cloned DataSource, but which share the exact storage (same EnhancedByteArrayOutputStream).
         val ds2 = new DataSource(ds1);
@@ -291,11 +289,11 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         // the modification "in memory", but not persist it yet.
         CompletableFuture<Void> writeDelay = new CompletableFuture<>();
         ds1.setWriteInterceptor(writeDelay);
-        CompletableFuture<Long> update1 = index1.put(Collections.singleton(newEntry1), TIMEOUT);
+        CompletableFuture<Long> update1 = index1.update(Collections.singleton(newEntry1), TIMEOUT);
         Assert.assertFalse("Not expecting first index's update to be completed yet.", update1.isDone());
 
         // We initiate the update on the second index. This should succeed right away.
-        long version2 = index2.put(Collections.singleton(newEntry2), TIMEOUT).join();
+        long version2 = index2.update(Collections.singleton(newEntry2), TIMEOUT).join();
         AssertExtensions.assertGreaterThan("Expected a larger version.", version, version2);
         val entries2 = new ArrayList<PageEntry>(entries1);
         entries2.add(newEntry2);
@@ -329,15 +327,15 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         val index = defaultBuilder(ds).build();
         index.initialize(TIMEOUT).join();
         val entries = generate(count);
-        long lastRetVal = index.put(entries, TIMEOUT).join();
+        long lastRetVal = index.update(entries, TIMEOUT).join();
 
         int firstIndex = 0;
         int lastCheck = -1;
         while (firstIndex < count) {
             int batchSize = Math.min(deleteBatchSize, count - firstIndex);
             val toDelete = entries.subList(firstIndex, firstIndex + batchSize)
-                    .stream().map(PageEntry::getKey).collect(Collectors.toList());
-            long retVal = index.remove(toDelete, TIMEOUT).join();
+                    .stream().map(e -> PageEntry.noValue(e.getKey())).collect(Collectors.toList());
+            long retVal = index.update(toDelete, TIMEOUT).join();
             AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
 
             // Determine if it's time to check the index.
@@ -366,9 +364,9 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
 
     private int getKeyCount(BTreeIndex index) {
         val minKey = new byte[KEY_LENGTH];
-        Arrays.fill(minKey, Byte.MIN_VALUE);
+        Arrays.fill(minKey, ByteArrayComparator.MIN_VALUE);
         val maxKey = new byte[KEY_LENGTH];
-        Arrays.fill(maxKey, Byte.MAX_VALUE);
+        Arrays.fill(maxKey, ByteArrayComparator.MAX_VALUE);
 
         val count = new AtomicInteger();
         index.iterator(new ByteArraySegment(minKey), true, new ByteArraySegment(maxKey), true, TIMEOUT)
@@ -386,11 +384,11 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         }
 
         if (bulk) {
-            index.put(entries, TIMEOUT).join();
+            index.update(entries, TIMEOUT).join();
         } else {
             long lastRetVal = 0;
             for (val e : entries) {
-                long retVal = index.put(Collections.singleton(e), TIMEOUT).join();
+                long retVal = index.update(Collections.singleton(e), TIMEOUT).join();
                 AssertExtensions.assertGreaterThan("Expecting return value to increase.", lastRetVal, retVal);
                 lastRetVal = retVal;
             }
@@ -472,18 +470,18 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
         @GuardedBy("data")
         private final EnhancedByteArrayOutputStream data;
         @GuardedBy("data")
-        private final HashSet<Long> offsets;
+        private final HashMap<Long, Boolean> offsets; // Key: Offset, Value: valid(true), obsolete(false).
         private final AtomicReference<CompletableFuture<Void>> writeInterceptor = new AtomicReference<>();
         private final AtomicBoolean checkOffsets = new AtomicBoolean(true);
 
         DataSource() {
             this.data = new EnhancedByteArrayOutputStream();
-            this.offsets = new HashSet<>();
+            this.offsets = new HashMap<>();
         }
 
         DataSource(DataSource other) {
             this.data = other.data;
-            this.offsets = new HashSet<>();
+            this.offsets = new HashMap<>();
         }
 
         void setWriteInterceptor(CompletableFuture<Void> wi) {
@@ -508,7 +506,8 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     if (this.checkOffsets.get()) {
                         // We want to make sure that we actually read pages that we wrote, and not from arbitrary locations
                         // in the data source.
-                        Preconditions.checkArgument(this.offsets.isEmpty() || this.offsets.contains(offset), "Offset not registered: " + offset);
+                        Preconditions.checkArgument(this.offsets.isEmpty() || this.offsets.getOrDefault(offset, false),
+                                "Offset not registered or already obsolete: " + offset);
                     }
 
                     return new ByteArraySegment(this.data.getData().subSegment((int) offset, length).getCopy());
@@ -517,16 +516,18 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
             }, executorService());
         }
 
-        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets, Duration timeout) {
+        CompletableFuture<Long> write(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets,
+                                      long truncateOffset, Duration timeout) {
             val wi = this.writeInterceptor.get();
             if (wi != null) {
-                return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets));
+                return wi.thenCompose(v -> writeInternal(toWrite, obsoleteOffsets, truncateOffset));
             } else {
-                return writeInternal(toWrite, obsoleteOffsets);
+                return writeInternal(toWrite, obsoleteOffsets, truncateOffset);
             }
         }
 
-        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite, Collection<Long> obsoleteOffsets) {
+        private CompletableFuture<Long> writeInternal(List<Map.Entry<Long, ByteArraySegment>> toWrite,
+                                                      Collection<Long> obsoleteOffsets, long truncateOffset) {
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (this.data) {
                     if (toWrite.isEmpty()) {
@@ -536,14 +537,15 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     long originalOffset = this.data.size();
                     long expectedOffset = this.data.size();
                     for (val e : toWrite) {
-                        Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.", expectedOffset, e.getKey());
+                        Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.",
+                                expectedOffset, e.getKey());
                         try {
                             e.getValue().writeTo(this.data);
                         } catch (Exception ex) {
                             throw new CompletionException(ex);
                         }
 
-                        this.offsets.add(e.getKey());
+                        this.offsets.put(e.getKey(), true);
                         expectedOffset += e.getValue().getLength();
                     }
 
@@ -552,11 +554,28 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                     // Now, validate and clear obsolete offsets.
                     if (this.checkOffsets.get()) {
                         for (long offset : obsoleteOffsets) {
-                            boolean exists = this.offsets.isEmpty() || this.offsets.contains(offset);
+                            boolean exists = this.offsets.isEmpty() || this.offsets.getOrDefault(offset, false);
                             Assert.assertTrue("Unexpected offset removed: " + offset, exists || offset < originalOffset);
+                            if (this.offsets.containsKey(offset)) {
+                                // Mark as obsolete.
+                                this.offsets.put(offset, false);
+                            }
                         }
+
+                        // Validate that the given truncation offset is correct - we do not want to truncate live data.
+                        long expectedTruncationOffset = this.offsets.entrySet().stream()
+                                .filter(Map.Entry::getValue)
+                                .map(Map.Entry::getKey)
+                                .min(Long::compare)
+                                .orElse((long) this.data.size());
+                        Assert.assertEquals("Unexpected truncation offset.", expectedTruncationOffset, truncateOffset);
                     }
 
+                    // Truncate data out of the data source.
+                    val toRemove = this.offsets.keySet().stream()
+                            .filter(offset -> offset < truncateOffset)
+                            .collect(Collectors.toList());
+                    toRemove.forEach(this.offsets::remove);
                     return (long) this.data.size();
                 }
             }, executorService());

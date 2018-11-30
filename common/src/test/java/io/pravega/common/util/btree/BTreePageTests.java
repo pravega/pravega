@@ -12,6 +12,7 @@ package io.pravega.common.util.btree;
 import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,7 +61,7 @@ public class BTreePageTests {
 
             // Apply to the page.
             val updateValues = updateKeys.stream().collect(Collectors.toMap(key -> key, key -> ((long) entries.size() << 32) + key));
-            page.update(serialize(updateValues, false));
+            page.update(serialize(updateValues, true));
 
             // Update our expected values.
             entries.putAll(updateValues);
@@ -73,7 +74,7 @@ public class BTreePageTests {
     }
 
     /**
-     * Tests the ability to use delete() to remove entries.
+     * Tests the ability to use update() to remove entries.
      */
     @Test
     public void testDelete() {
@@ -82,7 +83,7 @@ public class BTreePageTests {
         val remainingEntries = IntStream.range(0, ITEM_COUNT).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
 
         // Initial page population.
-        page.update(serialize(remainingEntries, false));
+        page.update(serialize(remainingEntries, true));
         checkPage(page, remainingEntries);
 
         // Begin deleting.
@@ -98,7 +99,7 @@ public class BTreePageTests {
                 }
             }
 
-            page.delete(serialize(deleteKeys, false));
+            page.update(toDelete(serialize(deleteKeys, true)));
             deleteKeys.forEach(remainingEntries::remove);
 
             checkPage(page, remainingEntries);
@@ -106,6 +107,78 @@ public class BTreePageTests {
         }
 
         Assert.assertEquals("Not expecting any remaining entries.", 0, remainingEntries.size());
+        Assert.assertEquals("Unexpected header id.", headerId, page.getHeaderId());
+    }
+
+    /**
+     * Tests the ability to use update() to update and remove entries in the same call.
+     */
+    @Test
+    public void testUpdateDelete() {
+        int iterationCount = 100;
+        int insertsPerIteration = ITEM_COUNT / iterationCount;
+        int updatesPerIteration = insertsPerIteration / 3;
+        int deletesPerIteration = insertsPerIteration / 3;
+
+        val page = new BTreePage(CONFIG);
+        int headerId = page.getHeaderId();
+
+        // We have a number of iterations.
+        // At each iteration, we insert some items, update some existing items, and delete some existing items.
+        val expectedValues = new HashMap<Integer, Long>();
+        val rnd = new Random(0);
+        for (int iteration = 0; iteration < iterationCount; iteration++) {
+            val changes = new HashMap<Integer, Long>();
+
+            // Generate inserts. We want to make sure we don't insert existing values.
+            for (int i = 0; i < insertsPerIteration; i++) {
+                int key;
+                do {
+                    key = rnd.nextInt(ITEM_COUNT);
+                } while (expectedValues.containsKey(key) && changes.containsKey(key));
+
+                changes.put(key, (long) key + 1);
+            }
+
+            // Generate updates.
+            val allKeys = new ArrayList<Integer>(expectedValues.keySet());
+            for (int i = 0; i < updatesPerIteration; i++) {
+                if (allKeys.size() == 0) {
+                    break;
+                }
+
+                int idx = rnd.nextInt(allKeys.size());
+                int key = allKeys.get(idx);
+                allKeys.remove(idx); // Remove at index.
+                changes.put(key, expectedValues.get(key) + 1);
+            }
+
+            //Generate deletes.
+            for (int i = 0; i < deletesPerIteration; i++) {
+                if (allKeys.size() == 0) {
+                    break;
+                }
+
+                int idx = rnd.nextInt(allKeys.size());
+                int key = allKeys.get(idx);
+                allKeys.remove(idx); // Remove at index.
+                changes.put(key, null);
+            }
+
+            // Store changes.
+            changes.forEach((key, value) -> {
+                if (value == null) {
+                    expectedValues.remove(key);
+                } else {
+                    expectedValues.put(key, value);
+                }
+            });
+
+            // Apply changes.
+            page.update(serialize(changes, true));
+            checkPage(page, expectedValues);
+        }
+
         Assert.assertEquals("Unexpected header id.", headerId, page.getHeaderId());
     }
 
@@ -119,7 +192,7 @@ public class BTreePageTests {
         // Populate the page.
         // Need to make all keys even. This helps with searching for inexistent keys (see below).
         val entries = IntStream.range(0, ITEM_COUNT).boxed().collect(Collectors.toMap(i -> i * 2, i -> (long) (i + 1) * (i + 1)));
-        page.update(serialize(entries, false));
+        page.update(serialize(entries, true));
 
         // Serialize the keys, and THEN sort them (the tree page sorts byte arrays, not numbers).
         val searchKeys = serialize(entries.keySet(), true);
@@ -166,10 +239,10 @@ public class BTreePageTests {
 
         // Populate the page.
         val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
-        page.update(serialize(entries, false));
+        val sortedEntries = serialize(entries, true);
+        page.update(sortedEntries);
 
         // Search.
-        val sortedEntries = serialize(entries, true);
         for (int pos = 0; pos < sortedEntries.size(); pos++) {
             val e = sortedEntries.get(pos);
             val keyAt = page.getKeyAt(pos);
@@ -214,7 +287,7 @@ public class BTreePageTests {
                 ex -> ex instanceof IllegalArgumentException);
 
         // Remove the first key.
-        page.delete(Collections.singleton(serializedEntries.get(0).getKey()));
+        page.update(toDelete(Collections.singletonList(serializedEntries.get(0).getKey())));
         assertEquals("First key was not removed.", serializedEntries.get(1).getKey(), page.getKeyAt(0));
 
         // Replace the existing first key with the previously (removed) value.
@@ -256,7 +329,7 @@ public class BTreePageTests {
         int headerId = page.getHeaderId();
         for (int item = 0; item < count; item++) {
             // Add one more entry to the page.
-            page.update(Collections.singleton(new PageEntry(serializeInt(item), serializeLong((long) (item + 1)))));
+            page.update(Collections.singletonList(new PageEntry(serializeInt(item), serializeLong((long) (item + 1)))));
 
             boolean expectedSplit = page.getLength() > CONFIG.getMaxPageSize();
             val splitResult = page.splitIfNecessary();
@@ -309,7 +382,7 @@ public class BTreePageTests {
 
         // Populate page.
         val entries = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1) * (i + 1)));
-        page1.update(serialize(entries, false));
+        page1.update(serialize(entries, true));
 
         // Copy constructor.
         val page2 = new BTreePage(CONFIG, page1.getContents());
@@ -318,7 +391,7 @@ public class BTreePageTests {
 
         // Update the second page with new data.
         val entries2 = IntStream.range(0, count).boxed().collect(Collectors.toMap(i -> i, i -> (long) (i + 1)));
-        page2.update(serialize(entries2, false));
+        page2.update(serialize(entries2, true));
         checkPage(page2, entries2);
 
         // In this particular case (since we did not allocate a new buffer - same count) we expect the first page's buffer
@@ -362,7 +435,7 @@ public class BTreePageTests {
 
     private List<PageEntry> serialize(Map<Integer, Long> entries, boolean sorted) {
         val t1 = entries.entrySet().stream()
-                        .map(e -> new PageEntry(serializeInt(e.getKey()), serializeLong(e.getValue())));
+                        .map(e -> new PageEntry(serializeInt(e.getKey()), e.getValue() == null ? null : serializeLong(e.getValue())));
 
         if (sorted) {
             return t1.sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey()))
@@ -380,6 +453,10 @@ public class BTreePageTests {
         } else {
             return t1.collect(Collectors.toList());
         }
+    }
+
+    private List<PageEntry> toDelete(List<ByteArraySegment> keys) {
+        return keys.stream().map(PageEntry::noValue).collect(Collectors.toList());
     }
 
     private ByteArraySegment serializeInt(int value) {

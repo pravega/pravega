@@ -78,6 +78,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
@@ -296,7 +297,7 @@ public class EndToEndTruncationTest {
         assertTrue(controller.deleteStream("test", "test").get());
 
         //write by an existing writer to a deleted stream should complete exceptionally.
-        assertThrows("Should throw NoSuchSegmentException",
+        assertFutureThrows("Should throw NoSuchSegmentException",
                 writer.writeEvent("2", "write to deleted stream"),
                 e -> NoSuchSegmentException.class.isAssignableFrom(e.getClass()));
         

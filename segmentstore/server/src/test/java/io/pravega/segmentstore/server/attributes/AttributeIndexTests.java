@@ -34,6 +34,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,8 +42,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
@@ -83,6 +87,62 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to iterate through a certain range of attributes in the Index.
+     */
+    @Test
+    public void testIterator() {
+        final int count = 2000;
+        final int checkSkipCount = 10;
+        val attributes = IntStream.range(-count / 2, count / 2).mapToObj(i -> new UUID(i, -i)).collect(Collectors.toList());
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        populateSegments(context);
+
+        // 1. Populate and verify first index.
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        val expectedValues = new HashMap<UUID, Long>();
+
+        // Populate data.
+        AtomicLong nextValue = new AtomicLong(0);
+        for (UUID attributeId : attributes) {
+            long value = nextValue.getAndIncrement();
+            expectedValues.put(attributeId, value);
+        }
+
+        idx.update(expectedValues, TIMEOUT).join();
+
+        // Check iterator.
+        // Sort the keys using natural order (UUID comparator).
+        val sortedKeys = expectedValues.keySet().stream().sorted().collect(Collectors.toList());
+
+        // Add some values outside of the bounds.
+        sortedKeys.add(0, new UUID(Long.MIN_VALUE, Long.MIN_VALUE));
+        sortedKeys.add(new UUID(Long.MAX_VALUE, Long.MAX_VALUE));
+
+        // Check various combinations.
+        for (int startIndex = 0; startIndex < sortedKeys.size() / 2; startIndex += checkSkipCount) {
+            int lastIndex = sortedKeys.size() - startIndex - 1;
+            val fromId = sortedKeys.get(startIndex);
+            val toId = sortedKeys.get(lastIndex);
+
+            // The expected keys are all the Keys from the start index to the end index, excluding the outside-the-bounds values.
+            val expectedIterator = sortedKeys.subList(Math.max(1, startIndex), Math.min(sortedKeys.size() - 1, lastIndex + 1)).iterator();
+            val iterator = idx.iterator(fromId, toId, TIMEOUT);
+            iterator.forEachRemaining(batch -> batch.forEach(attribute -> {
+                Assert.assertTrue("Not expecting any more attributes in the iteration.", expectedIterator.hasNext());
+                val expectedId = expectedIterator.next();
+                val expectedValue = expectedValues.get(expectedId);
+                Assert.assertEquals("Unexpected Id.", expectedId, attribute.getKey());
+                Assert.assertEquals("Unexpected value for " + expectedId, expectedValue, attribute.getValue());
+
+            }), executorService()).join();
+
+            // Verify there are no more attributes that we are expecting.
+            Assert.assertFalse("Not all expected attributes were returned.", expectedIterator.hasNext());
+        }
+    }
+
+    /**
      * Tests the ability to Seal an Attribute Segment (create a final snapshot and disallow new changes).
      */
     @Test
@@ -109,7 +169,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             long value = nextValue.getAndIncrement();
             expectedValues.put(attributeId, value);
         }
-        idx.put(expectedValues, TIMEOUT).join();
+        idx.update(expectedValues, TIMEOUT).join();
 
         // Check index before sealing.
         checkIndex(idx, expectedValues);
@@ -117,9 +177,9 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // Seal twice (to check idempotence).
         idx.seal(TIMEOUT).join();
         idx.seal(TIMEOUT).join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Index allowed adding new values after being sealed.",
-                () -> idx.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
+                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentSealedException);
 
         // Check index again, after sealing.
@@ -144,17 +204,21 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.index.delete(sm.getName(), TIMEOUT).join();
         context.index.delete(sm.getName(), TIMEOUT).join();
 
-        AssertExtensions.assertThrows(
-                "put() worked after delete().",
-                () -> idx.put(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
+        AssertExtensions.assertSuppliedFutureThrows(
+                "update() worked after delete().",
+                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal() worked after delete().",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // Check index after deleting.
+        checkIndex(idx, Collections.emptyMap());
+
+        // ... and after cleaning up the cache.
+        idx.removeAllCacheEntries();
         checkIndex(idx, Collections.emptyMap());
     }
 
@@ -174,17 +238,17 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.storage.writeInterceptor = (streamSegmentName, offset, data, length, wrappedStorage) -> {
             throw new IntentionalException();
         };
-        AssertExtensions.assertThrows(
-                "put() worked with Storage failure.",
-                () -> idx.put(Collections.singletonMap(attributeId, 0L), TIMEOUT),
+        AssertExtensions.assertSuppliedFutureThrows(
+                "update() worked with Storage failure.",
+                () -> idx.update(Collections.singletonMap(attributeId, 0L), TIMEOUT),
                 ex -> ex instanceof IntentionalException);
-        Assert.assertEquals("A value was retrieved after a failed put().", 0, idx.get(Collections.singleton(attributeId), TIMEOUT).join().size());
+        Assert.assertEquals("A value was retrieved after a failed update().", 0, idx.get(Collections.singleton(attributeId), TIMEOUT).join().size());
 
         // 2. When Sealing.
         context.storage.sealInterceptor = (streamSegmentName, wrappedStorage) -> {
             throw new IntentionalException();
         };
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal() worked with Storage failure.",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof IntentionalException);
@@ -204,7 +268,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         deletedSegment.setLength(0);
         deletedSegment.setStorageLength(0);
         deletedSegment.markDeleted();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "forSegment() worked on deleted segment.",
                 () -> context.index.forSegment(deletedSegment.getId(), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -214,7 +278,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // Create one index before main segment deletion.
         @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
-        idx.put(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
+        idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
 
         // Clear the cache (otherwise we'll just end up serving cached entries and not try to access Storage).
         idx.removeAllCacheEntries();
@@ -225,17 +289,17 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         context.index.delete(sm.getName(), TIMEOUT).join();
 
         // Verify relevant operations cannot proceed.
-        AssertExtensions.assertThrows(
-                "put() worked on deleted segment.",
-                () -> idx.put(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
+        AssertExtensions.assertSuppliedFutureThrows(
+                "update() worked on deleted segment.",
+                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "get() worked on deleted segment.",
                 () -> idx.get(Collections.singleton(UUID.randomUUID()), TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "seal() worked on deleted segment.",
                 () -> idx.seal(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -258,7 +322,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Write some data first.
         context.storage.writeInterceptor = null;
-        idx.put(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
+        idx.update(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
 
         // We intercept the Storage write. When doing so, we essentially duplicate whatever was already in there. This
         // does not corrupt the index (which would have happened in case of writing some random value), but it does test
@@ -282,12 +346,90 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // This call should trigger a conditional update conflict. We want to use a different attribute so that we can
         // properly test the reconciliation algorithm by validating the written value for another attribute.
-        idx.put(Collections.singletonMap(attributeId2, 0L), TIMEOUT).join();
+        idx.update(Collections.singletonMap(attributeId2, 0L), TIMEOUT).join();
         val value1 = idx.get(Collections.singleton(attributeId), TIMEOUT).join().get(attributeId);
         val value2 = idx.get(Collections.singleton(attributeId2), TIMEOUT).join().get(attributeId2);
         Assert.assertEquals("Unexpected value after reconciliation.", lastWrittenValue.get(), (long) value1);
         Assert.assertEquals("Unexpected value for second attribute after reconciliation.", 0L, (long) value2);
         Assert.assertTrue("No interception was done.", intercepted.get());
+    }
+
+    /**
+     * Tests reading from the Attribute Segment while a truncation was in progress. Scenario:
+     * 1. We have a concurrent get() and update()/delete(), where get() starts executing first.
+     * 2. get() manages to fetch the location of the root page, but doesn't read it yet.
+     * 3. The update() causes the previous root page to become obsolete and truncates the segment after it.
+     * 4. The code should be able to handle and recover from this.
+     */
+    @Test
+    public void testTruncatedSegmentGet() throws Exception {
+        testTruncatedSegment(
+                (attributeId, idx) -> idx.get(Collections.singleton(attributeId), TIMEOUT),
+                result -> result.entrySet().stream().findFirst().get());
+    }
+
+    /**
+     * Tests iterating from the Attribute Segment while a truncation was in progress. Scenario:
+     * 1. We have a concurrent (active) iterator() and put()/delete(), where the iterator starts executing first.
+     * 2. The iterator manages to fetch the location of the root page, but doesn't read it yet.
+     * 3. The put() causes the previous root page to become obsolete and truncates the segment after it.
+     * 4. The code should be able to handle and recover from this.
+     */
+    @Test
+    public void testTruncatedSegmentIterator() throws Exception {
+        testTruncatedSegment(
+                (attributeId, idx) -> idx.iterator(attributeId, attributeId, TIMEOUT).getNext(),
+                result -> result.get(0));
+    }
+
+    private <T> void testTruncatedSegment(BiFunction<UUID, AttributeIndex, CompletableFuture<T>> toTest,
+                                          Function<T, Map.Entry<UUID, Long>> getValue) throws Exception {
+        val attributeId = UUID.randomUUID();
+        val lastWrittenValue = new AtomicLong(0);
+        val config = AttributeIndexConfig.builder()
+                                         .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10) // Very, very frequent rollovers.
+                                         .build();
+        @Cleanup
+        val context = new TestContext(config);
+        populateSegments(context);
+        val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+
+        // Write one value.
+        idx.update(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
+
+        // Clear the cache so we are guaranteed to attempt to read from Storage.
+        idx.removeAllCacheEntries();
+
+        // Initiate a get(), but block it right after the first read.
+        val intercepted = new AtomicBoolean(false);
+        val blockRead = new CompletableFuture<Void>();
+        val waitForInterception = new CompletableFuture<Void>();
+        context.storage.readInterceptor = (name, offset, storage) -> {
+            if (intercepted.compareAndSet(false, true)) {
+                // This should attempt to read the Root Page; return the future to wait on and clear the interceptor.
+                context.storage.readInterceptor = null;
+                waitForInterception.complete(null);
+                return blockRead;
+            } else {
+                Assert.fail("Not expecting to get here.");
+                return null;
+            }
+        };
+        val get = toTest.apply(attributeId, idx);
+        waitForInterception.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS); // Make sure we got the the part where we read the root.
+
+        // Initiate (and complete) a update(), this should truncate the segment beyond the first root, causing the get to fail.
+        idx.update(Collections.singletonMap(attributeId, lastWrittenValue.incrementAndGet()), TIMEOUT).join();
+
+        // Release the read.
+        Assert.assertFalse("Not expecting the read to be done yet.", get.isDone());
+        blockRead.complete(null);
+
+        // Finally, verify we can read the data we want to.
+        val attributePair = getValue.apply(get.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS));
+        Assert.assertEquals("Unexpected id read.", attributeId, attributePair.getKey());
+        Assert.assertEquals("Unexpected value read.", lastWrittenValue.get(), (long) attributePair.getValue());
+        Assert.assertTrue("No interception done.", intercepted.get());
     }
 
     /**
@@ -317,7 +459,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             long value = nextValue.getAndIncrement();
             expectedValues.put(attributeId, value);
         }
-        idx.put(expectedValues, TIMEOUT).join();
+        idx.update(expectedValues, TIMEOUT).join();
 
         // Everything should already be cached, so four our first check we don't expect any Storage reads.
         context.storage.readInterceptor = (String streamSegmentName, long offset, SyncStorage wrappedStorage) ->
@@ -376,28 +518,22 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         };
 
         // This will attempt to write something; the interceptor above will take care of it.
-        idx.put(Collections.singletonMap(attributeId, 1L), TIMEOUT).join();
+        idx.update(Collections.singletonMap(attributeId, 1L), TIMEOUT).join();
         context.storage.writeInterceptor = null; // Clear this so it doesn't interfere with us.
 
         // Clear the cache (so that we may read directly from Storage).
         idx.removeAllCacheEntries();
 
-        // Verify an exception is thrown when we write something
-        AssertExtensions.assertThrows(
-                "",
-                () -> idx.put(Collections.singletonMap(attributeId, 2L), TIMEOUT),
+        // Verify an exception is thrown when we update something
+        AssertExtensions.assertSuppliedFutureThrows(
+                "update() succeeded with index corruption.",
+                () -> idx.update(Collections.singletonMap(attributeId, 2L), TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
 
         // Verify an exception is thrown when we read something.
-        AssertExtensions.assertThrows(
-                "",
+        AssertExtensions.assertSuppliedFutureThrows(
+                "get() succeeded with index corruption.",
                 () -> idx.get(Collections.singleton(attributeId), TIMEOUT),
-                ex -> ex instanceof DataCorruptionException);
-
-        // Verify an exception si thrown when we remove something.
-        AssertExtensions.assertThrows(
-                "",
-                () -> idx.remove(Collections.singleton(attributeId), TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
 
         // Verify an exception is thrown when we try to initialize.
@@ -427,7 +563,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
                 expectedValues.put(attributeId, value);
                 updateBatch.put(attributeId, value);
                 if (updateBatch.size() % batchSize == 0) {
-                    idx.put(updateBatch, TIMEOUT).join();
+                    idx.update(updateBatch, TIMEOUT).join();
                     updateBatch.clear();
                 }
             }
@@ -435,7 +571,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Commit any leftovers.
         if (updateBatch.size() > 0) {
-            idx.put(updateBatch, TIMEOUT).join();
+            idx.update(updateBatch, TIMEOUT).join();
         }
 
         storageRead.set(false);
@@ -451,9 +587,15 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Expecting storage reads after reload.", storageRead.get());
 
         // 3. Remove all values.
-        idx2.remove(expectedValues.keySet(), TIMEOUT).join();
+        idx2.update(toDelete(expectedValues.keySet()), TIMEOUT).join();
         expectedValues.replaceAll((key, v) -> Attributes.NULL_ATTRIBUTE_VALUE);
         checkIndex(idx2, expectedValues);
+    }
+
+    private Map<UUID, Long> toDelete(Collection<UUID> keys) {
+        val result = new HashMap<UUID, Long>();
+        keys.forEach(key -> result.put(key, null));
+        return result;
     }
 
     private void checkIndex(AttributeIndex index, Map<UUID, Long> expectedValues) {

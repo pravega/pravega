@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util.btree;
 
+import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.ByteArraySegment;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,9 +23,7 @@ import org.junit.Test;
  * Unit tests for the ByteArrayComparator class.
  */
 public class ByteArrayComparatorTests {
-    private static final int COUNT = 1000;
-    private static final int BYTES = 4;
-    private static final int MAX_BYTE_VALUE = 127;
+    private static final int COUNT = 2000;
 
     /**
      * Tests comparing raw byte arrays.
@@ -46,14 +45,10 @@ public class ByteArrayComparatorTests {
 
     private ArrayList<byte[]> generateSortedData() {
         val sortedData = new ArrayList<byte[]>();
-        for (int i = 0; i < COUNT; i++) {
-            byte[] data = new byte[BYTES];
-            int value = i;
-            for (int j = BYTES - 1; j >= 0; j--) {
-                data[j] = (byte) (value % MAX_BYTE_VALUE);
-                value /= MAX_BYTE_VALUE;
-            }
-            Assert.assertEquals("Test error. Incorrect configuration.", 0, value);
+        int maxValue = COUNT / 2;
+        for (int i = -maxValue; i < maxValue; i++) {
+            byte[] data = new byte[Long.BYTES];
+            BitConverter.writeUnsignedLong(data, 0, i);
             sortedData.add(data);
         }
         return sortedData;

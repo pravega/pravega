@@ -30,7 +30,7 @@ public class RandomFactory {
     
     /**
      * Returns a new random number generator.
-     * @return
+     * @return a new random number generator.
      */
     @Synchronized
     public static Random create() {
@@ -39,6 +39,7 @@ public class RandomFactory {
     
     /**
      * Returns a good seed for a random number generator.
+     * @return a good seed for a random number generator.
      */
     @Synchronized
     public static long getSeed() {

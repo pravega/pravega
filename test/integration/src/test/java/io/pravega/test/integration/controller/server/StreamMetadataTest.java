@@ -28,7 +28,7 @@ import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -96,7 +96,7 @@ public class StreamMetadataTest {
         assertTrue("FAILURE: No active segments should be present in a sealed stream",
                    controller.getCurrentSegments(scopeSeal, streamNameSeal).get().getSegments().isEmpty());
 
-        assertThrows("FAILURE: Seal operation on a non-existent stream returned ",
+        assertFutureThrows("FAILURE: Seal operation on a non-existent stream returned ",
                      controller.sealStream(scopeSeal, "nonExistentStream"),
                      t -> true);
 
@@ -149,7 +149,7 @@ public class StreamMetadataTest {
                                                               .scalingPolicy(ScalingPolicy.fixed(2))
                                                               .build();
         CompletableFuture<Boolean> updateStatus = controller.updateStream("scope", "streamName", config);
-        assertThrows("FAILURE: Updating the configuration of a non-existent stream", updateStatus, t -> true);
+        assertFutureThrows("FAILURE: Updating the configuration of a non-existent stream", updateStatus, t -> true);
 
         // get currently active segments
 
@@ -158,7 +158,7 @@ public class StreamMetadataTest {
 
         // GCS2:Get active segments for a non-existent stream.
 
-        assertThrows("Active segments cannot be fetched for non existent stream",
+        assertFutureThrows("Active segments cannot be fetched for non existent stream",
                      controller.getCurrentSegments("scope", "streamName"),
                      t -> true);
 
@@ -177,7 +177,7 @@ public class StreamMetadataTest {
 
         // PS4:get positions at a given timestamp for non-existent stream.
         Stream stream = new StreamImpl("scope", "streamName");
-        assertThrows("Fetching segments at given time stamp for non existent stream ",
+        assertFutureThrows("Fetching segments at given time stamp for non existent stream ",
                      controller.getSegmentsAtTime(stream, System.currentTimeMillis()),
                      t -> true);
 

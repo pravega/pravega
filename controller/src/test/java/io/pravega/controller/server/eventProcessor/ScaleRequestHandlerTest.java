@@ -389,7 +389,7 @@ public class ScaleRequestHandlerTest {
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
         // 6. run scale. this should fail in scaleCreateNewEpochs with IllegalArgumentException with epochTransitionConsistent
-        AssertExtensions.assertThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
+        AssertExtensions.assertFutureThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
@@ -569,14 +569,15 @@ public class ScaleRequestHandlerTest {
         if (!expectFailureOnSecondJob) {
             scaleRequestHandler2.execute(event).join();
         } else {
-            AssertExtensions.assertThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
+            AssertExtensions.assertSuppliedFutureThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
                     secondExceptionPredicate);
         }
         // verify that scale is complete
         // now complete wait latch.
         wait.complete(null);
         
-        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
@@ -736,7 +737,8 @@ public class ScaleRequestHandlerTest {
         // now complete wait latch.
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
@@ -779,7 +781,7 @@ public class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
         
         // rerun same manual scaling job. It should fail with StartException but after having reset the state to active
-        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event),
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         // verify that state is reset
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
@@ -792,7 +794,7 @@ public class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
 
         // rerun same auto scaling job. 
-        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event2),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event2),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(2, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());

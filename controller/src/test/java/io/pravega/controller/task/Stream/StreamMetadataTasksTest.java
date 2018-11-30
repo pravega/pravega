@@ -233,7 +233,7 @@ public class StreamMetadataTasksTest {
         // event posted, first step performed. now pick the event for processing
         UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
-        AssertExtensions.assertThrows("", updateStreamTask.execute(taken),
+        AssertExtensions.assertFutureThrows("", updateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
@@ -278,7 +278,7 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
         UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1, System.nanoTime());
         assertTrue(Futures.await(updateStreamTask.execute(event)));
-        AssertExtensions.assertThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        AssertExtensions.assertFutureThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
 
@@ -344,7 +344,7 @@ public class StreamMetadataTasksTest {
         // event posted, first step performed. now pick the event for processing
         TruncateStreamTask truncateStreamTask = new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         TruncateStreamEvent taken = (TruncateStreamEvent) requestEventWriter.eventQueue.take();
-        AssertExtensions.assertThrows("", truncateStreamTask.execute(taken),
+        AssertExtensions.assertFutureThrows("", truncateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -393,7 +393,7 @@ public class StreamMetadataTasksTest {
 
         TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test", System.nanoTime());
         assertTrue(Futures.await(truncateStreamTask.execute(event)));
-        AssertExtensions.assertThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        AssertExtensions.assertFutureThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
 
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
     }
@@ -423,7 +423,7 @@ public class StreamMetadataTasksTest {
         StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, Long.MIN_VALUE, map1);
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any()); 
+                anyString(), anyString(), any(), any(), any());
 
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null, "").get();
         // verify that one streamCut is generated and added.
@@ -432,7 +432,7 @@ public class StreamMetadataTasksTest {
                 streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
                                       .thenCompose(retentionSet -> {
                                           return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test", 
+                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
                                                               x, null, executor))
                                           .collect(Collectors.toList()));
                                       }).join();
@@ -926,7 +926,7 @@ public class StreamMetadataTasksTest {
         // scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.FAILURE, scaleOpResult.getStatus());
 
-        AssertExtensions.assertThrows("Scale should not be allowed as stream is already sealed",
+        AssertExtensions.assertFutureThrows("Scale should not be allowed as stream is already sealed",
                 streamStorePartialMock.submitScale(SCOPE, stream1, Collections.singletonList(0L), Arrays.asList(segment3, segment4, segment5), 30, null, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
     }
@@ -972,7 +972,7 @@ public class StreamMetadataTasksTest {
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, null);
-        AssertExtensions.assertThrows("seal stream did not fail processing with correct exception",
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         requestEventWriter.eventQueue.take();
 
@@ -994,7 +994,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
-        AssertExtensions.assertThrows("seal stream did not fail processing with correct exception",
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         reset(streamStorePartialMock);
@@ -1091,7 +1091,7 @@ public class StreamMetadataTasksTest {
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", false, context, executor).get(), State.ACTIVE);
 
         // Now when runScale runs even after that we should get the state as active.
-        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L), 
+        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L),
                 new LinkedList<>(newRanges), 30, null, null, executor).get();
         assertEquals(response.getObject().getActiveEpoch(), 0);
         VersionedMetadata<State> versionedState = streamStorePartialMock.getVersionedState(SCOPE, "test", context, executor).get();
@@ -1104,10 +1104,16 @@ public class StreamMetadataTasksTest {
         ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
         task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
         Map<Long, Map.Entry<Double, Double>> segments = response.getObject().getNewSegmentsWithRange();
-        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(1, 1) && x.getValue().getKey() == 0.0 && x.getValue().getValue() == 0.5));
-        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(2, 1) && x.getValue().getKey() == 0.5 && x.getValue().getValue() == 1.0));
+        assertTrue(segments.entrySet().stream()
+                .anyMatch(x -> x.getKey() == computeSegmentId(1, 1)
+                             && AssertExtensions.nearlyEquals(x.getValue().getKey(), 0.0, 0)
+                             && AssertExtensions.nearlyEquals(x.getValue().getValue(), 0.5, 0)));
+        assertTrue(segments.entrySet().stream()
+                .anyMatch(x -> x.getKey() == computeSegmentId(2, 1)
+                             && AssertExtensions.nearlyEquals(x.getValue().getKey(), 0.5, 0)
+                             && AssertExtensions.nearlyEquals(x.getValue().getValue(), 1.0, 0)));
     }
-    
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)

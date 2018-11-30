@@ -324,12 +324,12 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut023).putAllTo(streamCut01).build();
-        AssertExtensions.assertThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut56).putAllTo(streamCut023).build();
-        AssertExtensions.assertThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
     }
 
     private void testEmptyTo(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,
