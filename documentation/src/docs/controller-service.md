@@ -114,8 +114,7 @@ retention and scaling.
 
   2. **Policy Management**: Controller is responsible for storing and enforcing user-defined Stream policies by actively monitoring the state of the Stream. In Pravega we
 have two policies that users can define, namely [**Scaling** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and
-[**Retention** **Policy**]
-(https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
+[**Retention** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
 
        - **Scaling policy** describes if and under what circumstances a Stream should automatically scale its number of segments.  
        - **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time Based Retention*) and data **size**(*Size Based Retention*).
@@ -162,8 +161,7 @@ delete (CRUD) on entities owned and managed by Controller.
 ### gRPC  
 
 Client Controller communication endpoint is implemented as a [`gRPC`](https://grpc.io/)
-interface. Please check the complete list of [APIs](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/controller.proto).
-This exposes APIs used by Pravega clients (Readers, Writers and Stream
+interface. Please check the complete list of [APIs](https://github.com/pravega/pravega/blob/master/shared/controller-api/src/main/proto/Controller.proto). This exposes APIs used by Pravega clients (Readers, Writers and Stream
 Manager) and enables Stream management. Requests enabled by this API
 include *creating, modifying,* and *deleting* Streams.
 The underlying `gRPC` framework provides both **_synchronous_** and **_asynchronous_** programming models.
@@ -624,8 +622,7 @@ policy. Now the state is reset to *Active*.
 ### Scale Stream
 
 Scale can be invoked either by explicit API call (referred to as manual
-scale) or performed automatically based on scale policy (referred to as
-[Auto-scaling](pravega-concepts.md#elastic-streams-auto-scaling)).
+scale) or performed automatically based on [Auto-scaling](pravega-concepts.md#elastic-streams-auto-scaling).
 
 We first write the Event followed by updating the metadata store to capture our intent to scale a Stream. This step is idempotent and ensures that if an existing ongoing scale operation is in progress, then this attempt to start a new scale is ignored. Also, if there is an ongoing scale operation with a conflicting request input parameters, then the new request is rejected. Which essentially guarantees that there can be exactly one scale operation that can be performed at any given point in time.
 
