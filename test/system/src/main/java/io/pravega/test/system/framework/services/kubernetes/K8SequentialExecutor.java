@@ -48,12 +48,14 @@ public class K8SequentialExecutor implements TestExecutor {
         final K8sClient client = ClientFactory.INSTANCE.getK8sClient();
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
 
-        client.downloadLogs(pod, "./build/test-results/" + podName + ".log"); //start background log copy.
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
                      .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                      .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
-                     .thenCompose(v -> client.waitUntilPodCompletes(NAMESPACE, podName))
-                     .handle((s, t) -> {
+                     .thenCompose(v -> client.waitUntilPodIsRunning(NAMESPACE, "POD_NAME", pod.getMetadata().getName(), 1))
+                     .thenCompose(v -> {
+                         client.downloadLogs(pod, "./build/test-results/" + podName + ".log"); //start background log download.
+                         return client.waitUntilPodCompletes(NAMESPACE, podName);
+                     }).handle((s, t) -> {
                          if (t == null) {
                              log.info("Test execution completed with status {}", s);
 

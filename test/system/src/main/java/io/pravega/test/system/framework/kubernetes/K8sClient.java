@@ -484,7 +484,7 @@ public class K8sClient {
     }
 
     /**
-     * A method which returns a completed future once the pod is running for a given label.
+     * A method which returns a completed future once the desired number of pod(s) are running with a given label.
      * @param namespace Namespace
      * @param labelName Label name.
      * @param labelValue Value of the Label.
@@ -526,20 +526,19 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return Futures.delayedFuture(Duration.ofSeconds(15), executor) // start log copy after a delay.
-                      .thenRunAsync(() -> {
-                          final String podName = fromPod.getMetadata().getName();
-                          log.debug("copy logs from pod {} to file {}", podName, toFile);
-                          try {
-                              @Cleanup
-                              InputStream r = logUtility.streamNamespacedPodLog(fromPod);
-                              Files.copy(r, Paths.get(toFile));
-                              log.debug("log copy completed for pod {}", podName);
-                          } catch (ApiException | IOException e) {
-                              log.error("Error while copying files from pod {}.", podName);
-                              throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
-                          }
-                      }, executor);
+        return CompletableFuture.runAsync(() -> {
+            final String podName = fromPod.getMetadata().getName();
+            log.debug("copy logs from pod {} to file {}", podName, toFile);
+            try {
+                @Cleanup
+                InputStream r = logUtility.streamNamespacedPodLog(fromPod);
+                Files.copy(r, Paths.get(toFile));
+                log.debug("log copy completed for pod {}", podName);
+            } catch (ApiException | IOException e) {
+                log.error("Error while copying files from pod {}.", podName);
+                throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
+            }
+        }, executor);
     }
 
     /**
