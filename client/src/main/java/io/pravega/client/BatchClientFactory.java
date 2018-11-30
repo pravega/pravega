@@ -39,11 +39,11 @@ import lombok.val;
 public interface BatchClientFactory extends AutoCloseable {
 
     /**
-     * Creates a new instance of Client Factory.
+     * Creates a new instance of BatchClientFactory.
      *
      * @param scope The scope of the stream.
      * @param config Configuration for the client.
-     * @return Instance of ClientFactory implementation.
+     * @return Instance of BatchClientFactory implementation.
      */
     static BatchClientFactory withScope(String scope, ClientConfig config) {
         val connectionFactory = new ConnectionFactoryImpl(config);

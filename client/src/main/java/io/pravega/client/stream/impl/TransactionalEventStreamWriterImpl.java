@@ -95,6 +95,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         
         @Override
         public void writeEvent(String routingKey, Type event) throws TxnFailedException {
+            Preconditions.checkNotNull(routingKey);
             Preconditions.checkNotNull(event);
             throwIfClosed();
             Segment s = segments.getSegmentForKey(routingKey);

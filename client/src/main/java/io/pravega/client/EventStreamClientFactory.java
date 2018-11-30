@@ -94,12 +94,12 @@ public interface EventStreamClientFactory extends AutoCloseable {
      * events among the remaining readers.
      * <p>
      * Note that calling reader offline while the reader is still online may result in multiple
-     * reader within the group receiving the same events.
+     * readers within the group receiving the same events.
      *
-     * @param readerId A unique name (within the group) for this readers.
+     * @param readerId A unique name (within the group) for this reader.
      * @param readerGroup The name of the group to join.
      * @param s The serializer for events.
-     * @param config The readers configuration.
+     * @param config The reader's configuration.
      * @param <T> The type of events.
      * @return Newly created reader object that is a part of reader group
      */

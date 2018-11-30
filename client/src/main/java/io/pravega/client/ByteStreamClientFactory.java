@@ -29,11 +29,11 @@ import lombok.val;
 public interface ByteStreamClientFactory extends AutoCloseable {
 
     /**
-     * Creates a new instance of Client Factory.
+     * Creates a new instance of ByteStreamClientFactory.
      *
      * @param scope The scope string.
      * @param config Configuration for the client.
-     * @return Instance of ClientFactory implementation.
+     * @return Instance of ByteStreamClientFactory implementation.
      */
     static ByteStreamClientFactory withScope(String scope, ClientConfig config) {
         val connectionFactory = new ConnectionFactoryImpl(config);
@@ -61,7 +61,7 @@ public interface ByteStreamClientFactory extends AutoCloseable {
     ByteStreamWriter createByteStreamWriter(String streamName);
 
     /**
-     * Closes the client factory. This will close any connections created through it.
+     * Closes the ByteStreamClientFactory. This will close any connections created through it.
      * @see java.lang.AutoCloseable#close()
      */
     @Override

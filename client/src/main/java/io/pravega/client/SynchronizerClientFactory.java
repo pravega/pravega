@@ -44,11 +44,11 @@ public interface SynchronizerClientFactory extends AutoCloseable {
     /**
      * Creates a new RevisionedStreamClient that will work with the specified stream.
      *
-     * @param streamName The name of the stream for the synchronizer
+     * @param streamName The name of the stream for the synchronizer.
      * @param serializer The serializer for updates.
-     * @param config The client configuration
-     * @param <T> The type of events
-     * @return Revisioned stream client
+     * @param config The client configuration.
+     * @param <T> The type of events.
+     * @return Revisioned stream client.
      */
     <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
             SynchronizerConfig config);
@@ -59,11 +59,11 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      * @param <StateT> The type of the state being synchronized.
      * @param <UpdateT> The type of the updates being written.
      * @param <InitT> The type of the initial update used.
-     * @param streamName The name of the stream for the synchronizer
+     * @param streamName The name of the stream for the synchronizer.
      * @param updateSerializer The serializer for updates.
      * @param initSerializer The serializer for the initial update.
-     * @param config The synchronizer configuration
-     * @return Newly created StateSynchronizer that will work on the given stream
+     * @param config The synchronizer configuration.
+     * @return Newly created StateSynchronizer that will work on the given stream.
      */
     <StateT extends Revisioned, UpdateT extends Update<StateT>, InitT extends InitialUpdate<StateT>>
     StateSynchronizer<StateT> createStateSynchronizer(String streamName,
