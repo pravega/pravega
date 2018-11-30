@@ -635,7 +635,7 @@ project('test:system') {
     // Specifically publish this test project
     apply plugin: 'maven'
 
-    // override the compile java options to disable -Werror. This will be removed once https://github.com/kubernetes-client/java/issues/436
+    // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
     compileJava {
         options.compilerArgs.remove("-Werror")
     }
