@@ -518,11 +518,13 @@ public class K8sClient {
     }
 
     /**
-     * Save logs of the specified pod.
+     * Download logs of the specified pod.
+     *
      * @param fromPod Pod logs to be copied.
-     * @param toFile destination file of the logs.
+     * @param toFile Destination file of the logs.
+     * @return A Future which completes once the download operation completes.
      */
-    public CompletableFuture<Void> saveLogs(final V1Pod fromPod, final String toFile) {
+    public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
         return Futures.delayedFuture(Duration.ofSeconds(15), executor) // start log copy after a delay.
                       .thenRunAsync(() -> {
