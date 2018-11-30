@@ -337,7 +337,7 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_
  Znode under which Stream configuration is serialized and persisted. A
  Stream configuration contains Stream policies that need to be
  enforced.
- Scaling policy and Retention policy are supplied by the application at
+ [Scaling policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/ScalingPolicy.java) and [Retention policy](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/Stream/RetentionPolicy.java) are supplied by the application at
  the time of Stream creation and enforced by Controller by monitoring
  the rate and size of data in the Stream.
 
@@ -393,12 +393,6 @@ Once the Stream Segments are sealed, controller needs to store additional inform
  3. Successor queries are performed on a single Stream Segment whereas truncation workflows work on a group of Stream Segments.
 
  This ensures that during truncation we are able to retrieve sealed sizes for multiple Stream Segments with minimal number of calls into underlying metadata store. Since we could have arbitrarily large number of Stream Segments that have been sealed away, we cannot store all of the information in a single map and hence we shard the map and store it. The sharding function we use is to hash the creation epoch and get the shard number.
-
-#### Sealed Segments Record
- Since the Segment Table is append only, any additional information
- that we need to persist when a Stream Segment is sealed and is stored in sealed
- Stream Segments record. At present, it contains a map of Stream Segment number
- to its sealed size.
 
 The following are the Transaction Related metadata records:
 
@@ -567,7 +561,7 @@ Processor specific Stream and are routed to specific Stream Segments using scope
 
 #### Serial Event Processor
 It essentially reads an Event and initiates its processing and waits on it to complete before moving on to next Event. This provides strong ordering guarantees in processing. And it
-checkpoints after processing each event. Commit Transaction is
+checkpoints after processing each event. [Commit Transaction](#commit-transaction) is
 implemented using this Serial Event Processor. The degree of
 parallelism for processing these Events is upper bounded by the number of
 Stream Segments in the internal Stream and lower bounded by number of Readers.
@@ -585,7 +579,7 @@ Checkpoint scheme here becomes slightly more involved to ensure the guarantee _a
 
 However, with concurrent processing the ordering guarantees get broken. But, it is important to note that only ordering guarantees are needed for processing Events from a Stream and not across Streams. In order to satisfy ordering guarantee, we overlay Concurrent Event processor with **Serialized Request Handler**, which queues up Events from the same Stream in an _in-memory queue_ and processes them in order.
 
-  - **Commit Transaction** processing is implemented on a dedicated Serial Event
+  - [**Commit Transaction**](#commit-transaction) processing is implemented on a dedicated Serial Event
 Processor because strong commit ordering is required by ensuring that
 commit does not interfere with processing of other kinds of requests on
 the Stream.
