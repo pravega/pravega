@@ -26,6 +26,14 @@ import lombok.val;
 
 /**
  * Serializes {@link TableEntry} instances.
+ * The format is:
+ * - Header: Entry Serialization Version (1 byte), the Key Length (4 bytes) and the Value Length (4 bytes). Value length
+ * is negative if this serialization represents a deletion.
+ * - Key: one or more bytes representing the Key.
+ * - Value: zero (if empty or a deletion) or more bytes representing the Value.
+ *
+ * We can't use VersionedSerializer here because in most cases we need to read only key and not the value. VersionedSerializer
+ * requires us to read the whole thing before retrieving anything.
  */
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2; // Version, Key Length, Value Length.
