@@ -47,14 +47,18 @@ public interface TableStore {
      *
      * @return The maximum length of any key, in bytes.
      */
-    int maximumKeyLength();
+    default int maximumKeyLength() {
+        return 8192;
+    }
 
     /**
      * Gets a value indicating the maximum length of any Table Entry Value supported by this TableStore Implementation.
      *
      * @return The maximum length of any value, in bytes.
      */
-    int maximumValueLength();
+    default int maximumValueLength() {
+        return 1040384; // 1MB - maximumKeyLength();
+    }
 
     /**
      * Creates a new Segment and marks it as a Table Segment.

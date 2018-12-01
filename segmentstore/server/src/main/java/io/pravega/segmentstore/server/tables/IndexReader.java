@@ -1,0 +1,158 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.segmentstore.server.tables;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
+
+/**
+ * Provides read-only access to a Hash Array Mapped Tree implementation over Extended Attributes.
+ *
+ * Index Structure:
+ * - The index is organized as a collection of {@link TableBucket} instances.
+ * - Each {@link TableBucket} corresponds to exactly one Key Hash, and may contain one or more entries.
+ * - A Table Key may occur at most once in a {@link TableBucket}.
+ * - Multiple Table Keys in the same {@link TableBucket} are linked by means of Backpointers.
+ * - Both {@link TableBucket}s and Backpointers are stored in the Segment's Extended Attributes, as described below.
+ *
+ * {@link TableBucket} Extended Attribute Implementation:
+ * - The Key Hash (a {@link UUID}) is used as a direct Extended Attribute entry. The {@link KeyHasher}, when generating
+ * this value, resolves any collisions with core attributes or Backpointer attributes.
+ * - The value of this attribute is the Segment Offset of the Table Entry with the highest offset of the {@link TableBucket}.
+ *
+ * Backpointers Extended Attribute Implementation:
+ * - Backpointers are used to resolve collisions for those Table Entries whose Keys have the same Key Hash.
+ * - Backpointers are links from the Offset of a Table Entry to the Offset of a previous Table Entry in the same {@link TableBucket}.
+ * -- They begin from the {@link TableBucket}'s SegmentOffset and are chained up until there are no more Table Entries left.
+ */
+@RequiredArgsConstructor
+class IndexReader {
+    //region Members
+
+    @NonNull
+    protected final ScheduledExecutorService executor;
+
+    //endregion
+
+    //region Index Access Operations
+
+    /**
+     * Gets the offset (from the given {@link SegmentProperties}'s Attributes up to which all Table Entries have been indexed.
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The offset.
+     */
+    long getLastIndexedOffset(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_INDEX_OFFSET, 0L);
+    }
+
+    /**
+     * Locates the {@link TableBucket}s for the given Key Hashes in the given Segment's Extended Attribute Index.
+     *
+     * @param keyHashes A Collection of Key Hashes to look up {@link TableBucket}s for.
+     * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.
+     * @param timer     Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain the requested Bucket information.
+     */
+    CompletableFuture<Map<UUID, TableBucket>> locateBuckets(Collection<UUID> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+        return segment
+                .getAttributes(keyHashes, false, timer.getRemaining())
+                .thenApply(attributes -> attributes.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, e -> new TableBucket(e.getKey(), e.getValue()))));
+    }
+
+    /**
+     * Looks up a Backpointer offset.
+     *
+     * @param offset  The offset to find a backpointer from.
+     * @param segment A DirectSegmentAccess providing access to the Segment to search in.
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the backpointer offset, or -1 if no such pointer exists.
+     */
+    CompletableFuture<Long> getBackpointerOffset(long offset, DirectSegmentAccess segment, Duration timeout) {
+        UUID key = getBackpointerAttributeKey(offset);
+        return segment.getAttributes(Collections.singleton(key), false, timeout)
+                      .thenApply(attributes -> {
+                          long result = attributes.getOrDefault(key, Attributes.NULL_ATTRIBUTE_VALUE);
+                          return result == Attributes.NULL_ATTRIBUTE_VALUE ? -1 : result;
+                      });
+    }
+
+    /**
+     * Gets the offsets for all the Table Entries in the given {@link TableBucket}.
+     *
+     * @param bucket  The {@link TableBucket} to get offsets for.
+     * @param segment A {@link DirectSegmentAccess}
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain a List of offsets, with the first offset being the
+     * {@link TableBucket}'s offset itself, then descending down in the order of backpointers. If the {@link TableBucket}
+     * is partial, then the list will be empty.
+     */
+    @VisibleForTesting
+    CompletableFuture<List<Long>> getBucketOffsets(TableBucket bucket, DirectSegmentAccess segment, TimeoutTimer timer) {
+        val result = new ArrayList<Long>();
+        AtomicLong offset = new AtomicLong(bucket.getSegmentOffset());
+        return Futures.loop(
+                () -> offset.get() >= 0,
+                () -> {
+                    result.add(offset.get());
+                    return getBackpointerOffset(offset.get(), segment, timer.getRemaining());
+                },
+                offset::set,
+                this.executor)
+                      .thenApply(v -> result);
+    }
+
+    /**
+     * Generates a 16-byte UUID that encodes the given Offset as a Backpointer (to some other offset).
+     * Format {0(64)}{Offset}
+     * - MSB is 0
+     * - LSB is Offset.
+     *
+     * @param offset The offset to generate a backpointer from.
+     * @return A UUID representing the Attribute Key.
+     */
+    protected UUID getBackpointerAttributeKey(long offset) {
+        Preconditions.checkArgument(offset >= 0, "offset must be a non-negative number.");
+        return new UUID(TableBucket.BACKPOINTER_PREFIX, offset);
+    }
+
+    /**
+     * Determines if the given Attribute Key is Backpointer.
+     *
+     * @param key The Key to test.
+     * @return True if backpointer, false otherwise.
+     */
+    @VisibleForTesting
+    static boolean isBackpointerAttributeKey(UUID key) {
+        return key.getMostSignificantBits() == TableBucket.BACKPOINTER_PREFIX;
+    }
+
+    //endregion
+}
