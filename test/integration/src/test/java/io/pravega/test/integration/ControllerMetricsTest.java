@@ -11,7 +11,8 @@ package io.pravega.test.integration;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ReaderGroup;
@@ -147,7 +148,9 @@ public class ControllerMetricsTest {
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder()
+                                                                                                       .controllerURI(controllerURI)
+                                                                                                       .build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         streamCount++;
