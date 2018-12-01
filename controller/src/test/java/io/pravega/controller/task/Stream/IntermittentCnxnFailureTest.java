@@ -116,11 +116,11 @@ public class IntermittentCnxnFailureTest {
     @Test
     public void createStreamTest() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // start stream creation in background/asynchronously.
         // the connection to server will fail and should be retried
-        controllerService.createStream(configuration1, System.currentTimeMillis());
+        controllerService.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
 
         // Stream should not have been created and while trying to access any stream metadata
         // we should get illegalStateException

@@ -102,8 +102,6 @@ public class ControllerFailoverTest {
 
         // Create stream
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         streamManager.createStream(SCOPE, STREAM, streamConfiguration);

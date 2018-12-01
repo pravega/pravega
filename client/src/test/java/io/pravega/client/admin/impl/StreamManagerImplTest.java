@@ -105,8 +105,6 @@ public class StreamManagerImplTest {
 
         streamManager.createScope(defaultScope);
         streamManager.createStream(defaultScope, streamName, StreamConfiguration.builder()
-                                                                                .scope(defaultScope)
-                                                                                .streamName(streamName)
                                                                                 .scalingPolicy(ScalingPolicy.fixed(3))
                                                                                 .build());
         // fetch StreamInfo.

@@ -115,11 +115,9 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
         @Cleanup
         Controller controller = Exceptions.handleInterruptedCall(controllerWrapper::getController);
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(scopeName)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(scalingPolicy)
                                                         .build();
-        controller.createStream(config).join();
+        controller.createStream(scopeName, streamName, config).join();
     }
 
     protected void readAndVerify(final EventStreamReader<String> reader, int...eventIds) throws ReinitializationRequiredException {

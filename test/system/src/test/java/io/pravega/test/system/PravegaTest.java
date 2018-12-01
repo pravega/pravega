@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -64,8 +64,6 @@ public class PravegaTest extends AbstractReadWriteTest {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
     private final StreamConfiguration config = StreamConfiguration.builder()
-                                                                  .scope(STREAM_SCOPE)
-                                                                  .streamName(STREAM_NAME)
                                                                   .scalingPolicy(scalingPolicy)
                                                                   .build();
 
@@ -105,7 +103,7 @@ public class PravegaTest extends AbstractReadWriteTest {
                                     .build(), connectionFactory.getInternalExecutor());
 
         assertTrue(controller.createScope(STREAM_SCOPE).join());
-        assertTrue(controller.createStream(config).join());
+        assertTrue(controller.createStream(STREAM_SCOPE, STREAM_NAME, config).join());
     }
 
     /**
@@ -121,7 +119,7 @@ public class PravegaTest extends AbstractReadWriteTest {
         URI controllerUri = ctlURIs.get(0);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,

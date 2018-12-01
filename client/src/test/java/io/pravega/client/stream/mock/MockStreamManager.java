@@ -80,25 +80,21 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         NameUtils.validateUserStreamName(streamName);
         if (config == null) {
             config = StreamConfiguration.builder()
-                                        .scope(scopeName)
-                                        .streamName(streamName)
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
-        return Futures.getAndHandleExceptions(controller.createStream(config), RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.createStream(scopeName, streamName, config), RuntimeException::new);
     }
 
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
-                                        .scope(scopeName)
-                                        .streamName(streamName)
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
 
-        return Futures.getAndHandleExceptions(controller.updateStream(config), RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.updateStream(scopeName, streamName, config), RuntimeException::new);
     }
 
     @Override
@@ -110,7 +106,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Futures.getAndHandleExceptions(controller.createStream(config),
+        Futures.getAndHandleExceptions(controller.createStream(scope, streamName, config),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
@@ -131,8 +127,6 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
-                                   .scope(scope)
-                                   .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),

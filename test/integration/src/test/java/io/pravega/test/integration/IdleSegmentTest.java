@@ -79,8 +79,6 @@ public class IdleSegmentTest {
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName,
                                    StreamConfiguration.builder()
-                                                      .scope(scope)
-                                                      .streamName(streamName)
                                                       .scalingPolicy(ScalingPolicy.fixed(20))
                                                       .build());
         streamManager.createReaderGroup(readerGroup, groupConfig);

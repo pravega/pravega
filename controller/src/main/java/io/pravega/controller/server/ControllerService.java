@@ -88,29 +88,29 @@ public class ControllerService {
         }, executor);
     }
 
-    public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
         try {
-            NameUtils.validateStreamName(streamConfig.getStreamName());
+            NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create stream failed due to invalid stream name {}", streamConfig.getStreamName());
+            log.warn("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
-        return streamMetadataTasks.createStream(streamConfig.getScope(),
-                                                streamConfig.getStreamName(),
+        return streamMetadataTasks.createStream(scope,
+                                                stream,
                                                 streamConfig,
                                                 createTimestamp)
                 .thenApplyAsync(status -> CreateStreamStatus.newBuilder().setStatus(status).build(), executor);
     }
 
-    public CompletableFuture<UpdateStreamStatus> updateStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
-        return streamMetadataTasks.updateStream(
-                streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null)
-                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+        return streamMetadataTasks.updateStream(scope, stream, streamConfig, null)
+                                  .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(),
+                                                  executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> truncateStream(final String scope, final String stream,
@@ -378,7 +378,7 @@ public class ControllerService {
      * @param scope Name of the scope.
      * @return List of streams in scope.
      */
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scope) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         return streamStore.listStreamsInScope(scope);
     }

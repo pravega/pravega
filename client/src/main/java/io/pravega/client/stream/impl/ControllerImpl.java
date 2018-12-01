@@ -258,7 +258,8 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         final long requestId = requestIdGenerator.get();
@@ -266,26 +267,26 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<CreateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<CreateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "createStream");
-            new ControllerClientTagger(client).withTag(requestId, "createStream", streamConfig.getScope(), streamConfig.getStreamName())
-                                              .createStream(ModelHelper.decode(streamConfig), callback);
+            new ControllerClientTagger(client).withTag(requestId, "createStream", scope, streamName)
+                                              .createStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn(requestId, "Failed to create stream: {}", streamConfig.getStreamName());
+                log.warn(requestId, "Failed to create stream: {}", streamName);
                 throw new ControllerFailureException("Failed to create stream: " + streamConfig);
             case INVALID_STREAM_NAME:
-                log.warn(requestId, "Illegal stream name: {}", streamConfig.getStreamName());
+                log.warn(requestId, "Illegal stream name: {}", streamName);
                 throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
             case SCOPE_NOT_FOUND:
-                log.warn(requestId, "Scope not found: {}", streamConfig.getScope());
+                log.warn(requestId, "Scope not found: {}", scope);
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_EXISTS:
-                log.warn(requestId, "Stream already exists: {}", streamConfig.getStreamName());
+                log.warn(requestId, "Stream already exists: {}", streamName);
                 return false;
             case SUCCESS:
-                log.info(requestId, "Stream created successfully: {}", streamConfig.getStreamName());
+                log.info(requestId, "Stream created successfully: {}", streamName);
                 return true;
             case UNRECOGNIZED:
             default:
@@ -301,7 +302,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         final long requestId = requestIdGenerator.get();
@@ -309,23 +310,23 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<UpdateStreamStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<UpdateStreamStatus> callback = new RPCAsyncCallback<>(requestId, "updateStream");
-            new ControllerClientTagger(client).withTag(requestId, "updateStream", streamConfig.getScope(), streamConfig.getStreamName())
-                                              .updateStream(ModelHelper.decode(streamConfig), callback);
+            new ControllerClientTagger(client).withTag(requestId, "updateStream", scope, streamName)
+                                              .updateStream(ModelHelper.decode(scope, streamName, streamConfig), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                log.warn(requestId, "Failed to update stream: {}", streamConfig.getStreamName());
+                log.warn(requestId, "Failed to update stream: {}", streamName);
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);
             case SCOPE_NOT_FOUND:
-                log.warn(requestId, "Scope not found: {}", streamConfig.getScope());
+                log.warn(requestId, "Scope not found: {}", scope);
                 throw new IllegalArgumentException("Scope does not exist: " + streamConfig);
             case STREAM_NOT_FOUND:
-                log.warn(requestId, "Stream does not exist: {}", streamConfig.getStreamName());
+                log.warn(requestId, "Stream does not exist: {}", streamName);
                 throw new IllegalArgumentException("Stream does not exist: " + streamConfig);
             case SUCCESS:
-                log.info(requestId, "Successfully updated stream: {}", streamConfig.getStreamName());
+                log.info(requestId, "Successfully updated stream: {}", streamName);
                 return true;
             case UNRECOGNIZED:
             default:

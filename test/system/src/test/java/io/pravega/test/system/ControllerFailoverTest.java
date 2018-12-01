@@ -176,10 +176,8 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
     private void createStream(Controller controller, String scope, String stream, ScalingPolicy scalingPolicy) {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(stream)
                 .scalingPolicy(scalingPolicy)
                 .build();
-        controller.createStream(config).join();
+        controller.createStream(scope, stream, config).join();
     }
 }

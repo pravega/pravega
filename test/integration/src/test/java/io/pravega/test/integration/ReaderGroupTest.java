@@ -9,22 +9,22 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.ClientFactory;
-import io.pravega.client.stream.Stream;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -42,7 +42,7 @@ public class ReaderGroupTest {
         private static final int READ_TIMEOUT = 60000;
         private final int eventsToRead;
         private final String readerId;
-        private final ClientFactory clientFactory;
+        private final EventStreamClientFactory clientFactory;
         private final AtomicReference<Exception> exception = new AtomicReference<>(null);
 
         @Override
@@ -82,8 +82,6 @@ public class ReaderGroupTest {
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, servicePort);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
-                                                                   .scope(SCOPE)
-                                                                   .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
         @Cleanup
@@ -129,8 +127,6 @@ public class ReaderGroupTest {
         MockStreamManager streamManager = new MockStreamManager(SCOPE, endpoint, servicePort);
         streamManager.createScope(SCOPE);
         streamManager.createStream(SCOPE, STREAM_NAME, StreamConfiguration.builder()
-                                                                   .scope(SCOPE)
-                                                                   .streamName(STREAM_NAME)
                                                                    .scalingPolicy(ScalingPolicy.fixed(2))
                                                                    .build());
         @Cleanup
@@ -147,7 +143,7 @@ public class ReaderGroupTest {
         streamManager.deleteReaderGroup(READER_GROUP);
     }
     
-    public void writeEvents(int eventsToWrite, ClientFactory clientFactory) {
+    public void writeEvents(int eventsToWrite, EventStreamClientFactory clientFactory) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME,
                                                                            new JavaSerializer<>(),

@@ -68,7 +68,7 @@ public abstract class StreamTestBase {
         createScope("scope");
 
         PersistentStreamBase stream = getStream(scope, name, chunkSize, shardSize);
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(name)
+        StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(numOfSegments)).build();
         stream.create(config, time, startingSegmentNumber)
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();

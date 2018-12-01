@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.rest.v1;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.RetentionPolicy;
@@ -45,7 +46,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -107,8 +110,6 @@ public class StreamMetaDataTests {
     private final StreamProperty streamResponseExpected2 = new StreamProperty();
     private final StreamProperty streamResponseExpected3 = new StreamProperty();
     private final StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-            .scope(scope1)
-            .streamName(stream1)
             .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
             .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(123L)))
             .build();
@@ -226,7 +227,7 @@ public class StreamMetaDataTests {
         String streamResourceURI = getURI() + "v1/scopes/" + scope1 + "/streams";
 
         // Test to create a stream which doesn't exist
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus);
         Response response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
         assertEquals("Create Stream Status", 201, response.getStatus());
         StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
@@ -234,7 +235,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to create a stream which doesn't exist and has no Retention Policy set.
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest4)).invoke();
         assertEquals("Create Stream Status", 201, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
@@ -244,13 +245,13 @@ public class StreamMetaDataTests {
         // Test to create a stream with internal stream name
         final CreateStreamRequest streamRequest = new CreateStreamRequest();
         streamRequest.setStreamName(NameUtils.getInternalNameForStream("stream"));
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus2);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(streamRequest)).invoke();
         assertEquals("Create Stream Status", 400, response.getStatus());
         response.close();
 
         // Test to create a stream which doesn't exist and have Scaling Policy FIXED_NUM_SEGMENTS
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest5)).invoke();
         assertEquals("Create Stream Status", 201, response.getStatus());
         streamResponseActual = response.readEntity(StreamProperty.class);
@@ -258,13 +259,13 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to create a stream that already exists
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus2);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus2);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest)).invoke();
         assertEquals("Create Stream Status", 409, response.getStatus());
         response.close();
 
         // Test for validation of create stream request object
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus3);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus3);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest2)).invoke();
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
@@ -272,7 +273,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test create stream for non-existent scope
-        when(mockControllerService.createStream(any(), anyLong())).thenReturn(createStreamStatus4);
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus4);
         response = addAuthHeaders(client.target(streamResourceURI).request()).buildPost(Entity.json(createStreamRequest3)).invoke();
         assertEquals("Create Stream Status for non-existent scope", 404, response.getStatus());
         response.close();
@@ -289,7 +290,7 @@ public class StreamMetaDataTests {
         String resourceURI = getURI() + "v1/scopes/" + scope1 + "/streams/" + stream1;
 
         // Test to update an existing stream
-        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus);
+        when(mockControllerService.updateStream(any(), any(), any())).thenReturn(updateStreamStatus);
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest)).invoke();
         assertEquals("Update Stream Status", 200, response.getStatus());
         StreamProperty streamResponseActual = response.readEntity(StreamProperty.class);
@@ -304,13 +305,13 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to update an non-existing stream
-        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus2);
+        when(mockControllerService.updateStream(any(), any(), any())).thenReturn(updateStreamStatus2);
         response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest2)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
         response.close();
 
         // Test for validation of request object
-        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus3);
+        when(mockControllerService.updateStream(any(), any(), any())).thenReturn(updateStreamStatus3);
         response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest3)).invoke();
         // TODO: Server should be returning 400 here, change this once issue
         // https://github.com/pravega/pravega/issues/531 is fixed.
@@ -318,7 +319,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to update stream for non-existent scope
-        when(mockControllerService.updateStream(any())).thenReturn(updateStreamStatus4);
+        when(mockControllerService.updateStream(any(), any(), any())).thenReturn(updateStreamStatus4);
         response = addAuthHeaders(client.target(resourceURI).request()).buildPut(Entity.json(updateStreamRequest)).invoke();
         assertEquals("Update Stream Status", 404, response.getStatus());
         response.close();
@@ -550,21 +551,17 @@ public class StreamMetaDataTests {
         final String resourceURI = getURI() + "v1/scopes/scope1/streams";
 
         final StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         final StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 2))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofMillis(123L)))
                 .build();
 
         // Test to list streams.
-        List<StreamConfiguration> streamsList = Arrays.asList(streamConfiguration1, streamConfiguration2);
+        Map<String, StreamConfiguration> streamsList = ImmutableMap.of(stream1, streamConfiguration1, stream2, streamConfiguration2);
 
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -577,7 +574,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test for list streams for invalid scope.
-        final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
+        final CompletableFuture<Map<String, StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
         completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -585,7 +582,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test for list streams failure.
-        final CompletableFuture<List<StreamConfiguration>> completableFuture = new CompletableFuture<>();
+        final CompletableFuture<Map<String, StreamConfiguration>> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(new Exception());
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -594,12 +591,10 @@ public class StreamMetaDataTests {
 
         // Test for filtering streams.
         final StreamConfiguration streamConfiguration3 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(NameUtils.getInternalNameForStream("stream3"))
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        List<StreamConfiguration> allStreamsList = Arrays.asList(streamConfiguration1, streamConfiguration2,
-                streamConfiguration3);
+        Map<String, StreamConfiguration> allStreamsList = ImmutableMap.of(stream1, streamConfiguration1, stream2, streamConfiguration2,
+                                                                   NameUtils.getInternalNameForStream("stream3"), streamConfiguration3);
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
                 CompletableFuture.completedFuture(allStreamsList));
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -621,7 +616,10 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to list large number of streams.
-        streamsList = Collections.nCopies(50000, streamConfiguration1);
+        streamsList = new HashMap<>();
+        for (int i = 0; i < 50000; i++) {
+            streamsList.put("stream" + i, streamConfiguration1);
+        }
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(CompletableFuture.completedFuture(streamsList));
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Streams response code", 200, response.getStatus());
@@ -793,30 +791,23 @@ public class StreamMetaDataTests {
         final String resourceURI = getURI() + "v1/scopes/scope1/readergroups";
 
         final StreamConfiguration streamconf1 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         final StreamConfiguration streamconf2 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(stream2)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         final StreamConfiguration readerGroup1 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(getStreamForReaderGroup("readerGroup1"))
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         final StreamConfiguration readerGroup2 = StreamConfiguration.builder()
-                .scope(scope1)
-                .streamName(getStreamForReaderGroup("readerGroup2"))
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
 
         // Fetch reader groups list.
-        List<StreamConfiguration> streamsList = Arrays.asList(streamconf1, streamconf2, readerGroup1, readerGroup2);
-        when(mockControllerService.listStreamsInScope(scope1)).thenReturn(CompletableFuture.completedFuture(
-                streamsList));
+        Map<String, StreamConfiguration> streamsList = ImmutableMap.of(stream1, streamconf1, stream2, streamconf2,
+                                                                       getStreamForReaderGroup("readerGroup1"), readerGroup1,
+                                                                       getStreamForReaderGroup("readerGroup2"), readerGroup2);
+        when(mockControllerService.listStreamsInScope(scope1)).thenReturn(CompletableFuture.completedFuture(     streamsList));
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Reader Groups response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
@@ -829,7 +820,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test for list reader groups for non-existing scope.
-        final CompletableFuture<List<StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
+        final CompletableFuture<Map<String, StreamConfiguration>> completableFuture1 = new CompletableFuture<>();
         completableFuture1.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope1"));
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture1);
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -837,7 +828,7 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test for list reader groups failure.
-        final CompletableFuture<List<StreamConfiguration>> completableFuture = new CompletableFuture<>();
+        final CompletableFuture<Map<String, StreamConfiguration>> completableFuture = new CompletableFuture<>();
         completableFuture.completeExceptionally(new Exception());
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(completableFuture);
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
@@ -845,7 +836,10 @@ public class StreamMetaDataTests {
         response.close();
 
         // Test to list large number of reader groups.
-        streamsList = Collections.nCopies(50000, readerGroup1);
+        streamsList = new HashMap<>();
+        for (int i = 0; i < 50000; i++) {
+            streamsList.put(getStreamForReaderGroup("readerGroup" + i), readerGroup1);
+        }
         when(mockControllerService.listStreamsInScope("scope1")).thenReturn(
                 CompletableFuture.completedFuture(streamsList));
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
