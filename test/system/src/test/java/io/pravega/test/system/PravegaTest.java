@@ -135,6 +135,7 @@ public class PravegaTest extends AbstractReadWriteTest {
         log.info("Invoking Reader test.");
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                                                                       READER_GROUP,
                                                                       new JavaSerializer<>(),
@@ -156,7 +157,6 @@ public class PravegaTest extends AbstractReadWriteTest {
             // try reading until all the written events are read, else the test will timeout.
         } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
         assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
-        reader.close();
         groupManager.deleteReaderGroup(READER_GROUP);
     }
 }
