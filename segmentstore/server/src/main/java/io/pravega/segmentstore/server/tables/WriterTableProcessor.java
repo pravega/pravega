@@ -81,7 +81,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableProcessor[%d-%d]", this.connector.getMetadata().getContainerId(), this.connector.getMetadata().getId());
-
     }
 
     //endregion

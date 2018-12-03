@@ -22,7 +22,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertMayThrow;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 
 /**
  * Common Unit tests for FileSystemStorage and ExtendedS3Storage.
@@ -92,12 +92,12 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
             // Invalid handle.
             val readOnlyHandle = s.openRead(segmentName).join();
-            assertThrows(
+            assertSuppliedFutureThrows(
                     "write() did not throw for read-only handle.",
                     () -> s.write(readOnlyHandle, 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof IllegalArgumentException);
 
-            assertThrows(
+            assertSuppliedFutureThrows(
                     "write() did not throw for handle pointing to inexistent segment.",
                     () -> s.write(createInexistentSegmentHandle(s, false), 0, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
@@ -113,13 +113,13 @@ public abstract class IdempotentStorageTestBase extends StorageTestBase {
 
             // Check bad offset.
             final long finalOffset = offset;
-            assertThrows("write() did not throw bad offset write (larger).",
+            assertSuppliedFutureThrows("write() did not throw bad offset write (larger).",
                     () -> s.write(writeHandle, finalOffset + 1, new ByteArrayInputStream("h".getBytes()), 1, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
 
             // Check post-delete write.
             s.delete(writeHandle, TIMEOUT).join();
-            assertThrows("write() did not throw for a deleted StreamSegment.",
+            assertSuppliedFutureThrows("write() did not throw for a deleted StreamSegment.",
                     () -> s.write(writeHandle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
         }

@@ -150,7 +150,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext();
         context.storage.createHandler = (name, policy) -> Futures.failedFuture(new IntentionalException());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "createNewStreamSegment did not fail when random exception was thrown.",
                 () -> context.mapper.createNewStreamSegment(segmentName, null, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
@@ -176,7 +176,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         val segmentState = context.stateStore.get(segmentName, TIMEOUT).join();
         Map<UUID, Long> expectedAttributes = segmentState == null ? null : segmentState.getAttributes();
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getStreamSegmentInfo did not throw correct exception when segment does not exist in Metadata or Storage.",
                 () -> context.mapper.getStreamSegmentInfo(segmentName, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -207,7 +207,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // Segment exists in Metadata, but is marked as deleted.
         sm.markDeleted();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getStreamSegmentInfo did not throw correct exception when segment is marked as Deleted in metadata.",
                 () -> context.mapper.getStreamSegmentInfo(segmentName, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -343,7 +343,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         for (String name : storageSegments) {
             context.mapper.getOrAssignStreamSegmentId(name, TIMEOUT).join();
             context.metadata.deleteStreamSegment(name);
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertSuppliedFutureThrows(
                     "getOrAssignStreamSegmentId did not return appropriate exception when the segment has been deleted.",
                     () -> context.mapper.getOrAssignStreamSegmentId(name, TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
@@ -367,14 +367,14 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 1. Unable to access storage.
         context.storage.getInfoHandler = sn -> Futures.failedFuture(new IntentionalException());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception when the Storage access failed.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
 
         // 2. StreamSegmentNotExists
         setupStorageGetHandler(context, storageSegments, sn -> StreamSegmentInformation.builder().name(sn).build());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a non-existent StreamSegment.",
                 () -> context.mapper.getOrAssignStreamSegmentId(segmentName + "foo", TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -386,7 +386,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         context.storage.getInfoHandler = sn -> CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(sn).build());
         testStateStore.getHandler = () -> Futures.failedFuture(new IntentionalException("intentional"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getOrAssignStreamSegmentId did not throw the right exception for a Segment when attributes could not be retrieved.",
                 () -> badMapper.getOrAssignStreamSegmentId(segmentName2, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
@@ -416,7 +416,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
             return CompletableFuture.completedFuture(null);
         };
         val mapper1 = new StreamSegmentMapper(context.metadata, context.operationLog, context.stateStore, noOpCleanup, context.storage, executorService());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected outcome when trying to map a segment to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(storageSegments.get(0), TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
@@ -426,7 +426,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
         // Now with a Segment 3.
         exceptionCounter.set(0);
         cleanupInvoked.set(false);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected outcome when trying to map a Segment to a full metadata that cannot be cleaned.",
                 () -> mapper1.getOrAssignStreamSegmentId(storageSegments.get(2), TIMEOUT),
                 ex -> ex instanceof TooManyActiveSegmentsException && ((TooManyActiveSegmentsException) ex).getContainerId() == exceptionCounter.get());
@@ -560,7 +560,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
 
         // 1. Segment Exists, and so does State File (and it's not corrupted) -> Exception must be bubbled up.
         createSegment.apply(mapper, correctAttributeUpdates).join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "createNewStreamSegment did not fail when Segment already exists.",
                 () -> createSegment.apply(mapper, badAttributeUpdates),
                 ex -> ex instanceof StreamSegmentExistsException);
@@ -586,7 +586,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                 .thenCompose(v -> storage.openWrite(stateSegmentName))
                 .thenCompose(handle -> storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
                 .join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected a DataCorruptionException when reading a corrupted State File.",
                 () -> store.get(segmentName, TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
@@ -602,7 +602,7 @@ public class StreamSegmentMapperTests extends ThreadPooledTestSuite {
                .thenCompose(v -> storage.openWrite(segmentName))
                .thenCompose(handle -> storage.write(handle, 0, new ByteArrayInputStream(new byte[1]), 1, TIMEOUT))
                .join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "createNewStreamSegment did not fail when Segment already exists (non-zero length, missing state file).",
                 () -> createSegment.apply(mapper, correctAttributeUpdates),
                 ex -> ex instanceof StreamSegmentExistsException);

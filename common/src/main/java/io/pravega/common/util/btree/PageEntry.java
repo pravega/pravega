@@ -28,11 +28,30 @@ public class PageEntry {
     /**
      * The Value.
      */
-    @NonNull
     private final ByteArraySegment value;
+
+    /**
+     * Creates a new instance of the PageEntry class with no value assigned.
+     *
+     * @param key The Key.
+     * @return A new PageEntry class.
+     */
+    static PageEntry noValue(ByteArraySegment key) {
+        return new PageEntry(key, null);
+    }
+
+    /**
+     * Determines whether this PageEntry has a value or not.
+     *
+     * @return True if it has a value, false otherwise.
+     */
+    boolean hasValue() {
+        return this.value != null;
+    }
 
     @Override
     public String toString() {
-        return String.format("KeyLength = %s, ValueLength = %s", this.key.getLength(), this.value.getLength());
+        return String.format("KeyLength = %s, ValueLength = %s", this.key.getLength(),
+                this.value == null ? "[NO VALUE]" : this.value.getLength());
     }
 }

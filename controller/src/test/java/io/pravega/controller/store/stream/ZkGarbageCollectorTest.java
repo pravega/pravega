@@ -65,7 +65,7 @@ public class ZkGarbageCollectorTest {
 
         BlockingQueue<CompletableFuture<Void>> queue = new LinkedBlockingQueue<>();
         // A supplier that takes a future from the queue and returns it. 
-        Supplier<CompletableFuture<Void>> gcwork = () -> Exceptions.handleInterrupted(queue::take);
+        Supplier<CompletableFuture<Void>> gcwork = () -> Exceptions.handleInterruptedCall(queue::take);
 
         // create first gc. Wait until it becomes the leader.
         ZKGarbageCollector gc1 = new ZKGarbageCollector(gcName, zkStoreHelper, gcwork, gcPeriod);

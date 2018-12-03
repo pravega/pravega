@@ -10,7 +10,6 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -40,9 +39,9 @@ import org.apache.curator.test.TestingServer;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 1)).build();
+    static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                                 .build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -55,7 +54,7 @@ public class EndToEndAutoScaleDownTest {
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -76,7 +75,7 @@ public class EndToEndAutoScaleDownTest {
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(CONFIG).get();
+            controller.createStream("test", "test", CONFIG).get();
 
             Stream stream = new StreamImpl("test", "test");
             Map<Double, Double> map = new HashMap<>();

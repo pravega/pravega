@@ -153,13 +153,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> merge(@NonNull String targetSegmentName, @NonNull String sourceSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("merge");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<Void> seal(String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("seal");
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -231,14 +231,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(@NonNull String segmentName, IteratorState continuationToken,
                                                                                 Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("keyIterator");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(@NonNull String segmentName, IteratorState continuationToken,
                                                                                     Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        throw new UnsupportedOperationException("entryIterator");
+        throw new UnsupportedOperationException();
     }
 
     //endregion

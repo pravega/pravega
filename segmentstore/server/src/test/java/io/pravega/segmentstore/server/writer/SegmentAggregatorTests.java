@@ -120,7 +120,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         // Check behavior for already-sealed segments (in storage, but not in metadata)
         context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
         context.storage.seal(writeHandle(context.transactionAggregators[1].getMetadata().getName()), TIMEOUT).join();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "initialize() succeeded on a Segment is sealed in Storage but not in the metadata.",
                 () -> context.transactionAggregators[1].initialize(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
@@ -1359,7 +1359,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.dataSource.clearAppendData();
 
         // Call flush() and verify it throws DataCorruptionException.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "flush() did not throw when unable to read data from ReadIndex.",
                 () -> context.segmentAggregator.flush(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
@@ -1586,7 +1586,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.storage.delete(context.storage.openWrite(transactionAggregator.getMetadata().getName()).join(), TIMEOUT).join();
 
         // Verify the first invocation to flush() fails.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected Segment to not exist.",
                 () -> transactionAggregator.flush(TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
@@ -1961,7 +1961,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         if (context.transactionIds.containsKey(metadata.getId()) && metadata.isMerged()) {
             Assert.assertEquals("Unexpected number of attributes in attribute index for merged transaction " + metadata.getId(),
                     0, persistedAttributes.size());
-            AssertExtensions.assertThrows(
+            AssertExtensions.assertFutureThrows(
                     "Merged transaction attribute index still exists.",
                     context.dataSource.persistAttributes(metadata.getId(), Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                     ex -> ex instanceof StreamSegmentNotExistsException);
@@ -1977,7 +1977,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
             Assert.assertEquals("Unexpected number of attributes in attribute index for " + metadata.getId(), extendedAttributeCount, persistedAttributes.size());
             if (metadata.isSealedInStorage()) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertFutureThrows(
                         "Sealed segment attribute index accepted new values.",
                         context.dataSource.persistAttributes(metadata.getId(), Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT),
                         ex -> ex instanceof StreamSegmentSealedException);

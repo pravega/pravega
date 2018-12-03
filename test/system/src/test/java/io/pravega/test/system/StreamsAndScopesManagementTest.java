@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -38,6 +38,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -170,7 +171,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
             if (j % 2 == 0) {
                 log.info("Writing events in stream {}/{}.", scope, stream);
                 @Cleanup
-                ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+                EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
                 writeEvents(clientFactory, stream, NUM_EVENTS);
             }
 

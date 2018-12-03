@@ -213,7 +213,7 @@ public class AppendTest {
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
-        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
         SegmentOutputStreamFactoryImpl segmentClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
@@ -242,7 +242,7 @@ public class AppendTest {
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
-        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
         ConditionalOutputStreamFactoryImpl segmentClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
 

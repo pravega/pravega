@@ -16,7 +16,7 @@ import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -54,7 +54,7 @@ public class AutoScaleProcessor {
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int INITIAL_CAPACITY = 1000;
 
-    private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
+    private final AtomicReference<EventStreamClientFactory> clientFactory = new AtomicReference<>();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final Cache<String, Pair<Long, Long>> cache;
     private final Serializer<AutoScaleEvent> serializer;
@@ -97,7 +97,7 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(AutoScalerConfig configuration, ClientFactory cf,
+    AutoScaleProcessor(AutoScalerConfig configuration, EventStreamClientFactory cf,
                        ScheduledExecutorService maintenanceExecutor) {
         this(configuration, maintenanceExecutor);
         clientFactory.set(cf);
@@ -118,15 +118,15 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        ClientFactory factory = null;
+                        EventStreamClientFactory factory = null;
                         if (configuration.isAuthEnabled()) {
-                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                            factory = EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
                                                 .trustStore(configuration.getTlsCertFile())
                                                 .validateHostName(configuration.isValidateHostName())
                                                 .build());
                         } else {
-                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                            factory = EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
                         }
                         clientFactory.compareAndSet(null, factory);

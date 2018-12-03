@@ -10,7 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -77,7 +77,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
                            Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
-                           ClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
+                           SynchronizerClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
         Preconditions.checkNotNull(synchronizerConfig);
         Preconditions.checkNotNull(initSerializer);
         Preconditions.checkNotNull(updateSerializer);

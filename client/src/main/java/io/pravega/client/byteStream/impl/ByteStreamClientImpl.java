@@ -9,33 +9,49 @@
 package io.pravega.client.byteStream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.byteStream.ByteStreamClient;
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
+import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
+import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
-@RequiredArgsConstructor
-public class ByteStreamClientImpl implements ByteStreamClient {
+@AllArgsConstructor
+@SuppressWarnings("deprecation")
+public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega.client.byteStream.ByteStreamClient {
     @NonNull
     private final String scope;
     @NonNull
     private final Controller controller;
+    @NonNull
+    private final ConnectionFactory connectionFactory;
     @NonNull
     private final SegmentInputStreamFactory inputStreamFactory;
     @NonNull
     private final SegmentOutputStreamFactory outputStreamFactory;
     @NonNull
     private final SegmentMetadataClientFactory metaStreamFactory;
-
+    
+    public ByteStreamClientImpl(String scope, Controller controller, ConnectionFactory connectionFactory) {
+        this.scope = Preconditions.checkNotNull(scope);
+        this.controller = Preconditions.checkNotNull(controller);
+        this.connectionFactory = Preconditions.checkNotNull(connectionFactory);
+        this.inputStreamFactory = new SegmentInputStreamFactoryImpl(controller, connectionFactory);
+        this.outputStreamFactory = new SegmentOutputStreamFactoryImpl(controller, connectionFactory);
+        this.metaStreamFactory = new SegmentMetadataClientFactoryImpl(controller, connectionFactory);
+    }
+    
     @Override
     public ByteStreamReader createByteStreamReader(String streamName) {
         return createByteStreamReaders(new Segment(scope, streamName, 0));
@@ -62,6 +78,12 @@ public class ByteStreamClientImpl implements ByteStreamClient {
                                                                                                                           delegationToken),
                                                                          metaStreamFactory.createSegmentMetadataClient(segment,
                                                                                                                        delegationToken)));
+    }
+
+    @Override
+    public void close() {
+        controller.close();
+        connectionFactory.close();
     }
 
 }

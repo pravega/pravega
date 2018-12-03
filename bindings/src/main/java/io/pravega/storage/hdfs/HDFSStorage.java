@@ -460,6 +460,7 @@ class HDFSStorage implements SyncStorage {
             // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
             this.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.config.getReplication(),
                     this.config.getBlockSize(), null).close();
+            HDFSMetrics.CREATE_COUNT.inc();
             log.debug("Created '{}'.", fullPath);
         } catch (IOException e) {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, e);

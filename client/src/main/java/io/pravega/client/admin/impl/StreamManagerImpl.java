@@ -60,9 +60,7 @@ public class StreamManagerImpl implements StreamManager {
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
         log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         NameUtils.validateUserStreamName(streamName);
-        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                        .scope(scopeName)
-                        .streamName(streamName)
+        return Futures.getAndHandleExceptions(controller.createStream(scopeName, streamName, StreamConfiguration.builder()
                         .scalingPolicy(config.getScalingPolicy())
                         .retentionPolicy(config.getRetentionPolicy())
                         .build()),
@@ -72,9 +70,7 @@ public class StreamManagerImpl implements StreamManager {
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
-        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                        .scope(scopeName)
-                        .streamName(streamName)
+        return Futures.getAndHandleExceptions(controller.updateStream(scopeName, streamName, StreamConfiguration.builder()
                         .scalingPolicy(config.getScalingPolicy())
                         .retentionPolicy(config.getRetentionPolicy())
                         .build()),
@@ -123,7 +119,7 @@ public class StreamManagerImpl implements StreamManager {
 
     /**
      * Fetch the {@link StreamInfo} for a given stream.
-     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)}
+     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.BatchClientFactory#getStreamInfo(Stream)}
      * is removed.
      *
      * @param stream The Stream.

@@ -83,7 +83,8 @@ class StatsProviderImpl implements StatsProvider {
         if (conf.isEnableStatsdReporter()) {
             log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
             reporters.add(StatsDReporter.forRegistry(getMetrics())
-                          .build(conf.getStatsDHost(), conf.getStatsDPort()));
+                                        .prefixedWith(conf.getMetricsPrefix())
+                                        .build(conf.getStatsDHost(), conf.getStatsDPort()));
         }
         if (conf.isEnableGraphiteReporter()) {
             log.info("Configuring stats with graphite at {}:{}", conf.getGraphiteHost(), conf.getGraphitePort());

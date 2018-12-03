@@ -10,6 +10,7 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.batch.impl.StreamSegmentsInfoImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
@@ -19,19 +20,19 @@ import java.util.Iterator;
 public interface StreamSegmentsIterator {
 
     /**
-     * This returns an iterator for {@link SegmentRange} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
+     * This returns an iterator for {@link SegmentRange} specified in {@link BatchClientFactory#getSegments(Stream, StreamCut, StreamCut)}.
      * @return Iterator for {@link SegmentRange}
      */
     Iterator<SegmentRange> getIterator();
 
     /**
-     * This returns the start {@link StreamCut} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
+     * This returns the start {@link StreamCut} specified in {@link BatchClientFactory#getSegments(Stream, StreamCut, StreamCut)}.
      * @return Start {@link StreamCut}
      */
     StreamCut getStartStreamCut();
 
     /**
-     * This returns the end {@link StreamCut} specified in {@link BatchClient#getSegments(Stream, StreamCut, StreamCut)}.
+     * This returns the end {@link StreamCut} specified in {@link BatchClientFactory#getSegments(Stream, StreamCut, StreamCut)}.
      * @return End {@link StreamCut}
      */
     StreamCut getEndStreamCut();

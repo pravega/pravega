@@ -98,18 +98,18 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> createStream(StreamConfiguration streamConfig) {
-        Stream stream = new StreamImpl(streamConfig.getScope(), streamConfig.getStreamName());
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
+        Stream stream = new StreamImpl(scope, streamName);
         if (createdStreams.get(stream) != null) {
             return CompletableFuture.completedFuture(false);
         }
 
-        if (createdScopes.get(streamConfig.getScope()) == null) {
+        if (createdScopes.get(scope) == null) {
             return Futures.failedFuture(new IllegalArgumentException("Scope does not exit."));
         }
 
         createdStreams.put(stream, streamConfig);
-        createdScopes.get(streamConfig.getScope()).add(stream);
+        createdScopes.get(scope).add(stream);
         for (Segment segment : getSegmentsForStream(stream)) {
             createSegment(segment.getScopedName());
         }
@@ -126,13 +126,13 @@ public class MockController implements Controller {
         }
         List<Segment> result = new ArrayList<>(scalingPolicy.getMinNumSegments());
         for (int i = 0; i < scalingPolicy.getMinNumSegments(); i++) {
-            result.add(new Segment(config.getScope(), config.getStreamName(), i));
+            result.add(new Segment(stream.getScope(), stream.getStreamName(), i));
         }
         return result;
     }
 
     @Override
-    public CompletableFuture<Boolean> updateStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> updateStream(String scope, String streamName, StreamConfiguration streamConfig) {
         throw new UnsupportedOperationException();
     }
 

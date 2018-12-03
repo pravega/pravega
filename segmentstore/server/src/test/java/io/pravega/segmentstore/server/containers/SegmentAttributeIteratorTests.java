@@ -88,7 +88,7 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
         UUID fromId = testData.sortedAttributeIds.get(0);
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getNext() did not throw when iterators returned data out of order.",
                 () -> iterator.forEachRemaining(CompletableFuture::completedFuture, executorService()),
                 ex -> ex instanceof IllegalArgumentException);
@@ -112,7 +112,7 @@ public class SegmentAttributeIteratorTests extends ThreadPooledTestSuite {
         UUID fromId = testData.sortedAttributeIds.get(1);
         UUID toId = testData.sortedAttributeIds.get(testData.sortedAttributeIds.size() - 1);
         val iterator = new SegmentAttributeIterator(testData.getAttributeIterator(fromId, toId), testData.segmentMetadata, fromId, toId);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "getNext() did not throw when iterators returned data out of range.",
                 () -> iterator.forEachRemaining(CompletableFuture::completedFuture, executorService()),
                 ex -> ex instanceof IllegalArgumentException);

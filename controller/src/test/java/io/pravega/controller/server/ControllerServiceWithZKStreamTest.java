@@ -138,14 +138,14 @@ public class ControllerServiceWithZKStreamTest {
     public void getSegmentsImmediatelyFollowingTest() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+                .scalingPolicy(policy1).build();
         //Start time  when stream is created.
         long start = System.currentTimeMillis();
 
         // Create stream and scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM, configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Controller.SegmentRange> currentSegments = consumer.getCurrentSegments(SCOPE, STREAM).get();
@@ -180,14 +180,14 @@ public class ControllerServiceWithZKStreamTest {
     public void streamCutTests() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+                .scalingPolicy(policy1).build();
         //Start time  when stream is created.
         long start = System.currentTimeMillis();
 
         // Create stream and scope
         Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
         assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
-        Controller.CreateStreamStatus streamStatus = consumer.createStream(configuration1, start).get();
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, STREAM, configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
         List<Long> segments = new ArrayList<>();
@@ -324,12 +324,12 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut023).putAllTo(streamCut01).build();
-        AssertExtensions.assertThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
 
         rangeBuilder = Controller.StreamCutRange.newBuilder().setStreamInfo(
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         streamCutRange = rangeBuilder.putAllFrom(streamCut56).putAllTo(streamCut023).build();
-        AssertExtensions.assertThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
+        AssertExtensions.assertFutureThrows("to before from", consumer.getSegmentsBetweenStreamCuts(streamCutRange), e -> e instanceof IllegalArgumentException);
     }
 
     private void testEmptyTo(Map<Long, Long> streamCut01, Map<Long, Long> streamCut023, Map<Long, Long> streamCut423,

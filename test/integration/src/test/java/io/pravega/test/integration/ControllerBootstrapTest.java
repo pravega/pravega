@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.common.Exceptions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -90,11 +91,9 @@ public class ControllerBootstrapTest {
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        CompletableFuture<Boolean> streamStatus = controller.createStream(streamConfiguration);
+        CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
         // Create transaction should fail.
@@ -104,7 +103,7 @@ public class ControllerBootstrapTest {
             txIdFuture.join();
             Assert.fail();
         } catch (CompletionException ce) {
-            Assert.assertEquals(IllegalStateException.class, ce.getCause().getClass());
+            Assert.assertEquals(IllegalStateException.class, Exceptions.unwrap(ce).getClass());
             Assert.assertTrue("Expected failure", true);
         }
 

@@ -50,7 +50,8 @@ public class BitConverterTests {
         test(BitConverter::writeUnsignedLong, BitConverter::readUnsignedLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
     }
 
-    private <T> void test(Write<T> write, Read<T> read, T... testValues) {
+    @SafeVarargs
+    private final <T> void test(Write<T> write, Read<T> read, T... testValues) {
         byte[] buffer = new byte[MAX_LENGTH];
         for (T value : testValues) {
             int length = write.apply(buffer, 0, value);

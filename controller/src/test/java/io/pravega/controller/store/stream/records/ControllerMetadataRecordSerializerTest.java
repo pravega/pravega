@@ -156,27 +156,43 @@ public class ControllerMetadataRecordSerializerTest {
 
     @Test
     public void configurationRecordTest() throws IOException {
-        StreamConfiguration withScalingAndRetention = StreamConfiguration.builder().streamName("a").scope("a")
-                                                                         .scalingPolicy(ScalingPolicy.fixed(1)).retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
-        StreamConfiguration withScalingOnly = StreamConfiguration.builder().streamName("a").scope("a")
-                                                                 .retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
-        StreamConfiguration withRetentiononly = StreamConfiguration.builder().streamName("a").scope("a")
-                                                                   .retentionPolicy(RetentionPolicy.bySizeBytes(1L)).build();
+        StreamConfiguration withScalingAndRetention = StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                         .retentionPolicy(RetentionPolicy.bySizeBytes(1L))
+                                                                         .build();
+        StreamConfiguration withScalingOnly = StreamConfiguration.builder()
+                                                                 .retentionPolicy(RetentionPolicy.bySizeBytes(1L))
+                                                                 .build();
+        StreamConfiguration withRetentiononly = StreamConfiguration.builder()
+                                                                   .retentionPolicy(RetentionPolicy.bySizeBytes(1L))
+                                                                   .build();
 
-        StreamConfigurationRecord record = StreamConfigurationRecord.builder().streamConfiguration(withScalingAndRetention)
-                                                                    .updating(true).build();
+        StreamConfigurationRecord record = StreamConfigurationRecord.builder()
+                                                                    .streamConfiguration(withScalingAndRetention)
+                                                                    .streamName("a")
+                                                                    .scope("a")
+                                                                    .updating(true)
+                                                                    .build();
         byte[] serialized = record.toBytes();
         StreamConfigurationRecord deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
 
-        record = StreamConfigurationRecord.builder().streamConfiguration(withScalingOnly)
-                                          .updating(true).build();
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(withScalingOnly)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
         serialized = record.toBytes();
         deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);
 
-        record = StreamConfigurationRecord.builder().streamConfiguration(withRetentiononly)
-                                          .updating(true).build();
+        record = StreamConfigurationRecord.builder()
+                                          .streamConfiguration(withRetentiononly)
+                                          .streamName("a")
+                                          .scope("a")
+                                          .updating(true)
+                                          .build();
         serialized = record.toBytes();
         deserialized = StreamConfigurationRecord.fromBytes(serialized);
         assertEquals(record, deserialized);

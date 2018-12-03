@@ -105,7 +105,7 @@ public class ControllerEventProcessorTest {
 
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         streamStore.createScope(SCOPE).join();
         long start = System.currentTimeMillis();
         streamStore.createStream(SCOPE, STREAM, configuration1, start, null, executor).join();
@@ -176,9 +176,9 @@ public class ControllerEventProcessorTest {
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
 
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)),
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1)),
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
@@ -211,7 +211,7 @@ public class ControllerEventProcessorTest {
 
         // set some processor name so that the processing gets postponed
         streamStore.createWaitingRequestIfAbsent(SCOPE, STREAM, "test", null, executor).join();
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStore.deleteWaitingRequestConditionally(SCOPE, STREAM, "test1", null, executor).join();
@@ -222,7 +222,7 @@ public class ControllerEventProcessorTest {
         assertNull(streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
         streamStore.setState(SCOPE, STREAM, State.SCALING, null, executor).join();
 
-        AssertExtensions.assertThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         assertEquals(commitEventProcessor.getProcessorName(), streamStore.getWaitingRequestProcessor(SCOPE, STREAM, null, executor).join());
 
@@ -245,7 +245,7 @@ public class ControllerEventProcessorTest {
         assertTrue(Futures.await(streamRequestHandler.processEvent(new AutoScaleEvent(SCOPE, STREAM, 0L,
                 AutoScaleEvent.UP, 0L, 2, true, 0L))));
 
-        AssertExtensions.assertThrows("Operation should be disallowed", streamRequestHandler.processEvent(
+        AssertExtensions.assertFutureThrows("Operation should be disallowed", streamRequestHandler.processEvent(
                 new ScaleOpEvent(SCOPE, STREAM, Collections.emptyList(), Collections.emptyList(), false, 0L, 0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 

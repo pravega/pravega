@@ -164,7 +164,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         // 1. TABLE_INDEX_OFFSET changes to smaller than first append
         context.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, INITIAL_LAST_INDEXED_OFFSET - 1));
         int attributeCountBefore = context.segmentMock.getAttributeCount();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "flush() worked when TABLE_INDEX_OFFSET decreased.",
                 () -> context.processor.flush(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
@@ -176,7 +176,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         // 2. TABLE_INDEX_OFFSET changes to middle of append.
         context.metadata.updateAttributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, INITIAL_LAST_INDEXED_OFFSET + 1));
         attributeCountBefore = context.segmentMock.getAttributeCount();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "flush() worked when TABLE_INDEX_OFFSET changed to middle of append.",
                 () -> context.processor.flush(TIMEOUT),
                 ex -> ex instanceof DataCorruptionException);
