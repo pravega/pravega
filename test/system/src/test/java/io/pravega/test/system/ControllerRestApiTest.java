@@ -303,10 +303,9 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         log.debug("ReaderGroup properties {}", readerGroupProperty);
         assertEquals("Get readergroup name", readerGroupName1, readerGroupProperty.getReaderGroupName());
         assertEquals("Get readergroup scope name", testScope, readerGroupProperty.getScopeName());
-
         assertEquals("Get readergroup streams size", 2, readerGroupProperty.getStreamList().size());
-        assertTrue(readerGroupProperty.getStreamList().contains(testStream1));
-        assertTrue(readerGroupProperty.getStreamList().contains(testStream2));
+        assertTrue(readerGroupProperty.getStreamList().contains(Stream.of(testScope, testStream1).getScopedName()));
+        assertTrue(readerGroupProperty.getStreamList().contains(Stream.of(testScope, testStream2).getScopedName()));
         assertEquals("Get readergroup onlinereaders size", 2, readerGroupProperty.getOnlineReaderIds().size());
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader1));
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader2));
