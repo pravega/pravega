@@ -16,8 +16,8 @@ You may obtain a copy of the License at
  - [Components](#components)
       - [Segment Containers](#segment-containers)
            - [Segment Container Metatdata](#segment-container-metadata)
-                -[Container Metadata](#container-metadata)
-                -[Segment Metadata](#segment-metadata)
+               - [Container Metadata](#container-metadata)
+               - [Segment Metadata](#segment-metadata)
       - [Log Operations](#log-operations)
       - [Durable Log](#durable-log)
            - [Information Flow](#information-flow-in-the-durable-log)
@@ -30,15 +30,15 @@ You may obtain a copy of the License at
       - [Cache](#cache)
       - [Storage Writer](#storage-writer)
 - [Integration with Controller](#integration-with-controller)
-    -[Segment Container Manager](#segment-container-manager)
-- [Storage Abstraction](#storage-abstraction)
-- [Data Flow](#data-flows)
+    - [Segment Container Manager](#segment-container-manager)
+- [Storage Abstraction](#storage-abstractions)
+- [Data Flow](#data-flow)
     - [Appends](#appends)
     - [Reads](#reads)
     - [Synchronization with Tier 2](#synchronization-with-tier-2-storage-writer)
-    - [Container Startup](#container-startup-normal-recovery)
+    - [Container Startup](#container-startup-normalrecovery)
 
-
+# Introduction
 The Pravega Segment Store Service is a subsystem that lies at the heart of the entire Pravega deployment. It is the main access point for managing **Stream Segments**, providing the ability to _create_, _delete_ and _modify/access_ their contents. The Pravega client communicates with the Pravega Stream Controller to figure out which Stream Segments need to be used (for a Stream), and both the Stream Controller and the client deal with the Segment Store Service to operate on them.
 
 The basic idea behind the Segment Store Service is that it buffers the incoming data in a very fast and durable append-only medium (Tier 1), and syncs it to a high-throughput (but not necessarily low latency) system (Tier 2) in the background, while aggregating multiple (smaller) operations to a Stream Segment into a fewer (but larger) ones.
@@ -137,7 +137,7 @@ A **Log Operation** is the basic unit that is enqueued in the _Durable Log_. It 
 
 Every Log Operation has the following elements:
 
-- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#segment-container-metadata) section.
+- `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#segment-container-metadata)) section.
 
 The following are the various types of Log Operations:
 
