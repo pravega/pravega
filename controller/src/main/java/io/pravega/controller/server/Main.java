@@ -24,6 +24,7 @@ import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,9 +36,12 @@ public class Main {
 
     public static void main(String[] args) {
 
+        StatsProvider statsProvider = null;
         try {
             //0. Initialize metrics provider
             MetricsProvider.initialize(Config.getMetricsConfig());
+            statsProvider = MetricsProvider.getMetricsProvider();
+            statsProvider.start();
 
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
@@ -91,6 +95,10 @@ public class Main {
         } catch (Throwable e) {
             log.error("Controller service failed", e);
             System.exit(-1);
+        } finally {
+            if (statsProvider != null) {
+                statsProvider.close();
+            }
         }
     }
 }
