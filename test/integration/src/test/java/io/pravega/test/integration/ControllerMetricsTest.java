@@ -192,10 +192,10 @@ public class ControllerMetricsTest {
             }
 
             // Check metrics accounting for sealed and deleted streams.
-            log.info("Stream {} sealed: {}", iterationStreamName, streamManager.sealStream(scope, iterationStreamName));
+            streamManager.sealStream(scope, iterationStreamName);
             Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(SEAL_STREAM));
             Assert.assertTrue(i + 1 <= streamSealCounter.getCount());
-            log.info("Stream {} deleted: {}", iterationStreamName, streamManager.deleteStream(scope, iterationStreamName));
+            streamManager.deleteStream(scope, iterationStreamName);
             Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(DELETE_STREAM));
             Assert.assertTrue(i + 1 <= streamDeleteCounter.getCount());
         }
