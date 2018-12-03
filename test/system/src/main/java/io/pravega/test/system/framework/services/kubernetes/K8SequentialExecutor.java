@@ -51,7 +51,6 @@ public class K8SequentialExecutor implements TestExecutor {
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
                      .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                      .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
-                     .thenCompose(v -> client.waitUntilPodIsRunning(NAMESPACE, "POD_NAME", pod.getMetadata().getName(), 1))
                      .thenCompose(v -> {
                          client.downloadLogs(pod, "./build/test-results/" + podName + ".log"); //start background log download.
                          return client.waitUntilPodCompletes(NAMESPACE, podName);

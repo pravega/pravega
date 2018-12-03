@@ -548,19 +548,22 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return CompletableFuture.runAsync(() -> {
-            final String podName = fromPod.getMetadata().getName();
-            log.debug("copy logs from pod {} to file {}", podName, toFile);
-            try {
-                @Cleanup
-                InputStream r = logUtility.streamNamespacedPodLog(fromPod);
-                Files.copy(r, Paths.get(toFile));
-                log.debug("log copy completed for pod {}", podName);
-            } catch (ApiException | IOException e) {
-                log.error("Error while copying files from pod {}.", podName);
-                throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
-            }
-        }, executor);
+        return Retry.withExpBackoff(500, 10, 2)
+                    .retryingOn(TestFrameworkException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runInExecutor(() -> {
+                        final String podName = fromPod.getMetadata().getName();
+                        log.debug("copy logs from pod {} to file {}", podName, toFile);
+                        try {
+                            @Cleanup
+                            InputStream r1 = logUtility.streamNamespacedPodLog(fromPod);
+                            Files.copy(r1, Paths.get(toFile));
+                            log.debug("log copy completed for pod {}", podName);
+                        } catch (ApiException | IOException e) {
+                            log.error("Error while copying files from pod {}.", podName);
+                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
+                        }
+                    }, executor);
     }
 
     /**
