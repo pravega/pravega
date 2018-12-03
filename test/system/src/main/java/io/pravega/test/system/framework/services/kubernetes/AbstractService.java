@@ -52,7 +52,6 @@ public abstract class AbstractService implements Service {
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
     static final int DEFAULT_BOOKIE_COUNT = 3;
-    static final String DEFAULT_IMAGE_PULL_POLICY = "IfNotPresent";
     static final int MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
     static final int ZKPORT = 2181;
 
@@ -69,6 +68,10 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
+    static final String IMAGE_PULL_POLICY = System.getProperty("ImagePullPolicy", "IfNotPresent");
+    private static final String DOCKER_REGISTRY =  System.getProperty("dockerImageRegistry", "");
+    private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
+    private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
 
     final K8sClient k8sClient;
     private final String id;
@@ -104,7 +107,9 @@ public abstract class AbstractService implements Service {
 
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-        final Map<String, Object> bookeeperSpec = ImmutableMap.<String, Object>builder().put("image", getImageSpec("pravega/bookkeeper", "latest"))
+        // use the latest version of bookkeeper.
+        final Map<String, Object> bookeeperSpec = ImmutableMap.<String, Object>builder().put("image",
+                                                                                             getImageSpec(DOCKER_REGISTRY + PREFIX + "/bookkeeper", "latest"))
                                                                                         .put("replicas", bookieCount)
                                                                                         .put("storage", ImmutableMap.builder()
                                                                                                                     .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
@@ -132,7 +137,9 @@ public abstract class AbstractService implements Service {
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
                                                                                       .put("options", options)
-                                                                                      .put("image", getImageSpec("pravega/pravega", "0.4.0-7a9bdb4-SNAPSHOT"))
+                                                                                      .put("image",
+                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/pravega",
+                                                                                                        PRAVEGA_VERSION))
                                                                                       .put("tier2", tier2Spec("pravega-tier2"))
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
@@ -149,7 +156,7 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getImageSpec(String imageName, String tag) {
         return ImmutableMap.<String, Object>builder().put("repository", imageName)
                                                      .put("tag", tag)
-                                                     .put("pullPolicy", DEFAULT_IMAGE_PULL_POLICY)
+                                                     .put("pullPolicy", IMAGE_PULL_POLICY)
                                                      .build();
     }
 
@@ -230,7 +237,7 @@ public abstract class AbstractService implements Service {
                                                         .withImage("adrianmo/pravega-operator:issue-82-1")
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
-                                                        .withImagePullPolicy(DEFAULT_IMAGE_PULL_POLICY)
+                                                        .withImagePullPolicy(IMAGE_PULL_POLICY)
                                                         .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()

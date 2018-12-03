@@ -197,7 +197,7 @@ public class ZookeeperK8sService extends AbstractService {
                                                         .withImage("pravega/zookeeper-operator:latest")
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand("zookeeper-operator")
-                                                        .withImagePullPolicy("Always")
+                                                        .withImagePullPolicy(IMAGE_PULL_POLICY)
                                                         .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()
