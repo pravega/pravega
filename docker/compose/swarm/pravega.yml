@@ -7,7 +7,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-version: '3'
+version: '4'
 services:
   bookkeeper:
     image: pravega/bookkeeper
@@ -49,6 +49,9 @@ services:
         -Dmetrics.enableCSVReporter=false
         -Dpravegaservice.publishedIPAddress=${PUBLISHED_ADDRESS}
         -Dpravegaservice.listeningIPAddress=${LISTENING_ADDRESS}
+        -Dbookkeeper.bkEnsembleSize=2
+	-Dbookkeeper.bkAckQuorumSize=2
+	-Dbookkeeper.bkWriteQuorumSize=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
