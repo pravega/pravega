@@ -84,6 +84,7 @@ public class ControllerMetricsTest {
             MetricsProvider.initialize(MetricsConfig.builder()
                                                     .with(MetricsConfig.ENABLE_STATISTICS, true)
                                                     .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
+                                                    .with(MetricsConfig.DYNAMIC_CACHE_EVICTION_DURATION_MINUTES, 1)
                                                     .build());
             MetricsProvider.getMetricsProvider().start();
         }
