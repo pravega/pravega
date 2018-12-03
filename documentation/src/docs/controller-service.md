@@ -324,7 +324,7 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
  and *sealed*. Once _active_, a Stream transitions between performing a
  specific operation and remanis _active_ until it is sealed. A transition map is
  defined in the
- [State](https://github.com/pravega/pravega/blob/master/Controller/src/main/java/io/pravega/controller/store/stream/State.java)
+ [State](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/store/stream/State.java)
  class which allows and prohibits various state transitions.
  Stream State describes the _current state_ of the Stream. It transitions
  from _active_ to respective action based on the action being performed
