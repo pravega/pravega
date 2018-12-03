@@ -157,6 +157,5 @@ public class PravegaTest extends AbstractReadWriteTest {
             // try reading until all the written events are read, else the test will timeout.
         } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
         assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
-        groupManager.deleteReaderGroup(READER_GROUP);
     }
 }

@@ -348,6 +348,7 @@ public class K8sClient {
                 IllegalStateException ise = (IllegalStateException) e.getCause();
                 if (ise.getMessage() != null && ise.getMessage().contains("Expected a string but was BEGIN_OBJECT")) {
                     log.debug("Ignoring exception", e);
+                    return;
                 }
             }
             throw e;
