@@ -15,7 +15,7 @@ services:
       - "2181:2181"
 
   hdfs:
-    image: dsrw/hdfs:2.7.3-1
+    image: pravega/hdfs:2.7.7
     ports:
       - "2222:2222"
       - "8020:8020"
