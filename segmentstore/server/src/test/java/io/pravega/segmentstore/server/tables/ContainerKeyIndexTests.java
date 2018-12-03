@@ -180,7 +180,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val keyData = generateUnversionedKeys(1, context).get(0).getKey();
 
         // Key not exists, but we conditioned on it existing.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() allowed conditional update on inexistent key conditioned on existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 0L)), noPersist, context.timer),
                 ex -> ex instanceof KeyNotExistsException && keyMatches(((KeyNotExistsException) ex).getKey(), keyData));
@@ -197,13 +197,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 context.timer).join();
 
         // Key exists, but we conditioned on it not existing.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() allowed conditional update on existent key conditioned on not existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, TableKey.NOT_EXISTS)), noPersist, context.timer),
                 ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getExpectedVersions(), keyData));
 
         // Key exists, but we conditioned on the wrong value.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() allowed conditional update on inexistent key conditioned on existing.",
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 123L)), noPersist, context.timer),
                 ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getExpectedVersions(), keyData));
@@ -244,7 +244,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val invalidVersion = validVersion + 1;
 
         // Verify that a bad version won't work.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "update() allowed conditional update with invalid version.",
                 () -> context.index.update(context.segment,
                         toUpdateBatch(hasher, Collections.singletonList(TableKey.versioned(keyToRemove.getKey(), invalidVersion))),
@@ -410,7 +410,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 () -> CompletableFuture.completedFuture(segmentLength + 3L),
                 context.timer);
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1L);
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertFutureThrows(
                 "Blocked request was not cancelled when a segment remove notification was received.",
                 cancelledRequest,
                 ex -> ex instanceof CancellationException);
@@ -424,7 +424,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 () -> CompletableFuture.completedFuture(segmentLength + 4L),
                 context.timer);
         context.index.close();
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertFutureThrows(
                 "Blocked request was not cancelled when a the index was closed.",
                 cancelledRequest2,
                 ex -> ex instanceof ObjectClosedException);
