@@ -9,26 +9,20 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.test.common.TestUtils;
+
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 
-import io.pravega.controller.server.rpc.auth.TestAuthHandler;
-import org.junit.Before;
-
-public class Failing403StreamMetaDataTests extends  FailingSecureStreamMetaDataTests {
-    @Override
-    @Before
-    public void setup() throws Exception {
-        expectedResult = 403;
-        super.setup();
-    }
+public class UserSecureStreamMetaDataTests extends SecureStreamMetaDataTests {
 
     @Override
     protected Invocation.Builder addAuthHeaders(Invocation.Builder request) {
         MultivaluedMap<String, Object> map = new MultivaluedHashMap<>();
-        map.addAll(HttpHeaders.AUTHORIZATION, TestAuthHandler.testAuthToken(TestAuthHandler.DUMMY_USER));
+        map.addAll(HttpHeaders.AUTHORIZATION, TestUtils.basicAuthToken("user1", "1111_aaaa"));
         return request.headers(map);
     }
+
 }
