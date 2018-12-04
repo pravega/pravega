@@ -11,6 +11,7 @@ package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
 import javax.ws.rs.client.Invocation;
@@ -19,17 +20,32 @@ import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import org.junit.Before;
 
+import java.io.File;
+import java.io.FileWriter;
+
 public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
     @Override
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        File file = File.createTempFile("passwd", ".txt");
+
+        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
+
+        try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
+            String passwd = passwordEncryptor.encryptPassword("1111_aaaa");
+            writer.write("admin:" + passwd + ":*,READ_UPDATE\n");
+            writer.write("user1:" + passwd + ":/,READ;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
+            writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
+            writer.close();
+        }
+
         this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
-                                                                      .authorizationEnabled(true)
-                                                                      .tlsCertFile("../config/cert.pem")
-                                                                      .tlsKeyFile("../config/key.pem")
-                                                                      .userPasswordFile("../config/passwd")
-                                                                      .port(1000)
-                                                                      .build());
+                .authorizationEnabled(true)
+                .tlsCertFile("../config/cert.pem")
+                .tlsKeyFile("../config/key.pem")
+                .userPasswordFile(file.getAbsolutePath())
+                .port(1000)
+                .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
         this.authManager.registerInterceptors(server);
         super.setup();
@@ -41,4 +57,5 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
         map.addAll(HttpHeaders.AUTHORIZATION, TestUtils.basicAuthToken("admin", "1111_aaaa"));
         return request.headers(map);
     }
+
 }

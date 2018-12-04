@@ -15,6 +15,7 @@ import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
+
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -28,12 +29,12 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
-public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
+public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     protected int expectedResult = 401;
 
     @Override
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
                                                                       .authorizationEnabled(true)
                                                                       .tlsCertFile("../config/cert.pem")
