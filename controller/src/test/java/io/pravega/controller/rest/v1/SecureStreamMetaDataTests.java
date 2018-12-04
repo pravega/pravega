@@ -40,12 +40,12 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
         }
 
         this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
-                .authorizationEnabled(true)
-                .tlsCertFile("../config/cert.pem")
-                .tlsKeyFile("../config/key.pem")
-                .userPasswordFile(file.getAbsolutePath())
-                .port(1000)
-                .build());
+                                                                      .authorizationEnabled(true)
+                                                                      .tlsCertFile("../config/cert.pem")
+                                                                      .tlsKeyFile("../config/key.pem")
+                                                                      .userPasswordFile(file.getAbsolutePath())
+                                                                      .port(1000)
+                                                                      .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
         this.authManager.registerInterceptors(server);
         super.setup();
