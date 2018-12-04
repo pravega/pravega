@@ -47,9 +47,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
+import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
+import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
+import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
+import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsNames.nameFromStream;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
@@ -75,6 +80,17 @@ public class ControllerMetricsTest {
 
     @Before
     public void setUp() throws Exception {
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
+                                                   .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                                                   .build();
+        metricsConfig.setDynamicCacheEvictionDurationMs(300000);
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.start();
+        log.info("Metrics Stats provider is started");
+
         executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
@@ -92,17 +108,6 @@ public class ControllerMetricsTest {
                 servicePort,
                 containerCount);
         controllerWrapper.awaitRunning();
-
-        MetricsConfig metricsConfig = MetricsConfig.builder()
-                                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
-                                                   .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
-                                                   .build();
-        metricsConfig.setDynamicCacheEvictionDurationMs(300000);
-
-        MetricsProvider.initialize(metricsConfig);
-        statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
-        log.info("Metrics Stats provider is started");
     }
 
     @After
@@ -195,8 +200,8 @@ public class ControllerMetricsTest {
             Assert.assertTrue(i + 1 <= streamDeleteCounter.getCount());
         }
 
-        //checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
-        //checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
+        checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
+        checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
     }
 
     private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {
