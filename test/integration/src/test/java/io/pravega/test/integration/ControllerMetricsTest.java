@@ -47,14 +47,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
-import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
-import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
-import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
-import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsNames.nameFromStream;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
