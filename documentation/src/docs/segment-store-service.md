@@ -99,25 +99,25 @@ Segment Containers are a logical grouping of Segments, and are responsible for a
 - **Storage Writer**: Processes the durable log operations and applies them to Tier 2 Storage (in the order in which they were received). This component is also the one that coalesces multiple operations together, for better back-end throughput.
 
 ### Segment Container Metadata
-The Segment Container Metadata is critical to the good functioning and synchronization of its components. This metadata is shared across all components and it comes at two levels: "Container-wide metadata" and "per-Segment metadata". Each serves a different purpose and described below.
+The Segment Container Metadata is critical to the good functioning and synchronization of its components. This metadata is shared across all components and it comes at two levels: "Container-wide metadata" and "per-Segment metadata". Each serves a different purpose and is described below.
 
 #### Container Metadata
 
 Each **Segment Container** needs to keep some general-purpose metadata that affects all operations inside the container:
 
-- **Operation Sequence Number**: The largest sequence number assigned by the _Durable Log_. Every time a new operation is received and successfully processed by the _Durable Log_, this number is incremented (its value never decreases or otherwise roll back, even if an operation failed to be persisted).
+- **Operation Sequence Number**: The largest sequence number assigned by the _Durable Log_. Every time a new operation is received and successfully processed by the _Durable Log_, this number is incremented (its value never decrease or otherwise roll back, even if an operation failed to be persisted).
     - The operation sequence number is guaranteed to be strict-monotonic increasing (no two operations have the same value, and an operation will always have a larger sequence number than all operations before it).
 - **Epoch**: A number that is incremented every time a successful recovery (Container Start) happens. This value is durably incremented and stored as part of recovery and can be used for a number of cases (a good use is Tier 2 fencing for HDFS, which doesn't provide a good, native mechanism for that).
-- **Active Segment Metadata**: Provides information about each active Stream Segment. A Segment is active if it has had activity (read or write) recently and is currently loaded in memory. If a Stream Segment is idle for a while, or if there are many Stream Segments currently active, a Stream Segment becomes inactive by having its outstanding metadata flushed to Tier 2 Storage and evicted from memory.
+- **Active Segment Metadata**: Keeps information about each active Stream Segment. A Segment is active if it has had activity (read or write) recently and is currently loaded in memory. If a Stream Segment is idle for a while, or if there are many Stream Segments currently active, a Stream Segment becomes inactive by having its outstanding metadata flushed to Tier 2 Storage and evicted from memory.
 - **Tier 1 Metadata**: Various pieces of information that can be used to accurately truncate the Tier 1 Storage Log once all operations prior to that point have been durably stored to Tier 2.
-- **Checkpoints**: Container Metadata is periodically checkpointed by having its entire snapshot (including Active Segments) serialized to Tier 1. A Checkpoint serves as a Truncation Point for Tier 1, as it contains all the updates that have been made to the Container via all the processed operations before it, so we no longer need those operations in order to reconstruct the metadata. If we truncate Tier 1 on a Checkpoint, then we can use information from Tier 2 and this Checkpoint to reconstruct by using the previously available metadata, without relying on any operation prior to it in Tier 1.
+- **Checkpoints**: Container metadata is periodically Checkpointed by having its entire snapshot (including Active Segments) serialized to Tier 1. A Checkpoint serves as a Truncation Point for Tier 1, as it contains all the updates that have been made to the Container via all the processed operations before it, so we no longer need those operations in order to reconstruct the metadata. If we truncate Tier 1 on a Checkpoint, then we can use information from Tier 2 and this Checkpoint to reconstruct by using the previously available metadata, without relying on any operation prior to it in Tier 1.
 
 #### Segment Metadata
 Each Segment Container needs to keep per-segment metadata, which it uses to keep track of the state of each segment as it processes operations for it. The metadata can be volatile (it can be fully rebuilt upon recovery) and contains the following properties for each segment that is currently in use:
 
 - `Name`: The name of the Stream Segment.
 - `Id`: Internally assigned unique Stream Segment ID. This is used to refer to Stream Segments, which is preferred to the Name. This ID is used for the entire lifetime of the Stream Segment, which means that even if the Stream Segment becomes inactive, a future reactivation will have it mapped to the same ID.
-- `StartOffset` (also known as `TruncationOffset`): The lowest offset of the data that is available for reading. A non-truncated Stream Segment will have Start Offset equal to _0_, while subsequent Truncate Operations will increase (but never decreases) this number.
+- `StartOffset` (also known as `TruncationOffset`): The lowest offset of the data that is available for reading. A non-truncated Stream Segment will have Start Offset equal to _0_, while subsequent Truncate operations will increase (but never decreases) this number.
 - `StorageLength`: The highest offset of the data that exists in Tier 2 Storage.
 - `Length`: The highest offset of the committed data in Tier 1 Storage.
 - `LastModified`: The timestamp of the last processed (and acknowledged) append.
@@ -135,11 +135,11 @@ The following are always **true** for any Stream Segment:
 
 A **Log Operation** is the basic unit that is enqueued in the _Durable Log_. It does not represent an action, per se, but is the base for several serializable operations (we can serialize multiple types of operations, not just Appends). Each operation is the result of an external action (which denote the alteration of a Stream Segment), or an internal trigger, such as metadata maintenance operations.
 
-Every Log Operation has the following elements:
+Every Log operation has the following elements:
 
 - `SequenceNumber`: The unique sequence number assigned to this entry (see more under [Container Metadata](#segment-container-metadata)) section.
 
-The following are the various types of Log Operations:
+The following are the various types of Log operations:
 
 - **Storage Operations**: Represent operations that need to be applied to the underlying Tier 2 Storage:
     - `StreamSegmentAppendOperation`: Represents an append to a particular Stream Segment.
@@ -147,7 +147,7 @@ The following are the various types of Log Operations:
     - `StreamSegmentSealOperation`: When processed, it sets a flag in the in-memory metadata that no more appends can be received. When the Storage Writer processes it, it marks the Stream Segment as read-only in Tier 2 Storage.
     - `StreamSegmentTruncateOperation`: Truncates a Stream Segment at a particular offset. This causes the Stream Segment's `StartOffset` to change.
     - `MergeTransactionOperation`: Indicates that a Transaction is to be merged into its parent Stream Segment.
-- **Metadata Operations** are auxiliary operations that indicate a change to the Container Metadata. They can be the result of an external operation (we received an request for a Stream Segment we never knew about before, so we must assign a "unique ID" to it) or to snapshot the entire metadata (which helps with recovery and cleaning up Tier 1 Storage). The purpose of the metadata operations is to reduce the amount of time needed for failover recovery (when needed).
+- **Metadata Operations** are auxiliary operations that indicate a change to the Container metadata. They can be the result of an external operation (we received an request for a Stream Segment we never knew about before, so we must assign a "unique ID" to it) or to snapshot the entire metadata (which helps with recovery and cleaning up Tier 1 Storage). The purpose of the metadata operations is to reduce the amount of time needed for failover recovery (when needed).
     - `StreamSegmentMapOperation`: Maps an ID to a Stream Segment Name.
     - `TransactionMapOperation`: Maps an ID to a Transaction and to its Parent Segment.
     - `UpdateAttributesOperation`: Updates any attributes on a Stream Segment.
@@ -155,7 +155,7 @@ The following are the various types of Log Operations:
 
 ### Durable Log
 
-The _Durable Log_ is the central component that handles all Log Operations. All operations (which are created by the Container) are added to the _Durable Log_, which processes them in the order in which they were received. It is made up of a few other components, all of which are working towards a single goal of processing all incoming operations as quickly as possible, without compromising data integrity.
+The _Durable Log_ is the central component that handles all Log operations. All operations (which are created by the Container) are added to the _Durable Log_, which processes them in the order in which they were received. It is made up of a few other components, all of which are working towards a single goal of processing all incoming operations as quickly as possible, without compromising data integrity.
 
 #### Information Flow in the Durable Log
 
@@ -167,21 +167,21 @@ The _Durable Log_ is the central component that handles all Log Operations. All 
 
       2. _Pre-process_ the operations (validate that they are correct and would not cause undesired behavior, assign offsets (where needed), assign sequence numbers, etc.)
 
-      3. _Write_ the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a _Data Frame_ is complete (full or no more operations to add), the _Data Frame_ Builder sends the _Data Frame_ to the _Durable Data Log_. Note that, an Operation may span multiple _DataFrames_, but the goal is to make best use of the _Durable Data Log_ throughput capacity by making writes as large as possible considering the maximum size limit per write.
+      3. _Write_ the operations to a _Data Frame Builder_, which serializes and packs the operations in _Data Frames_. Once a _Data Frame_ is complete (full or no more operations to add), the _Data Frame_ Builder sends the _Data Frame_ to the _Durable Data Log_. Note that, an operation may span multiple _DataFrames_, but the goal is to make best use of the _Durable Data Log_ throughput capacity by making writes as large as possible considering the maximum size limit per write.
 
 4. When a _Data Frame_ has been durably persisted in the _Durable Data Log_, the operation Processor post-processes all operations that were fully written so far. It adds them to in-memory structures, updates indices, etc., and completes the Futures associated with them.
 
 5. The _Operation Processor_ works asynchronously, by not waiting for a particular _Data Frame_ to be written before starting another one and sending it to the _Durable Data Log_. Likewise, multiple _Data Frames_ may be in flight by maintaining a specific order. The operation Processor relies on certain ordering guarantees from the _Durable Data Log_, if a particular _Data Frame_ was acked, it assures that all the prior _Data Frames_ to it were also committed successfully, in the right order.  
 
-**Note:** The Operation Processor does not do any write throttling. It leaves that to the _Durable Data Log_ implementation, but it control the size of the Data Frames that get sent to it.
+**Note:** The operation Processor does not do any write throttling. It leaves that to the _Durable Data Log_ implementation, but it control the size of the Data Frames that get sent to it.
 
 #### Truncation
-Based on supplied configuration, the _Durable Log_ auto-adds a special kind of operation, named `MetadataCheckpointOperation`. This operation, when processed by the operation Processor, collects a snapshot of the entire Container Metadata and serializes it to the _Durable Data Log_. This special operation marks a **Truncation Point** - a place in the Stream of Log Operations where we can issue Truncate operations. It is very important that after every truncation, the first operation to be found in the log is a `MetadataCheckpointOperation`, because without the prior operations to reconstruct metadata, this is the only way to be able to process subsequent operations.
+Based on supplied configuration, the _Durable Log_ auto-adds a special kind of operation, named `MetadataCheckpointOperation`. This operation, when processed by the operation Processor, collects a snapshot of the entire Container metadata and serializes it to the _Durable Data Log_. This special operation marks a **Truncation Point** - a place in the Stream of Log operations where we can issue Truncate operations. It is very important that after every truncation, the first operation to be found in the log is a `MetadataCheckpointOperation`, because without the prior operations to reconstruct metadata, this is the only way to be able to process subsequent operations.
 
 **Note:** _Durable Data Log_ (Tier 1) truncation should not be confused with Segment Truncation. They serve different purposes and are applied to different targets.
 
 #### Operation Processor
-The _Operation Processor_ is a sub-component of the _Durable Log_ that deals with incoming Log Operations. Its purpose is to _validate, persist_, and _update_ metadata and other internal structures based on the contents of each operation.
+The _Operation Processor_ is a sub-component of the _Durable Log_ that deals with incoming Log operations. Its purpose is to _validate, persist_, and _update_ metadata and other internal structures based on the contents of each operation.
 
 #### Operation Metadata Updater
 The _Operation Metadata Updater_ is a sub-component of the _Durable Log_ that is responsible with validating operations based on the current state of the metadata, as well as update the metadata after a successful commit of an operation. Internally it has various mechanisms to handle failures, and it can rollback certain changes in failure situations.
@@ -189,12 +189,12 @@ The _Operation Metadata Updater_ is a sub-component of the _Durable Log_ that is
 #### Durable Data Log
 The _Durable Data Log_ is an abstraction layer to an external component that provides append-only semantics. It is supposed to be a system which provides very fast appends to a log, that guarantees the durability and consistency of the written data. The read performance is not so much a factor, because we do not read directly from this component. Read is performed on it when we need to recover the contents of the _Durable Log_.
 
-As explained above, Log Operations are serialized into _Data Frames_ (with a single operation able to span multiple such Frames if needed), and these _Data Frames_ are then serialized as entries into this _Durable Data Log_. This is used only as a fail-safe, and we only need to read these Frames back if we need to perform recovery (in which case we need to deserialize all Log Operations contained in them, in the same order in which they were received).
+As explained above, Log operations are serialized into _Data Frames_ (with a single operation able to span multiple such Frames if needed), and these _Data Frames_ are then serialized as entries into this _Durable Data Log_. This is used only as a fail-safe, and we only need to read these Frames back if we need to perform recovery (in which case we need to deserialize all Log operations contained in them, in the same order in which they were received).
 
 #### In-Memory Operation Log
-The _In-Memory Operation Log_ contains committed (and replicated) Log Operations in the exact same order as they were added to the _Durable Data Log_. While the _Durable Data Log_ contains a sequence of Data Frames (which contain serializations of operations), the Memory Log contains the actual operations, which can be used throughout the _Durable Log_ and the Storage Writer.
+The _In-Memory Operation Log_ contains committed (and replicated) Log operations in the exact same order as they were added to the _Durable Data Log_. While the _Durable Data Log_ contains a sequence of Data Frames (which contain serializations of operations), the Memory Log contains the actual operations, which can be used throughout the _Durable Log_ and the Storage Writer.
 
-The Memory Log is essentially a chain of Log Operations ordered by the time when the operation was received. We always add at one end, and we remove from the other. When we truncate the _Durable Data Log_ the Memory Log is also truncated at the same location.
+The Memory Log is essentially a chain of Log operations ordered by the time when the operation was received. We always add at one end, and we remove from the other. When we truncate the _Durable Data Log_ the Memory Log is also truncated at the same location.
 
 ### Read Index
 
@@ -215,7 +215,7 @@ The Cache is defined as an abstraction layer, and there are two implementations 
 ### Storage Writer
 Pravega is by no means the final resting place of the data, nor it is meant to be a storage service. The Tier 2 Storage is where we want data to be in the long term and Pravega is only used to store a very short tail-end of it (using Tier 1 Storage), enough to make appends fast and aggregate them into bigger chunks for committal to Tier 2 Storage. To perform this, it needs another component (**Storage Writer**) that reads data from the _Durable Log_ inthe order in which it was received, aggregates it, and sends it to Tier 2 Storage.
 
-Just like the _Durable Log_, there is one Storage Writer per Segment Container. Each Writer reads Log Operations from the in-memory operation Log (exposed via the `read()` method in the _Durable Log_) in the order they were processed. It keeps track of the last read item by means of its sequence number. This state is not persisted, and upon recovery, it can just start from the beginning of the available _Durable Log_.
+Just like the _Durable Log_, there is one Storage Writer per Segment Container. Each Writer reads Log operations from the in-memory operation Log (exposed via the `read()` method in the _Durable Log_) in the order they were processed. It keeps track of the last read item by means of its sequence number. This state is not persisted, and upon recovery, it can just start from the beginning of the available _Durable Log_.
 
 The Storage Writer can process any Storage operation (_Append, Seal, Merge_), and as Pravega being the sole actor it modifies such data in Tier 2 and applies them without any constraints. It has several mechanisms to detect and recover from possible data loss or external actors modifying data concurrently.
 
