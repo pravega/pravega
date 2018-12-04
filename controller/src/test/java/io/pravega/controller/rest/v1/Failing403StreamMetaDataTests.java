@@ -17,7 +17,6 @@ import javax.ws.rs.core.MultivaluedMap;
 import io.pravega.controller.server.rpc.auth.TestAuthHandler;
 import org.junit.Before;
 
-
 public class Failing403StreamMetaDataTests extends  FailingSecureStreamMetaDataTests {
     @Override
     @Before

@@ -57,5 +57,4 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
         map.addAll(HttpHeaders.AUTHORIZATION, TestUtils.basicAuthToken("admin", "1111_aaaa"));
         return request.headers(map);
     }
-
 }

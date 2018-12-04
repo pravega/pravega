@@ -15,7 +15,6 @@ import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
-
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
