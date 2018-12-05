@@ -38,16 +38,6 @@ public class HashedArray extends ByteArraySegment {
         this.hashCode = HASH.hash(array.array(), array.arrayOffset(), array.getLength());
     }
 
-    /**
-     * Creates a new instance of the HashedArray class.
-     *
-     * @param base A {@link HashedArray} to wrap.
-     */
-    public HashedArray(HashedArray base) {
-        super(base.array(), base.arrayOffset(), base.getLength());
-        this.hashCode = base.hashCode;
-    }
-
     @Override
     public int hashCode() {
         return this.hashCode;
