@@ -204,7 +204,7 @@ public class K8sClient {
     }
 
     /**
-     * Create a deployement on KUBERNETES, if the deployment is already present then it is ignored.
+     * Create a deployment on KUBERNETES, if the deployment is already present then it is ignored.
      * @param namespace Namespace.
      * @param deploy Deployment object.
      * @return A future which represents the creation of the Deployment.
