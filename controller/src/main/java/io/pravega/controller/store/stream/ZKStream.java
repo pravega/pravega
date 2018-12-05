@@ -50,7 +50,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String TRUNCATION_PATH = STREAM_PATH + "/truncation";
     private static final String STATE_PATH = STREAM_PATH + "/state";
     private static final String EPOCH_TRANSITION_PATH = STREAM_PATH + "/epochTransition";
-    private static final String RETENTION_SET_PATH = STREAM_PATH + "/retention";
+    private static final String RETENTION_SET_PATH = STREAM_PATH + "/periodic";
     private static final String RETENTION_STREAM_CUT_RECORD_PATH = STREAM_PATH + "/retentionCuts";
     private static final String CURRENT_EPOCH_RECORD = STREAM_PATH + "/currentEpochRecord";
     private static final String EPOCH_RECORD = STREAM_PATH + "/epochRecords";

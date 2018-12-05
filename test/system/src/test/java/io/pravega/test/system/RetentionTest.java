@@ -138,6 +138,6 @@ public class RetentionTest extends AbstractSystemTest {
         log.info("Writing event: {}", event);
         Assert.assertEquals(event, reader.readNextEvent(6000).getEvent());
 
-        log.debug("The stream is already truncated.Simple retention test passed.");
+        log.debug("The stream is already truncated.Simple periodic test passed.");
     }
 }

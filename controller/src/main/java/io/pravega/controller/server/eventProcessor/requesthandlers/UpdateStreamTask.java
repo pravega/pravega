@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
@@ -32,16 +33,19 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
+    private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
 
     public UpdateStreamTask(final StreamMetadataTasks streamMetadataTasks,
                             final StreamMetadataStore streamMetadataStore,
-                            final ScheduledExecutorService executor) {
+                            BucketStore bucketStore, final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
+        Preconditions.checkNotNull(bucketStore);
         Preconditions.checkNotNull(executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
+        this.bucketStore = bucketStore;
         this.executor = executor;
     }
 
@@ -83,10 +87,10 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     private CompletableFuture<Void> updateStreamForAutoStreamCut(String scope, String stream,
                         OperationContext context, StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
         if (configProperty.getStreamConfiguration().getRetentionPolicy() != null) {
-            return streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
-                    configProperty.getStreamConfiguration().getRetentionPolicy(), context, executor);
+            return bucketStore.addUpdateStreamForAutoStreamCut(scope, stream,
+                    configProperty.getStreamConfiguration().getRetentionPolicy(), executor);
         } else {
-            return streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context, executor);
+            return bucketStore.removeStreamFromAutoStreamCut(scope, stream, executor);
         }
     }
 

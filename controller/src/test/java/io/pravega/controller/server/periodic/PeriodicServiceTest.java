@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.retention;
+package io.pravega.controller.server.periodic;
 
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
@@ -44,7 +44,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-public abstract class StreamCutServiceTest {
+public abstract class PeriodicServiceTest {
     StreamMetadataStore streamMetadataStore;
     StreamCutService service;
     ScheduledExecutorService executor;
@@ -86,7 +86,7 @@ public abstract class StreamCutServiceTest {
 
     @Test(timeout = 10000)
     public void testRetentionService() {
-        List<StreamCutBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
+        List<PeriodicWorkBucketService> bucketServices = Lists.newArrayList(service.getBuckets());
 
         assertNotNull(bucketServices);
         assertTrue(bucketServices.size() == 3);
@@ -101,7 +101,7 @@ public abstract class StreamCutServiceTest {
         String streamName = "stream";
         Stream stream = new StreamImpl(scope, streamName);
 
-        AssertExtensions.assertThrows("Null retention policy check",
+        AssertExtensions.assertThrows("Null periodic policy check",
                 () -> streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, streamName, null, null, executor).join(),
                 e -> e instanceof NullPointerException);
 
@@ -109,16 +109,16 @@ public abstract class StreamCutServiceTest {
 
         // verify that at least one of the buckets got the notification
         int bucketId = stream.getScopedName().hashCode() % 3;
-        StreamCutBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
+        PeriodicWorkBucketService bucketService = bucketServices.stream().filter(x -> x.getBucketId() == bucketId).findAny().get();
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> added.set(bucketService.getRetentionFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertTrue(bucketService.getRetentionFutureMap().containsKey(stream));
+                .thenAccept(x -> added.set(bucketService.getWorkFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getWorkFutureMap().containsKey(stream));
 
         streamMetadataStore.removeStreamFromAutoStreamCut(scope, streamName, null, executor).join();
         AtomicBoolean removed = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> removed.set(bucketService.getRetentionFutureMap().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertTrue(bucketService.getRetentionFutureMap().size() == 0);
+                .thenAccept(x -> removed.set(bucketService.getWorkFutureMap().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getWorkFutureMap().size() == 0);
     }
 }

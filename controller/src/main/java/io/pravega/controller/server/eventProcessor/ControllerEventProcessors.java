@@ -127,7 +127,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);

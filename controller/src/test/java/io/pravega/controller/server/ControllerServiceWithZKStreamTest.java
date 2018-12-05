@@ -114,7 +114,7 @@ public class ControllerServiceWithZKStreamTest {
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
                 streamStore,
                 executor);

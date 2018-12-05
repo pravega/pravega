@@ -28,7 +28,7 @@ import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.retention.StreamCutService;
+import io.pravega.controller.server.periodic.PeriodicWorkService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -36,6 +36,7 @@ import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -69,12 +70,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final String objectId;
 
     private ScheduledExecutorService controllerExecutor;
-    private ScheduledExecutorService retentionExecutor;
+    private ScheduledExecutorService periodicExecutor;
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private StreamCutService streamCutService;
+    private PeriodicWorkService backgroundPeriodicService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
 
@@ -111,6 +112,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
         final StreamMetadataStore streamStore;
+        final BucketStore bucketStore;
         final TaskMetadataStore taskMetadataStore;
         final HostControllerStore hostStore;
         final CheckpointStore checkpointStore;
@@ -120,11 +122,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
 
-            retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
-                                                                               "retentionpool");
+            periodicExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.PERIODIC_THREAD_POOL_SIZE,
+                                                                               "periodicpool");
 
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
+
+            log.info("Creating the bucket store");
+            bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
 
             log.info("Creating the task store");
             taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
@@ -170,11 +175,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
 
-            streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks,
-                    retentionExecutor, requestTracker);
-            log.info("starting auto retention service asynchronously");
-            streamCutService.startAsync();
-            streamCutService.awaitRunning();
+            backgroundPeriodicService = new PeriodicWorkService(Config.BUCKET_COUNT, host.getHostId(), streamStore, bucketStore, streamMetadataTasks,
+                    periodicExecutor, requestTracker);
+            log.info("starting periodic service asynchronously");
+            backgroundPeriodicService.startAsync();
+            backgroundPeriodicService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -290,9 +295,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Controller cluster listener shutdown");
             }
 
-            if (streamCutService != null) {
-                log.info("Stopping auto retention service");
-                streamCutService.stopAsync();
+            if (backgroundPeriodicService != null) {
+                log.info("Stopping auto periodic service");
+                backgroundPeriodicService.stopAsync();
             }
 
             log.info("Closing stream metadata tasks");
@@ -327,9 +332,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerClusterListener.awaitTerminated();
             }
 
-            if (streamCutService != null) {
-                log.info("Awaiting termination of auto retention");
-                streamCutService.awaitTerminated();
+            if (backgroundPeriodicService != null) {
+                log.info("Awaiting termination of auto periodic");
+                backgroundPeriodicService.awaitTerminated();
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
@@ -340,7 +345,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping controller executor");
-            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor);
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, periodicExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");

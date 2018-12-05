@@ -25,7 +25,7 @@ package io.pravega.shared;
  * - controller.stream: metrics for operations on streams (e.g., number of streams created)
  * - controller.segments: metrics about segments, per stream (e.g., count, splits, merges)
  * - controller.transactions: metrics related to transactions (e.g., created, committed, aborted)
- * - controller.retention: metrics related to data retention, per stream (e.g., frequency, size of truncated data)
+ * - controller.periodic: metrics related to data periodic, per stream (e.g., frequency, size of truncated data)
  */
 
 
@@ -110,9 +110,9 @@ public final class MetricsNames {
     public static final String SEGMENTS_SPLITS = "controller.segment.splits"; // Dynamic Counter
     public static final String SEGMENTS_MERGES = "controller.segment.merges"; // Dynamic Counter
 
-    // Stream retention operations (Dynamic)
-    public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Dynamic Counter
-    public static final String TRUNCATED_SIZE = "controller.retention.truncated_size"; // Dynamic Counter
+    // Stream periodic operations (Dynamic)
+    public static final String RETENTION_FREQUENCY = "controller.periodic.frequency";   // Dynamic Counter
+    public static final String TRUNCATED_SIZE = "controller.periodic.truncated_size"; // Dynamic Counter
 
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");

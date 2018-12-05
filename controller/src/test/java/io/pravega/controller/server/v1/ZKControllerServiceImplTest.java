@@ -102,7 +102,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
-                new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);

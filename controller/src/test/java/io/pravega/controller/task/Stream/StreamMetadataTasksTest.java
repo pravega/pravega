@@ -156,7 +156,7 @@ public class StreamMetadataTasksTest {
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
