@@ -18,11 +18,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Monitor;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
+import org.apache.curator.framework.state.ConnectionState;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
@@ -50,19 +48,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     private final Monitor monitor = new Monitor();
     private final Monitor.Guard hasReachedStarting = new HasReachedState(ServiceState.STARTING);
     private final Monitor.Guard hasReachedPausing = new HasReachedState(ServiceState.PAUSING);
-
-
-    @AllArgsConstructor
-    static class ZKWatcher implements Watcher {
-        private final CompletableFuture<Void> sessionExpiryFuture;
-
-        @Override
-        public void process(WatchedEvent event) {
-            if (event.getState() == Event.KeeperState.Expired) {
-                sessionExpiryFuture.complete(null);
-            }
-        }
-    }
 
     final class HasReachedState extends Monitor.Guard {
         private ServiceState desiredState;
@@ -119,7 +104,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
                     // Await ZK session expiry.
                     log.info("Awaiting ZK session expiry or termination trigger for ControllerServiceMain");
-                    client.getZookeeperClient().getZooKeeper().register(new ZKWatcher(sessionExpiryFuture));
+                    client.getConnectionStateListenable().addListener((client1, newState) -> {
+                        if (newState.equals(ConnectionState.LOST)) {
+                            sessionExpiryFuture.complete(null);
+                        }
+                    });
                 }
 
                 // Start controller services.
