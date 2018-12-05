@@ -55,7 +55,7 @@ public class ClientConfig implements Serializable {
     private final String trustStore;
 
     /**
-     * If the flag {@link #isEnableTls is set, this flag decides whether to enable host name validation or not.
+     * If the flag {@link #isEnableTls()}  is set, this flag decides whether to enable host name validation or not.
      */
     private boolean validateHostName;
 

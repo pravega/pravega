@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -89,6 +90,7 @@ public class StreamRecreationTest {
     }
 
     @Test(timeout = 40000)
+    @SuppressWarnings("deprecation")
     public void testStreamRecreation() throws Exception {
         final String myScope = "myScope";
         final String myStream = "myStream";
@@ -109,15 +111,13 @@ public class StreamRecreationTest {
             log.info("Stream re-creation iteration {}.", i);
             final String eventContent = "myEvent" + String.valueOf(i);
             StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                         .scope(myScope)
-                                                                         .streamName(myStream)
                                                                          .scalingPolicy(ScalingPolicy.fixed(i + 1))
                                                                          .build();
             streamManager.createStream(myScope, myStream, streamConfiguration);
 
             // Write a single event.
             @Cleanup
-            ClientFactory clientFactory = ClientFactory.withScope(myScope, controllerURI);
+            ClientFactory clientFactory = ClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
 

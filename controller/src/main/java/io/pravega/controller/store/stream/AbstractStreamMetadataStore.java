@@ -17,6 +17,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
@@ -30,12 +32,6 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.shared.MetricsNames;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
-import io.pravega.shared.metrics.StatsProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -43,6 +39,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,16 +50,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-
-import static io.pravega.shared.MetricsNames.ABORT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
-import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
-import static io.pravega.shared.MetricsNames.nameFromStream;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -71,12 +58,6 @@ import static io.pravega.shared.MetricsNames.nameFromStream;
 @Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
-    protected static final StatsProvider METRICS_PROVIDER = MetricsProvider.getMetricsProvider();
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final StatsLogger STATS_LOGGER = METRICS_PROVIDER.createStatsLogger("controller");
-    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM);
-    private static final OpStatsLogger SEAL_STREAM = STATS_LOGGER.createStats(MetricsNames.SEAL_STREAM);
-    private static final OpStatsLogger DELETE_STREAM = STATS_LOGGER.createStats(MetricsNames.DELETE_STREAM);
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
     protected final int bucketCount;
@@ -146,19 +127,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor)
-                    .thenApply(result -> {
-                        if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
-                            CREATE_STREAM.reportSuccessValue(1);
-                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name),
-                                    configuration.getScalingPolicy().getMinNumSegments());
-                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), 0);
-                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), 0);
-                        }
-
-                        return result;
-                    }));
+                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor));
     }
 
     @Override
@@ -172,15 +141,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                     .reduce(Integer::max).get())
                 .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
                 .thenCompose(v -> withCompletion(s.delete(), executor))
-                .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)))
-                .thenApply(result -> {
-                    DELETE_STREAM.reportSuccessValue(1);
-                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(COMMIT_TRANSACTION, scope, name));
-                    DYNAMIC_LOGGER.freezeGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name));
-                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_SPLITS, scope, name));
-                    DYNAMIC_LOGGER.freezeCounter(nameFromStream(SEGMENTS_MERGES, scope, name));
-                    return result;
-                });
+                .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
     }
 
     @Override
@@ -263,15 +224,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      * List the streams in scope.
      *
      * @param scopeName Name of scope
-     * @return List of streams in scope
+     * @return A map of streams in scope to their configs.
      */
     @Override
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
-            return Futures.allOfWithResults(
-                    streams.stream()
-                            .map(s -> getStream(scopeName, s, null).getConfiguration())
-                            .collect(Collectors.toList()));
+            HashMap<String, CompletableFuture<StreamConfiguration>> result = new HashMap<>();
+            for (String s : streams) {
+                Stream stream = getStream(scopeName, s, null);
+                result.put(stream.getName(), stream.getConfiguration());
+            }
+            return Futures.allOfWithResults(result);
         });
     }
 
@@ -336,10 +299,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> setSealed(final String scope, final String name, final OperationContext context, final Executor executor) {
-        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor).thenAccept(result -> {
-            SEAL_STREAM.reportSuccessValue(1);
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0);
-        });
+        return withCompletion(getStream(scope, name, context).updateState(State.SEALED), executor);
     }
 
 
@@ -457,11 +417,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, null, executor).thenAccept(list ->
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(SEGMENTS_COUNT, scope, name), list.size())),
-                findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry -> {
-                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_SPLITS, scope, name), simpleEntry.getKey());
-                    DYNAMIC_LOGGER.updateCounterValue(nameFromStream(SEGMENTS_MERGES, scope, name), simpleEntry.getValue());
-                })));
+                        StreamMetrics.reportActiveSegments(scope, name, list.size())),
+                findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry ->
+                        StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
+        ));
 
         return future;
     }
@@ -546,19 +505,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<VersionedTransactionData> createTransaction(final String scopeName,
-                                                                                            final String streamName,
-                                                                                            final UUID txnId,
-                                                                                            final long lease,
-                                                                                            final long maxExecutionTime,
-                                                                                            final OperationContext context,
-                                                                                            final Executor executor) {
+                                                                         final String streamName,
+                                                                         final UUID txnId,
+                                                                         final long lease,
+                                                                         final long maxExecutionTime,
+                                                                         final OperationContext context,
+                                                                         final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
         return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor)
                 .thenApply(result -> {
-                    stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                        DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scopeName, streamName), 1);
-                        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scopeName, streamName), count);
-                    });
+                    stream.getNumberOfOngoingTransactions().thenAccept(count ->
+                            TransactionMetrics.reportOpenTransactions(scopeName, streamName, count));
                     return result;
                 });
     }
@@ -593,16 +550,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        CompletableFuture<TxnStatus> future = withCompletion(stream.commitTransaction(txId), executor);
-
-        future.thenCompose(result -> {
-            return stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
-            });
-        });
-
-        return future;
+        return withCompletion(stream.commitTransaction(txId), executor)
+                .thenApply(result -> {
+                    stream.getNumberOfOngoingTransactions().thenAccept(count ->
+                            TransactionMetrics.reportOpenTransactions(scope, streamName, count));
+                    return result;
+                });
     }
 
     @Override
@@ -622,15 +575,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                          final UUID txId, final OperationContext context,
                                                          final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        CompletableFuture<TxnStatus> future = withCompletion(stream.abortTransaction(txId), executor);
-        future.thenApply(result -> {
-            stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
-            });
-            return result;
-        });
-        return future;
+        return withCompletion(stream.abortTransaction(txId), executor)
+                .thenApply(result -> {
+                    stream.getNumberOfOngoingTransactions().thenAccept(count ->
+                            TransactionMetrics.reportOpenTransactions(scope, streamName, count));
+                    return result;
+                });
     }
 
     @Override

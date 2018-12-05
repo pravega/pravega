@@ -13,35 +13,34 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class MetricRegistryUtils {
 
     public static Counter getCounter(String metricsName) {
-        Metric metric = MetricsProvider.getMetric(metricsName);
-        if (metric == null) {
-            log.info("The metric {} is not present in the Metrics Registry", metricsName);
-            return null;
-        }
-        return (Counter) metric;
+        return (Counter) getMetric(metricsName);
     }
 
     public static Meter getMeter(String metricsName) {
-        Metric metric = MetricsProvider.getMetric(metricsName);
-        if (metric == null) {
-            log.info("The metric {} is not present in the Metrics Registry", metricsName);
-            return null;
-        }
-        return (Meter) metric;
+        return (Meter) getMetric(metricsName);
     }
 
     public static Gauge getGauge(String metricsName) {
+        return (Gauge) getMetric(metricsName);
+    }
+
+    public static Timer getTimer(String metricsName) {
+        return (Timer) getMetric(metricsName);
+    }
+
+    public static Metric getMetric(String metricsName) {
         Metric metric = MetricsProvider.getMetric(metricsName);
         if (metric == null) {
             log.info("The metric {} is not present in the Metrics Registry", metricsName);
             return null;
         }
-        return  (Gauge) metric;
+        return metric;
     }
 }

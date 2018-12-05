@@ -282,6 +282,7 @@ public class FileSystemStorage implements SyncStorage {
         Files.createDirectories(path.getParent());
         Files.createFile(path, fileAttributes);
         LoggerHelpers.traceLeave(log, "create", traceId);
+        FileSystemMetrics.CREATE_COUNT.inc();
         return this.doGetStreamSegmentInfo(streamSegmentName);
     }
 

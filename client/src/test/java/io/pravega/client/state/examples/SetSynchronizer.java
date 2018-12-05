@@ -9,7 +9,7 @@
  */
 package io.pravega.client.state.examples;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
@@ -228,7 +227,7 @@ public class SetSynchronizer<T extends Serializable> {
         compact();
     }
     
-    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, ClientFactory factory) {
+    public static <T extends Serializable> SetSynchronizer<T> createNewSet(String streamName, SynchronizerClientFactory factory) {
         return new SetSynchronizer<>(streamName,
                 factory.createStateSynchronizer(streamName,
                                                 new JavaSerializer<SetUpdate<T>>(),

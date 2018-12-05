@@ -11,7 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -36,13 +36,13 @@ import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -75,7 +75,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -89,16 +88,22 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
-            ScalingPolicy.byEventRate(1, 2, 3)).build();
-
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private TaskMetadataStore taskMetadataStore;
@@ -109,7 +114,7 @@ public class ScaleRequestHandlerTest {
     private TestingServer zkServer;
 
     private CuratorFramework zkClient;
-    private ClientFactory clientFactory;
+    private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 
     private RequestTracker requestTracker = new RequestTracker(true);
@@ -141,7 +146,7 @@ public class ScaleRequestHandlerTest {
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        clientFactory = mock(ClientFactory.class);
+        clientFactory = mock(EventStreamClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
@@ -154,6 +159,9 @@ public class ScaleRequestHandlerTest {
         // mock pravega
         // create a stream
         streamStore.createScope(scope).get();
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scalingPolicy(ScalingPolicy.byEventRate(1, 2, 3))
+                                                        .build();
         streamMetadataTasks.createStream(scope, stream, config, createTimestamp).get();
     }
 
@@ -336,7 +344,7 @@ public class ScaleRequestHandlerTest {
         // This test checks a scenario where after rolling txn, if an outstanding scale request
         // was present, its epoch consistency should fail
         String stream = "newStream";
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 2)).build();
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
@@ -381,7 +389,7 @@ public class ScaleRequestHandlerTest {
         assertEquals(TxnStatus.COMMITTED, txnStatus);
 
         // 6. run scale. this should fail in scaleCreateNewEpochs with IllegalArgumentException with epochTransitionConsistent
-        AssertExtensions.assertThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
+        AssertExtensions.assertFutureThrows("epoch transition should be inconsistent", requestHandler.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(1L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
@@ -394,7 +402,7 @@ public class ScaleRequestHandlerTest {
         // This test checks a scenario where after rolling txn, if an outstanding scale request
         // was present, its epoch consistency should fail
         String stream = "newStream";
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 2)).build();
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
@@ -531,7 +539,7 @@ public class ScaleRequestHandlerTest {
                                              Map<String, Integer> invocationCount) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -561,14 +569,15 @@ public class ScaleRequestHandlerTest {
         if (!expectFailureOnSecondJob) {
             scaleRequestHandler2.execute(event).join();
         } else {
-            AssertExtensions.assertThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
+            AssertExtensions.assertSuppliedFutureThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
                     secondExceptionPredicate);
         }
         // verify that scale is complete
         // now complete wait latch.
         wait.complete(null);
         
-        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
@@ -687,7 +696,7 @@ public class ScaleRequestHandlerTest {
                                     Map<String, Integer> invocationCount) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -728,7 +737,8 @@ public class ScaleRequestHandlerTest {
         // now complete wait latch.
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first scale should fail", () -> future1, firstExceptionPredicate);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleCreateNewEpochs"))).scaleCreateNewEpochs(anyString(), anyString(), any(), any(), any());
         verify(streamStore1Spied, times(invocationCount.get("scaleSegmentsSealed"))).scaleSegmentsSealed(anyString(), anyString(), any(), any(), any(), any());
@@ -747,7 +757,7 @@ public class ScaleRequestHandlerTest {
     public void testScaleStateReset() {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         String stream = "testResetState";
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -771,7 +781,7 @@ public class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
         
         // rerun same manual scaling job. It should fail with StartException but after having reset the state to active
-        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event),
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         // verify that state is reset
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
@@ -784,7 +794,7 @@ public class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
 
         // rerun same auto scaling job. 
-        AssertExtensions.assertThrows("", () -> scaleRequestHandler.execute(event2),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event2),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(2, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());

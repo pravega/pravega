@@ -177,7 +177,7 @@ abstract class TableBucketReader<ResultT> {
                                 }
 
                                 return CompletableFuture.completedFuture(null);
-                            });
+                            }, this.executor);
                 },
                 this.executor)
                 .exceptionally(ex -> {

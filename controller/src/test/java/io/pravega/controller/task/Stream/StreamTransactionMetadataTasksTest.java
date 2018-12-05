@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamReader;
@@ -42,13 +42,13 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -212,8 +212,7 @@ public class StreamTransactionMetadataTasksTest {
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
@@ -255,8 +254,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Create test scope and stream.
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
         Assert.assertEquals(Controller.CreateStreamStatus.Status.SUCCESS,
                 streamMetadataTasks.createStream(SCOPE, STREAM, configuration1, System.currentTimeMillis()).join());
@@ -304,7 +302,7 @@ public class StreamTransactionMetadataTasksTest {
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Before initializing, txnSweeper.sweepFailedHosts would throw an error
-        AssertExtensions.assertThrows("IllegalStateException before initialization",
+        AssertExtensions.assertFutureThrows("IllegalStateException before initialization",
                 txnSweeper.sweepFailedProcesses(() -> Collections.singleton("host")),
                 ex -> ex instanceof IllegalStateException);
 
@@ -382,8 +380,7 @@ public class StreamTransactionMetadataTasksTest {
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
@@ -460,8 +457,7 @@ public class StreamTransactionMetadataTasksTest {
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         Assert.assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, consumer.createScope(SCOPE).join().getStatus());
@@ -471,7 +467,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create partial transaction
         final long lease = 10000;
 
-        AssertExtensions.assertThrows("Transaction creation fails, although a new txn id gets added to the store",
+        AssertExtensions.assertFutureThrows("Transaction creation fails, although a new txn id gets added to the store",
                 txnTasks.createTxn(SCOPE, STREAM, lease, null),
                 e -> e instanceof RuntimeException);
 
@@ -503,8 +499,7 @@ public class StreamTransactionMetadataTasksTest {
                 abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(STREAM).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // Create stream and scope
         streamStoreMock.createScope(SCOPE).join();
@@ -565,7 +560,7 @@ public class StreamTransactionMetadataTasksTest {
                               final EventStreamReader<T> reader,
                               final EventStreamWriter<T> writer,
                               Supplier<EventProcessor<T>> factory) throws CheckpointStoreException {
-        ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
+        EventStreamClientFactory clientFactory = Mockito.mock(EventStreamClientFactory.class);
         Mockito.when(clientFactory.<T>createReader(anyString(), anyString(), any(), any())).thenReturn(reader);
         Mockito.when(clientFactory.<T>createEventWriter(anyString(), any(), any())).thenReturn(writer);
 

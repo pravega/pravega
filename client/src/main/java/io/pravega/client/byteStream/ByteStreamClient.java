@@ -9,6 +9,7 @@
 package io.pravega.client.byteStream;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
 
@@ -24,7 +25,9 @@ import io.pravega.client.stream.ScalingPolicy;
  * Reader allows direct reading of the bytes from the one and only segment of the specified stream.
  * Writer allows for writing raw bytes (with no headers or wrapping information) to the one and only
  * segment of the stream.
+ * @deprecated Use {@link ByteStreamClientFactory} instead
  */
+@Deprecated
 public interface ByteStreamClient {
 
     /**

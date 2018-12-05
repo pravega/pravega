@@ -11,7 +11,7 @@ package io.pravega.client.admin.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -55,7 +55,7 @@ import static io.pravega.shared.NameUtils.getStreamForReaderGroup;
 public class ReaderGroupManagerImpl implements ReaderGroupManager {
 
     private final String scope;
-    private final ClientFactory clientFactory;
+    private final SynchronizerClientFactory clientFactory;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
 
@@ -68,7 +68,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
         this.clientFactory = new ClientFactoryImpl(scope, this.controller, connectionFactory);
     }
 
-    public ReaderGroupManagerImpl(String scope, Controller controller, ClientFactory clientFactory, ConnectionFactory connectionFactory) {
+    public ReaderGroupManagerImpl(String scope, Controller controller, SynchronizerClientFactory clientFactory, ConnectionFactory connectionFactory) {
         this.scope = scope;
         this.clientFactory = clientFactory;
         this.controller = controller;
@@ -76,9 +76,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                          .scope(scope)
-                                                                          .streamName(streamName)
+        getAndHandleExceptions(controller.createStream(scope, streamName, StreamConfiguration.builder()
                                                                           .scalingPolicy(config.getScalingPolicy())
                                                                           .build()),
                                RuntimeException::new);
@@ -91,8 +89,6 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                 Arrays.toString(config.getStartingStreamCuts().keySet().toArray()), config);
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(getStreamForReaderGroup(groupName), StreamConfiguration.builder()
-                                                                                  .scope(scope)
-                                                                                  .streamName(getStreamForReaderGroup(groupName))
                                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                                   .build());
         @Cleanup

@@ -34,7 +34,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 /**
  * In-memory stream store.
@@ -327,12 +326,17 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     @Override
     @Synchronized
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
         InMemoryScope inMemoryScope = scopes.get(scopeName);
         if (inMemoryScope != null) {
             return inMemoryScope.listStreamsInScope()
-                    .thenApply(streams -> streams.stream().map(
-                            stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
+                    .thenApply(streams -> {
+                        HashMap<String, StreamConfiguration> result = new HashMap<>();
+                        for (String stream : streams) {
+                            result.put(stream, this.getConfiguration(scopeName, stream, null, executor).join());
+                        }
+                        return result;
+                    });
         } else {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }

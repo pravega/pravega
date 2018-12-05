@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.impl.rocksdb;
 
 import io.pravega.shared.MetricsNames;
+import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
@@ -21,12 +22,15 @@ final class RocksDBMetrics {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("rocksdb");
     private static final OpStatsLogger INSERT_LATENCY = STATS_LOGGER.createStats(MetricsNames.CACHE_INSERT_LATENCY);
     private static final OpStatsLogger GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.CACHE_GET_LATENCY);
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
-    static void insert(long elapsedMillis) {
+    static void insert(long elapsedMillis, long insertDataSize) {
+        DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_WRITE_BYTES, insertDataSize);
         INSERT_LATENCY.reportSuccessValue(elapsedMillis);
     }
 
-    static void get(long elapsedMillis) {
+    static void get(long elapsedMillis, long getDataSize) {
+        DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_READ_BYTES, getDataSize);
         GET_LATENCY.reportSuccessValue(elapsedMillis);
     }
 }

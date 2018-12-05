@@ -111,14 +111,15 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * 
      * As an example suppose the update type was MyUpdate and each update and an associated key.
      * Then it might be useful to return the updated keys:
-     * <code>
+     * <pre>
+     * {@code
      * List<String> updated = stateSynchronizer.updateState((state, updates) -> {
      *      List<MyUpdate> toAdd = findUpdatesForState(state);
      *      updates.addAll(toAdd);
      *      return toAdd.stream().map(a -> a.getKey()).collect(Collectors.toList());
      * });
-     * </code>
-     * 
+     * }
+     * </pre>
      * @param updateGenerator A function which give the state can supply updates that should be
      *            applied.
      * @param <ReturnT> They type of the result returned by the updateGenerator

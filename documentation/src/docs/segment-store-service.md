@@ -50,7 +50,7 @@ More details about each component described above can be found in the [Component
 
 ## System Diagram
 
-![System Diagram](img/Segment.Store.Components.png)
+![System Diagram](img/segment-store-components.png)
 
 In the above diagram, the major components of the Segment Store are shown. But for simplicity, only one Segment Container is depicted. All Container components and major links between them (how they interact with each other) are shown. The _Container Metadata_ component is not shown, because every other component communicates with it in one form or another and adding it would only clutter the diagram.
 
@@ -232,7 +232,7 @@ A note about **Tier 2 Truncation**:
 Here are a few examples on how data flows inside the Pravega Segment Store Service.
 
 ## Appends
-![Segment Store Appends](img/Segment.Store.Appends.png)
+![Segment Store Appends](img/segment-store-append.png)
 
 The diagram above depicts these steps (note the step numbers may not match, but the order is the same):
 
@@ -257,7 +257,7 @@ This process applies for every single operation that the **Segment Store** suppo
 
 ## Reads
 
-![Segment Store Reads](img/Segment.Store.Reads.png)
+![Segment Store Reads](img/segment-store-reads.png)
 
 The diagram above depicts these steps (note the step numbers may not match, but the order is the same):
 

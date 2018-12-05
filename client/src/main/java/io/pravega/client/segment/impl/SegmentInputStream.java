@@ -57,7 +57,7 @@ public interface SegmentInputStream extends AutoCloseable {
     public abstract int read(ByteBuffer toFill, long timeout) throws EndOfSegmentException, SegmentTruncatedException;
     
     /**
-     * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read()} calls from blocking.
+     * Issue a request to asynchronously fill the buffer. To hopefully prevent future {@link #read(ByteBuffer, long)} calls from blocking.
      * Calling this multiple times is harmless.
      * 
      * @return A future that will be completed when there is data available to read.
@@ -72,8 +72,8 @@ public interface SegmentInputStream extends AutoCloseable {
     public abstract void close();
     
     /**
-     * Returns > 0 if {@link #read()} can be invoked without blocking. 
-     * Returns 0 if {@link #read()} will block. 
+     * Returns &gt; 0 if {@link #read(ByteBuffer, long)} can be invoked without blocking.
+     * Returns 0 if {@link #read(ByteBuffer, long)}  will block.
      * Returns -1 if a call to read will throw EndOfSegmentException.
      *
      * @return 0 if data read is blocking.

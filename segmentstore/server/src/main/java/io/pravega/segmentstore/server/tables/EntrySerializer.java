@@ -26,6 +26,14 @@ import lombok.val;
 
 /**
  * Serializes {@link TableEntry} instances.
+ * The format is:
+ * - Header: Entry Serialization Version (1 byte), the Key Length (4 bytes) and the Value Length (4 bytes). Value length
+ * is negative if this serialization represents a deletion.
+ * - Key: one or more bytes representing the Key.
+ * - Value: zero (if empty or a deletion) or more bytes representing the Value.
+ *
+ * We can't use VersionedSerializer here because in most cases we need to read only key and not the value. VersionedSerializer
+ * requires us to read the whole thing before retrieving anything.
  */
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2; // Version, Key Length, Value Length.
@@ -47,9 +55,9 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableEntry} list into the given byte array.
+     * Serializes the given {@link TableEntry} collection into the given byte array.
      *
-     * @param entries A List of {@link TableEntry} to serialize.
+     * @param entries A Collection of {@link TableEntry} to serialize.
      * @param target  The byte array to serialize into.
      */
     void serializeUpdate(@NonNull Collection<TableEntry> entries, byte[] target) {
@@ -107,9 +115,9 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableKey} list for removal into the given byte array.
+     * Serializes the given {@link TableKey} collection for removal into the given byte array.
      *
-     * @param keys   A List of {@link TableKey} to serialize for removals.
+     * @param keys   A Collection of {@link TableKey} to serialize for removals.
      * @param target The byte array to serialize into.
      */
     void serializeRemoval(@NonNull Collection<TableKey> keys, byte[] target) {

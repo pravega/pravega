@@ -20,6 +20,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -49,7 +50,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  */
 @Slf4j
 @ToString(of = { "stream", "closed" })
-public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, TransactionalEventStreamWriter<Type> {
 
     /**
      * These two locks are used to enforce the following behavior:
@@ -294,7 +295,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     }
 
+    /**
+     * Moved to {@link TransactionalEventStreamWriterImpl}.
+     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
+     */
     @Override
+    @Deprecated
     public Transaction<Type> beginTxn() {
         TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
                 RuntimeException::new);
@@ -310,7 +316,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
     }
     
+    /**
+     * Moved to {@link TransactionalEventStreamWriterImpl}.
+     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
+     */
     @Override
+    @Deprecated
     public Transaction<Type> getTxn(UUID txId) {
         StreamSegments segments = getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);

@@ -79,8 +79,8 @@ public abstract class StreamMetadataStoreTest {
     protected final String stream2 = "stream2";
     protected final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     protected final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-    protected final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(scope).streamName(stream1).scalingPolicy(policy1).build();
-    protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream2).scalingPolicy(policy2).build();
+    protected final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+    protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
     @Before
     public abstract void setupTaskStore() throws Exception;
@@ -105,7 +105,7 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream2, configuration2, start, null, executor).get();
         store.setState(scope, stream2, State.ACTIVE, null, executor).get();
 
-        assertEquals(stream1, store.getConfiguration(scope, stream1, null, executor).get().getStreamName());
+        assertEquals(configuration1, store.getConfiguration(scope, stream1, null, executor).get());
         // endregion
 
         // region checkSegments
@@ -186,7 +186,7 @@ public abstract class StreamMetadataStoreTest {
         assertNull(store.deleteStream(scope, stream1, null, executor).join());
 
         // Delete a deleted stream, should fail with node not found error.
-        AssertExtensions.assertThrows("Should throw StoreException",
+        AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.deleteStream(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
 
@@ -200,7 +200,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(DeleteScopeStatus.Status.SCOPE_NOT_FOUND, store.deleteScope(scope).join().getStatus());
 
         // Deleting non-existing stream should return null.
-        AssertExtensions.assertThrows("Should throw StoreException",
+        AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.deleteStream(scope, "nonExistent", null, executor),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
         // endregion
@@ -214,10 +214,10 @@ public abstract class StreamMetadataStoreTest {
         store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope", stream2, State.ACTIVE, null, executor).get();
-        List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
-        assertEquals("List streams in scope", stream1, streamInScope.get(0).getStreamName());
-        assertEquals("List streams in scope", stream2, streamInScope.get(1).getStreamName());
+        assertTrue("List streams in scope", streamInScope.containsKey(stream1));
+        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
 
         // List streams in non-existent scope 'Scope1'
         try {
@@ -263,7 +263,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals("Get existent scope", scope1, scopeName);
 
         // get non-existent scope
-        AssertExtensions.assertThrows("Should throw StoreException",
+        AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.getScopeConfiguration(scope2),
                 (Throwable t) -> t instanceof StoreException.DataNotFoundException);
     }
@@ -331,7 +331,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeScale";
         final String stream = "StreamScale";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -356,7 +356,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(0, scale1ActiveEpoch);
         
         // rerun start scale with old epoch transition. should throw write conflict
-        AssertExtensions.assertThrows("", () -> store.submitScale(scope, stream, scale1SealedSegments,
+        AssertExtensions.assertSuppliedFutureThrows("", () -> store.submitScale(scope, stream, scale1SealedSegments,
                 Arrays.asList(segment1, segment2), scaleTs, empty, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
@@ -473,7 +473,7 @@ public abstract class StreamMetadataStoreTest {
         streamObj.updateEpochTransitionNode(new Data(EpochTransitionRecord.EMPTY.toBytes(), epochRecord.getVersion())).join();
         latch.complete(null);
 
-        AssertExtensions.assertThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        AssertExtensions.assertFutureThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         // endregion
     }
 
@@ -482,7 +482,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeScale";
         final String stream = "StreamScale";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -553,7 +553,7 @@ public abstract class StreamMetadataStoreTest {
         latch.complete(null);
 
         // first scale should fail in attempting to update epoch transition record.
-        AssertExtensions.assertThrows("WriteConflict in start scale", () -> response, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        AssertExtensions.assertSuppliedFutureThrows("WriteConflict in start scale", () -> response, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
         VersionedMetadata<EpochTransitionRecord> versioned = streamObj.getEpochTransition().join();
         EpochTransitionRecord epochTransitionRecord = versioned.getObject();
         assertEquals(EpochTransitionRecord.EMPTY, epochTransitionRecord);
@@ -561,7 +561,7 @@ public abstract class StreamMetadataStoreTest {
         VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
         state = store.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
         // now call first step of scaling -- createNewSegments. this should throw exception
-        AssertExtensions.assertThrows("epoch transition was supposed to be invalid",
+        AssertExtensions.assertFutureThrows("epoch transition was supposed to be invalid",
                 store.startScale(scope, stream, false, versioned, state, null, executor),
                 e -> Exceptions.unwrap(e) instanceof IllegalStateException);
         // verify that state is reset to ACTIVE
@@ -574,7 +574,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeUpdate";
         final String stream = "StreamUpdate";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -582,7 +582,7 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         StreamConfigurationRecord configProperty = store.getConfigurationRecord(scope, stream, null, executor).join().getObject();
         assertFalse(configProperty.isUpdating());
@@ -593,7 +593,7 @@ public abstract class StreamMetadataStoreTest {
 
         assertTrue(configProperty.isUpdating());
 
-        final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         assertFalse(Futures.await(store.startUpdateConfiguration(scope, stream, configuration3, null, executor)));
 
@@ -614,7 +614,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeDelete";
         final String stream = "StreamDelete";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -634,7 +634,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -780,7 +780,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeScaleWithTx";
         final String stream = "StreamScaleWithTx";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -832,7 +832,7 @@ public abstract class StreamMetadataStoreTest {
                 Arrays.asList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)), scaleTs, null, null, executor).join();
         response = versioned.getObject();
         assertEquals(1, response.getActiveEpoch());
-        AssertExtensions.assertThrows("attempting to create new segments against inconsistent epoch transition record",
+        AssertExtensions.assertFutureThrows("attempting to create new segments against inconsistent epoch transition record",
                 store.startScale(scope, stream, false, versioned, state, null, executor),
                 e -> Exceptions.unwrap(e) instanceof IllegalStateException);
         
@@ -846,7 +846,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeTruncate";
         final String stream = "ScopeTruncate";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -890,7 +890,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "ScopeStreamCut";
         final String stream = "StreamCut";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
         store.createScope(scope).get();
@@ -918,7 +918,7 @@ public abstract class StreamMetadataStoreTest {
                 .retentionType(RetentionPolicy.RetentionType.TIME)
                 .retentionParam(Duration.ofDays(2).toMillis())
                 .build();
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+        final StreamConfiguration configuration = StreamConfiguration.builder()
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
         long start = System.currentTimeMillis();
@@ -985,7 +985,7 @@ public abstract class StreamMetadataStoreTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder().retentionType(RetentionPolicy.RetentionType.SIZE)
                 .retentionParam(100L).build();
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+        final StreamConfiguration configuration = StreamConfiguration.builder()
                 .scalingPolicy(policy).retentionPolicy(retentionPolicy).build();
 
         long start = System.currentTimeMillis();
@@ -1074,7 +1074,7 @@ public abstract class StreamMetadataStoreTest {
         final String scope = "RecreationScope";
         final String stream = "RecreatedStream";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream)
+        final StreamConfiguration configuration = StreamConfiguration.builder()
                                                                      .scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();

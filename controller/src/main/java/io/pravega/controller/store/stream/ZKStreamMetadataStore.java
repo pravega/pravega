@@ -105,7 +105,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, int bucketCount, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor), bucketCount);
-        initialize();
         storeHelper = new ZKStoreHelper(client, executor);
         bucketCacheMap = new ConcurrentHashMap<>();
         bucketOwnershipCacheRef = new AtomicReference<>();
@@ -116,10 +115,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
-    }
-
-    private void initialize() {
-        METRICS_PROVIDER.start();
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
