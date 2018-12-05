@@ -84,6 +84,9 @@ services:
       JAVA_OPTS: |
         -Dmetrics.enableCSVReporter=false
         -Dpravegaservice.publishedIPAddress=${HOST_IP}
+        -Dbookkeeper.bkEnsembleSize=2
+        -Dbookkeeper.bkAckQuorumSize=2
+        -Dbookkeeper.bkWriteQuorumSize=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError
