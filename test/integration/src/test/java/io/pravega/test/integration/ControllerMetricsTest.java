@@ -31,6 +31,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -41,10 +42,8 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
@@ -77,20 +76,21 @@ public class ControllerMetricsTest {
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
-
-    @BeforeClass
-    public static void initialize() {
-        if (MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM)) == null) {
-            MetricsProvider.initialize(MetricsConfig.builder()
-                                                    .with(MetricsConfig.ENABLE_STATISTICS, true)
-                                                    .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
-                                                    .build());
-            MetricsProvider.getMetricsProvider().start();
-        }
-    }
+    private StatsProvider statsProvider = null;
 
     @Before
     public void setUp() throws Exception {
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
+                                                   .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                                                   .build();
+        metricsConfig.setDynamicCacheEvictionDurationMs(300000);
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.start();
+        log.info("Metrics Stats provider is started");
+
         executor = Executors.newSingleThreadScheduledExecutor();
         zkTestServer = new TestingServerStarter().start();
 
@@ -112,16 +112,17 @@ public class ControllerMetricsTest {
 
     @After
     public void tearDown() throws Exception {
+        if (this.statsProvider != null) {
+            statsProvider.close();
+            statsProvider = null;
+            log.info("Metrics statsProvider is now closed.");
+        }
+
         ExecutorServiceHelpers.shutdown(executor);
         controllerWrapper.close();
         server.close();
         serviceBuilder.close();
         zkTestServer.close();
-    }
-
-    @AfterClass
-    public static void cleanUp() {
-        MetricsProvider.getMetricsProvider().close();
     }
 
     /**
@@ -136,12 +137,9 @@ public class ControllerMetricsTest {
         final String readerGroupName = "RGControllerMetricsTestStream";
         final int parallelism = 4;
         final int eventsWritten = 10;
-        int streamCount = 6;
         int iterations = 3;
-        Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
 
         // At this point, we have at least 6 internal streams.
-        Assert.assertTrue(streamCount <= createdStreamsCounter.getCount());
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(parallelism))
                                                                      .build();
@@ -153,7 +151,6 @@ public class ControllerMetricsTest {
                                                                                                        .build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
-        streamCount++;
 
         for (int i = 0; i < iterations; i++) {
             final String iterationStreamName = streamName + i;
@@ -161,12 +158,11 @@ public class ControllerMetricsTest {
 
             // Check that the number of streams in metrics has been incremented.
             streamManager.createStream(scope, iterationStreamName, streamConfiguration);
-            Assert.assertTrue(streamCount + i <= createdStreamsCounter.getCount());
+            Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
+            Assert.assertTrue(i <= createdStreamsCounter.getCount());
             groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                                                 .stream(scope + "/" + iterationStreamName)
                                                                                                 .build());
-            // Account for the Reader Group stream created.
-            streamCount++;
 
             for (long j = 1; j < iterations + 1; j++) {
                 @Cleanup
@@ -204,9 +200,8 @@ public class ControllerMetricsTest {
             Assert.assertTrue(i + 1 <= streamDeleteCounter.getCount());
         }
 
-        checkStatsRegisteredValues(12, CREATE_STREAM_LATENCY);
+        checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
         checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
-        checkStatsRegisteredValues(iterations, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
     }
 
     private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {
