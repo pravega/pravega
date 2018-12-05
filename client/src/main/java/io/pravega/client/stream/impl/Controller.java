@@ -10,7 +10,9 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -280,6 +282,24 @@ public interface Controller extends AutoCloseable {
      * @return Pravega node URI.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
+    
+    /**
+     * Notifies that the specified writer has noted the provided timestamp when it was at
+     * lastWrittenPosition.
+     * 
+     * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
+     * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
+     * it to the stream's marks segment so that it read by readers who will in turn ultimately
+     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
+     * 
+     * @param writer The name of the writer. (User defined)
+     * @param stream The stream the timestamp is associated with.
+     * @param timestamp The new timestamp for the writer on the stream.
+     * @param lastWrittenPosition The position the writer was at when it noted the time.
+     */
+    void noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition);
+
+    
 
     /**
      * Closes controller client.
