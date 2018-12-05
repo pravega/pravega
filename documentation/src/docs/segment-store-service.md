@@ -105,7 +105,7 @@ The Segment Container Metadata is critical to the good functioning and synchroni
 
 Each **Segment Container** needs to keep some general-purpose metadata that affects all operations inside the container:
 
-- **Operation Sequence Number**: The largest sequence number assigned by the _Durable Log_. Every time a new operation is received and successfully processed by the _Durable Log_, this number is incremented (its value never decrease or otherwise roll back, even if an operation failed to be persisted).
+- **Operation Sequence Number**: The largest sequence number assigned by the _Durable Log_. Every time a new operation is received and successfully processed by the _Durable Log_, this number is incremented (its value will never decrease or otherwise roll back, even if an operation failed to be persisted).
     - The operation sequence number is guaranteed to be strict-monotonic increasing (no two operations have the same value, and an operation will always have a larger sequence number than all operations before it).
 - **Epoch**: A number that is incremented every time a successful recovery (Container Start) happens. This value is durably incremented and stored as part of recovery and can be used for a number of cases (a good use is Tier 2 fencing for HDFS, which doesn't provide a good, native mechanism for that).
 - **Active Segment Metadata**: Keeps information about each active Stream Segment. A Segment is active if it has had activity (read or write) recently and is currently loaded in memory. If a Stream Segment is idle for a while, or if there are many Stream Segments currently active, a Stream Segment becomes inactive by having its outstanding metadata flushed to Tier 2 Storage and evicted from memory.
