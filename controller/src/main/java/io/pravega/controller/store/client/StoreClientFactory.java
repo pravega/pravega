@@ -81,7 +81,6 @@ public class StoreClientFactory {
                 .zookeeperFactory(new ZKClientFactory())
                 .retryPolicy(retryPolicy)
                 .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
-                .connectionTimeoutMs(5000)
                 .build();
         zkClient.start();
 
