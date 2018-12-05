@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.common.Exceptions;
 import io.pravega.test.system.framework.TestExecutorFactory.TestExecutorType;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.internal.runners.model.EachTestNotifier;
@@ -23,6 +24,7 @@ import org.junit.runners.model.Statement;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static io.pravega.common.Exceptions.unwrap;
 import static io.pravega.test.system.framework.Utils.getConfig;
@@ -64,6 +66,8 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
             //read the type of testExecutor from system property. This is sent by the gradle task. By default
             //the tests are executed locally.
             TestExecutorType executionType = TestExecutorType.valueOf(getConfig("execType", "LOCAL"));
+            //sleep for 10 seconds before running tests, remove once pravega/pravega/issues/1665 is resolved
+            Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(10));
             invokeTest(notifier, executionType, method);
         }
     }

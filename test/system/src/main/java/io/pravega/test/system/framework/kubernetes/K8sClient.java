@@ -158,7 +158,6 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Pod> callback = new K8AsyncCallback<>("createPod");
         api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, callback);
-
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
