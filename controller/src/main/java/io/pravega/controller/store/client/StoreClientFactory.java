@@ -125,8 +125,7 @@ public class StoreClientFactory {
         }
     }
 
-    @VisibleForTesting
-    static class RetryWrapper implements RetryPolicy {
+    private static class RetryWrapper implements RetryPolicy {
         private final RetryPolicy retryPolicy;
         private final Supplier<Boolean> canRetry;
 
