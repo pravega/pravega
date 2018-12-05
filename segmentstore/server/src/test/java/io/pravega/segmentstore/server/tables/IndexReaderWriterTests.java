@@ -30,10 +30,13 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the {@link IndexReader} and {@link IndexWriter} classes.
@@ -45,6 +48,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     private static final int MAX_KEY_LENGTH = 512;
     private static final long NO_OFFSET = -1L;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    @Rule
+    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     @Override
     protected int getThreadPoolSize() {
@@ -113,7 +118,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val w = new CustomLocateBucketIndexer(KeyHashers.DEFAULT_HASHER, executorService(), hashToBuckets);
         val allKeyUpdates = new ArrayList<BucketUpdate.KeyUpdate>();
         bucketsToKeys.values().forEach(allKeyUpdates::addAll);
-        val bucketUpdates = w.groupByBucket(allKeyUpdates, null, new TimeoutTimer(TIMEOUT)).join();
+        val bucketUpdates = w.groupByBucket(null, allKeyUpdates, new TimeoutTimer(TIMEOUT)).join();
 
         Assert.assertEquals("Unexpected number of Bucket Updates.", bucketCount, bucketUpdates.size());
         for (BucketUpdate bu : bucketUpdates) {
@@ -368,12 +373,12 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         long postIndexOffset = keyUpdates.get(keyUpdates.size() - 1).getOffset() + 2 * MAX_KEY_LENGTH;
 
         // Generate the BucketUpdate for the key.
-        val bucketUpdates = w.groupByBucket(keyUpdates, segment, timer).join();
+        val bucketUpdates = w.groupByBucket(segment, keyUpdates, timer).join();
 
         // Fetch existing keys.
         val oldOffsets = new ArrayList<Long>();
         for (val bu : bucketUpdates) {
-            w.getBucketOffsets(bu.getBucket(), segment, timer).join()
+            w.getBucketOffsets(segment, bu.getBucket(), timer).join()
              .forEach(offset -> {
                  HashedArray existingKey = existingKeys.getOrDefault(offset, null);
                  Assert.assertNotNull("Existing bucket points to non-existing key.", existingKey);
@@ -387,7 +392,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
 
         // Apply the updates.
-        val attrCount = w.updateBuckets(bucketUpdates, segment, firstKeyOffset, postIndexOffset, TIMEOUT).join();
+        val attrCount = w.updateBuckets(segment, bucketUpdates, firstKeyOffset, postIndexOffset, TIMEOUT).join();
         AssertExtensions.assertGreaterThan("Expected at least one attribute to be modified.", 0, attrCount);
 
         // Record the key as being updated.
@@ -414,7 +419,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                 .map(key -> new BucketUpdate.KeyInfo(key, existingKeys.getOrDefault(key, NO_OFFSET)))
                                 .sorted((k1, k2) -> Long.compare(k2.getOffset(), k1.getOffset())) // Reverse order.
                                 .collect(Collectors.groupingBy(keyInfo -> hasher.hash(keyInfo.getKey())));
-        val buckets = w.locateBuckets(keysByHash.keySet(), segment, timer).join();
+        val buckets = w.locateBuckets(segment, keysByHash.keySet(), timer).join();
         for (val e : keysByHash.entrySet()) {
             val hash = e.getKey();
             val keys = e.getValue();
@@ -422,7 +427,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             Assert.assertNotNull("No bucket found for hash " + hash, bucket);
             boolean allDeleted = keys.stream().allMatch(k -> k.getOffset() == NO_OFFSET);
             Assert.assertNotEquals("Only expecting inexistent bucket when all its keys are deleted " + hash, allDeleted, bucket.exists());
-            val bucketOffsets = w.getBucketOffsets(bucket, segment, timer).join();
+            val bucketOffsets = w.getBucketOffsets(segment, bucket, timer).join();
 
             // Verify that we didn't return too many or too few keys.
             if (allDeleted) {
@@ -520,7 +525,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Map<UUID, TableBucket>> locateBuckets(Collection<UUID> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+        public CompletableFuture<Map<UUID, TableBucket>> locateBuckets(DirectSegmentAccess segment, Collection<UUID> keyHashes, TimeoutTimer timer) {
             return CompletableFuture.completedFuture(
                     keyHashes.stream().collect(Collectors.toMap(k -> k, buckets::get)));
         }

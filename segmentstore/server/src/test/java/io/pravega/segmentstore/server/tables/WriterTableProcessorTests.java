@@ -250,7 +250,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     private void checkIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, UUID> allKeys, TestContext context) throws Exception {
         // Get all the buckets associated with the given keys.
         val timer = new TimeoutTimer(TIMEOUT);
-        val bucketsByHash = context.indexReader.locateBuckets(allKeys.values(), context.segmentMock, timer)
+        val bucketsByHash = context.indexReader.locateBuckets(context.segmentMock, allKeys.values(), timer)
                                                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Index the existing Keys by their current offsets.
@@ -259,7 +259,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
         // Load up all the offsets for all buckets.
         val buckets = bucketsByHash.values().stream().distinct()
-                                   .collect(Collectors.toMap(b -> b, b -> context.indexReader.getBucketOffsets(b, context.segmentMock, timer).join()));
+                                   .collect(Collectors.toMap(b -> b, b -> context.indexReader.getBucketOffsets(context.segmentMock, b, timer).join()));
 
         // Loop through all the bucket's offsets and verify that those offsets do point to existing keys.
         for (val e : buckets.entrySet()) {

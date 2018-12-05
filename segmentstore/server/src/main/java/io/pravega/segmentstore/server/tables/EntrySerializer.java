@@ -17,7 +17,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.util.Collection;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -38,7 +38,7 @@ import lombok.val;
 class EntrySerializer {
     static final int HEADER_LENGTH = 1 + Integer.BYTES * 2; // Version, Key Length, Value Length.
     static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
-    private static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
+    static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
     private static final byte CURRENT_SERIALIZATION_VERSION = 0;
     private static final int NO_VALUE = -1;
 
@@ -55,12 +55,12 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableEntry} list into the given byte array.
+     * Serializes the given {@link TableEntry} collection into the given byte array.
      *
-     * @param entries A List of {@link TableEntry} to serialize.
+     * @param entries A Collection of {@link TableEntry} to serialize.
      * @param target  The byte array to serialize into.
      */
-    void serializeUpdate(@NonNull List<TableEntry> entries, byte[] target) {
+    void serializeUpdate(@NonNull Collection<TableEntry> entries, byte[] target) {
         int offset = 0;
         for (TableEntry e : entries) {
             offset = serializeUpdate(e, target, offset);
@@ -115,12 +115,12 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableKey} list for removal into the given byte array.
+     * Serializes the given {@link TableKey} collection for removal into the given byte array.
      *
-     * @param keys   A List of {@link TableKey} to serialize for removals.
+     * @param keys   A Collection of {@link TableKey} to serialize for removals.
      * @param target The byte array to serialize into.
      */
-    void serializeRemoval(@NonNull List<TableKey> keys, byte[] target) {
+    void serializeRemoval(@NonNull Collection<TableKey> keys, byte[] target) {
         int offset = 0;
         for (TableKey e : keys) {
             offset = serializeRemoval(e, target, offset);

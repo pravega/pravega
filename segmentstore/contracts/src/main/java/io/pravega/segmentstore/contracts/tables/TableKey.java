@@ -77,7 +77,7 @@ public class TableKey {
      * @return True if a version is defined, false otherwise. If False, the result of getVersion() is undefined.
      */
     public boolean hasVersion() {
-        return this.version >= 0;
+        return this.version != NO_VERSION;
     }
 
     @Override

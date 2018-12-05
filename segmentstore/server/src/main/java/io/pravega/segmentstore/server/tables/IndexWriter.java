@@ -81,16 +81,16 @@ class IndexWriter extends IndexReader {
      * Groups the given {@link BucketUpdate.KeyUpdate} instances by their associated buckets. These buckets may be partial
      * (i.e., only part of the hash matched) or a full match.
      *
-     * @param keyUpdates A Collection of {@link BucketUpdate.KeyUpdate} instances to index.
      * @param segment    The Segment to read from.
+     * @param keyUpdates A Collection of {@link BucketUpdate.KeyUpdate} instances to index.
      * @param timer      Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the a collection of {@link BucketUpdate}s.
      */
-    CompletableFuture<Collection<BucketUpdate>> groupByBucket(Collection<BucketUpdate.KeyUpdate> keyUpdates,
-                                                              DirectSegmentAccess segment, TimeoutTimer timer) {
+    CompletableFuture<Collection<BucketUpdate>> groupByBucket(DirectSegmentAccess segment, Collection<BucketUpdate.KeyUpdate> keyUpdates,
+                                                              TimeoutTimer timer) {
         val updatesByHash = keyUpdates.stream()
                                       .collect(Collectors.groupingBy(k -> this.hasher.hash(k.getKey())));
-        return locateBuckets(updatesByHash.keySet(), segment, timer)
+        return locateBuckets(segment, updatesByHash.keySet(), timer)
                 .thenApplyAsync(buckets -> {
                     val result = new HashMap<TableBucket, BucketUpdate>();
                     buckets.forEach((keyHash, bucket) -> {
@@ -107,16 +107,16 @@ class IndexWriter extends IndexReader {
      * Determines what Segment Attribute Updates are necessary to apply the given bucket updates and executes them
      * onto the given Segment.
      *
+     * @param segment            A {@link DirectSegmentAccess} representing the Segment to apply the updates to.
      * @param bucketUpdates      A Collection of {@link BucketUpdate} instances to apply. Each such instance refers to
      *                           a different {@link TableBucket} and contains the existing state and changes for it alone.
-     * @param segment            A {@link DirectSegmentAccess} representing the Segment to apply the updates to.
      * @param firstIndexedOffset The first offset in the Segment that is indexed. This will be used as a conditional update
      *                           constraint (matched against the Segment's {@link Attributes#TABLE_INDEX_OFFSET}) to verify
      *                           the update will not corrupt the data (i.e., we do not overlap with another update).
      * @param lastIndexedOffset  The last offset in the Segment that is indexed. The Segment's {@link Attributes#TABLE_INDEX_OFFSET}
      *                           will be updated to this value (atomically) upon a successful completion of his call.
      * @param timeout            Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the number of attribute updates. If the
+     * @return A CompletableFuture that, when completed, will contain the number attribute updates. If the
      * operation failed, it will be failed with the appropriate exception. Notable exceptions:
      * <ul>
      * <li>{@link BadAttributeUpdateException} if the update failed due to firstIndexOffset not matching the Segment's
@@ -124,7 +124,7 @@ class IndexWriter extends IndexReader {
      * argument must be reconstructed with the reconciled value (to prevent index corruption).
      * </ul>
      */
-    CompletableFuture<Integer> updateBuckets(Collection<BucketUpdate> bucketUpdates, DirectSegmentAccess segment,
+    CompletableFuture<Integer> updateBuckets(DirectSegmentAccess segment, Collection<BucketUpdate> bucketUpdates,
                                              long firstIndexedOffset, long lastIndexedOffset, Duration timeout) {
         List<AttributeUpdate> attributeUpdates = new ArrayList<>();
 

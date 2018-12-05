@@ -30,6 +30,15 @@ class KeyHashers {
      */
     static final KeyHasher COLLISION_HASHER = KeyHasher.custom(KeyHashers::hashWithCollisions);
 
+    /**
+     * Hasher generating the same hash for all values.
+     */
+    static final KeyHasher CONSTANT_HASHER = KeyHasher.custom(KeyHashers::hashConstant);
+
+    private static byte[] hashConstant(ArrayView ignored) {
+        return new byte[KeyHasher.HASH_SIZE_BYTES];
+    }
+
     private static byte[] hashWithCollisions(ArrayView arrayView) {
         int hashValue = HashHelper.seededWith(IndexReaderWriterTests.class.getName()).hashToBucket(arrayView, COLLISION_HASH_BUCKETS);
         byte[] result = new byte[KeyHasher.HASH_SIZE_BYTES];

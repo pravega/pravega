@@ -75,12 +75,12 @@ class IndexReader {
     /**
      * Locates the {@link TableBucket}s for the given Key Hashes in the given Segment's Extended Attribute Index.
      *
-     * @param keyHashes A Collection of Key Hashes to look up {@link TableBucket}s for.
      * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.
+     * @param keyHashes A Collection of Key Hashes to look up {@link TableBucket}s for.
      * @param timer     Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the requested Bucket information.
      */
-    CompletableFuture<Map<UUID, TableBucket>> locateBuckets(Collection<UUID> keyHashes, DirectSegmentAccess segment, TimeoutTimer timer) {
+    CompletableFuture<Map<UUID, TableBucket>> locateBuckets(DirectSegmentAccess segment, Collection<UUID> keyHashes, TimeoutTimer timer) {
         return segment
                 .getAttributes(keyHashes, false, timer.getRemaining())
                 .thenApply(attributes -> attributes.entrySet().stream()
@@ -90,12 +90,12 @@ class IndexReader {
     /**
      * Looks up a Backpointer offset.
      *
-     * @param offset  The offset to find a backpointer from.
      * @param segment A DirectSegmentAccess providing access to the Segment to search in.
+     * @param offset  The offset to find a backpointer from.
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the backpointer offset, or -1 if no such pointer exists.
      */
-    CompletableFuture<Long> getBackpointerOffset(long offset, DirectSegmentAccess segment, Duration timeout) {
+    CompletableFuture<Long> getBackpointerOffset(DirectSegmentAccess segment, long offset, Duration timeout) {
         UUID key = getBackpointerAttributeKey(offset);
         return segment.getAttributes(Collections.singleton(key), false, timeout)
                       .thenApply(attributes -> {
@@ -107,22 +107,22 @@ class IndexReader {
     /**
      * Gets the offsets for all the Table Entries in the given {@link TableBucket}.
      *
-     * @param bucket  The {@link TableBucket} to get offsets for.
      * @param segment A {@link DirectSegmentAccess}
+     * @param bucket  The {@link TableBucket} to get offsets for.
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain a List of offsets, with the first offset being the
      * {@link TableBucket}'s offset itself, then descending down in the order of backpointers. If the {@link TableBucket}
      * is partial, then the list will be empty.
      */
     @VisibleForTesting
-    CompletableFuture<List<Long>> getBucketOffsets(TableBucket bucket, DirectSegmentAccess segment, TimeoutTimer timer) {
+    CompletableFuture<List<Long>> getBucketOffsets(DirectSegmentAccess segment, TableBucket bucket, TimeoutTimer timer) {
         val result = new ArrayList<Long>();
         AtomicLong offset = new AtomicLong(bucket.getSegmentOffset());
         return Futures.loop(
                 () -> offset.get() >= 0,
                 () -> {
                     result.add(offset.get());
-                    return getBackpointerOffset(offset.get(), segment, timer.getRemaining());
+                    return getBackpointerOffset(segment, offset.get(), timer.getRemaining());
                 },
                 offset::set,
                 this.executor)
