@@ -183,10 +183,11 @@ public interface Controller extends AutoCloseable {
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      * 
      * @param stream Stream name
+     * @param timestamp The timestamp the writer provided for the commit (or null if they did not specify one).
      * @param txId Transaction id
      * @return Void or TxnFailedException
      */
-    CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<Void> commitTransaction(final Stream stream, final Long timestamp, final UUID txId);
 
     /**
      * Aborts a transaction. No events written to it may be read, and no further events may be
