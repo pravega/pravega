@@ -33,7 +33,7 @@ abstract class AbstractSystemTest {
             case REMOTE_SEQUENTIAL:
                 return uri.getPort() == Utils.MARATHON_CONTROLLER_PORT;
             case DOCKER:
-            case K8s:
+            case KUBERNETES:
             default:
                 return uri.getPort() == Utils.DOCKER_CONTROLLER_PORT;
         }

@@ -82,10 +82,10 @@ public class K8sClient {
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
     private final Predicate<Throwable> isConflict = t -> {
         if (t instanceof ApiException && ((ApiException) t).getCode() == CONFLICT.getStatusCode()) {
-            log.info("Ignoring Response code {} from K8s api server", CONFLICT.getStatusCode());
+            log.info("Ignoring Response code {} from KUBERNETES api server", CONFLICT.getStatusCode());
             return true;
         }
-        log.error("Exception observed from K8s api server", t);
+        log.error("Exception observed from KUBERNETES api server", t);
         return false;
     };
 
@@ -95,7 +95,7 @@ public class K8sClient {
     }
 
     /**
-     * Create an instance of K8 api client and initialize with the K8s config. The config used follows the below pattern.
+     * Create an instance of K8 api client and initialize with the KUBERNETES config. The config used follows the below pattern.
      *      1. If $KUBECONFIG is defined, use that config file.
      *      2. If $HOME/.kube/config can be found, use that.
      *      3. If the in-cluster service account can be found, assume in cluster config.
@@ -104,7 +104,7 @@ public class K8sClient {
     private ApiClient initializeApiClient() {
         ApiClient client;
         try {
-            log.debug("Initialize K8s api client");
+            log.debug("Initialize KUBERNETES api client");
             client = Config.defaultClient();
             client.setDebugging(false); // this can be set to true enable http dump.
             client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
@@ -205,7 +205,7 @@ public class K8sClient {
     }
 
     /**
-     * Create a deployement on K8s, if the deployment is already present then it is ignored.
+     * Create a deployement on KUBERNETES, if the deployment is already present then it is ignored.
      * @param namespace Namespace.
      * @param deploy Deployment object.
      * @return A future which represents the creation of the Deployment.
@@ -492,7 +492,7 @@ public class K8sClient {
             List<V1ContainerStatus> containerStatuses = v1PodResponse.object.getStatus().getContainerStatuses();
             log.debug("Container status for the pod {} is {}", podName, containerStatuses);
             if (containerStatuses == null || containerStatuses.size() == 0) {
-                log.debug("Container status is not part of the pod {}/{}, wait for the next update from K8s Cluster", namespace, podName);
+                log.debug("Container status is not part of the pod {}/{}, wait for the next update from KUBERNETES Cluster", namespace, podName);
                 continue;
             }
             // We check only the first container as there is only one container in the pod.
@@ -568,7 +568,7 @@ public class K8sClient {
     }
 
     /**
-     * Close resources used by K8s client.
+     * Close resources used by KUBERNETES client.
      */
     public void close() {
         log.debug("Shutting down executor used by K8sClient");

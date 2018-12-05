@@ -730,7 +730,7 @@ project('test:system') {
         classpath = sourceSets.test.runtimeClasspath
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
-        systemProperty "execType", "K8s"
+        systemProperty "execType", "KUBERNETES"
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
         systemProperty "skipServiceInstallation", "false"

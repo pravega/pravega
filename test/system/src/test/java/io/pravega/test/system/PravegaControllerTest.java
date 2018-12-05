@@ -69,7 +69,7 @@ public class PravegaControllerTest {
                     return port == PravegaControllerService.CONTROLLER_PORT || port == PravegaControllerService.REST_PORT;
                 case DOCKER:
                     return port == CONTROLLER_GRPC_PORT || port == REST_PORT;
-                case K8s:
+                case KUBERNETES:
                 default:
                     return port == CONTROLLER_GRPC_PORT || port == CONTROLLER_REST_PORT;
             }

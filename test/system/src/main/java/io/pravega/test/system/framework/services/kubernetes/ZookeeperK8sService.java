@@ -52,7 +52,6 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 @Slf4j
 public class ZookeeperK8sService extends AbstractService {
 
-    private static final String ID = "zk";
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
     private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeper-clusters";
@@ -60,8 +59,8 @@ public class ZookeeperK8sService extends AbstractService {
     private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
 
-    public ZookeeperK8sService() {
-        super(ID);
+    public ZookeeperK8sService(String id) {
+        super(id);
     }
 
     @Override
@@ -79,7 +78,7 @@ public class ZookeeperK8sService extends AbstractService {
                                                                                                         getZookeeperDeployment(getID(), DEFAULT_INSTANCE_COUNT))),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", ID, DEFAULT_INSTANCE_COUNT),
+            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), DEFAULT_INSTANCE_COUNT),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper service", t));
         }
     }
@@ -98,7 +97,7 @@ public class ZookeeperK8sService extends AbstractService {
     @Override
     public boolean isRunning() {
 
-        return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
+        return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", getID())
                         .thenApply(statuses -> statuses.stream()
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
@@ -106,7 +105,7 @@ public class ZookeeperK8sService extends AbstractService {
                                                       .count())
                         .thenApply(runCount -> runCount == DEFAULT_INSTANCE_COUNT)
                         .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pod " + ID, t);
+                           log.warn("Exception observed while checking status of pod " + getID(), t);
                            return false;
                        }).join();
     }
@@ -114,7 +113,7 @@ public class ZookeeperK8sService extends AbstractService {
     @Override
     public List<URI> getServiceDetails() {
         // Fetch the URI.
-        return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
+        return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", getID())
                                                        .thenApply(statuses -> statuses.stream().map(s -> URI.create(TCP + s.getPodIP() + ":" + ZKPORT))
                                                                                      .collect(Collectors.toList())),
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for Zookeeper", t));
@@ -126,7 +125,7 @@ public class ZookeeperK8sService extends AbstractService {
         // Request operator to deploy zookeeper nodes.
         return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL,
                                                      getZookeeperDeployment(getID(), instanceCount))
-                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
+                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), instanceCount));
     }
 
     private V1beta1ClusterRoleBinding getClusterRoleBinding() {

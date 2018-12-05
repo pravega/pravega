@@ -55,14 +55,15 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
+        String serviceId = "zookeeper";
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
-                return new ZookeeperService("zookeeper");
+                return new ZookeeperService(serviceId);
             case DOCKER:
-                return new ZookeeperDockerService("zookeeper");
-            case K8s:
+                return new ZookeeperDockerService(serviceId);
+            case KUBERNETES:
             default:
-                return new ZookeeperK8sService();
+                return new ZookeeperK8sService(serviceId);
 
         }
     }
@@ -74,7 +75,7 @@ public class Utils {
                 return new BookkeeperService(serviceId, zkUri);
             case DOCKER:
                 return new BookkeeperDockerService(serviceId, zkUri);
-            case K8s:
+            case KUBERNETES:
             default:
                 return new BookkeeperK8sService(serviceId, zkUri);
         }
@@ -86,7 +87,7 @@ public class Utils {
                 return new PravegaControllerService(serviceName, zkUri);
             case DOCKER:
                 return new PravegaControllerDockerService(serviceName, zkUri);
-            case K8s:
+            case KUBERNETES:
             default:
                 return new PravegaControllerK8sService(serviceName, zkUri);
         }
@@ -113,7 +114,7 @@ public class Utils {
                 return new PravegaSegmentStoreService(serviceId, zkUri, contUri);
             case DOCKER:
                 return  new PravegaSegmentStoreDockerService(serviceId, zkUri, hdfsUri, contUri);
-            case K8s:
+            case KUBERNETES:
             default:
                 return new PravegaSegmentStoreK8sService(serviceId, zkUri);
         }
