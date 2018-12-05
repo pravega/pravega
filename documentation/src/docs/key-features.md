@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 # Pravega Key Features
 
 This document explains some of the key features of Pravega.  It may be
-advantageous if you are already familiar with the core [Pravega Concepts](#pravega-concepts.md).
+advantageous if you are already familiar with the core [Pravega Concepts](pravega-concepts.md).
 
 ## Pravega Design Principles
 
@@ -55,7 +55,6 @@ and manage in production. This style of big data application design consequentl
 been losing traction. A different kind of architecture has been gaining traction recently
 that does not rely on a batch processing data path. This architecture is called [**Kappa**](http://milinda.pathirage.org/kappa-architecture.com/).
 
- 
 The Kappa Architecture style is a reaction to the complexity of the Lambda Architecture
 and relies on components that are designed for streaming, supporting stronger
 semantics and delivering both fast and accurate data analysis. The Kappa
@@ -89,7 +88,7 @@ applications. Because of Pravega's key features, we imagine that it will be the
 fundamental storage primitive for a new generation of streaming-oriented
 middleware.
 
-Let's examine the key features of Pravega.
+Let's examine the key features of Pravega:
 
 ## Exactly Once Semantics
 
@@ -106,8 +105,8 @@ consistent and [transactional](pravega-concepts.md#transactions). We discuss du
 ### Pravega Streams are Ordered
 
 By ordering, we mean that data is observed by Readers in the order it is written.
-In Pravega, data is written along with an application-defined [Routing Key]().  
-Pravega makes [ordering guarantees](pravega-concepts.md/#ordering-guarantees) in terms of Routing Keys. Two pieces of data with the same Routing Key will always be read by a Reader in the order they were
+In Pravega, data is written along with an application-defined Routing Key.  
+Pravega makes [ordering guarantees](pravega-concepts.md#ordering-guarantees) in terms of Routing Keys. Two pieces of data with the same Routing Key will always be read by a Reader in the order they were
 written. Pravega's ordering guarantees allow data reads to be replayed (e.g.
 when applications crash) and the results of replaying the reads will be the
 same.
@@ -156,11 +155,12 @@ data's Routing Key. Writers use domain specific meaningful Routing Keys (like
 customer ID, Timestamp, Machine ID, etc.) to group similar together.  
 
 A Stream Segment is the fundamental unit of parallelism in Pravega Streams. 
-**Parallel Writes:** A Stream with multiple Stream Segments can support more parallelism of data
+
+- **Parallel Writes:** A Stream with multiple Stream Segments can support more parallelism of data
 writes; multiple Writers writing data into the different Stream Segments
 potentially involving all the Pravega Servers in the cluster.
 
-**Parallel reads:** On the Reader side, the number of Stream Segments represents the maximum degree of read parallelism possible. If a Stream has _N_ Stream Segments, then a Reader Group
+- **Parallel reads:** On the Reader side, the number of Stream Segments represents the maximum degree of read parallelism possible. If a Stream has _N_ Stream Segments, then a Reader Group
 with _N_ Readers can consume from the Stream in parallel. Increase the number of
 Stream Segments, you can increase the number of Readers in the Reader Group to
 increase the scale of processing the data from that Stream. And of course if
