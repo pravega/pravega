@@ -22,10 +22,13 @@ public class TestExecutorFactory {
     @Getter(lazy = true)
     private final TestExecutor dockerExecutor = new DockerBasedTestExecutor();
 
+    @Getter(lazy = true)
+    private final TestExecutor k8sExecutor = new K8SequentialExecutor();
+
     public enum TestExecutorType {
         LOCAL,
         DOCKER,
-        K8s,
+        KUBERNETES,
         REMOTE_SEQUENTIAL,
         REMOTE_DISTRIBUTED //TODO: https://github.com/pravega/pravega/issues/2074.
     }
@@ -36,8 +39,8 @@ public class TestExecutorFactory {
                 return getDockerExecutor();
             case REMOTE_SEQUENTIAL:
                 return getMarathonSequentialExecutor();
-            case K8s:
-                 return new K8SequentialExecutor();
+            case KUBERNETES:
+                 return getK8sExecutor();
             case REMOTE_DISTRIBUTED:
                 throw new NotImplementedException("Distributed execution not implemented");
             case LOCAL:

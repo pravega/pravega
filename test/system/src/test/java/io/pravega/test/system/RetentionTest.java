@@ -120,7 +120,7 @@ public class RetentionTest extends AbstractSystemTest {
         writer.flush();
         log.debug("Writing event: {} ", writeEvent);
 
-        //sleep for 4 mins
+        //sleep for 5 mins
         Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         //create a reader

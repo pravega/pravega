@@ -9,17 +9,21 @@
  */
 package io.pravega.test.system.framework;
 
-import io.pravega.test.system.framework.services.kubernetes.ZookeeperK8sService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaControllerDockerService;
 import io.pravega.test.system.framework.services.docker.PravegaSegmentStoreDockerService;
 import io.pravega.test.system.framework.services.docker.ZookeeperDockerService;
+import io.pravega.test.system.framework.services.kubernetes.BookkeeperK8sService;
+import io.pravega.test.system.framework.services.kubernetes.PravegaControllerK8sService;
+import io.pravega.test.system.framework.services.kubernetes.PravegaSegmentStoreK8sService;
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperK8sService;
 import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -37,7 +41,8 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
-    private static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
+    public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
+
 
     /**
      * Get Configuration from environment or system property.
@@ -50,28 +55,43 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
+        String serviceId = "zookeeper";
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
-                return new ZookeeperService("zookeeper");
+                return new ZookeeperService(serviceId);
             case DOCKER:
-                return new ZookeeperDockerService("zookeeper");
-            case K8s:
+                return new ZookeeperDockerService(serviceId);
+            case KUBERNETES:
             default:
-                return new ZookeeperK8sService();
+                return new ZookeeperK8sService(serviceId);
 
         }
     }
 
     public static Service createBookkeeperService(final URI zkUri) {
-        return DOCKER_BASED ?
-                new BookkeeperDockerService("bookkeeper", zkUri) :
-                new BookkeeperService("bookkeeper", zkUri);
+        String serviceId = "bookkeeper";
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new BookkeeperService(serviceId, zkUri);
+            case DOCKER:
+                return new BookkeeperDockerService(serviceId, zkUri);
+            case KUBERNETES:
+            default:
+                return new BookkeeperK8sService(serviceId, zkUri);
+        }
     }
 
     public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
-        return DOCKER_BASED
-                ? new PravegaControllerDockerService(serviceName, zkUri)
-                : new PravegaControllerService(serviceName, zkUri);
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new PravegaControllerService(serviceName, zkUri);
+            case DOCKER:
+                return new PravegaControllerDockerService(serviceName, zkUri);
+            case KUBERNETES:
+            default:
+                return new PravegaControllerK8sService(serviceName, zkUri);
+        }
+
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
@@ -87,9 +107,17 @@ public class Utils {
             }
             hdfsUri = hdfsService.getServiceDetails().get(0);
         }
-        return DOCKER_BASED ?
-                new PravegaSegmentStoreDockerService("segmentstore", zkUri, hdfsUri, contUri)
-                : new PravegaSegmentStoreService("segmentstore", zkUri, contUri);
+
+        String serviceId = "segmentstore";
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new PravegaSegmentStoreService(serviceId, zkUri, contUri);
+            case DOCKER:
+                return  new PravegaSegmentStoreDockerService(serviceId, zkUri, hdfsUri, contUri);
+            case KUBERNETES:
+            default:
+                return new PravegaSegmentStoreK8sService(serviceId, zkUri);
+        }
     }
 
     /**

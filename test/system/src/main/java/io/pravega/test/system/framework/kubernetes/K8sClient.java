@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework.kubernetes;
 
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import io.kubernetes.client.ApiCallback;
 import io.kubernetes.client.ApiClient;
@@ -30,6 +31,7 @@ import io.kubernetes.client.models.V1ObjectMeta;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodList;
 import io.kubernetes.client.models.V1PodStatus;
+import io.kubernetes.client.models.V1ServiceAccount;
 import io.kubernetes.client.models.V1beta1ClusterRole;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
@@ -69,20 +71,21 @@ import static javax.ws.rs.core.Response.Status.CONFLICT;
 @Slf4j
 public class K8sClient {
 
-    private static final int DEFAULT_TIMEOUT_SECONDS = 60; // timeout of http client.
+    private static final int DEFAULT_TIMEOUT_MINUTES = 5; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "pravega-k8s-client");
+    // size of the executor is 3 (1 thread is used to watch the pod status, 2 threads for background log copy).
+    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(3, "pravega-k8s-client");
     private final Retry.RetryWithBackoff retryWithBackoff = Retry.withExpBackoff(1000, 10, RETRY_COUNT, RETRY_MAX_DELAY_MS);
     private final Predicate<Throwable> isConflict = t -> {
         if (t instanceof ApiException && ((ApiException) t).getCode() == CONFLICT.getStatusCode()) {
-            log.info("Ignoring Response code {} from K8s api server", CONFLICT.getStatusCode());
+            log.info("Ignoring Response code {} from KUBERNETES api server", CONFLICT.getStatusCode());
             return true;
         }
-        log.error("Exception observed from K8s api server", t);
+        log.error("Exception observed from KUBERNETES api server", t);
         return false;
     };
 
@@ -92,7 +95,7 @@ public class K8sClient {
     }
 
     /**
-     * Create an instance of K8 api client and initialize with the K8s config. The config used follows the below pattern.
+     * Create an instance of K8 api client and initialize with the KUBERNETES config. The config used follows the below pattern.
      *      1. If $KUBECONFIG is defined, use that config file.
      *      2. If $HOME/.kube/config can be found, use that.
      *      3. If the in-cluster service account can be found, assume in cluster config.
@@ -101,10 +104,10 @@ public class K8sClient {
     private ApiClient initializeApiClient() {
         ApiClient client;
         try {
-            log.debug("Initialize K8s api client");
+            log.debug("Initialize KUBERNETES api client");
             client = Config.defaultClient();
             client.setDebugging(false); // this can be set to true enable http dump.
-            client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            client.getHttpClient().setReadTimeout(DEFAULT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
             Configuration.setDefaultApiClient(client);
             Runtime.getRuntime().addShutdownHook(new Thread(this::close));
         } catch (IOException e) {
@@ -155,7 +158,6 @@ public class K8sClient {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Pod> callback = new K8AsyncCallback<>("createPod");
         api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, callback);
-
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -202,7 +204,7 @@ public class K8sClient {
     }
 
     /**
-     * Create a deployement on K8s, if the deployment is already present then it is ignored.
+     * Create a deployment on KUBERNETES, if the deployment is already present then it is ignored.
      * @param namespace Namespace.
      * @param deploy Deployment object.
      * @return A future which represents the creation of the Deployment.
@@ -306,7 +308,6 @@ public class K8sClient {
         return callback.getFuture();
     }
 
-
     /**
      * Delete Custom Object for a given resource group.
      * @param customResourceGroup Custom resource group.
@@ -328,6 +329,29 @@ public class K8sClient {
                                               0, false, null, callback);
 
         return callback.getFuture();
+    }
+
+    /**
+     * Delete persistent volume claim.
+     * @param namespace Namespace.
+     * @param name Persistent volume claim name.
+     */
+    @SneakyThrows(ApiException.class)
+    public void deletePVC(String namespace, String name) {
+        CoreV1Api api = new CoreV1Api();
+        try {
+            api.deleteNamespacedPersistentVolumeClaim(name, namespace, new V1DeleteOptions(), PRETTY_PRINT, null, null, null);
+        } catch (JsonSyntaxException e) {
+            // https://github.com/kubernetes-client/java/issues/86
+            if (e.getCause() instanceof IllegalStateException) {
+                IllegalStateException ise = (IllegalStateException) e.getCause();
+                if (ise.getMessage() != null && ise.getMessage().contains("Expected a string but was BEGIN_OBJECT")) {
+                    log.debug("Ignoring exception", e);
+                    return;
+                }
+            }
+            throw e;
+        }
     }
 
     /**
@@ -385,7 +409,7 @@ public class K8sClient {
 
     /**
      * Create role binding.
-     * @param namespace The namespece where the binding should be created.
+     * @param namespace The namespace where the binding should be created.
      * @param binding The cluster role binding.
      * @return A future indicating the status of the create role binding operation.
      */
@@ -394,6 +418,20 @@ public class K8sClient {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding");
         api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, callback);
+        return exceptionallyExpecting(callback.getFuture(), isConflict, null);
+    }
+
+    /**
+     * Create a service account.
+     * @param namespace The namespace.
+     * @param account Service Account.
+     * @return A future indicating the status of create service account operation.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1ServiceAccount> createServiceAccount(String namespace, V1ServiceAccount account) {
+        CoreV1Api api = new CoreV1Api();
+        K8AsyncCallback<V1ServiceAccount> callback = new K8AsyncCallback<>("createServiceAccount");
+        api.createNamespacedServiceAccountAsync(namespace, account, PRETTY_PRINT, callback );
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -453,7 +491,7 @@ public class K8sClient {
             List<V1ContainerStatus> containerStatuses = v1PodResponse.object.getStatus().getContainerStatuses();
             log.debug("Container status for the pod {} is {}", podName, containerStatuses);
             if (containerStatuses == null || containerStatuses.size() == 0) {
-                log.debug("Container status is not part of the pod {}/{}, wait for the next update from K8s Cluster", namespace, podName);
+                log.debug("Container status is not part of the pod {}/{}, wait for the next update from KUBERNETES Cluster", namespace, podName);
                 continue;
             }
             // We check only the first container as there is only one container in the pod.
@@ -468,7 +506,7 @@ public class K8sClient {
     }
 
     /**
-     * A method which returns a completed future once the pod is running for a given label.
+     * A method which returns a completed future once the desired number of pod(s) are running with a given label.
      * @param namespace Namespace
      * @param labelName Label name.
      * @param labelValue Value of the Label.
@@ -502,24 +540,34 @@ public class K8sClient {
     }
 
     /**
-     * Save logs of the specified pod.
+     * Download logs of the specified pod.
+     *
      * @param fromPod Pod logs to be copied.
-     * @param toFile destination file of the logs.
+     * @param toFile Destination file of the logs.
+     * @return A Future which completes once the download operation completes.
      */
-    public void saveLogs(final V1Pod fromPod, final String toFile) {
-        log.debug("copy logs from pod {} to file {}", fromPod.getMetadata().getName(), toFile);
-        try {
-            @Cleanup
-            InputStream r = logUtility.streamNamespacedPodLog(fromPod);
-            Files.copy(r, Paths.get(toFile));
-        } catch (ApiException | IOException e) {
-            log.error("Error while copying files from pod {}.", fromPod.getMetadata().getName());
-        }
+    public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
+        return Retry.withExpBackoff(500, 10, 2)
+                    .retryingOn(TestFrameworkException.class)
+                    .throwingOn(RuntimeException.class)
+                    .runInExecutor(() -> {
+                        final String podName = fromPod.getMetadata().getName();
+                        log.debug("copy logs from pod {} to file {}", podName, toFile);
+                        try {
+                            @Cleanup
+                            InputStream r1 = logUtility.streamNamespacedPodLog(fromPod);
+                            Files.copy(r1, Paths.get(toFile));
+                            log.debug("log copy completed for pod {}", podName);
+                        } catch (ApiException | IOException e) {
+                            log.error("Error while copying files from pod {}.", podName);
+                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
+                        }
+                    }, executor);
     }
 
     /**
-     * Close resources used by K8s client.
+     * Close resources used by KUBERNETES client.
      */
     public void close() {
         log.debug("Shutting down executor used by K8sClient");
@@ -549,14 +597,12 @@ public class K8sClient {
 
         @Override
         public void onUploadProgress(long bytesWritten, long contentLength, boolean done) {
-            log.trace("UploadProgress callback invoked bytesWritten:{} for contentLength: {} done: {}", bytesWritten,
-                      contentLength, done);
+            // NOP.
         }
 
         @Override
         public void onDownloadProgress(long bytesRead, long contentLength, boolean done) {
-            log.trace("DownloadProgress callback invoked, bytesRead: {} for contentLength: {} done: {}", bytesRead,
-                      contentLength, done);
+            // NOP.
         }
 
         CompletableFuture<T> getFuture() {

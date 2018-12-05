@@ -36,9 +36,6 @@ import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
-import io.pravega.test.system.framework.kubernetes.ClientFactory;
-import io.pravega.test.system.framework.kubernetes.K8sClient;
-import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -53,23 +50,17 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
  * Manage Zookeeper service on K8s cluster.
  */
 @Slf4j
-public class ZookeeperK8sService implements Service {
+public class ZookeeperK8sService extends AbstractService {
 
-    private static final String NAMESPACE = "default";
-    private static final String ID = "zk";
     private static final String CUSTOM_RESOURCE_GROUP = "zookeeper.pravega.io";
     private static final String CUSTOM_RESOURCE_VERSION = "v1beta1";
     private static final String CUSTOM_RESOURCE_PLURAL = "zookeeper-clusters";
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final String OPERATOR_ID = "zookeeper-operator";
-    private static final int MIN_READY_SECONDS = 10; // minimum duration the operator is up and running to be considered ready.
-    private static final int ZKPORT = 2181;
-    private static final String TCP = "tcp://";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
-    private final K8sClient k8sClient;
 
-    public ZookeeperK8sService() {
-        k8sClient = ClientFactory.INSTANCE.getK8sClient();
+    public ZookeeperK8sService(String id) {
+        super(id);
     }
 
     @Override
@@ -77,7 +68,7 @@ public class ZookeeperK8sService implements Service {
         Futures.getAndHandleExceptions(k8sClient.createCRD(getZKOperatorCRD())
                                                 .thenCompose(v -> k8sClient.createClusterRole(getClusterRole()))
                                                 .thenCompose(v -> k8sClient.createClusterRoleBinding(getClusterRoleBinding()))
-                                                //deploy zk operator.
+                                                // deploy zk operator.
                                                 .thenCompose(v -> k8sClient.createDeployment(NAMESPACE, getDeployment()))
                                                 // wait until zk operator is running, only one instance of operator is running.
                                                 .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "name", OPERATOR_ID, 1))
@@ -87,7 +78,7 @@ public class ZookeeperK8sService implements Service {
                                                                                                         getZookeeperDeployment(getID(), DEFAULT_INSTANCE_COUNT))),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper operator/service", t));
         if (wait) {
-            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", ID, DEFAULT_INSTANCE_COUNT),
+            Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), DEFAULT_INSTANCE_COUNT),
                                            t -> new TestFrameworkException(RequestFailed, "Failed to deploy zookeeper service", t));
         }
     }
@@ -104,14 +95,9 @@ public class ZookeeperK8sService implements Service {
     }
 
     @Override
-    public String getID() {
-        return ID;
-    }
-
-    @Override
     public boolean isRunning() {
 
-        return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
+        return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", getID())
                         .thenApply(statuses -> statuses.stream()
                                                       .filter(podStatus -> podStatus.getContainerStatuses()
                                                                                     .stream()
@@ -119,7 +105,7 @@ public class ZookeeperK8sService implements Service {
                                                       .count())
                         .thenApply(runCount -> runCount == DEFAULT_INSTANCE_COUNT)
                         .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pod " + ID, t);
+                           log.warn("Exception observed while checking status of pod " + getID(), t);
                            return false;
                        }).join();
     }
@@ -127,7 +113,7 @@ public class ZookeeperK8sService implements Service {
     @Override
     public List<URI> getServiceDetails() {
         // Fetch the URI.
-        return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", ID)
+        return Futures.getAndHandleExceptions(k8sClient.getStatusOfPodWithLabel(NAMESPACE, "app", getID())
                                                        .thenApply(statuses -> statuses.stream().map(s -> URI.create(TCP + s.getPodIP() + ":" + ZKPORT))
                                                                                      .collect(Collectors.toList())),
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for Zookeeper", t));
@@ -139,7 +125,7 @@ public class ZookeeperK8sService implements Service {
         // Request operator to deploy zookeeper nodes.
         return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP, CUSTOM_RESOURCE_VERSION, NAMESPACE, CUSTOM_RESOURCE_PLURAL,
                                                      getZookeeperDeployment(getID(), instanceCount))
-                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", ID, instanceCount));
+                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "app", getID(), instanceCount));
     }
 
     private V1beta1ClusterRoleBinding getClusterRoleBinding() {
@@ -210,7 +196,7 @@ public class ZookeeperK8sService implements Service {
                                                         .withImage("pravega/zookeeper-operator:latest")
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand("zookeeper-operator")
-                                                        .withImagePullPolicy("Always")
+                                                        .withImagePullPolicy(IMAGE_PULL_POLICY)
                                                         .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
                                                                                                              .withFieldRef(new V1ObjectFieldSelectorBuilder()
