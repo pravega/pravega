@@ -172,13 +172,14 @@ class RocksDBCache implements Cache {
     public void insert(Key key, byte[] data) {
         ensureInitializedAndNotClosed();
         Timer timer = new Timer();
+        byte[] serializedKey = key.serialize();
         try {
-            this.database.get().put(this.writeOptions, key.serialize(), data);
+            this.database.get().put(this.writeOptions, serializedKey, data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
 
-        RocksDBMetrics.insert(timer.getElapsedMillis());
+        RocksDBMetrics.insert(timer.getElapsedMillis(), serializedKey.length + ((data != null) ? data.length : 0));
     }
 
     @Override
@@ -191,13 +192,14 @@ class RocksDBCache implements Cache {
         ensureInitializedAndNotClosed();
         Timer timer = new Timer();
         byte[] result;
+        byte[] serializedKey = key.serialize();
         try {
-            result = this.database.get().get(key.serialize());
+            result = this.database.get().get(serializedKey);
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
 
-        RocksDBMetrics.get(timer.getElapsedMillis());
+        RocksDBMetrics.get(timer.getElapsedMillis(), (result != null) ? result.length : 0);
         return result;
     }
 

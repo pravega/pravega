@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.RequestFailed;
 
 /**
- * Manage Zookeeper service on k8 cluster.
+ * Manage Zookeeper service on K8s cluster.
  */
 @Slf4j
 public class ZookeeperK8sService extends AbstractService {

@@ -24,4 +24,5 @@ final class HDFSMetrics {
     static final OpStatsLogger WRITE_LATENCY = HDFS_LOGGER.createStats(MetricsNames.STORAGE_WRITE_LATENCY);
     static final Counter READ_BYTES = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_READ_BYTES);
     static final Counter WRITE_BYTES = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_WRITE_BYTES);
+    static final Counter CREATE_COUNT = HDFS_LOGGER.createCounter(MetricsNames.STORAGE_CREATE_COUNT);
 }

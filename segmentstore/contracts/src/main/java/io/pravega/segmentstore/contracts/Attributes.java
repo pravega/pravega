@@ -33,7 +33,7 @@ public final class Attributes {
     /**
      * Prefix (Most Significant Bits) of the Id of all Core Attributes.
      */
-    private static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
+    public static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
 
     /**
      * Defines an attribute that can be used to denote Segment creation time.
@@ -71,6 +71,11 @@ public final class Attributes {
      * Attribute Snapshot Length.
      */
     private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
+
+    /**
+     * Defines an attribute that is used to store the first index of a (Table) Segment that has not yet been indexed.
+     */
+    public static final UUID TABLE_INDEX_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 7);
 
     /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
