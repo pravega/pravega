@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.kubernetes.ZookeeperK8sService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -19,12 +20,14 @@ import io.pravega.test.system.framework.services.marathon.BookkeeperService;
 import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
 
 /**
  * Utility methods used inside the TestFramework.
  */
+@Slf4j
 public class Utils {
 
     public static final int DOCKER_CONTROLLER_PORT = 9090;
@@ -34,6 +37,7 @@ public class Utils {
     public static final boolean DOCKER_BASED = Utils.isDockerExecEnabled();
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
+    private static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
 
     /**
      * Get Configuration from environment or system property.
@@ -46,8 +50,16 @@ public class Utils {
     }
 
     public static Service createZookeeperService() {
-        return DOCKER_BASED ? new ZookeeperDockerService("zookeeper")
-                : new ZookeeperService("zookeeper");
+        switch (EXECUTOR_TYPE) {
+            case REMOTE_SEQUENTIAL:
+                return new ZookeeperService("zookeeper");
+            case DOCKER:
+                return new ZookeeperDockerService("zookeeper");
+            case K8s:
+            default:
+                return new ZookeeperK8sService();
+
+        }
     }
 
     public static Service createBookkeeperService(final URI zkUri) {
@@ -87,11 +99,11 @@ public class Utils {
      *  true: Already deployed services are used for running tests.
      *  false: Services are deployed on the cluster before running tests.
      *
-     * Default value is true
+     * Default value is false
      * @return true if skipServiceInstallation is set, false otherwise.
      */
     public static boolean isSkipServiceInstallationEnabled() {
-        String config = getConfig("skipServiceInstallation", "true");
+        String config = getConfig("skipServiceInstallation", "false");
         return config.trim().equalsIgnoreCase("true") ? true : false;
     }
 

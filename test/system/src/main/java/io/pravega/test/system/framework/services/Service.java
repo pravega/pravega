@@ -54,7 +54,7 @@ public interface Service {
     /**
      * Get the list of Host:port URIs where the service is running.
      *
-     *  @return List<URI> list of Host:port where the service is running.
+     *  @return List of {@link URI}s where the service is running.
      */
     public List<URI> getServiceDetails();
 
@@ -66,6 +66,7 @@ public interface Service {
      *
      * An instance count of zero would suspend the service.
      * @param instanceCount new instance count for the service.
+     * @return A future representing the status of scale service operation.
      *
      */
     public CompletableFuture<Void> scaleService(final int instanceCount);

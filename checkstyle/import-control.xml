@@ -45,5 +45,6 @@
     <allow pkg="org.glassfish.grizzly" />
     <allow pkg="com.spotify" />
     <allow pkg="io.jsonwebtoken" />
+    <allow pkg="io.kubernetes" />
 
 </import-control>
