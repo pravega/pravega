@@ -289,7 +289,7 @@ public class MetricsConfig extends ComponentConfig {
     public final static Property<Long> DYNAMIC_CACHE_SIZE = "dynamicCacheSize"; //dynamic cache size , default = 10000000L
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = "dynamicCacheEvictionDurationMs"; //dynamic cache evcition duration, default = 30
     public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; //reporter output frequency, default = 60
-    public final static String METRICS_PREFIX = "metricsPrefix"; //Metrics Prefix, default = "localhost"
+    public final static String METRICS_PREFIX = "metricsPrefix"; //Metrics Prefix, default = "metrics.host"
     public final static String CSV_ENDPOINT = "csvEndpoint"; // CSV reporter output dir, default = "/tmp/csv"
     public final static String STATSD_HOST = "statsDHost"; // StatsD server host for the reporting, default = "localhost"
     public final static String STATSD_PORT = "statsDPort"; // StatsD server port, default = "8125"
