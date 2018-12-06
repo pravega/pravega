@@ -68,6 +68,8 @@ public class TestStorage implements Storage {
     private ConcatInterceptor concatInterceptor;
     @Setter
     private TruncateInterceptor truncateInterceptor;
+    @Setter
+    private ReadInterceptor readInterceptor;
 
     public TestStorage(InMemoryStorage wrappedStorage, Executor executor) {
         Preconditions.checkNotNull(wrappedStorage, "wrappedStorage");
@@ -187,6 +189,11 @@ public class TestStorage implements Storage {
 
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
+        ReadInterceptor ri = this.readInterceptor;
+        if(ri != null){
+            ri.accept(handle.getSegmentName(), this.wrappedStorage);
+        }
+
         ErrorInjector.throwSyncExceptionIfNeeded(this.readSyncErrorInjector);
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.readAsyncErrorInjector,
                 () -> this.wrappedStorage.read(handle, offset, buffer, bufferOffset, length, timeout));
@@ -238,5 +245,10 @@ public class TestStorage implements Storage {
     @FunctionalInterface
     public interface TruncateInterceptor {
         CompletableFuture<Void> apply(String streamSegmentName, long truncateOffset, Storage wrappedStorage);
+    }
+
+    @FunctionalInterface
+    public interface ReadInterceptor {
+        void accept(String streamSegmentName, Storage wrappedStorage);
     }
 }

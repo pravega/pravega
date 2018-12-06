@@ -1985,9 +1985,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
     /**
      * Ensures that all Segments defined in the given collection are loaded up into the Container's metadata.
-     * This is used to simplify a few tests that do not expect interference from StreamSegmentMapper's assignment logic
+     * This is used to simplify a few tests that do not expect interference from MetadataStore's assignment logic
      * (that is, they execute operations in a certain order and assume that those ops are added to OperationProcessor queue
-     * in that order; if StreamSegmentMapper interferes, there is no guarantee as to what this order will be).
+     * in that order; if MetadataStore interferes, there is no guarantee as to what this order will be).
      */
     @SneakyThrows
     private void activateAllSegments(Collection<String> segmentNames, TestContext context) {

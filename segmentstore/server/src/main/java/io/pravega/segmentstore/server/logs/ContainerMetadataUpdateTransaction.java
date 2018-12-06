@@ -26,6 +26,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -321,6 +322,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 segmentMetadata.preProcessOperation((UpdateAttributesOperation) operation);
             } else if (operation instanceof StreamSegmentTruncateOperation) {
                 segmentMetadata.preProcessOperation((StreamSegmentTruncateOperation) operation);
+            } else if (operation instanceof DeleteSegmentOperation) {
+                segmentMetadata.preProcessOperation((DeleteSegmentOperation) operation);
             }
         }
 
@@ -364,6 +367,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                 segmentMetadata.acceptOperation((UpdateAttributesOperation) operation);
             } else if (operation instanceof StreamSegmentTruncateOperation) {
                 segmentMetadata.acceptOperation((StreamSegmentTruncateOperation) operation);
+            } else if (operation instanceof DeleteSegmentOperation) {
+                segmentMetadata.acceptOperation((DeleteSegmentOperation) operation);
             }
         }
 

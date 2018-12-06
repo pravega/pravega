@@ -166,6 +166,8 @@ public class OperationComparer {
             assertSame(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
         } else if (expected instanceof UpdateAttributesOperation) {
             assertSame(message, (UpdateAttributesOperation) expected, (UpdateAttributesOperation) actual);
+        } else if (expected instanceof DeleteSegmentOperation) {
+            assertSame(message, (DeleteSegmentOperation) expected, (DeleteSegmentOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
@@ -182,6 +184,10 @@ public class OperationComparer {
     private void assertSame(String message, UpdateAttributesOperation expected, UpdateAttributesOperation actual) {
         Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
         assertSame(message + "Unexpected attributes.", expected.getAttributeUpdates(), actual.getAttributeUpdates());
+    }
+
+    private void assertSame(String message, DeleteSegmentOperation expected, DeleteSegmentOperation actual) {
+        Assert.assertEquals(message + " Unexpected StreamSegmentId.", expected.getStreamSegmentId(), actual.getStreamSegmentId());
     }
 
     private void assertSame(String message, CheckpointOperationBase expected, CheckpointOperationBase actual) {

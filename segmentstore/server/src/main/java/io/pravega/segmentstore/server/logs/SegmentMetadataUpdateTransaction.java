@@ -23,9 +23,10 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.SegmentOperation;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
@@ -325,6 +326,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
+     * Pre-processes a DeleteSegmentOperation.
+     *
+     * @param operation The Operation.
+     */
+    void preProcessOperation(DeleteSegmentOperation operation) {
+        ensureSegmentId(operation);
+    }
+
+    /**
      * Pre-processes the given MergeSegmentOperation as a Target Segment (where it will be merged into).
      * After this method returns, the operation will have its TargetSegmentOffset set to the length of the Target Segment.
      *
@@ -521,6 +531,17 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     void acceptOperation(StreamSegmentTruncateOperation operation) {
         ensureSegmentId(operation);
         this.startOffset = operation.getStreamSegmentOffset();
+        this.isChanged = true;
+    }
+
+    /**
+     * Accepts a DeleteSegmentOperation in the metadata.
+     *
+     * @param operation The operation to accept.
+     */
+    void acceptOperation(DeleteSegmentOperation operation) {
+        ensureSegmentId(operation);
+        this.deleted = true;
         this.isChanged = true;
     }
 
