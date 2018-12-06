@@ -98,7 +98,7 @@ project('common') {
     }
 
     javadoc {
-        title = "Pravega Common Libraries"
+        title = "Pravega Comm`on Libraries"
         failOnError = false
         source {
             project(':common').sourceSets.main.java
@@ -722,8 +722,14 @@ project('test:system') {
         onlyIf { dockerRegistryUrl && repoUrl }
     }
 
-    //This is  used to invoke systemTests
+    task copyTestsToK8sCluster(type: Exec) {
+        description 'Used to copy test artifacts to the Kubernetes Cluster.'
+        dependsOn 'jar'
+        commandLine './kubernetes/setupTestPod.sh'
+    }
+
     task startK8SystemTests(type: Test) {
+        dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
@@ -733,8 +739,6 @@ project('test:system') {
         systemProperty "execType", "KUBERNETES"
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
-        systemProperty "skipServiceInstallation", "false"
-        systemProperty "repoUrl", "${repoUrl}"
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
@@ -743,7 +747,6 @@ project('test:system') {
         maxParallelForks = 1
         systemProperty "testVersion", pravegaVersion
 
-        onlyIf { repoUrl }
     }
 
     task execShellScript(type: Exec) {
