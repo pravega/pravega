@@ -98,7 +98,7 @@ project('common') {
     }
 
     javadoc {
-        title = "Pravega Comm`on Libraries"
+        title = "Pravega Common Libraries"
         failOnError = false
         source {
             project(':common').sourceSets.main.java
