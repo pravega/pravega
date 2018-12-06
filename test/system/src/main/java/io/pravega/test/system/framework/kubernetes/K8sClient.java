@@ -548,7 +548,7 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return Retry.withExpBackoff(500, 10, 2)
+        return Retry.withExpBackoff(500, 10, 3)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
                     .runInExecutor(() -> {

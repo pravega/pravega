@@ -71,6 +71,7 @@ public abstract class AbstractService implements Service {
     static final String IMAGE_PULL_POLICY = System.getProperty("ImagePullPolicy", "IfNotPresent");
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerImageRegistry", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
+    private static final String PRAVEGA_OPERATOR_VERSION = System.getProperty("pravegaOperatorVersion", "latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
 
     final K8sClient k8sClient;
@@ -233,8 +234,7 @@ public abstract class AbstractService implements Service {
 
     private V1Deployment getPravegaOperatorDeployment() {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        //.withImage("pravega/pravega-operator:latest") //TODO: depends on issue pravega/pravega-operator/issues/82
-                                                        .withImage("adrianmo/pravega-operator:issue-82-1")
+                                                        .withImage(DOCKER_REGISTRY + PREFIX + "/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
                                                         .withImagePullPolicy(IMAGE_PULL_POLICY)

@@ -11,14 +11,12 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.models.V1ObjectMetaBuilder;
-import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSource;
 import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSourceBuilder;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodBuilder;
 import io.kubernetes.client.models.V1ServiceAccount;
 import io.kubernetes.client.models.V1ServiceAccountBuilder;
 import io.kubernetes.client.models.V1VolumeBuilder;
-import io.kubernetes.client.models.V1VolumeMount;
 import io.kubernetes.client.models.V1VolumeMountBuilder;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
