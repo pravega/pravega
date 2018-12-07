@@ -24,17 +24,11 @@ needs to generate an accurate analysis of that data by considering the factors l
 
 There are several Open Source tools to enable developers to build such applications,
 including [Apache Flink](https://flink.apache.org/), [Apache Beam](https://beam.apache.org/), [Spark Streaming](https://spark.apache.org/docs/2.2.0/streaming-programming-guide.html), etc.
-These applications uses the following systems to ingest and store data:
+These applications uses the following systems to ingest and store data: [Apache Kafka](https://kafka.apache.org/), [Apache ActiveMQ](http://activemq.apache.org/), [RabbitMQ](https://www.rabbitmq.com/), [Apache Cassandra](http://cassandra.apache.org/), [Apache HDFS](https://hadoop.apache.org/).
 
-- [Apache Kafka](https://kafka.apache.org/),
-- [Apache ActiveMQ](http://activemq.apache.org/),
-- [RabbitMQ](https://www.rabbitmq.com/),
-- [Apache Cassandra](http://cassandra.apache.org/),
-- [Apache HDFS](https://hadoop.apache.org/).
+Pravega focuses on both ingesting and storing Stream data. Pravega approaches streaming applications from a storage perspective. It enables applications to ingest Stream data continuously and stores it permanently. Such Stream data can be accessed with low latency (order of milliseconds) and also analyzes historical data.
 
-Pravega envision and focuses on both ingesting and storing stream data. Pravega approaches streaming applications from a storage perspective. It enables applications to ingest Stream data continuously and stores it permanently. Such Stream data can be accessed with low latency (order of milliseconds) and also analyzes historical data.
-
-The design of Pravega incorporates using the [**Lambda Architecture**](http://lambda-architecture.net/)
+The design of Pravega incorporates lessons learned from using the [**Lambda Architecture**](http://lambda-architecture.net/)
 to build streaming applications and the challenges to deploy streaming applications
 at scale that consistently deliver accurate results in a fault tolerant manner.
 The Pravega Architecture provides strong durability and consistency guarantees,
@@ -106,7 +100,7 @@ consistent and [transactional](pravega-concepts.md#transactions). We discuss du
 
 By ordering, we mean that data is observed by Readers in the order it is written.
 In Pravega, data is written along with an application-defined Routing Key.  
-Pravega makes [ordering guarantees](pravega-concepts.md#ordering-guarantees) in terms of Routing Keys. Two pieces of data with the same Routing Key will always be read by a Reader in the order they were
+Pravega makes [ordering guarantees](pravega-concepts.md#ordering-guarantees) in terms of Routing Keys. For example, two Events with the same Routing Key will always be read by a Reader in the order they were
 written. Pravega's ordering guarantees allow data reads to be replayed (e.g.
 when applications crash) and the results of replaying the reads will be the
 same.
@@ -179,7 +173,7 @@ application scale out (in the works). Using metadata available from Pravega,
 applications can configure the scaling of their application components; for
 example, to drive the number of instances of a Flink job. Alternatively, you
 could use software such as [Cloud Foundry](https://www.cloudfoundry.org/), [Mesos/Marathon](https://github.com/mesosphere/marathon), [Kubernetes](https://kubernetes.io/) or the
-Docker stack to deploy new instances of an application to react to increased
+[Docker stack](https://www.docker.com/) to deploy new instances of an application to react to increased
 parallelism at the Pravega level, or to terminate instances as Pravega scales
 down in response to reduced rate of data ingestion.
 
