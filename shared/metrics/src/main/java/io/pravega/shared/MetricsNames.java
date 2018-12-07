@@ -21,6 +21,7 @@ package io.pravega.shared;
  * - segmentstore.storage: metrics related to our long-term storage (Tier 2)
  * - segmentstore.bookkeeper: metrics related to bookkeeper (Tier 1)
  * - segmentstore.container: metrics for segment containers
+ * - segmentstore.thread_pool: metrics for segmentstore thread pool
  * - segmentstore.cache: cache-related metrics (RocksDB)
  * - controller.stream: metrics for operations on streams (e.g., number of streams created)
  * - controller.segments: metrics about segments, per stream (e.g., count, splits, merges)
@@ -47,6 +48,13 @@ package io.pravega.shared;
  * collisions.
  */
 
+
+import com.google.common.base.Strings;
+import com.google.common.primitives.Ints;
+
+import java.util.Arrays;
+
+import static com.codahale.metrics.MetricRegistry.name;
 
 public final class MetricsNames {
     // Metrics in Segment Store Service
@@ -108,7 +116,7 @@ public final class MetricsNames {
     public static final String OPERATION_LOG_SIZE = "segmentstore.container.operation.log_size";                                    // Per-container Counter
 
     // Segment container metadata
-    public static final String ACTIVE_SEGMENT_COUNT = "segmentstore.active_segments";   // Per-container Gauge
+    public static final String ACTIVE_SEGMENT_COUNT = "segmentstore.container.active_segments";   // Per-container Gauge
 
     // Thread pool metrics
     public static final String THREAD_POOL_QUEUE_SIZE = "segmentstore.thread_pool.queue_size";          // Histogram
@@ -193,5 +201,18 @@ public final class MetricsNames {
 
     public static String globalMetricName(String stringName) {
         return stringName + "_global";
+    }
+
+    public static String failMetricName(String metricName) {
+        if (Strings.isNullOrEmpty(metricName)) {
+            return metricName;
+        }
+        String[] tags = metricName.split("\\.");
+        if (tags.length >= 2 && Ints.tryParse(tags[tags.length - 1]) != null) {
+            tags[tags.length - 2] += "_fail";
+            return String.join(".", tags);
+        } else {
+            return metricName + "_fail";
+        }
     }
 }

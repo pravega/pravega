@@ -13,11 +13,13 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
+import com.google.common.primitives.Ints;
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
 
 import static com.codahale.metrics.MetricRegistry.name;
+import static io.pravega.shared.MetricsNames.failMetricName;
 
 class OpStatsLoggerImpl implements OpStatsLogger {
     //region Members
@@ -32,10 +34,10 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     //region Constructor
 
-    OpStatsLoggerImpl(MetricRegistry metricRegistry, String basename, String statName) {
+    OpStatsLoggerImpl(MetricRegistry metricRegistry, String baseName, String statName) {
         this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
-        this.successName = name(basename, statName);
-        this.failName = name(basename, statName + "-fail");
+        this.successName = name(baseName, statName);
+        this.failName = name(baseName, failMetricName(statName));
         this.success = this.metricRegistry.timer(this.successName);
         this.fail = this.metricRegistry.timer(this.failName);
     }
