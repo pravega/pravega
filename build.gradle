@@ -63,7 +63,12 @@ allprojects {
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
-
+    tasks.withType(com.github.spotbugs.SpotBugsTask) {
+      reports {
+        xml.enabled = false
+        html.enabled = true
+      }
+    }
     version = getProjectVersion()
     group = "io.pravega"
 
