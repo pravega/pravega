@@ -86,10 +86,8 @@ public class StreamSegments {
             if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
                 // Invariant: The successor segment(s)'s range should be limited to the replaced segment's range, thereby
                 // ensuring that newer writes to the successor(s) happen only for the replaced segment's range.
-                if (replacements != null) {
-                    for (SegmentWithRange segmentWithRange : replacements) {                        
-                        result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment());
-                    }
+                for (SegmentWithRange segmentWithRange : replacements) {                        
+                    result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment());
                 }
             } else {
                 // update remaining values.
