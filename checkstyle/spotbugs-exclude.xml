@@ -2,9 +2,6 @@
     <Match> <!-- generated code -->
         <Package name="io.pravega.controller.stream.api.grpc.v1" />
     </Match>
-    <Match> <!-- experimental checks have a lot of false positives -->
-        <Bug category="EXPERIMENTAL" />
-    </Match>
     <Match> <!-- does not work well with futures -->
         <Bug pattern="NP_NONNULL_PARAM_VIOLATION" />
     </Match>
