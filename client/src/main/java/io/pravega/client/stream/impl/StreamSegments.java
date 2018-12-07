@@ -18,9 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NavigableMap;
-import java.util.Optional;
 import java.util.TreeMap;
-
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +74,8 @@ public class StreamSegments {
         verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
-        Optional<List<SegmentWithRange>> replacements = Optional.ofNullable(replacedRanges.get(replacedSegment.getSegmentId()));
+        List<SegmentWithRange> replacements = replacedRanges.get(replacedSegment.getSegmentId());
+        replacements.sort((a, b) -> Double.compare(b.getHigh(), a.getHigh()));
         Segment lastSegmentValue = null;
         for (Entry<Double, Segment> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final Segment existingSegment = existingEntry.getValue();
@@ -87,8 +86,11 @@ public class StreamSegments {
             if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
                 // Invariant: The successor segment(s)'s range should be limited to the replaced segment's range, thereby
                 // ensuring that newer writes to the successor(s) happen only for the replaced segment's range.
-                replacements.ifPresent(segmentWithRanges -> segmentWithRanges.forEach(segmentWithRange ->
-                        result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment())));
+                if (replacements != null) {
+                    for (SegmentWithRange segmentWithRange : replacements) {                        
+                        result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment());
+                    }
+                }
             } else {
                 // update remaining values.
                 result.put(existingEntry.getKey(), existingEntry.getValue());
