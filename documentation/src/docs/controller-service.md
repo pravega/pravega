@@ -58,17 +58,11 @@ comprises one or more Stream [Segments](pravega-concepts.md#stream-segments). Ea
 structure that stores a sequence of bytes. A Stream Segment on its own is
 agnostic to the presence of other Stream Segments and is not aware of its logical
 relationship with its peer Stream Segments. The Segment Store, which owns and
-manages these Stream Segments, does not have any notion of a Stream. A Stream
-is a logical view conceptualized by Controller by composing a
-dynamically changing set of Stream Segments that satisfy a predefined set of
-logical invariants. The Controller provides the Stream abstraction and
-orchestrates all lifecycle operations on a Pravega Stream while ensuring that
-the abstraction stays consistent.
+manages these Stream Segments, does not have any notion of a Stream.  A Stream is a logical view built by the Controller and consists of a dynamically changing set of Stream Segments that satisfy a predefined set of invariants. The Controller provides the Stream abstraction and
+orchestrates all lifecycle operations on a Pravega Stream while ensuring its consistency.
 
 The Controller plays a central role in the lifecycle of a Stream:
-_creation_, _modification_, [_scaling_](pravega-concepts.md#elastic-streams-auto-scaling), and _deletion_. It does these by
-maintaining metadata per Stream and performs requisite operations on
-Stream Segments when required. For example, as part of Stream’s
+_creation_, _modification_, [_scaling_](pravega-concepts.md#elastic-streams-auto-scaling), and _deletion_.  To implement these operations, the Controller manages both a Stream's metadata and its associated Stream Segments. For example, as part of Stream’s
 lifecycle, new segments can be created and existing segments can be sealed. The
 Controller decides on performing these operations by ensuring the availability and consistency of the Streams for the clients accessing them.
 
@@ -170,7 +164,7 @@ We use the asynchronous model in our client Controller interactions so that the 
 To be able to append to and read data from Streams, Writers and Readers
 query Controller to get active Stream Segment sets, successor and predecessor
 Stream Segments while working with a Stream. For Transactions, the client uses
-specific API calls to request Controller to _create_ and _commit_
+specific API calls to request Controller to [_create_](#create-transaction), [_commit_](#commit-transaction), [_abort_](#abort-transaction) and [_ping_](#ping-transaction)
 Transactions.
 
 ### REST  
@@ -184,7 +178,7 @@ other administration API primarily dealing with _creation_ and _deletion_ of
 This is the backend layer behind the Controller endpoints `gRPC` and
 `REST`. All the business logic required to serve Controller API calls are
 implemented here. This layer contains handles to all other subsystems like the various store implementations
-([Stream store](#stream-store), [Host store](#host-store) and [Checkpoint store](#checkpoint-store)) and background processing frameworks ([Task](#task-framework) and [Event Processor framework](#event-processor-framework)).
+([Stream store](#stream-metadata-store), [Host store](#host-store) and Checkpoint store) and background processing frameworks ([Task](#task-framework) and [Event Processor framework](#event-processor-framework)).
 Stores are interfaces that provide access to various types of metadata managed by Controller. Background
 processing frameworks are used to perform asynchronous processing that typically implements workflows involving metadata updates
 and requests to Segment Store.
@@ -378,8 +372,8 @@ multiple Stream objects in the store_
 - _Cache properties of a Stream in
 the Stream object_.
 
-- **Operation Context**: At the start of any new operation, we create a context for this operation. The creation of a new operation context invalidates the cached entities for a Stream and
-each entity is lazily retrieved from the store whenever requested. If a
+#### Operation Context
+ At the start of any new operation, we create a context for this operation. The creation of a new operation context invalidates the cached entities for a Stream and each entity is lazily retrieved from the store whenever requested. If a
 value is updated during the course of the operation, it is again
 invalidated in the cache so that other concurrent read/update operations
 on the Stream get the new value for their subsequent steps.  
