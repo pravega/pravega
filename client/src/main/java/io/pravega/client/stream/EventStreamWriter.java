@@ -61,7 +61,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
 
     /**
      * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
-     * Note that transactions can only be open for {@link EventWriterConfig#getTransactionTimeoutTime()}.
+     * Note that transactions can only be open for EventWriterConfig#getTransactionTimeoutTime().
      * 
      * @return A transaction through which multiple events can be written atomically.
      */
