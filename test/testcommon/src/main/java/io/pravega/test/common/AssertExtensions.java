@@ -480,11 +480,10 @@ public class AssertExtensions {
     public static boolean nearlyEquals(Double a, Double b, double precision) {
         if (a == null && b == null) {
             return true;
-        } else if (a == null && b != null) {
-            return false;
-        } else if (a != null && b == null) {
-            return false;
         }
-        return Math.abs(a - b) <= precision;
+        if (a != null && b != null) {
+            return Math.abs(a - b) <= precision;
+        }
+        return false;
     }
 }
