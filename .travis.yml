@@ -11,6 +11,7 @@ language: java
 install: true
 jdk:
  - oraclejdk8
+ - openjdk10
 
 env:
   global:

@@ -41,6 +41,15 @@
             <Bug pattern="EI_EXPOSE_REP2" />
         </Or>
     </Match>
+    <Match> <!-- https://github.com/spotbugs/spotbugs/issues/432 -->
+        <Or>
+            <Class name="io.pravega.controller.auth.PasswordFileCreatorTool" />
+            <Class name="io.pravega.segmentstore.server.store.ServiceBuilderConfig" />
+        </Or>
+        <Or>
+            <Bug pattern="OBL_UNSATISFIED_OBLIGATION" />
+        </Or>
+    </Match>
     <Match> <!-- These patterns while normally bad practice, are common in tests -->
         <Class name="~.*\.*Tests?" />
         <Or>

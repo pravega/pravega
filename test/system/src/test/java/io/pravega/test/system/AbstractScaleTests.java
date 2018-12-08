@@ -32,14 +32,24 @@ import lombok.extern.slf4j.Slf4j;
 abstract class AbstractScaleTests extends AbstractReadWriteTest {
 
     final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    @Getter(lazy = true)
-    private final URI controllerURI = createControllerURI();
-    @Getter(lazy = true)
-    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-    @Getter(lazy = true)
-    private final ControllerImpl controller = createController();
-    @Getter(lazy = true)
-    private final ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, getController());
+    @Getter
+    private final URI controllerURI;
+    @Getter
+    private final ConnectionFactory connectionFactory;
+    @Getter
+    private final ClientFactory clientFactory;
+    @Getter
+    private final ControllerImpl controller;
+
+    public AbstractScaleTests() {
+        controllerURI = createControllerURI();
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
+            ControllerImplConfig.builder().clientConfig(
+                    ClientConfig.builder().controllerURI(getControllerURI()).build())
+                                .build(), getConnectionFactory().getInternalExecutor()));
+        controller = createController();
+    }
 
     private ControllerImpl createController() {
         return new ControllerImpl(ControllerImplConfig.builder()
