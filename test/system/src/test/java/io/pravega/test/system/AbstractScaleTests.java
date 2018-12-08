@@ -37,17 +37,14 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
     @Getter
     private final ConnectionFactory connectionFactory;
     @Getter
-    private final ClientFactory clientFactory;
+    private final ClientFactoryImpl clientFactory;
     @Getter
     private final ControllerImpl controller;
 
     public AbstractScaleTests() {
         controllerURI = createControllerURI();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
-            ControllerImplConfig.builder().clientConfig(
-                    ClientConfig.builder().controllerURI(getControllerURI()).build())
-                                .build(), getConnectionFactory().getInternalExecutor()));
+        clientFactory = new ClientFactoryImpl(SCOPE, getController());
         controller = createController();
     }
 
