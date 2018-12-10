@@ -13,7 +13,6 @@ init_segmentstore() {
     [ ! -z "$PUBLISHED_ADDRESS" ] && add_system_property "pravegaservice.publishedIPAddress" "${PUBLISHED_ADDRESS}"
     [ ! -z "$PUBLISHED_ADDRESS" ] && add_system_property "pravegaservice.listeningIPAddress" "0.0.0.0"
     [ ! -z "$PUBLISHED_PORT" ] && add_system_property "pravegaservice.publishedPort" "${PUBLISHED_PORT}"
-    [ ! -z "$HOSTNAME" ] && add_system_property "metrics.metricsPrefix" "${HOSTNAME}"
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
     add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
