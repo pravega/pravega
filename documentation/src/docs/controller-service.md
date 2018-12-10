@@ -324,10 +324,8 @@ _Segment-info: ⟨segmentid, time, keySpace-start, keySpace-end⟩_.
  results in an appropriate exception.
 
 #### Truncation Record
- This corresponds to the `StreamCut` which was last used to truncate the
- given Stream. All Stream Segment queries superimpose the truncation
- record and return Stream Segments that are strictly greater than or equal to
- the `StreamCut` in truncation record.
+
+The Truncation Record captures the latest truncation point of the Stream which is identified by a `StreamCut`. The truncation `StreamCut` logically represents the head of the Stream and all the data before this position has been purged completely. For example, let there be _**n**_ active Segments **S<sub>1</sub>**, **S<sub>2</sub>**, ...,**S<sub>n</sub>** in a Stream. If we truncate this Stream at a `StreamCut` **SC = {S<sub>1</sub>/O<sub>1</sub>, S<sub>2</sub>/O<sub>2</sub>,...,S<sub>n</sub>/O<sub>n</sub>}**, then all data before the given `StreamCut` could be removed from the durable store. This translates to all the data in Segments that are predecessor Segments of **S<sub>i</sub>** for **i ={ 1 to n }**; and all the data in Segments `S<sub>i</sub>` till offset `O<sub>i</sub>`. So we could delete all such predecessor Segments from the Stream and purge all the data before respective offsets from the Segments in `StreamCut`.
 
 #### Sealed Segments Maps
 Once the Stream Segments are sealed, the Controller needs to store additional information about the Stream Segment. Presently, we have two types of information:
@@ -351,11 +349,8 @@ The following are the Transaction Related metadata records:
  _Completed Transaction_ znode and removed from under the Stream specific
  _Active Transaction_ node.
 
-   - **Completed Transactions**: All completed transactions for all Streams are moved under this single
- znode upon completion (via either commit or abort paths). We can
- subsequently garbage collect these values periodically following any
- collection scheme we deem fit. We have not implemented any scheme at
- this point though.
+   - **Completed Transactions**: All completed transactions for all Streams are moved under a separate znode upon completion (via either commit or abort paths). The completion status of Transaction is recorded under this record. To avoid proliferation of stale Transaction records, we provide a cluster level configuration to specify the duration for which a completed Transaction's record should be preserved. Controller periodically garbage collects all Transactions that were completed before the aforesaid configured duration.
+
 
 ### Stream Store Caching
 
@@ -372,8 +367,11 @@ multiple Stream objects in the store_
 - _Cache properties of a Stream in
 the Stream object_.
 
+The cache can contain both mutable and immutable values. Immutable values, by definition are not a problem. For mutable values, we have introduced a notion of [Operation Context](#operation-context) and for each new operation, which ensures that during an operation we lazily load latest value of entities into the cache and then use them for all computations within that [Operation's context](#operation-context).
+
+
 #### Operation Context
- At the start of any new operation, we create a context for this operation. The creation of a new operation context invalidates the cached entities for a Stream and each entity is lazily retrieved from the store whenever requested. If a
+ At the start of any new operation, we create a context for this operation. The creation of a new operation context invalidates all mutable cached entities for a Stream and each entity is lazily retrieved from the store whenever requested. If a
 value is updated during the course of the operation, it is again
 invalidated in the cache so that other concurrent read/update operations
 on the Stream get the new value for their subsequent steps.  
@@ -486,8 +484,8 @@ Event processors Framework is a background worker subsystem which reads
 Events from an internal Stream and processes it, hence the name Event
 Processor. In Pravega all Event Processors provides **at least once
 processing** guarantee. And in its basic flavor, the framework also
-provides strong ordering guarantees. In Pravega, there exist different subtypes
-of Event Processors which allow concurrent processing.
+provides strong ordering guarantees. The Event Processor framework on its own does not guarantee idempotent execution and it is the responsibility of the individual workflows implemented to ensure that the processing is idempotent and safe across multiple executions.
+ In Pravega, there exist different subtypes of Event Processors which allow concurrent processing.
 
 We create different Event Processors for different kinds of work.
 In Pravega, there are _three_ different Event Processors:
