@@ -14,6 +14,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.hash.HashHelper;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -75,7 +76,8 @@ public class StreamSegments {
         NavigableMap<Double, Segment> result = new TreeMap<>();
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         List<SegmentWithRange> replacements = replacedRanges.get(replacedSegment.getSegmentId());
-        replacements.sort((a, b) -> Double.compare(b.getHigh(), a.getHigh()));
+        Preconditions.checkNotNull(replacements, "Empty set of replacements for: {}", replacedSegment.getSegmentId());
+        replacements.sort(Comparator.comparingDouble(SegmentWithRange::getHigh).reversed());
         Segment lastSegmentValue = null;
         for (Entry<Double, Segment> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final Segment existingSegment = existingEntry.getValue();
