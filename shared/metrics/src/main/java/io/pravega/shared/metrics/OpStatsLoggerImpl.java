@@ -13,7 +13,6 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
-import com.google.common.primitives.Ints;
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;

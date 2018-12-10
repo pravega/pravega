@@ -52,10 +52,6 @@ package io.pravega.shared;
 import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
 
-import java.util.Arrays;
-
-import static com.codahale.metrics.MetricRegistry.name;
-
 public final class MetricsNames {
     // Metrics in Segment Store Service
     // Segment-related stats
