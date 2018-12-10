@@ -11,7 +11,6 @@ package io.pravega.controller.server.retention;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -22,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -30,7 +30,7 @@ import java.util.stream.IntStream;
 public class StreamCutService extends AbstractService implements BucketOwnershipListener {
     private final int bucketCount;
     private final String processId;
-    private final ConcurrentSet<StreamCutBucketService> buckets;
+    private final ConcurrentSkipListSet<StreamCutBucketService> buckets;
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final ScheduledExecutorService executor;
@@ -44,7 +44,7 @@ public class StreamCutService extends AbstractService implements BucketOwnership
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
-        this.buckets = new ConcurrentSet<>();
+        this.buckets = new ConcurrentSkipListSet<>();
         this.requestTracker = requestTracker;
     }
 
