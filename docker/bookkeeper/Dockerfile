@@ -7,37 +7,35 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-
 FROM openjdk:8-jre-alpine
-MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
+
+MAINTAINER Pravega Team
 
 RUN apk add --update \
     bash \
     wget \
     unzip \
-&&  rm -rf /var/cache/apk/* \
-&&  mkdir -p /opt \
-&&  cd /opt
+    && rm -rf /var/cache/apk/*
 
-ENV BOOKKEEPER_VERSION=4.5.0 \
-    ZOOKEEPER_VERSION=3.5.3-beta
+ARG BOOKKEEPER_VERSION=4.7.3
+ARG ZOOKEEPER_VERSION=3.5.4-beta
 
-RUN wget http://central.maven.org/maven2/org/apache/bookkeeper/bookkeeper-server/$BOOKKEEPER_VERSION/bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  tar xvzf  bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bookkeeper
-
-# zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
-RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zookeeper
-
-ENV bookiePort 3181
-
+ENV bookiePort=3181
 EXPOSE $bookiePort
 
-# all execute-able bin, download from apache BK and ZK
+RUN mkdir -p /opt \
+    && cd /opt \
+    && wget -q https://archive.apache.org/dist/bookkeeper/bookkeeper-${BOOKKEEPER_VERSION}/bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz \
+    && tar xvzf bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz \
+    && mv bookkeeper-server-${BOOKKEEPER_VERSION} /opt/bookkeeper \
+    && rm -rf bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz \
+    && wget -q https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz \
+    && tar xvf zookeeper-${ZOOKEEPER_VERSION}.tar.gz \
+    && mv zookeeper-${ZOOKEEPER_VERSION} /opt/zookeeper \
+    && rm zookeeper-${ZOOKEEPER_VERSION}.tar.gz
+
 WORKDIR /opt/bookkeeper
 
-# After container up, Following instructions to build bookie cluster
 COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
-ENTRYPOINT /opt/bookkeeper/entrypoint.sh
+
+ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/entrypoint.sh" ]

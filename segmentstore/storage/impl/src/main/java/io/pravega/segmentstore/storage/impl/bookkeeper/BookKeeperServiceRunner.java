@@ -224,12 +224,11 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         val conf = new ServerConfiguration();
         conf.setBookiePort(bkPort);
-        conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
+        conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort + ledgersPath);
         conf.setJournalDirName(tmpDir.getPath());
         conf.setLedgerDirNames(new String[]{tmpDir.getPath()});
         conf.setAllowLoopback(true);
         conf.setJournalAdaptiveGroupWrites(false);
-        conf.setZkLedgersRootPath(ledgersPath);
 
         if (secureBK) {
             conf.setTLSProvider("OpenSSL");
