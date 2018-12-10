@@ -84,7 +84,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testRead() throws Exception {
-        final int truncationOffset = SEGMENT_LENGTH/2;
+        final int truncationOffset = SEGMENT_LENGTH / 2;
         @Cleanup
         val context = new TestContext();
         context.container.startAsync().awaitRunning();

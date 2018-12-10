@@ -190,7 +190,7 @@ public class TestStorage implements Storage {
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         ReadInterceptor ri = this.readInterceptor;
-        if(ri != null){
+        if (ri != null) {
             ri.accept(handle.getSegmentName(), this.wrappedStorage);
         }
 

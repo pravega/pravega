@@ -261,6 +261,7 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
 
     /**
      * Tests GetStreamSegmentInfo when it is invoked in parallel with a Segment assignment.
+     * @throws Exception if the test failed.
      */
     @Test
     public void testGetStreamSegmentInfoWithConcurrency() throws Exception {

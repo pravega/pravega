@@ -27,6 +27,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.AttributeIterator;
@@ -453,12 +454,33 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metrics.mergeSegment();
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
+        // Fetch the Ids of both the source and the target Segments, then execute the MergeOperation and finally remove
+        // any Segment Info about the Source Segment from the metadata. Since these operations cannot execute atomically,
+        // we need to handle the case when a previous invocation completed partially: the merge executed but we were unable
+        // to clear the Segment Info; in this case, upon a retry, we need to ignore the StreamSegmentMergedException and
+        // complete the cleanup phase, but still bubble up any exceptions to the caller.
         return this.metadataStore
                 .getOrAssignSegmentId(targetStreamSegment, timer.getRemaining(),
                         targetSegmentId -> this.metadataStore.getOrAssignSegmentId(sourceStreamSegment, timer.getRemaining(),
                                 sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer)))
-                .thenComposeAsync(sp -> this.metadataStore.clearSegmentInfo(sourceStreamSegment, timer.getRemaining())
-                                                          .thenApply(v -> sp), this.executor);
+                .handleAsync((sp, ex) -> {
+                    CompletableFuture<Void> result;
+                    if (ex == null || Exceptions.unwrap(ex) instanceof StreamSegmentMergedException) {
+                        // No exception or segment was already merged. Need to clear SegmentInfo for source.
+                        result = this.metadataStore.clearSegmentInfo(sourceStreamSegment, timer.getRemaining());
+                    } else {
+                        // A different exception. Do not clear anything.
+                        result = CompletableFuture.completedFuture(null);
+                    }
+
+                    if (ex == null) {
+                        // Everything is good. Return the result.
+                        return result.thenApply(v -> sp);
+                    } else {
+                        // Re-throw the exception to the caller in this case.
+                        return result.thenCompose(v -> Futures.<SegmentProperties>failedFuture(ex));
+                    }
+                }, this.executor).thenCompose(f -> f);
     }
 
     private CompletableFuture<SegmentProperties> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer) {
@@ -781,7 +803,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.durableLog.add(op, timeout).thenApply(ignored -> op.getStreamSegmentId());
     }
 
-    private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout){
+    private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return this.storage
                 .openWrite(segmentName)
@@ -789,7 +811,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 .thenComposeAsync(v -> this.attributeIndex.delete(segmentName, timer.getRemaining()), this.executor);
     }
 
-    private CompletableFuture<Void> deleteSegmentDelayed(long segmentId, Duration timeout){
+    private CompletableFuture<Void> deleteSegmentDelayed(long segmentId, Duration timeout) {
         return this.durableLog.add(new DeleteSegmentOperation(segmentId), timeout);
     }
 
