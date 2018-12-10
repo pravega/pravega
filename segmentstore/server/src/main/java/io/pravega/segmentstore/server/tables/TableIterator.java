@@ -25,12 +25,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.AccessLevel;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ import lombok.val;
  * @param <T> Type of the final, converted result.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@ThreadSafe
 class TableIterator<T> implements AsyncIterator<T> {
     //region Members
 
@@ -49,6 +52,7 @@ class TableIterator<T> implements AsyncIterator<T> {
     private final ArrayDeque<Map.Entry<UUID, Long>> cacheHashes;
     private final Executor executor;
     private final AtomicReference<Iterator<TableBucket>> currentBatch = new AtomicReference<>();
+    private final AtomicBoolean inProgress = new AtomicBoolean(false);
 
     //endregion
 
@@ -56,8 +60,11 @@ class TableIterator<T> implements AsyncIterator<T> {
 
     @Override
     public CompletableFuture<T> getNext() {
+        // Verify no other call to getNext() is currently executing.
+        Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
         return getNextBucket()
                 .thenCompose(bucket -> {
+                    this.inProgress.set(false);
                     if (bucket == null) {
                         // We are done.
                         return CompletableFuture.completedFuture(null);
@@ -65,6 +72,10 @@ class TableIterator<T> implements AsyncIterator<T> {
                         // Convert the TableBucket into the desired result.
                         return this.resultConverter.apply(bucket);
                     }
+                })
+                .exceptionally(ex -> {
+                    this.inProgress.set(false);
+                    throw new CompletionException(ex);
                 });
     }
 

@@ -28,6 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Singular;
@@ -185,6 +186,7 @@ public class TableIteratorTests extends ThreadPooledTestSuite {
     }
 
     @Builder
+    @NotThreadSafe
     private static class TestData {
         @Singular
         private final List<List<Map.Entry<UUID, Long>>> baseIteratorHashes;

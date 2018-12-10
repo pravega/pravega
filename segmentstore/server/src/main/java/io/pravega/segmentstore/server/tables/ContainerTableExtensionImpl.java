@@ -280,16 +280,20 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
         return this.segmentContainer
                 .forSegment(segmentName, fetchTimeout)
-                .thenComposeAsync(segment -> {
-                    // Create a converter that will use a TableBucketReader to fetch all requested items in the iterated Buckets.
-                    val bucketReader = createBucketReader.apply(segment, this.keyIndex::getBackpointerOffset, this.executor);
+                .thenComposeAsync(segment -> buildIterator(segment, createBucketReader, fromHash, fetchTimeout), this.executor);
+    }
 
-                    TableIterator.ConvertResult<IteratorItem<T>> converter = bucket ->
-                            bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(fetchTimeout))
-                                    .thenApply(result -> new IteratorItemImpl<>(new IteratorState(bucket.getHash()), result));
+    private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> buildIterator(
+            DirectSegmentAccess segment, GetBucketReader<T> createBucketReader, UUID fromHash, Duration fetchTimeout) {
+        // Create a converter that will use a TableBucketReader to fetch all requested items in the iterated Buckets.
+        val bucketReader = createBucketReader.apply(segment, this.keyIndex::getBackpointerOffset, this.executor);
 
-                    // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.
-                    return this.keyIndex.getUnindexedKeyHashes(segment)
+        TableIterator.ConvertResult<IteratorItem<T>> converter = bucket ->
+                bucketReader.findAllExisting(bucket.getSegmentOffset(), new TimeoutTimer(fetchTimeout))
+                            .thenApply(result -> new IteratorItemImpl<>(new IteratorState(bucket.getHash()), result));
+
+        // Fetch the Tail (Unindexed) Hashes, then create the TableIterator.
+        return this.keyIndex.getUnindexedKeyHashes(segment)
                             .thenComposeAsync(cacheHashes -> TableIterator.<IteratorItem<T>>builder()
                                     .segment(segment)
                                     .cacheHashes(cacheHashes)
@@ -298,7 +302,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                     .resultConverter(converter)
                                     .fetchTimeout(fetchTimeout)
                                     .build(), this.executor);
-                }, this.executor);
     }
 
     //endregion
