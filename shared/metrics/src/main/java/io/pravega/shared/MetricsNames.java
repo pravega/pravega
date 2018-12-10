@@ -201,10 +201,10 @@ public final class MetricsNames {
 
     /**
      * For some metrics such as OpStats, Pravega generates corresponding fail metrics automatically.
-     * This method provides a standard way to create name of fail metric for a given metric
+     * This method provides a standard way to create name of fail metric for a given metric.
      *
-     * @param metricName - the metric name for which fail metric is created
-     * @return - the name of fail metric
+     * @param metricName the metric name for which fail metric is created
+     * @return the name of fail metric
      */
     public static String failMetricName(String metricName) {
         if (Strings.isNullOrEmpty(metricName)) {
