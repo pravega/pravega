@@ -323,20 +323,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long trace = LoggerHelpers.traceEnter(log, operation, updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
         segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT)
-                .whenComplete((v, e) -> {
-                    LoggerHelpers.traceLeave(log, operation, trace, e);
-                    if (e == null) {
-                        connection.send(new SegmentAttributeUpdated(requestId, true));
-                    } else {
-                        if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
-                            log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
-                            connection.send(new SegmentAttributeUpdated(requestId, false));
+                    .whenComplete((v, e) -> {
+                        LoggerHelpers.traceLeave(log, operation, trace, e);
+                        if (e == null) {
+                            connection.send(new SegmentAttributeUpdated(requestId, true));
                         } else {
-                            handleException(requestId, segmentName, operation, e);
+                            if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
+                                log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
+                                connection.send(new SegmentAttributeUpdated(requestId, false));
+                            } else {
+                                handleException(requestId, segmentName, operation, e);
+                            }
                         }
-                    }
-                })
-                .exceptionally(e -> handleException(requestId, segmentName, operation, e));
+                    });
     }
 
     @Override
