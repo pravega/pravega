@@ -83,47 +83,56 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     public EventRead<Type> readNextEvent(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
         synchronized (readers) {
             Preconditions.checkState(!closed, "Reader is closed");
-            long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
-            Timer timer = new Timer();
-            Segment segment = null;
-            long offset = -1;
-            ByteBuffer buffer;
-            do { 
-                String checkpoint = updateGroupStateIfNeeded();
-                if (checkpoint != null) {
-                     return createEmptyEvent(checkpoint);
-                }
-                EventSegmentReader segmentReader = orderer.nextSegment(readers);
-                if (segmentReader == null) {
-                    Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
-                    buffer = null;
-                } else {
-                    segment = segmentReader.getSegmentId();
-                    offset = segmentReader.getOffset();
-                    try {
-                        buffer = segmentReader.read(waitTime);
-                    } catch (EndOfSegmentException e) {
-                        boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
-                        handleEndOfSegment(segmentReader, fetchSuccessors);
-                        buffer = null;
-                    } catch (SegmentTruncatedException e) {
-                        handleSegmentTruncated(segmentReader);
-                        buffer = null;
-                    }
-                }
-            } while (buffer == null && timer.getElapsedMillis() < timeout);
-            
-            if (buffer == null) {
-               return createEmptyEvent(null);
-            } 
-            lastRead = Sequence.create(segment.getSegmentId(), offset);
-            int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
-            return new EventReadImpl<>(lastRead,
-                    deserializer.deserialize(buffer),
-                    getPosition(),
-                    new EventPointerImpl(segment, offset, length),
-                    null);
+            try {
+                return readNextEventInternal(timeout);
+            } catch (ReinitializationRequiredException e) {
+                close();
+                throw e;
+            }
         }
+    }
+    
+    private EventRead<Type> readNextEventInternal(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
+        long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
+        Timer timer = new Timer();
+        Segment segment = null;
+        long offset = -1;
+        ByteBuffer buffer;
+        do { 
+            String checkpoint = updateGroupStateIfNeeded();
+            if (checkpoint != null) {
+                return createEmptyEvent(checkpoint);
+            }
+            EventSegmentReader segmentReader = orderer.nextSegment(readers);
+            if (segmentReader == null) {
+                Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
+                buffer = null;
+            } else {
+                segment = segmentReader.getSegmentId();
+                offset = segmentReader.getOffset();
+                try {
+                    buffer = segmentReader.read(waitTime);
+                } catch (EndOfSegmentException e) {
+                    boolean fetchSuccessors = e.getErrorType().equals(ErrorType.END_OF_SEGMENT_REACHED);
+                    handleEndOfSegment(segmentReader, fetchSuccessors);
+                    buffer = null;
+                } catch (SegmentTruncatedException e) {
+                    handleSegmentTruncated(segmentReader);
+                    buffer = null;
+                }
+            }
+        } while (buffer == null && timer.getElapsedMillis() < timeout);
+
+        if (buffer == null) {
+            return createEmptyEvent(null);
+        } 
+        lastRead = Sequence.create(segment.getSegmentId(), offset);
+        int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
+        return new EventReadImpl<>(lastRead,
+                deserializer.deserialize(buffer),
+                getPosition(),
+                new EventPointerImpl(segment, offset, length),
+                null);
     }
 
     private EventRead<Type> createEmptyEvent(String checkpoint) {
@@ -154,29 +163,24 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      */
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
-        try {
-            if (atCheckpoint != null) {
-                groupState.checkpoint(atCheckpoint, getPosition());
-                releaseSegmentsIfNeeded();
-            }
-            atCheckpoint = groupState.getCheckpoint();
-            if (atCheckpoint != null) {
-                log.info("{} at checkpoint {}", this, atCheckpoint);
-                if (groupState.isCheckpointSilent(atCheckpoint)) {
-                    // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
-                    groupState.checkpoint(atCheckpoint, getPosition());
-                    atCheckpoint = null;
-                    return null;
-                } else {
-                    return atCheckpoint;
-                }
-            }
-            acquireSegmentsIfNeeded();
-            return null;
-        } catch (ReinitializationRequiredException e) {
-            close();
-            throw e;
+        if (atCheckpoint != null) {
+            groupState.checkpoint(atCheckpoint, getPosition());
+            releaseSegmentsIfNeeded();
         }
+        atCheckpoint = groupState.getCheckpoint();
+        if (atCheckpoint != null) {
+            log.info("{} at checkpoint {}", this, atCheckpoint);
+            if (groupState.isCheckpointSilent(atCheckpoint)) {
+                // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
+                groupState.checkpoint(atCheckpoint, getPosition());
+                atCheckpoint = null;
+                return null;
+            } else {
+                return atCheckpoint;
+            }
+        }
+        acquireSegmentsIfNeeded();
+        return null;
     }
 
     @GuardedBy("readers")
@@ -217,15 +221,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private void handleEndOfSegment(EventSegmentReader oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
-        try {
-            log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
-            readers.remove(oldSegment);
-            oldSegment.close();
-            groupState.handleEndOfSegment(oldSegment.getSegmentId(), fetchSuccessors);
-        } catch (ReinitializationRequiredException e) {
-            close();
-            throw e;
-        }
+        log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
+        readers.remove(oldSegment);
+        oldSegment.close();
+        groupState.handleEndOfSegment(oldSegment.getSegmentId(), fetchSuccessors);
     }
     
     private void handleSegmentTruncated(EventSegmentReader segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
