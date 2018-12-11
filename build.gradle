@@ -23,6 +23,7 @@ buildscript {
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
+        classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
 
@@ -570,6 +571,7 @@ project('controller') {
 
 project('standalone') {
     apply plugin: 'application'
+    apply plugin: "com.github.johnrengelman.shadow"
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
@@ -622,8 +624,8 @@ project('standalone') {
     }
 
     task startStandalone(type: JavaExec) {
-        main = "io.pravega.local.LocalPravegaEmulator"
-        classpath = sourceSets.main.runtimeClasspath
+        main = "-jar"
+        args = [jar.archivePath]
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
@@ -633,6 +635,26 @@ project('standalone') {
         }
 
         jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
+    }
+
+    jar.configure {
+        classifier = 'original'
+    }
+
+    shadowJar {
+        classifier = null
+        
+        mergeServiceFiles()
+        
+        relocate "com.google", "io.pravega.shaded.com.google"
+        relocate "io.dropwizard", "io.pravega.shaded.io.dropwizard"
+        relocate "io.grpc", "io.pravega.shaded.io.grpc"
+        relocate "io.netty", "io.pravega.shaded.io.netty"
+        relocate "org.apache", "io.pravega.shaded.org.apache"
+
+
+        relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
+        relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
     }
 }
 
