@@ -592,17 +592,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName,
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
-        Stream stream = getStream(scope, streamName, context);
-        CompletableFuture<TxnStatus> future = withCompletion(stream.commitTransaction(txId), executor);
-
-        future.thenCompose(result -> {
-            return stream.getNumberOfOngoingTransactions().thenAccept(count -> {
-                DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
-                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
-            });
-        });
-
-        return future;
+        return withCompletion(getStream(scope, streamName, context).commitTransaction(txId), executor);
     }
 
     @Override
