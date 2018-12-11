@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.slf4j.LoggerFactory;
 
-public class StreamCutBucketService extends AbstractService implements BucketChangeListener {
+public class StreamCutBucketService extends AbstractService implements BucketChangeListener, Comparable<StreamCutBucketService> {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamCutBucketService.class));
 
@@ -192,5 +192,10 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     @VisibleForTesting
     Map<Stream, CompletableFuture<Void>> getRetentionFutureMap() {
         return Collections.unmodifiableMap(retentionFutureMap);
+    }
+
+    @Override
+    public int compareTo(StreamCutBucketService streamCutBucketService) {
+        return Integer.compare(bucketId, streamCutBucketService.bucketId);
     }
 }
