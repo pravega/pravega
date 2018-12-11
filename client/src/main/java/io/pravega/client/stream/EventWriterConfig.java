@@ -45,16 +45,7 @@ public class EventWriterConfig implements Serializable {
      * it affects all transactions.
      */
     private final long transactionTimeoutTime;
-    
-    /**
-     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the
-     * timestamp should be considered valid before it is forgotten. Meaning that after this long of
-     * not calling {@link EventStreamWriter#noteTime(long)} readers that call
-     * {@link EventStreamReader#getCurrentTimeWindow()} will receive a `null` when they are at the
-     * corresponding position in the stream.
-     */
-    private final long timestampAggrigationTimeout;
-    
+       
     /**
      * Automatically invoke {@link EventStreamWriter#noteTime(long)} passing
      * {@link System#currentTimeMillis()} on a regular interval.
