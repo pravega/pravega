@@ -301,7 +301,15 @@ public interface Controller extends AutoCloseable {
      */
     void noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition);
 
-    
+    /**
+     * Notifies the controller that the specified writer is shutting down gracefully and no longer
+     * needs to be considered for calculating entries for the marks segment. This may not be called
+     * in the event that writer crashes.
+     * 
+     * @param writerId The name of the writer. (User defined)
+     * @param stream The stream the writer was on.
+     */
+    void writerShutdown(String writerId, Stream stream);
 
     /**
      * Closes controller client.
