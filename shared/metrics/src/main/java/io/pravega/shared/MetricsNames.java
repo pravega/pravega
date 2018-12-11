@@ -200,8 +200,19 @@ public final class MetricsNames {
     }
 
     /**
-     * For some metrics such as OpStats, Pravega generates corresponding fail metrics automatically.
-     * This method provides a standard way to create name of fail metric for a given metric.
+     * For some metrics such as OpStats, Pravega generates corresponding fail metrics automatically,
+     * this method is called to create the name of fail metric for a given metric.
+     *
+     * Some examples of OpStats metrics and their corresponding fail metrics:
+     * pravega.bookkeeper.segmentstore.bookkeeper.write_latency_ms.0
+     * pravega.bookkeeper.segmentstore.bookkeeper.write_latency_ms_fail.0
+     *
+     * pravega.segmentstore.segmentstore.thread_pool.active_threads
+     * pravega.segmentstore.segmentstore.thread_pool.active_threads_fail
+     *
+     * The rule is, if the last segment of the metric is an integer, such as container id, the suffix "_fail"
+     * is appended to the preceeding segment instead of the integer itself; otherwise simply append "_fail"
+     * onto the given metric to get the fail metric.
      *
      * @param metricName the metric name for which fail metric is created
      * @return the name of fail metric
