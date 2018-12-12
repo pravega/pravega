@@ -173,7 +173,7 @@ public class ReaderGroupStateManager {
             }
         });
         if (reinitRequired.get()) {
-            throw new ReaderNotInReaderGroupException();
+            throw new ReaderNotInReaderGroupException(readerId);
         }
         acquireTimer.zero();
     }
@@ -255,7 +255,7 @@ public class ReaderGroupStateManager {
         releaseTimer.reset(calculateReleaseTime(readerId, state));
         acquireTimer.reset(calculateAcquireTime(readerId, state));
         if (!state.isReaderOnline(readerId)) {
-            throw new ReaderNotInReaderGroupException();
+            throw new ReaderNotInReaderGroupException(readerId);
         }
         return !state.getSegments(readerId).contains(segment);
     }
@@ -300,7 +300,7 @@ public class ReaderGroupStateManager {
         synchronized (decisionLock) {
             ReaderGroupState state = sync.getState();
             if (!state.isReaderOnline(readerId)) {
-                throw new ReaderNotInReaderGroupException();
+                throw new ReaderNotInReaderGroupException(readerId);
             }
             if (acquireTimer.hasRemaining()) {
                 return false;
@@ -348,7 +348,7 @@ public class ReaderGroupStateManager {
             return acquired;
         });
         if (reinitRequired.get()) {
-            throw new ReaderNotInReaderGroupException();
+            throw new ReaderNotInReaderGroupException(readerId);
         }
         releaseTimer.reset(calculateReleaseTime(readerId, sync.getState()));
         acquireTimer.reset(calculateAcquireTime(readerId, sync.getState()));
@@ -378,7 +378,7 @@ public class ReaderGroupStateManager {
         ReaderGroupState state = sync.getState();
         long automaticCpInterval = state.getConfig().getAutomaticCheckpointIntervalMillis();
         if (!state.isReaderOnline(readerId)) {
-            throw new ReaderNotInReaderGroupException();
+            throw new ReaderNotInReaderGroupException(readerId);
         }
         String checkpoint = state.getCheckpointForReader(readerId);
         if (checkpoint != null) {
@@ -411,7 +411,7 @@ public class ReaderGroupStateManager {
             }
         });
         if (reinitRequired.get()) {
-            throw new ReaderNotInReaderGroupException();
+            throw new ReaderNotInReaderGroupException(readerId);
         }
     }
 

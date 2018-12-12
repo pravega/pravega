@@ -9,23 +9,17 @@
  */
 package io.pravega.client.stream;
 
+import lombok.Getter;
+
 public class ReaderNotInReaderGroupException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
-    public ReaderNotInReaderGroupException() {
-        super();
-    }
-
-    public ReaderNotInReaderGroupException(Throwable e) {
-        super(e);
-    }
-
-    public ReaderNotInReaderGroupException(String msg, Throwable e) {
-        super(msg, e);
-    }
-
-    public ReaderNotInReaderGroupException(String msg) {
-        super(msg);
+    @Getter
+    private final String readerId;
+    
+    public ReaderNotInReaderGroupException(String readerId) {
+        super("Reader: "+readerId);
+        this.readerId = readerId;
     }
 }
