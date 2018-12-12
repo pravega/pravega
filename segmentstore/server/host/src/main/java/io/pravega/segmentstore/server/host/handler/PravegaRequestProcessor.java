@@ -323,18 +323,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         long trace = LoggerHelpers.traceEnter(log, operation, updateSegmentAttribute);
         val update = new AttributeUpdate(attributeId, AttributeUpdateType.ReplaceIfEquals, newValue, expectedValue);
         segmentStore.updateAttributes(segmentName, Collections.singletonList(update), TIMEOUT)
-                    .thenAccept(v -> {
-                        LoggerHelpers.traceLeave(log, operation, trace);
-                        connection.send(new SegmentAttributeUpdated(requestId, true));
-                    })
-                    .exceptionally(e -> {
-                        if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
-                            log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
-                            connection.send(new SegmentAttributeUpdated(requestId, false));
-                        } else {
-                            handleException(requestId, segmentName, operation, e);
+                    .whenComplete((v, e) -> {
+                        LoggerHelpers.traceLeave(log, operation, trace, e);
+                        try {
+                            if (e == null) {
+                                connection.send(new SegmentAttributeUpdated(requestId, true));
+                            } else {
+                                if (Exceptions.unwrap(e) instanceof BadAttributeUpdateException) {
+                                    log.debug("Updating segment attribute {} failed due to: {}", update, e.getMessage());
+                                    connection.send(new SegmentAttributeUpdated(requestId, false));
+                                } else {
+                                    handleException(requestId, segmentName, operation, e);
+                                }
+                            }
+                        } catch (Exception e1) {
+                            handleException(requestId, segmentName, operation + " result", e1);
                         }
-                        return null;
                     });
     }
 
