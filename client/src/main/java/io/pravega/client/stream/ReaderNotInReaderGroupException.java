@@ -9,23 +9,23 @@
  */
 package io.pravega.client.stream;
 
-public class ReinitializationRequiredException extends RuntimeException {
+public class ReaderNotInReaderGroupException extends Exception {
 
     private static final long serialVersionUID = 1L;
 
-    public ReinitializationRequiredException() {
+    public ReaderNotInReaderGroupException() {
         super();
     }
 
-    public ReinitializationRequiredException(Throwable e) {
+    public ReaderNotInReaderGroupException(Throwable e) {
         super(e);
     }
 
-    public ReinitializationRequiredException(String msg, Throwable e) {
+    public ReaderNotInReaderGroupException(String msg, Throwable e) {
         super(msg, e);
     }
 
-    public ReinitializationRequiredException(String msg) {
+    public ReaderNotInReaderGroupException(String msg) {
         super(msg);
     }
 }

@@ -25,6 +25,7 @@ import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
@@ -85,14 +86,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             Preconditions.checkState(!closed, "Reader is closed");
             try {
                 return readNextEventInternal(timeout);
-            } catch (ReinitializationRequiredException e) {
+            } catch (ReaderNotInReaderGroupException e) {
                 close();
-                throw e;
+                throw new ReinitializationRequiredException(e);
             }
         }
     }
     
-    private EventRead<Type> readNextEventInternal(long timeout) throws ReinitializationRequiredException, TruncatedDataException {
+    private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
         long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
         Timer timer = new Timer();
         Segment segment = null;
@@ -162,7 +163,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
      * have been persisted.
      */
     @GuardedBy("readers")
-    private String updateGroupStateIfNeeded() throws ReinitializationRequiredException {
+    private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
         if (atCheckpoint != null) {
             groupState.checkpoint(atCheckpoint, getPosition());
             releaseSegmentsIfNeeded();
@@ -184,7 +185,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @GuardedBy("readers")
-    private void releaseSegmentsIfNeeded() throws ReinitializationRequiredException {
+    private void releaseSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
@@ -199,7 +200,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @GuardedBy("readers")
-    private void acquireSegmentsIfNeeded() throws ReinitializationRequiredException {
+    private void acquireSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
         Map<Segment, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
@@ -220,14 +221,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(EventSegmentReader oldSegment, boolean fetchSuccessors) throws ReinitializationRequiredException {
+    private void handleEndOfSegment(EventSegmentReader oldSegment, boolean fetchSuccessors) throws ReaderNotInReaderGroupException {
         log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
         readers.remove(oldSegment);
         oldSegment.close();
         groupState.handleEndOfSegment(oldSegment.getSegmentId(), fetchSuccessors);
     }
     
-    private void handleSegmentTruncated(EventSegmentReader segmentReader) throws ReinitializationRequiredException, TruncatedDataException {
+    private void handleSegmentTruncated(EventSegmentReader segmentReader) throws ReaderNotInReaderGroupException, TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
         String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
