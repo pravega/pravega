@@ -124,7 +124,7 @@ public abstract class StorageTestBase extends ThreadPooledTestSuite {
     @Test
     public void testWrite() throws Exception {
         String segmentName = "foo_write";
-        int appendCount = 100;
+        int appendCount = 10;
 
         try (Storage s = createStorage()) {
             s.initialize(DEFAULT_EPOCH);
