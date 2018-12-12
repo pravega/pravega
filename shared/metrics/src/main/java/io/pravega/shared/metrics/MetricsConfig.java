@@ -26,7 +26,7 @@ public class MetricsConfig {
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMs", 30);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
-    public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "metrics.host");
+    public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
     public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
