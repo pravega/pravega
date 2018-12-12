@@ -15,22 +15,22 @@ This page describes the proposed Wire Protocol for the Streaming Service. See pa
 
 Data is sent over the wire in self-contained "messages" that are either "requests" (messages sent from the client to the server) or "replies" (responses sent from the server to the client).
 
-All the requests and replies have an 8 byte header with two fields, (All data is written in **BigEndian** format):
+All the requests and replies have an 8 bytes header with two fields.(All data is written in **BigEndian** format).
 
 - **Message Type**: An Integer of 4 bytes identifies the message type and determines what fields will follow. (Note that the protocol can be extended by adding new types.)
-- **Length**:  Unsigned Integer of 4 bytes (Messages should be &lt; 2^<sup>24</sup>, but the upper bits remain zero). The remaining bits followed by the upper bit are part of the message. (Possibly zero, indicating there is no data).
+- **Length**:  Unsigned Integer of 4 bytes (Messages should be less than 2^<sup>24</sup>, but the upper bits remain zero). The remaining bits followed by the upper bit are part of the message. (Possibly zero, indicating there is no data).
 The remainder of the fields are specific to the type of message. A few important messages are listed below.
 
 # General
 
 ## Partial Message - Request/Reply
 
--  Begin/Middle/End: Enum (1 byte)
--  **Data:** A partial message is referred to the broken message when sent over the wire. It is essential that at any cause, the whole message is reconstructed by reading the partial messages in sequence and assembling them into a whole. It is not valid to attempt to start a new partial message before completing the previous one.
+-  **Begin/Middle/End**: Enum (1 byte)
+-  **Data:** A partial message is the one that was broken up when the message was sent over the wire. It is essential that at any cause, the whole message is reconstructed by reading the partial messages in sequence and assembling them into a whole. It is not valid to attempt to start a new partial message before completing the previous one.
 
 ## KeepAlive - Request/Reply
 
-- Data: Uninterpreted data of the length of the message. (Usually 0 bytes)
+- **Data**: Uninterpreted data of the length of the message. (Usually 0 byte)
 
 # Reading
 
@@ -43,7 +43,7 @@ The remainder of the fields are specific to the type of message. A few important
 
 ## Segment Read - Reply
 
-1.  Segment that was read: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
+1.  Segment that was read: String (2 bytes length, followed by that many bytes of Java's Modified UTF-8).
 2.  Offset that was read from: Long (8 bytes).
 3.  Is at Tail: Boolean (1 bit).
 4.  Is at `EndOfSegment`: (1 bit).
@@ -56,11 +56,11 @@ The client requests to read from a particular Stream at a particular Offset, it 
 ## Setup Append - Request
 
 1.  `ConnectionId`: UUID (16 bytes) Identifies this appender.
-2.  Segment to append: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
+2.  Segment to append: String (2 bytes length, followed by that many bytes of Java's Modified UTF-8).
 
 ## Append Setup - Reply
 
-1.  Segment that can be appended: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
+1.  Segment that can be appended: String (2 bytes length, followed by that many bytes of Java's Modified UTF-8).
 2.  `ConnectionId`: UUID (16 bytes) Identifies the requesting appender.
 3.  `ConnectionOffsetAckLevel`: Long (8 bytes) (The last offset received and stored on this Stream Segment for this `ConnectionId` (0 if new).
 
@@ -91,14 +91,14 @@ Only valid inside the block.
 
 When appending a client:
 
-1.  Establishes a connection to host chosen by it.
-2.  Sends a `Setup Append` request.
-3.  Waits for the `Append Setup reply.
+- Establishes a connection to host chosen by it.
+- Sends a `Setup Append` request.
+- Waits for the `Append Setup reply`.
 
 After receiving the `Append Setup` reply, it performs the following:
-1.  Send a `BeginEventBlock` request.
-2.  Send as many messages that can fit in the block.
-3.  Send an `EndEventBlock` request.
+- Send a `BeginEventBlock` request.
+- Send as many messages that can fit in the block.
+- Send an `EndEventBlock` request.
 
 While this is happening, the server will be periodically sending it `DataAppended` replies acking messages. Note that there can be multiple `Appends Setup` for a given TCP connection. This allows a client to share a connection when producing to multiple Segments.
 
