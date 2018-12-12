@@ -34,8 +34,6 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Lombok;
 import lombok.SneakyThrows;
@@ -64,16 +62,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
-import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.nameFromStream;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private final String scope;
     private final String name;
     private final AtomicInteger historyChunkSize;
@@ -1352,14 +1346,12 @@ public abstract class PersistentStreamBase implements Stream {
                     // mark transaction as committed in metadata store.
                     .thenCompose(x -> commitTransaction(txnId)
                             .thenAccept(done -> {
-                                DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, name), 1);
                                 log.debug("transaction {} on stream {}/{} committed successfully", txnId, scope, name);
                             }));
         }
-        return future.thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new Data(CommittingTransactionsRecord.EMPTY.toBytes(),
-                             record.getVersion()))))
-                     .thenRun(() -> getNumberOfOngoingTransactions().thenAccept(count ->
-                             DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), count)));
+        return future
+                .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new Data(CommittingTransactionsRecord.EMPTY.toBytes(),
+                        record.getVersion()))));
     }
 
     private CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final int epoch) {

@@ -24,6 +24,8 @@ import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.MetricsProvider;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -36,6 +38,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static io.pravega.shared.MetricsNames.COMMIT_TRANSACTION;
+import static io.pravega.shared.MetricsNames.nameFromStream;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 
 /**
@@ -43,6 +47,7 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
  */
 @Slf4j
 public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
+    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final ScheduledExecutorService executor;
@@ -278,7 +283,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // primary id is taken for creation of txn-segment name and secondary part is erased and replaced with
                     // transaction's epoch.
                     // And we are creating duplicates of txn epoch keeping the primary same.
-                    .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId));
+                    .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId))
+                    // Increment committed transactions metric.
+                    .thenAccept(done -> DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, stream), 1));
         }
         return future;
     }

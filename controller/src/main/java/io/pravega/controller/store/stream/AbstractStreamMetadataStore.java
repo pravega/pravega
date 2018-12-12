@@ -717,9 +717,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
+    public CompletableFuture<Void> completeCommitTransactions(String scope, String streamName, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).completeCommittingTransactions(record), executor);
+        Stream stream = getStream(scope, streamName, context);
+        CompletableFuture<Void> future = withCompletion(stream.completeCommittingTransactions(record), executor);
+
+        return future.thenCompose(result -> {
+            return stream.getNumberOfOngoingTransactions().thenAccept(count -> {
+                DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), count);
+            });
+        });
     }
 
     @Override
