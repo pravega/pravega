@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
@@ -143,7 +144,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
                 log.info("Awaiting termination of ControllerServiceStarter");
                 starter.awaitTerminated();
-                
+
                 if (hasZkConnection) {
                     storeClient.close();
                 }
@@ -161,6 +162,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     /**
      * Changes internal state to the new value.
+     *
      * @param newState new internal state.
      */
     private void notifyServiceStateChange(ServiceState newState) {
@@ -208,5 +210,14 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         } finally {
             monitor.leave();
         }
+    }
+
+    @VisibleForTesting
+    public void forceClientSessionExpiry() throws Exception {
+        Preconditions.checkState(serviceConfig.isControllerClusterListenerEnabled(),
+                "Controller Cluster not enabled");
+        awaitServiceStarting();
+        ((CuratorFramework) this.storeClient.getClient()).getZookeeperClient().getZooKeeper()
+                                                         .getTestable().injectSessionExpiration();
     }
 }
