@@ -16,6 +16,7 @@ import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
@@ -23,7 +24,9 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import static junit.framework.TestCase.assertEquals;
 
 /**
  * ZK store based ControllerServiceMain tests.
@@ -64,7 +67,6 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         }
     }
     
-    @Slf4j
     static class MockControllerServiceStarter extends ControllerServiceStarter {
         static CompletableFuture<Void> signalShutdownStarted = new CompletableFuture<>();
         static CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
@@ -85,10 +87,10 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
 
     @Test(timeout = 100000)
     public void testZKSessionExpiry() throws Exception {
-        AtomicReference<StoreClient> client = new AtomicReference<>();
+        ConcurrentLinkedQueue<StoreClient> clientQueue = new ConcurrentLinkedQueue<>();
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 (x, y) -> {
-                    client.set(y);
+                    clientQueue.add(y);
                     return new MockControllerServiceStarter(x, y);
                 });
 
@@ -110,7 +112,8 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             return;
         }
 
-        CuratorFramework curatorClient = (CuratorFramework) client.get().getClient();
+        assertEquals(1, clientQueue.size());
+        CuratorFramework curatorClient = (CuratorFramework) clientQueue.poll().getClient();
         // Simulate ZK session timeout
         try {
             curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
@@ -140,13 +143,20 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             log.error("Failed waiting for controllerServiceStarter termination", e);
             Assert.fail("Failed waiting for controllerServiceStarter termination");
         }
-
+        
         try {
             controllerServiceMain.awaitServiceStarting().awaitRunning();
         } catch (IllegalStateException e) {
             log.error("Failed waiting for starter to get ready again", e);
             Assert.fail("Failed waiting for controllerServiceStarter to get ready again");
         }
+
+        // assert that previous curator client has indeed shutdown. 
+        assertEquals(curatorClient.getState(), CuratorFrameworkState.STOPPED);
+
+        // assert that a new curator client is added to the queue and it is in started state
+        assertEquals(1, clientQueue.size());
+        assertEquals(((CuratorFramework) clientQueue.peek().getClient()).getState(), CuratorFrameworkState.STARTED);
 
         controllerServiceMain.stopAsync();
 
