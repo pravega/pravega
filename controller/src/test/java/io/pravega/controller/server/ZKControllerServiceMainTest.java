@@ -14,6 +14,7 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
@@ -26,7 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import static junit.framework.TestCase.assertEquals;
+import static org.junit.Assert.assertEquals;
 
 /**
  * ZK store based ControllerServiceMain tests.
@@ -68,11 +69,16 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
     }
     
     static class MockControllerServiceStarter extends ControllerServiceStarter {
-        static CompletableFuture<Void> signalShutdownStarted = new CompletableFuture<>();
-        static CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
+        @Getter
+        private final CompletableFuture<Void> signalShutdownStarted;
+        @Getter
+        private final CompletableFuture<Void> waitingForShutdownSignal;
 
-        MockControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
+        MockControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient,
+                                     CompletableFuture<Void> signalShutdownStarted, CompletableFuture<Void> waitingForShutdownSignal) {
             super(serviceConfig, storeClient);
+            this.signalShutdownStarted = signalShutdownStarted;
+            this.waitingForShutdownSignal = waitingForShutdownSignal;
         }
 
         @Override
@@ -87,11 +93,14 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
 
     @Test(timeout = 100000)
     public void testZKSessionExpiry() throws Exception {
+        CompletableFuture<Void> signalShutdownStarted = new CompletableFuture<>();
+        CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
+
         ConcurrentLinkedQueue<StoreClient> clientQueue = new ConcurrentLinkedQueue<>();
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 (x, y) -> {
                     clientQueue.add(y);
-                    return new MockControllerServiceStarter(x, y);
+                    return new MockControllerServiceStarter(x, y, signalShutdownStarted, waitingForShutdownSignal);
                 });
 
         controllerServiceMain.startAsync();
@@ -123,7 +132,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         }
 
         // verify that we are waiting for termination.
-        MockControllerServiceStarter.signalShutdownStarted.join();
+        signalShutdownStarted.join();
         CompletableFuture<Void> callBackCalled = new CompletableFuture<>();
         
         // issue a zkClient request.. 
@@ -134,7 +143,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         callBackCalled.join();
         
         // complete termination only when zk call completes. 
-        MockControllerServiceStarter.waitingForShutdownSignal.complete(null);
+        waitingForShutdownSignal.complete(null);
         
         // Now, that session has expired, lets wait for starter to start again.
         try {
