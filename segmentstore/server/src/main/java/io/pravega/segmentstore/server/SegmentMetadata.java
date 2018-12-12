@@ -37,6 +37,12 @@ public interface SegmentMetadata extends SegmentProperties {
     boolean isSealedInStorage();
 
     /**
+     * Gets a value indicating whether this StreamSegment has been deleted in Storage.
+     * This is different from isSealed(), which returns true if the StreamSegment has been sealed in DurableLog or in Storage.
+     */
+    boolean isDeletedInStorage();
+
+    /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
      */
     long getStorageLength();

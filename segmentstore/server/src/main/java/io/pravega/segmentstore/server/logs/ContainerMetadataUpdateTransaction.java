@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.TooManyActiveSegmentsException;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
@@ -30,7 +31,6 @@ import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
@@ -303,9 +303,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
      */
     void preProcessOperation(Operation operation) throws ContainerException, StreamSegmentException {
         checkNotSealed();
-        SegmentMetadataUpdateTransaction segmentMetadata = null;
         if (operation instanceof SegmentOperation) {
-            segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
+            val segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
             if (segmentMetadata.isDeleted()) {
                 throw new StreamSegmentNotExistsException(segmentMetadata.getName());
             }
@@ -349,9 +348,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
      */
     void acceptOperation(Operation operation) throws MetadataUpdateException {
         checkNotSealed();
-        SegmentMetadataUpdateTransaction segmentMetadata = null;
         if (operation instanceof SegmentOperation) {
-            segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
+            val segmentMetadata = getSegmentUpdateTransaction(((SegmentOperation) operation).getStreamSegmentId());
             segmentMetadata.setLastUsed(operation.getSequenceNumber());
             if (operation instanceof StreamSegmentAppendOperation) {
                 segmentMetadata.acceptOperation((StreamSegmentAppendOperation) operation);
@@ -454,10 +452,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
         }
 
         if (mapping.isSealed()) {
-            // MapOperations represent the state of the Segment in Storage. If it is sealed in storage, both
-            // Seal flags need to be set.
             metadata.markSealed();
-            metadata.markSealedInStorage();
         }
 
         metadata.updateAttributes(mapping.getAttributes());
@@ -501,19 +496,6 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
         assert segmentId >= ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER : "Invalid generated SegmentId";
         return segmentId;
-    }
-
-    /**
-     * Gets an UpdateableSegmentMetadata for the given segment id, if it is already registered in the base metadata
-     * or added as a new segment in this transaction.
-     */
-    private SegmentMetadata getExistingMetadata(long segmentId) {
-        SegmentMetadata sm = this.baseMetadata.getStreamSegmentMetadata(segmentId);
-        if (sm == null) {
-            sm = this.newSegments.getOrDefault(segmentId, null);
-        }
-
-        return sm;
     }
 
     /**
@@ -622,6 +604,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeLong(sm.getStorageLength());
             output.writeBoolean(sm.isSealedInStorage());
             output.writeBoolean(sm.isDeleted());
+            output.writeBoolean(sm.isDeletedInStorage());
         }
 
         @SneakyThrows(MetadataUpdateException.class)
@@ -631,7 +614,8 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             long storageLength = input.readLong();
             boolean sealedInStorage = input.readBoolean();
             boolean deleted = input.readBoolean();
-            metadata.updateStorageState(storageLength, sealedInStorage, deleted);
+            boolean deletedInStorage = input.readBoolean();
+            metadata.updateStorageState(storageLength, sealedInStorage, deleted, deletedInStorage);
             return metadata;
         }
     }
@@ -691,6 +675,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             output.writeBoolean(sm.isSealed());
             output.writeBoolean(sm.isSealedInStorage());
             output.writeBoolean(sm.isDeleted());
+            output.writeBoolean(sm.isDeletedInStorage());
             output.writeLong(sm.getLastModified().getTime());
             output.writeLong(sm.getStartOffset());
 
@@ -724,6 +709,11 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             boolean isDeleted = input.readBoolean();
             if (isDeleted) {
                 metadata.markDeleted();
+            }
+
+            boolean isDeletedInStorage = input.readBoolean();
+            if (isDeletedInStorage) {
+                metadata.markDeletedInStorage();
             }
 
             ImmutableDate lastModified = new ImmutableDate(input.readLong());

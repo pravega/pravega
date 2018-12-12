@@ -67,6 +67,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private boolean merged;
     @Getter
+    private boolean deletedInStorage;
+    @Getter
     private boolean deleted;
     @Getter
     private long lastUsed;
@@ -94,6 +96,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.sealed = baseMetadata.isSealed();
         this.sealedInStorage = baseMetadata.isSealedInStorage();
         this.merged = baseMetadata.isMerged();
+        this.deletedInStorage = baseMetadata.isDeletedInStorage();
         this.deleted = baseMetadata.isDeleted();
         this.baseAttributeValues = baseMetadata.getAttributes();
         this.attributeUpdates = new HashMap<>();
@@ -177,11 +180,17 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public void markDeletedInStorage() {
+        this.deletedInStorage = true;
+        this.deleted = true;
+        this.isChanged = true;
+    }
+
+    @Override
     public void markMerged() {
         this.merged = true;
         this.isChanged = true;
     }
-
     @Override
     public void updateAttributes(Map<UUID, Long> attributeValues) {
         this.attributeUpdates.clear();
@@ -612,14 +621,16 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * This method is only meant to be used during recovery mode when we need to restore the state of a segment.
      * During normal operations, these values are set asynchronously by the Writer.
      *
-     * @param storageLength The value to set as StorageLength.
-     * @param storageSealed The value to set as SealedInStorage.
-     * @param deleted       The value to set as Deleted.
+     * @param storageLength  The value to set as StorageLength.
+     * @param storageSealed  The value to set as SealedInStorage.
+     * @param deleted        The value to set as Deleted.
+     * @param storageDeleted The value to set as DeletedInStorage.
      */
-    void updateStorageState(long storageLength, boolean storageSealed, boolean deleted) {
+    void updateStorageState(long storageLength, boolean storageSealed, boolean deleted, boolean storageDeleted) {
         this.storageLength = storageLength;
         this.sealedInStorage = storageSealed;
         this.deleted = deleted;
+        this.deletedInStorage = storageDeleted;
         this.isChanged = true;
     }
 
@@ -663,6 +674,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (this.deleted) {
             target.markDeleted();
+            if (this.deletedInStorage) {
+                target.markDeletedInStorage();
+            }
         }
     }
 

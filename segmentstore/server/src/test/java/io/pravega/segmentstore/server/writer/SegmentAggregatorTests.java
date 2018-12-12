@@ -21,14 +21,15 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.DataCorruptionException;
-import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.ManualTimer;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.TestStorage;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
@@ -66,6 +67,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -113,9 +115,17 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
-        // Check behavior for non-existent segments (in Storage).
+        // Check behavior for non-existent segments (in Storage) that are actually supposed to be empty.
         context.transactionAggregators[0].initialize(TIMEOUT).join();
-        Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", context.transactionAggregators[0].getMetadata().isDeleted());
+        Assert.assertFalse("isDeleted() flag not set on metadata for deleted segment.", context.transactionAggregators[0].getMetadata().isDeleted());
+
+        // Check behavior for non-existent segments (in Storage) that are not supposed to be empty.
+        val sm3 = (UpdateableSegmentMetadata) context.transactionAggregators[3].getMetadata();
+        sm3.setLength(1L);
+        sm3.setStorageLength(1L);
+        context.transactionAggregators[3].initialize(TIMEOUT).join();
+        Assert.assertTrue("isDeleted() flag not set on metadata for deleted segment.", sm3.isDeleted());
+        Assert.assertTrue("isDeletedInStorage() flag not set on metadata for deleted segment.", sm3.isDeletedInStorage());
 
         // Check behavior for already-sealed segments (in storage, but not in metadata)
         context.storage.create(context.transactionAggregators[1].getMetadata().getName(), TIMEOUT).join();
@@ -183,9 +193,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         SegmentAggregator emptyTransactionAggregator = context.transactionAggregators[1];
         SegmentMetadata emptyTransactionMetadata = emptyTransactionAggregator.getMetadata();
 
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
-        context.storage.create(emptyTransactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
         emptyTransactionAggregator.initialize(TIMEOUT).join();
@@ -235,8 +242,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
         SegmentMetadata transactionMetadata = transactionAggregator.getMetadata();
 
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
-        context.storage.create(transactionMetadata.getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
 
@@ -245,7 +250,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         UpdateableSegmentMetadata badTransactionMetadata = context.containerMetadata.mapStreamSegmentId(badTransactionName, badTransactionId);
         badTransactionMetadata.setLength(0);
         badTransactionMetadata.setStorageLength(0);
-        context.storage.create(badTransactionMetadata.getName(), TIMEOUT).join();
 
         // 1. MergeSegmentOperation
         // Verify that MergeSegmentOperation cannot be added to the Segment to be merged.
@@ -407,7 +411,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         @Cleanup
@@ -546,7 +549,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // Have the writes fail every few attempts with a well known exception.
@@ -625,7 +627,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // UpdateAttributesOperations can only be triggered by a time trigger.
@@ -662,7 +663,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         AtomicReference<IntentionalException> setException = new AtomicReference<>();
         Supplier<Exception> exceptionSupplier = () -> {
@@ -735,7 +735,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         @Cleanup
@@ -827,7 +826,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         @Cleanup
@@ -919,11 +917,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
 
-        // Create and initialize all segments.
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        // Initialize all segments.
         context.segmentAggregator.initialize(TIMEOUT).join();
         for (SegmentAggregator a : context.transactionAggregators) {
-            context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
             a.initialize(TIMEOUT).join();
         }
 
@@ -991,8 +987,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 Assert.assertFalse("Transaction to be merged still exists in storage.", context.storage.exists(transactionMetadata.getName(), TIMEOUT).join());
             } else {
                 Assert.assertFalse("Transaction not to be merged was marked as deleted in metadata.", transactionMetadata.isDeleted());
-                SegmentProperties sp = context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT).join();
-                Assert.assertFalse("Transaction not to be merged is sealed in storage.", sp.isSealed());
+                boolean exists = context.storage.exists(transactionMetadata.getName(), TIMEOUT).join();
+                if (exists) {
+                    // We're not expecting this to exist, but if it does, do check it.
+                    SegmentProperties sp = context.storage.getStreamSegmentInfo(transactionMetadata.getName(), TIMEOUT).join();
+                    Assert.assertFalse("Transaction not to be merged is sealed in storage.", sp.isSealed());
+                }
             }
         }
 
@@ -1052,11 +1052,9 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config);
 
-        // Create and initialize all segments.
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
+        // Initialize all segments.
         context.segmentAggregator.initialize(TIMEOUT).join();
         for (SegmentAggregator a : context.transactionAggregators) {
-            context.storage.create(a.getMetadata().getName(), TIMEOUT).join();
             a.initialize(TIMEOUT).join();
         }
 
@@ -1139,7 +1137,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         @Cleanup
@@ -1205,7 +1202,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         @Cleanup
@@ -1300,6 +1296,92 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to process a {@link DeleteSegmentOperation} on Segments in various states:
+     * - Empty (not yet created).
+     * - Empty (created, but no data).
+     * - Not empty, not sealed.
+     * - Sealed (empty or not).
+     */
+    @Test
+    public void testDelete() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+        val notCreated = context.transactionAggregators[0];
+        val empty = context.transactionAggregators[1];
+        val notSealed = context.transactionAggregators[2];
+        val sealed = context.transactionAggregators[3];
+        val allAggregators = new SegmentAggregator[]{notCreated, empty, notSealed, sealed};
+
+        // Create the segments that are supposed to exist in Storage.
+        Stream.of(empty, notSealed, sealed)
+              .forEach(a -> context.storage.create(a.getMetadata().getName(), TIMEOUT).join());
+
+        // Write 1 byte to the non-empty segment.
+        context.storage.openWrite(notSealed.getMetadata().getName())
+                       .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[]{1}), 1, TIMEOUT))
+                       .join();
+        ((UpdateableSegmentMetadata)notSealed.getMetadata()).setLength(1L);
+
+        // Seal the sealed segment.
+        ((UpdateableSegmentMetadata)sealed.getMetadata()).markSealed();
+        context.storage.openWrite(sealed.getMetadata().getName())
+                       .thenCompose(handle -> context.storage.seal(handle, TIMEOUT))
+                       .join();
+
+        // Initialize the Aggregators, add the DeleteSegmentOperations and flush them.
+        for (val a : allAggregators) {
+            a.initialize(TIMEOUT).join();
+            a.add(generateDeleteAndUpdateMetadata(a.getMetadata().getId(), context));
+            Assert.assertTrue("Unexpected value from mustFlush() when DeletedSegmentOperation queued up.", a.mustFlush());
+            a.flush(TIMEOUT).join();
+            Assert.assertFalse("Unexpected value from mustFlush() after Deletion.", a.mustFlush());
+            Assert.assertTrue("Unexpected value from isDeleted() after Deletion.", a.getMetadata().isDeleted());
+            Assert.assertTrue("Unexpected value from isDeletedInStorage() after Deletion.", a.getMetadata().isDeletedInStorage());
+            boolean existsInStorage = context.storage.exists(a.getMetadata().getName(), TIMEOUT).join();
+            Assert.assertFalse("Segment still exists in Storage after Deletion.", existsInStorage);
+        }
+    }
+
+    /**
+     * Tests the ability to reconcile a {@link DeleteSegmentOperation} on Segments in various states:
+     * - Empty (not yet created).
+     * - Empty (created, but no data).
+     * - Not empty, not sealed.
+     * - Sealed (empty or not).
+     */
+    @Test
+    public void testReconcileDelete() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+    }
+
+    /**
+     * Tests the ability to process and flush various Operations on empty (not yet created) Segments:
+     * - Append
+     * - Seal
+     * - Truncate
+     * - Merge (empty source or targets)
+     */
+    @Test
+    public void testEmptySegment() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+    }
+
+    /**
+     * Tests the ability to reconcile various Operations on empty (not yet created) Segments:
+     * - Append
+     * - Seal
+     * - Truncate
+     * - Merge (empty source or targets).
+     */
+    @Test
+    public void testReconcileEmptySegment() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+    }
+
+    /**
      * Tests the case when a Segment is deleted in the Metadata and ReadIndex.
      * Note that we are not testing the case when the Segment is deleted only in Storage, since the SegmentContainer
      * first deletes in the Metadata and then in Storage, and that would simply throw a StreamSegmentNotExistsException,
@@ -1311,7 +1393,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // Add one operation big enough to trigger a Flush.
@@ -1345,7 +1426,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // Add one operation big enough to trigger a Flush.
@@ -1380,7 +1460,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         @Cleanup
         TestContext context = new TestContext(config);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // The writes always succeed, but every few times we return some random error, indicating that they didn't.
@@ -1456,7 +1535,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     public void testReconcileSeal() throws Exception {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // The seal succeeds, but we throw some random error, indicating that it didn't.
@@ -1496,10 +1574,8 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
         // Create a parent segment and one transaction segment.
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
-        context.storage.create(transactionAggregator.getMetadata().getName(), TIMEOUT).join();
         transactionAggregator.initialize(TIMEOUT).join();
 
         // Store written data by segment - so we can check it later.
@@ -1570,7 +1646,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
         // Create a parent segment and one transaction segment.
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         SegmentAggregator transactionAggregator = context.transactionAggregators[0];
@@ -1901,7 +1976,6 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
         // Create a parent segment and one transaction segment.
-        context.storage.create(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join();
         context.segmentAggregator.initialize(TIMEOUT).join();
 
         // Part 1: When the source segment is missing from Storage, but metadata does not reflect that.
@@ -2081,6 +2155,15 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         long truncateOffset = segmentMetadata.getLength() / 2;
         segmentMetadata.setStartOffset(truncateOffset);
         StreamSegmentTruncateOperation op = new StreamSegmentTruncateOperation(segmentId, truncateOffset);
+        op.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
+        return op;
+    }
+
+    private StorageOperation generateDeleteAndUpdateMetadata(long segmentId, TestContext context) {
+        UpdateableSegmentMetadata metadata = context.containerMetadata.getStreamSegmentMetadata(segmentId);
+        metadata.markDeleted();
+        DeleteSegmentOperation op = new DeleteSegmentOperation(segmentId);
+        op.setStreamSegmentOffset(metadata.getLength());
         op.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
         return op;
     }

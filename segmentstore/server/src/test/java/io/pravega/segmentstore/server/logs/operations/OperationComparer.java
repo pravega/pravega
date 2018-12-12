@@ -105,6 +105,8 @@ public class OperationComparer {
             assertSame(message, (MergeSegmentOperation) expected, (MergeSegmentOperation) actual);
         } else if (expected instanceof StreamSegmentTruncateOperation) {
             assertSame(message, (StreamSegmentTruncateOperation) expected, (StreamSegmentTruncateOperation) actual);
+        } else if (expected instanceof DeleteSegmentOperation) {
+            assertSame(message, (DeleteSegmentOperation) expected, (DeleteSegmentOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }
@@ -166,8 +168,6 @@ public class OperationComparer {
             assertSame(message, (StreamSegmentMapOperation) expected, (StreamSegmentMapOperation) actual);
         } else if (expected instanceof UpdateAttributesOperation) {
             assertSame(message, (UpdateAttributesOperation) expected, (UpdateAttributesOperation) actual);
-        } else if (expected instanceof DeleteSegmentOperation) {
-            assertSame(message, (DeleteSegmentOperation) expected, (DeleteSegmentOperation) actual);
         } else {
             Assert.fail(message + " No comparison implemented for operation " + expected);
         }

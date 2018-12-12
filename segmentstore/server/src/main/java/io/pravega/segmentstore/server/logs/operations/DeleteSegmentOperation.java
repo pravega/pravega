@@ -10,18 +10,19 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.segmentstore.server.SegmentOperation;
 import java.io.IOException;
 import lombok.Getter;
 
 /**
  * Log Operation that indicates a Segment is to be deleted.
  */
-public class DeleteSegmentOperation extends MetadataOperation implements SegmentOperation {
+public class DeleteSegmentOperation extends StorageOperation {
     @Getter
     private long streamSegmentId;
+    private long streamSegmentOffset;
 
     /**
      * Creates a new instance of the DeleteSegmentOperation class.
@@ -38,13 +39,33 @@ public class DeleteSegmentOperation extends MetadataOperation implements Segment
     private DeleteSegmentOperation() {
     }
 
+    /**
+     * Sets the length of the StreamSegment at the time of sealing.
+     *
+     * @param value The length.
+     */
+    public void setStreamSegmentOffset(long value) {
+        Exceptions.checkArgument(value >= 0, "value", "StreamSegment Offset must be a non-negative number.");
+        this.streamSegmentOffset = value;
+    }
+
+    @Override
+    public long getStreamSegmentOffset() {
+        return this.streamSegmentOffset;
+    }
+
+    @Override
+    public long getLength() {
+        return 0;
+    }
+
     @Override
     public String toString() {
         return String.format("%s, SegmentId = %d", super.toString(), getStreamSegmentId());
     }
 
     static class Serializer extends OperationSerializer<DeleteSegmentOperation> {
-        private static final int SERIALIZATION_LENGTH = 2 * Long.BYTES;
+        private static final int SERIALIZATION_LENGTH = 3 * Long.BYTES;
 
         @Override
         protected OperationBuilder<DeleteSegmentOperation> newBuilder() {
@@ -71,11 +92,13 @@ public class DeleteSegmentOperation extends MetadataOperation implements Segment
             target.length(SERIALIZATION_LENGTH);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.getStreamSegmentId());
+            target.writeLong(o.getStreamSegmentOffset());
         }
 
         private void read00(RevisionDataInput source, OperationBuilder<DeleteSegmentOperation> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.streamSegmentId = source.readLong();
+            b.instance.streamSegmentOffset = source.readLong();
         }
     }
 }
