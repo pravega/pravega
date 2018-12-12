@@ -29,6 +29,7 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
@@ -101,6 +102,7 @@ public class StreamMetadataTasks extends TaskBase {
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     private final StreamMetadataStore streamMetadataStore;
+    private final BucketStore bucketStore;
     private final HostControllerStore hostControllerStore;
     private final ConnectionFactory connectionFactory;
     private final SegmentHelper segmentHelper;
@@ -112,19 +114,20 @@ public class StreamMetadataTasks extends TaskBase {
     private final RequestTracker requestTracker;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                               final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+                               BucketStore bucketStore, final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
                                final ConnectionFactory connectionFactory, AuthHelper authHelper, RequestTracker requestTracker) {
-        this(streamMetadataStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
+        this(streamMetadataStore, bucketStore, hostControllerStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
                 connectionFactory, authHelper, requestTracker);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
+                                BucketStore bucketStore, final HostControllerStore hostControllerStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
                                 ConnectionFactory connectionFactory, AuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
+        this.bucketStore = bucketStore;
         this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
         this.connectionFactory = connectionFactory;
@@ -623,8 +626,8 @@ public class StreamMetadataTasks extends TaskBase {
                                     return withRetries(() -> {
                                         CompletableFuture<Void> future;
                                         if (config.getRetentionPolicy() != null) {
-                                            future = streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
-                                                    config.getRetentionPolicy(), context, executor);
+                                            future = bucketStore.addUpdateStreamForRetention(scope, stream,
+                                                    config.getRetentionPolicy(), executor);
                                         } else {
                                             future = CompletableFuture.completedFuture(null);
                                         }
@@ -860,7 +863,7 @@ public class StreamMetadataTasks extends TaskBase {
     @Override
     public TaskBase copyWithContext(Context context) {
         return new StreamMetadataTasks(streamMetadataStore,
-                hostControllerStore,
+                bucketStore, hostControllerStore,
                 taskMetadataStore,
                 segmentHelper,
                 executor,

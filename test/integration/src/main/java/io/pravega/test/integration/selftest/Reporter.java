@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 import lombok.val;
 
 /**
- * Reports Test State on a periodic basis.
+ * Reports Test State on a bucket basis.
  */
 class Reporter extends AbstractScheduledService {
     //region Members

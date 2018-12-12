@@ -10,10 +10,9 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.controller.server.periodic.BucketChangeListener;
-import io.pravega.controller.server.periodic.BucketOwnershipListener;
+import io.pravega.controller.server.bucket.BucketChangeListener;
+import io.pravega.controller.server.bucket.BucketOwnershipListener;
 
-import java.lang.annotation.Retention;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;

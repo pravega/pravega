@@ -1,4 +1,4 @@
-package io.pravega.controller.server.periodic;
+package io.pravega.controller.server.bucket;
 
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
@@ -13,6 +13,7 @@ import io.pravega.controller.util.RetryHelper;
 import io.pravega.common.tracing.TagLogger;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -20,7 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import org.slf4j.LoggerFactory;
 
-public class StreamCutBucketService extends BucketService {
+public class StreamCutBucketService extends AbstractBucketService {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamCutBucketService.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
@@ -28,13 +29,23 @@ public class StreamCutBucketService extends BucketService {
     private final RequestTracker requestTracker;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore, BucketStore bucketStore, 
-                           StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor, 
-                           RequestTracker requestTracker) {
+    StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                                  StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor,
+                                  RequestTracker requestTracker) {
         super(bucketId, bucketStore, executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
         this.requestTracker = requestTracker;
+    }
+
+    @Override
+    void registerBucketChangeListener(BucketChangeListener bucketService) {
+        bucketStore.registerBucketChangeListenerForRetention(bucketId, this);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> getStreamsForBucket() {
+        return bucketStore.getStreamsForRetention(bucketId, executor);
     }
 
     CompletableFuture<Void> startWork(StreamImpl stream) {

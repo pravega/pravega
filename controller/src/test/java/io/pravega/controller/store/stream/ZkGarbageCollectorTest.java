@@ -91,7 +91,7 @@ public class ZkGarbageCollectorTest {
 
         // the processing should not fail and gc should happen in the next period. 
         Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
-        // at least one of the three GC will be able to take the guard and run the periodic processing.
+        // at least one of the three GC will be able to take the guard and run the bucket processing.
         // add some delay
         assertEquals(2, gc1.getLatestBatch());
         assertEquals(2, gc2.getLatestBatch());

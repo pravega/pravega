@@ -152,7 +152,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 this.client = null;
             }
 
-            // We enable the periodic refresh only if controller discovery is enabled or if DNS resolution is required.
+            // We enable the bucket refresh only if controller discovery is enabled or if DNS resolution is required.
             if (this.enableDiscovery || this.bootstrapServers.stream().anyMatch(
                     inetSocketAddress -> !InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
                 this.scheduledExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "fetch-controllers");

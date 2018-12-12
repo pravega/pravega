@@ -7,21 +7,24 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.periodic;
+package io.pravega.controller.server.bucket;
 
 import lombok.Data;
 
 @FunctionalInterface
-public interface BucketOwnershipListener {
-    void notify(BucketNotification notification);
+public interface BucketChangeListener {
+    void notify(StreamNotification notification);
 
     @Data
-    class BucketNotification {
-        private final int bucketId;
+    class StreamNotification {
+        private final String scope;
+        private final String stream;
         private final NotificationType type;
 
         public enum NotificationType {
-            BucketAvailable,
+            StreamAdded,
+            StreamRemoved,
+            StreamUpdated,
             ConnectivityError
         }
     }

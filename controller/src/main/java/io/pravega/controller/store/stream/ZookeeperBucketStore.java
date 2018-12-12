@@ -13,8 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.periodic.BucketChangeListener;
-import io.pravega.controller.server.periodic.BucketOwnershipListener;
+import io.pravega.controller.server.bucket.BucketChangeListener;
+import io.pravega.controller.server.bucket.BucketOwnershipListener;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -34,9 +34,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.server.periodic.BucketOwnershipListener.BucketNotification;
-import static io.pravega.controller.server.periodic.BucketChangeListener.StreamNotification;
-import static io.pravega.controller.server.periodic.BucketChangeListener.StreamNotification.NotificationType;
+import static io.pravega.controller.server.bucket.BucketOwnershipListener.BucketNotification;
+import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNotification;
+import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNotification.NotificationType;
 
 /**
  * TODO: shivesh
@@ -162,8 +162,6 @@ public class ZookeeperBucketStore implements BucketStore {
         return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
                           .thenCompose(created -> {
                               if (!created) {
-                                  // Note: data may disappear by the time we do a getData. Let exception be thrown from here
-                                  // so that caller may retry.
                                   return storeHelper.getData(bucketPath)
                                                     .thenApply(data -> (SerializationUtils.deserialize(data.getData())).equals(processId));
                               } else {

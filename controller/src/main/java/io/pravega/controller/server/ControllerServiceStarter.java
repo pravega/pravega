@@ -25,10 +25,12 @@ import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
+import io.pravega.controller.server.bucket.AbstractBucketService;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.StreamCutBucketService;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.periodic.PeriodicWorkService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -56,6 +58,8 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -75,7 +79,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private PeriodicWorkService backgroundPeriodicService;
+    private BucketManager streamCutService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
 
@@ -169,17 +173,19 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
-            streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+            streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
 
-            backgroundPeriodicService = new PeriodicWorkService(Config.BUCKET_COUNT, host.getHostId(), streamStore, bucketStore, streamMetadataTasks,
+            Function<Integer, AbstractBucketService> streamCutSupplier = bucket -> new StreamCutBucketService(bucket, streamStore, bucketStore, streamMetadataTasks,
                     periodicExecutor, requestTracker);
-            log.info("starting periodic service asynchronously");
-            backgroundPeriodicService.startAsync();
-            backgroundPeriodicService.awaitRunning();
+            streamCutService = new BucketManager(Config.BUCKET_COUNT, host.getHostId(), bucketStore, periodicExecutor,
+                    streamCutSupplier);
+            log.info("starting backgroup periodic service asynchronously");
+            streamCutService.startAsync();
+            streamCutService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -295,9 +301,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Controller cluster listener shutdown");
             }
 
-            if (backgroundPeriodicService != null) {
+            if (streamCutService != null) {
                 log.info("Stopping auto periodic service");
-                backgroundPeriodicService.stopAsync();
+                streamCutService.stopAsync();
             }
 
             log.info("Closing stream metadata tasks");
@@ -332,9 +338,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerClusterListener.awaitTerminated();
             }
 
-            if (backgroundPeriodicService != null) {
+            if (streamCutService != null) {
                 log.info("Awaiting termination of auto periodic");
-                backgroundPeriodicService.awaitTerminated();
+                streamCutService.awaitTerminated();
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
