@@ -9,17 +9,21 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.controller.store.client.StoreClient;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * ZK store based ControllerServiceMain tests.
@@ -59,11 +63,34 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             Assert.fail("Error stopping test zk server");
         }
     }
+    
+    @Slf4j
+    static class MockControllerServiceStarter extends ControllerServiceStarter {
+        static CompletableFuture<Void> signalShutdownStarted = new CompletableFuture<>();
+        static CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
 
-    @Test(timeout = 10000)
-    public void testZKSessionExpiry() {
+        MockControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
+            super(serviceConfig, storeClient);
+        }
+
+        @Override
+        protected void startUp() { }
+
+        @Override
+        protected void shutDown() throws Exception {
+            signalShutdownStarted.complete(null);
+            waitingForShutdownSignal.join();
+        }
+    }
+
+    @Test(timeout = 100000)
+    public void testZKSessionExpiry() throws Exception {
+        AtomicReference<StoreClient> client = new AtomicReference<>();
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
-                MockControllerServiceStarter::new);
+                (x, y) -> {
+                    client.set(y);
+                    return new MockControllerServiceStarter(x, y);
+                });
 
         controllerServiceMain.startAsync();
 
@@ -74,22 +101,38 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             Assert.fail("Failed waiting for controllerServiceMain to get ready");
         }
 
+        MockControllerServiceStarter controllerServiceStarter = (MockControllerServiceStarter) controllerServiceMain.awaitServiceStarting();
         try {
-            controllerServiceMain.awaitServiceStarting().awaitRunning();
+            controllerServiceStarter.awaitRunning();
         } catch (IllegalStateException e) {
             log.error("Failed waiting for controllerServiceStarter to get ready", e);
             Assert.fail("Failed waiting for controllerServiceStarter to get ready");
             return;
         }
 
+        CuratorFramework curatorClient = (CuratorFramework) client.get().getClient();
         // Simulate ZK session timeout
         try {
-            controllerServiceMain.forceClientSessionExpiry();
+            curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         } catch (Exception e) {
             log.error("Failed while simulating client session expiry", e);
             Assert.fail("Failed while simulating client session expiry");
         }
 
+        // verify that we are waiting for termination.
+        MockControllerServiceStarter.signalShutdownStarted.join();
+        CompletableFuture<Void> callBackCalled = new CompletableFuture<>();
+        
+        // issue a zkClient request.. 
+        curatorClient.getData().inBackground((client1, event) -> {
+            callBackCalled.complete(null);        
+        }).forPath("/test");
+        
+        callBackCalled.join();
+        
+        // complete termination only when zk call completes. 
+        MockControllerServiceStarter.waitingForShutdownSignal.complete(null);
+        
         // Now, that session has expired, lets wait for starter to start again.
         try {
             controllerServiceMain.awaitServicePausing().awaitTerminated();
