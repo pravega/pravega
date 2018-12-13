@@ -127,7 +127,11 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     }
     
     private void closeConnection(String message) {
-        log.info("Closing connection as a result of receiving: {}", message);
+        if (closed.get()) {
+            log.debug("Closing connection as a result of receiving: {} for segment: {}", message, segmentId);
+        } else {
+            log.warn("Closing connection as a result of receiving: {} for segment: {}", message, segmentId);
+        }
         RawClient c;
         synchronized (lock) {
             c = client;
