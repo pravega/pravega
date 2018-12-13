@@ -232,6 +232,38 @@ public abstract class StreamMetadataStoreTest {
     }
 
     @Test
+    public void partialStreamsInScope() throws Exception {
+        // list stream in scope
+        store.createScope("Scope").get();
+        store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
+        String partial = "partial";
+        store.createStream("Scope", partial, configuration1, System.currentTimeMillis(), null, executor).get();
+
+        // verify that when we do list stream in scope we get partial. 
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        assertEquals("List streams in scope", 2, streamInScope.size());
+        assertTrue("List streams in scope", streamInScope.containsKey(partial));
+
+        // now deliberately throw data not found exception for getConfiguration on partial. 
+        PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream("Scope", partial, null);
+        PersistentStreamBase streamObjSpied = spy(streamObj);
+
+        doAnswer(x -> {
+            CompletableFuture<StreamConfiguration> result = new CompletableFuture<>();
+            result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "configuration"));
+            return result;
+        }).when(streamObjSpied).getConfiguration();
+
+        ((AbstractStreamMetadataStore) store).setStream(streamObjSpied);
+
+        // verify that when we do list stream in scope we do not get partial. 
+        streamInScope = store.listStreamsInScope("Scope").get();
+        assertEquals("List streams in scope", 1, streamInScope.size());
+        assertFalse("List streams in scope", streamInScope.containsKey(partial));
+    }
+    
+    @Test
     public void listScopes() throws Exception {
         // list scopes test
         List<String> list = store.listScopes().get();
