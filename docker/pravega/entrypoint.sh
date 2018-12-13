@@ -23,6 +23,7 @@ add_system_property() {
 }
 
 configure_controller() {
+    [ ! -z "$HOSTNAME" ] && add_system_property "config.controller.metricmetricsPrefix" "${HOSTNAME}"
     add_system_property "config.controller.server.zk.url" "${ZK_URL}"
     add_system_property "config.controller.server.store.host.type" "Zookeeper"
     echo "JAVA_OPTS=${JAVA_OPTS}"
@@ -102,6 +103,7 @@ configure_tier2() {
     esac
 }
 configure_segmentstore() {
+    [ ! -z "$HOSTNAME" ] && add_system_property "metrics.metricsPrefix" "${HOSTNAME}"
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
     add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
