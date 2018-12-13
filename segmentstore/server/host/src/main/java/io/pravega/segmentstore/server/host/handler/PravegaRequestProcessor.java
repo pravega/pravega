@@ -578,8 +578,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof StreamSegmentSealedException) {
             log.info(requestId, "Segment '{}' is sealed and cannot perform operation '{}'.",
                      segment, operation);
-            connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace));
-            invokeSafely(connection::send, new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace), failureHandler);
+            invokeSafely(connection::send, new SegmentIsSealed(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn(requestId, "Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').",
