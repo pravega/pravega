@@ -91,12 +91,7 @@ class TableIterator<T> implements AsyncIterator<T> {
         }
 
         val canContinue = new AtomicBoolean(true);
-        return Futures
-                .loop(
-                        canContinue::get,
-                        this::fetchNextTableBuckets,
-                        canContinue::set,
-                        this.executor)
+        return Futures.loop(canContinue::get, this::fetchNextTableBuckets, canContinue::set, this.executor)
                 .thenApply(v -> getNextBucketFromExistingBatch());
     }
 

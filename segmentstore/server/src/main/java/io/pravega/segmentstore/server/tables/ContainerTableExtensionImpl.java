@@ -17,6 +17,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -270,7 +271,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             fromHash = KeyHasher.getNextHash(serializedState == null ? null : IteratorState.deserialize(serializedState).getKeyHash());
         } catch (IOException ex) {
             // Bad IteratorState serialization.
-            return Futures.failedFuture(ex);
+            throw new IllegalDataFormatException("Unable to deserialize `serializedState`.", ex);
         }
 
         if (fromHash == null) {

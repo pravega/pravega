@@ -13,6 +13,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -131,7 +132,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFindAllKeys() {
-        testFindAll(TableBucketReader::key, TableEntry::getKey, TableEntryHelpers::areEqual);
+        testFindAll(TableBucketReader::key, TableEntry::getKey, TableKey::equals);
     }
 
     /**
@@ -139,7 +140,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFindAllEntries() {
-        testFindAll(TableBucketReader::entry, e -> e, TableEntryHelpers::areEqual);
+        testFindAll(TableBucketReader::entry, e -> e, TableEntry::equals);
     }
 
     @SneakyThrows

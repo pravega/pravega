@@ -467,13 +467,13 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val entryIterator = ext.entryIterator(SEGMENT_NAME, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualEntries = collectIteratorItems(entryIterator);
         actualEntries.sort(Comparator.comparingLong(e -> e.getKey().getVersion()));
-        AssertExtensions.assertListEquals("Unexpected Table Entries from entryIterator().", existingEntries, actualEntries, TableEntryHelpers::areEqual);
+        AssertExtensions.assertListEquals("Unexpected Table Entries from entryIterator().", existingEntries, actualEntries, TableEntry::equals);
 
         // Collect and verify all Table Keys.
         val keyIterator = ext.keyIterator(SEGMENT_NAME, null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val actualKeys = collectIteratorItems(keyIterator);
         actualKeys.sort(Comparator.comparingLong(TableKey::getVersion));
-        AssertExtensions.assertListEquals("Unexpected Table Keys from keyIterator().", existingKeys, actualKeys, TableEntryHelpers::areEqual);
+        AssertExtensions.assertListEquals("Unexpected Table Keys from keyIterator().", existingKeys, actualKeys, TableKey::equals);
     }
 
     private <T> List<T> collectIteratorItems(AsyncIterator<IteratorItem<T>> iterator) throws Exception {

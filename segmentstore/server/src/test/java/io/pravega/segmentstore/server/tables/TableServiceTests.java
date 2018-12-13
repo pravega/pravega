@@ -288,7 +288,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
                 .collect(Collectors.toList());
-        AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntryHelpers::areEqual);
+        AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntry::equals);
 
     }
 

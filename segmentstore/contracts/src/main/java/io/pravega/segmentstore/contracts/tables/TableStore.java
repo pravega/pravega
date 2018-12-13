@@ -12,6 +12,7 @@ package io.pravega.segmentstore.contracts.tables;
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -181,7 +182,7 @@ public interface TableStore {
     CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout);
 
     /**
-     * Creates a new Iterator over all the {@link TableKey} instances the given Table Segment.
+     * Creates a new Iterator over all the {@link TableKey} instances in the given Table Segment.
      *
      * @param segmentName     The name of the Table Segment to iterate over.
      * @param serializedState (Optional) A byte array representing the serialized form of the State. This can be obtained
@@ -194,13 +195,13 @@ public interface TableStore {
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * <li>{@link java.io.IOException} If serializedState is non-null but it cannot be deserialized.
      * </ul>
+     * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
     CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout);
 
     /**
-     * Creates a new Iterator over all the {@link TableEntry} instances the given Table Segment.
+     * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
      *
      * @param segmentName     The name of the Table Segment to iterate over.
      * @param serializedState (Optional) A byte array representing the serialized form of the State. This can be obtained
@@ -213,8 +214,8 @@ public interface TableStore {
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
-     * <li>{@link java.io.IOException} If serializedState is non-null but it cannot be deserialized.
      * </ul>
+     * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
     CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout);
 }
