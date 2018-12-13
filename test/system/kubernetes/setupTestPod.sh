@@ -9,6 +9,8 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 
+set -euxo pipefail
+
 # Constants
 minKubectlVersion="v1.13.0"
 
@@ -43,15 +45,19 @@ fi
 
 # Step 3: Verify if kubectl is able to talk to the Kubernetes cluster.
 echo "Logging the details of Kubernetes cluster"
-kubectl cluster-info
+kubectl cluster-info  # any error here will cause the script to terminate.
 
-if [ $? -ne 0 ]; then
-   echo "Kubectl is not configured correctly, please configure kubectl before starting tests."
-   exit 1
+# Step 4: Verify if tier2 PVC has been created.
+tier2Size="$(kubectl get pvc -o jsonpath='{.items[?(@.metadata.name == "pravega-tier2")].status.capacity.storage}')"
+if [ -z "$tier2Size" ];then
+        echo "Tier2 PVC pravega-tier2 is not present. Please create it before running the tests."
+        exit 1
+else
+    echo "Size of Tier2 is $tier2Size"
 fi
 
-# Step 4: Create a dynamic PVC, if already created the error is ignored.
-cat <<EOF | kubectl create -f -
+# Step 5: Create a dynamic PVC, if already created the error is ignored.
+cat <<EOF | kubectl create -f - || true
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
@@ -64,7 +70,7 @@ spec:
       storage: 1Gi
 EOF
 
-# Step 5: Create an init pod and wait until pod is running.
+# Step 6: Create an init pod and wait until pod is running.
 cat <<EOF | kubectl create -f -
 kind: Pod
 apiVersion: v1
@@ -86,7 +92,7 @@ spec:
 EOF
 kubectl wait --for=condition=Ready pod/task-pv-pod
 
-#Step 6: Compute the checksum of the local test artifact and the artifact on the persistent volume. Copy test artifact only if required.
+#Step 7: Compute the checksum of the local test artifact and the artifact on the persistent volume. Copy test artifact only if required.
 checksum="$(kubectl exec task-pv-pod md5sum '/data/test-collection.jar' | awk '{ print $1 }')"
 echo "Checksum of test artifact on the pod $checksum"
 
@@ -97,11 +103,9 @@ if [ "$checksum" == "$expectedCheckSum" ]; then
   echo "Checksum match, no need to copy the test jar to Kubernetes cluster"
 else
   echo "Copying test artifact to cluster, (this will take a couple of minutes)..."
-  copyStatus="$(kubectl cp ./build/libs/test-collection.jar task-pv-pod:/data)"
+  kubectl cp ./build/libs/test-collection.jar task-pv-pod:/data
 fi
 
 #delete the pod that was created.
 echo "Deleting pod task-pv-pod that was used to copy the test artifacts"
 kubectl delete po task-pv-pod --now
-
-exit $copyStatus
