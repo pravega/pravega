@@ -26,13 +26,11 @@
         accepted. In previous versions of FindBugs, this category was known as Style. -->
     <Match>
         <Bug category="STYLE" />
-        <Rank value="14"/>
     </Match>
 
     <!-- code that is not necessarily incorrect but may be inefficient -->
     <Match>
         <Bug category="PERFORMANCE" />
-        <Rank value="14"/>
     </Match>
 
     <!-- code that is vulnerable to attacks from untrusted code -->
@@ -48,7 +46,7 @@
     <!-- Experimental and not fully vetted bug patterns -->
     <Match>
         <Bug category="EXPERIMENTAL" />
-        <Rank value="9"/>
+        <Confidence value="1"/>
     </Match>
 
 </FindBugsFilter>

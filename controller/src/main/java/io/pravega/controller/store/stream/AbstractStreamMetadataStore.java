@@ -50,6 +50,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Abstract Stream metadata store. It implements various read queries using the Stream interface.
@@ -229,12 +230,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
         return getScope(scopeName).listStreamsInScope().thenCompose(streams -> {
-            HashMap<String, CompletableFuture<StreamConfiguration>> result = new HashMap<>();
+            HashMap<String, CompletableFuture<Optional<StreamConfiguration>>> result = new HashMap<>();
             for (String s : streams) {
                 Stream stream = getStream(scopeName, s, null);
-                result.put(stream.getName(), stream.getConfiguration());
+                result.put(stream.getName(), 
+                        Futures.exceptionallyExpecting(stream.getConfiguration(), 
+                                e -> e instanceof StoreException.DataNotFoundException, 
+                                null)
+                        .thenApply(Optional::ofNullable));
             }
-            return Futures.allOfWithResults(result);
+            return Futures.allOfWithResults(result)
+                    .thenApply(x -> {
+                        return x.entrySet().stream().filter(y -> y.getValue().isPresent())
+                         .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().get()));
+                    });
         });
     }
 

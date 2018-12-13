@@ -72,7 +72,9 @@ public class S3FileSystemImpl extends S3ImplBase {
         }
         try {
             Path path = Paths.get(this.baseDir, request.getBucketName(), request.getKey());
-            Files.createDirectories(path.getParent());
+            Path parent = path.getParent();
+            assert parent != null;
+            Files.createDirectories(parent);
             Files.createFile(path);
         } catch (IOException e) {
             throw new S3Exception(e.getMessage(), 0, e);
