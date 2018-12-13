@@ -713,12 +713,20 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             return CompletableFuture.completedFuture(flushResult);
         }
 
-        long truncateOffset = Math.min(this.metadata.getStorageLength(), op.getStreamSegmentOffset());
-        return this.storage.truncate(this.handle.get(), truncateOffset, timeout)
-                           .thenApplyAsync(v -> {
-                               updateStatePostTruncate();
-                               return flushResult;
-                           }, this.executor);
+        CompletableFuture<Void> truncateTask;
+        if (this.handle.get() == null) {
+            // Segment has not been created yet.
+            assert this.metadata.getStorageLength() == 0 : "handle is null but Metadata.getStorageLength is non-zero";
+            truncateTask = CompletableFuture.completedFuture(null);
+        } else {
+            long truncateOffset = Math.min(this.metadata.getStorageLength(), op.getStreamSegmentOffset());
+            truncateTask = this.storage.truncate(this.handle.get(), truncateOffset, timeout);
+        }
+
+        return truncateTask.thenApplyAsync(v -> {
+            updateStatePostTruncate();
+            return flushResult;
+        }, this.executor);
     }
 
     /**
@@ -943,7 +951,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                                 mergeOp.getLength(),
                                 transProperties.getLength())));
                     }
-
                 }, this.executor)
                 .thenComposeAsync(v -> createSegmentIfNecessary(
                         () -> storage.concat(this.handle.get(), mergeOp.getStreamSegmentOffset(), transactionMetadata.getName(), timer.getRemaining()),
@@ -1005,7 +1012,17 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         }
 
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "sealIfNecessary");
-        return createSegmentIfNecessary(() -> this.storage.seal(this.handle.get(), timer.getRemaining()), timer.getRemaining())
+        CompletableFuture<Void> sealTask;
+        if (this.handle.get() == null) {
+            // Segment is empty. It might not have been created yet, so don't do anything.
+            assert this.metadata.getStorageLength() == 0 : "handle is null but Metadata.StorageLength is non-zero";
+            sealTask = CompletableFuture.completedFuture(null);
+        } else {
+            // Segment is non-empty; it should exist.
+            sealTask = this.storage.seal(this.handle.get(), timer.getRemaining());
+        }
+
+        return sealTask
                 .thenComposeAsync(v -> sealAttributes(timer.getRemaining()), this.executor)
                 .handleAsync((v, ex) -> {
                     ex = Exceptions.unwrap(ex);
@@ -1055,7 +1072,11 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 .thenComposeAsync(v -> deleteUnmergedSourceSegments(timer), this.executor)
                 .thenApplyAsync(v -> {
                     updateMetadataPostDeletion(this.metadata);
+                    this.hasSealPending.set(false);
                     this.hasDeletePending.set(false);
+                    this.truncateCount.set(0);
+                    this.mergeTransactionCount.set(0);
+                    this.operations.clear(); // No point in executing any other operation now.
                     return new WriterFlushResult();
                 }, this.executor);
     }
@@ -1142,7 +1163,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                         // We cannot recover automatically from this situation.
                         throw new CompletionException(new ReconciliationFailureException(
                                 "Actual Segment length in Storage is smaller than the Metadata StorageLength.", this.metadata, sp));
-                    } else if (sp.getLength() == this.metadata.getStorageLength()) {
+                    } else if (sp.getLength() == this.metadata.getStorageLength() && sp.isSealed() == this.metadata.isSealedInStorage()) {
                         // Nothing to do. Exit reconciliation and re-enter normal writing mode.
                         setState(AggregatorState.Writing);
                         return;
@@ -1430,8 +1451,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * if the operation cannot be reconciled, based on the in-memory metadata or the current state of the Segment in Storage.
      */
     private CompletableFuture<WriterFlushResult> reconcileSealOperation(SegmentProperties storageInfo, Duration timeout) {
-        // All we need to do is verify that the Segment is actually sealed in Storage.
-        if (storageInfo.isSealed()) {
+        // All we need to do is verify that the Segment is actually sealed in Storage. An exception to this rule is when
+        // the segment has a length of 0, which means it may not have been created yet.
+        if (storageInfo.isSealed() || storageInfo.getLength() == 0) {
             // Seal the Attribute Index (this is an idempotent operation so it's OK if it's already sealed).
             return sealAttributes(timeout)
                     .thenApplyAsync(v -> {
@@ -1496,8 +1518,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 operation.getStreamSegmentId() == this.metadata.getId(),
                 "Operation '%s' refers to a different Segment than this one (%s).", operation, this.metadata.getId());
 
-        // Only TruncateSegmentOperations are allowed on sealed Segments.
-        if (this.hasSealPending.get() && !isTruncateOperation(operation)) {
+        // After Sealing, we can only Truncate or Delete a Segment.
+        if (this.hasSealPending.get() && !isTruncateOperation(operation) && !isDeleteOperation(operation)) {
             throw new DataCorruptionException(String.format("Illegal operation for a sealed Segment; received '%s'.", operation));
         }
     }
@@ -1606,11 +1628,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         // Validate we have no more unexpected items and then close (as we shouldn't be getting anything else).
         assert this.operations.size() - this.truncateCount.get() == 0 : "there are outstanding non-truncate operations after a Seal";
         this.hasSealPending.set(false);
-        if (this.operations.size() == 0) {
-            // No further operations are expected (The only valid operation after a Seal is Truncate, which is why we
-            // can't assume there are no further operations.
-            close();
-        }
     }
 
     /**

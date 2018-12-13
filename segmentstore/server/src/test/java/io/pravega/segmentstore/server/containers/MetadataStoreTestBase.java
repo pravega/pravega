@@ -536,8 +536,6 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
 
         // Wait for the metadata to be updated properly.
         addInvoked.join();
-        Assert.assertFalse("getOrAssignSegmentId (first call) returned before OperationLog finished.", firstCall.isDone());
-        Assert.assertFalse("getOrAssignSegmentId (second call) returned before OperationLog finished.", secondCall.isDone());
 
         // Third call is designed to hit after the metadata has been updated, but prior to the other callbacks being invoked.
         // It verifies that even in that case it still executes in order.

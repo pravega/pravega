@@ -191,6 +191,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.merged = true;
         this.isChanged = true;
     }
+
     @Override
     public void updateAttributes(Map<UUID, Long> attributeValues) {
         this.attributeUpdates.clear();
