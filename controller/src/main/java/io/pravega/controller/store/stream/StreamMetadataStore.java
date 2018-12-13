@@ -82,6 +82,20 @@ public interface StreamMetadataStore {
 
 
     /**
+     * Api to get creation time for the stream. 
+     * 
+     * @param scopeName       scope name
+     * @param streamName      stream name
+     * @param context         operation context
+     * @param executor        callers executor
+     * @return CompletableFuture, which when completed, will contain the creation time of the stream. 
+     */
+    CompletableFuture<Long> getCreationTime(final String scopeName,
+                                            final String streamName,
+                                            final OperationContext context,
+                                            final Executor executor);
+    
+    /**
      * Api to Delete the stream related metadata.
      *
      * @param scopeName       scope name

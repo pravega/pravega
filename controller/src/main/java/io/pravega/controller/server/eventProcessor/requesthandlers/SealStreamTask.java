@@ -55,7 +55,6 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         this.executor = executor;
     }
 
-
     @Override
     public CompletableFuture<Void> execute(final SealStreamEvent request) {
         String scope = request.getScope();
@@ -64,7 +63,10 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
         // when seal stream task is picked, if the state is sealing/sealed, process sealing, else postpone.
-        return streamMetadataStore.getState(scope, stream, true, context, executor)
+        return streamMetadataStore.getCreationTime(scope, stream, context, executor)
+                .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||
+                        request.getCreationTime() == creationTime))
+                .thenCompose(v -> streamMetadataStore.getState(scope, stream, true, context, executor))
                 .thenAccept(state -> {
                     if (!state.equals(State.SEALING) && !state.equals(State.SEALED)) {
                         throw new TaskExceptions.StartException("Seal stream task not started yet.");
