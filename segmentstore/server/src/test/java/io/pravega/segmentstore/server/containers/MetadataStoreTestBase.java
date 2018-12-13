@@ -58,9 +58,7 @@ import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 /**
  * Unit tests for MetadataStore class.
@@ -69,8 +67,6 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
     protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
     private static final int CONTAINER_ID = 123;
     private static final int ATTRIBUTE_COUNT = 10;
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
 
     @Override
     protected int getThreadPoolSize() {
@@ -170,27 +166,38 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         context.getMetadata().cleanup(Collections.singleton(toEvict), context.getMetadata().getOperationSequenceNumber());
 
         // Mark the segment that's supposed to be deleted as isDeleted.
-        context.getMetadata().deleteStreamSegment(mappedDeletedSegment);
+        context.getMetadata().getStreamSegmentMetadata(context.getMetadata().getStreamSegmentId(mappedDeletedSegment, false)).markDeleted();
 
         // Start deleting...
-        Stream.of(inexistentSegment, noIdSegment, unmappedSegment, mappedSegment, mappedDeletedSegment)
-              .forEach(name -> context.getMetadataStore().deleteSegment(name, TIMEOUT).join());
+        // These are the Segments which truly do not exist in the Metadata Store.
+        Stream.of(inexistentSegment)
+                .forEach(name -> {
+                    boolean deleted = context.getMetadataStore().deleteSegment(name, TIMEOUT).join();
+                    Assert.assertFalse("deleteSegment() returned true for inexistent segment: " + name, deleted);
+                });
+
+        // Delete the Segments which exist in the Metadata Store, but may or may not exist in Storage/Metadata.
+        Stream.of(noIdSegment, unmappedSegment, mappedSegment, mappedDeletedSegment)
+                .forEach(name -> {
+                    boolean deleted = context.getMetadataStore().deleteSegment(name, TIMEOUT).join();
+                    Assert.assertTrue("deleteSegment() returned false for existing segment: " + name, deleted);
+                });
 
         // Verify all show up as inexistent.
         Stream.of(inexistentSegment, noIdSegment, unmappedSegment, mappedSegment, mappedDeletedSegment)
-              .forEach(name -> AssertExtensions.assertSuppliedFutureThrows(
-                      "Segment '" + name + "' was not deleted properly",
-                      () -> context.getMetadataStore().getSegmentInfo(name, TIMEOUT),
-                      ex -> ex instanceof StreamSegmentNotExistsException));
+                .forEach(name -> AssertExtensions.assertSuppliedFutureThrows(
+                        "Segment '" + name + "' was not deleted properly",
+                        () -> context.getMetadataStore().getSegmentInfo(name, TIMEOUT),
+                        ex -> ex instanceof StreamSegmentNotExistsException));
 
         // Segments which are not in the metadata should be deleted directly.
         Stream.of(inexistentSegment, noIdSegment, unmappedSegment)
-              .forEach(name -> {
-                  Assert.assertEquals("Not expecting previously unmapped segments to be activated in metadata.",
-                          ContainerMetadata.NO_STREAM_SEGMENT_ID, context.getMetadata().getStreamSegmentId(name, false));
-                  Assert.assertEquals("Expected a directDelete invocation for segment: " + name,
-                          1, context.connector.getDirectDeleteCount(name));
-              });
+                .forEach(name -> {
+                    Assert.assertEquals("Not expecting previously unmapped segments to be activated in metadata.",
+                            ContainerMetadata.NO_STREAM_SEGMENT_ID, context.getMetadata().getStreamSegmentId(name, false));
+                    Assert.assertEquals("Expected a directDelete invocation for segment: " + name,
+                            1, context.connector.getDirectDeleteCount(name));
+                });
 
         // The ones which are in the metadata should be have isDeleted()==true.
         Stream.of(mappedSegment, mappedDeletedSegment)

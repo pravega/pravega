@@ -26,12 +26,17 @@ import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the {@link StorageMetadataStore} class.
  */
 public class StorageMetadataStoreTests extends MetadataStoreTestBase {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(TIMEOUT.getSeconds());
+
     /**
      * Tests the ability of the MetadataStore to create a new Segment if there are Storage and/or OperationLog Failures.
      * This tests failures other than StreamSegmentExistsException, which is handled in a different test.

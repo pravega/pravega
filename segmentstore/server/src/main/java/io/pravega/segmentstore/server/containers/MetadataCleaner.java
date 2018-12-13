@@ -141,7 +141,7 @@ class MetadataCleaner extends AbstractThreadPoolService {
         // Serialize only those segments that are still alive (not deleted or merged - those will get removed anyway).
         val cleanupTasks = cleanupCandidates
                 .stream()
-                .filter(sm -> !sm.isDeleted() || !sm.isMerged())
+                .filter(sm -> !sm.isDeleted() && !sm.isMerged())
                 .map(sm -> this.metadataStore.updateSegmentInfo(sm, this.config.getSegmentMetadataExpiration()))
                 .collect(Collectors.toList());
 

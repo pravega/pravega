@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -428,12 +429,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
         long segmentId = this.metadata.getStreamSegmentId(streamSegmentName, false);
         SegmentMetadata toDelete = this.metadata.getStreamSegmentMetadata(segmentId);
-        CompletableFuture<Void> deletionFuture = this.metadataStore.deleteSegment(streamSegmentName, timer.getRemaining());
-        if (toDelete != null) {
-            deletionFuture = deletionFuture.thenAccept(v -> notifyMetadataRemoved(Collections.singleton(toDelete)));
-        }
+        return this.metadataStore.deleteSegment(streamSegmentName, timer.getRemaining())
+                .thenAccept(deleted -> {
+                    if (!deleted) {
+                        // No segment to delete, which likely means Segment does not exist.
+                        throw new CompletionException(new StreamSegmentNotExistsException(streamSegmentName));
+                    }
 
-        return deletionFuture;
+                    if (toDelete != null) {
+                        // Notify any internal components that this Segment is no longer part of the metadata.
+                        notifyMetadataRemoved(Collections.singleton(toDelete));
+                    }
+                });
     }
 
     @Override
@@ -464,13 +471,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         targetSegmentId -> this.metadataStore.getOrAssignSegmentId(sourceStreamSegment, timer.getRemaining(),
                                 sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer)))
                 .handleAsync((sp, ex) -> {
-                    CompletableFuture<Void> result;
+                    CompletableFuture<Boolean> result;
                     if (ex == null || Exceptions.unwrap(ex) instanceof StreamSegmentMergedException) {
                         // No exception or segment was already merged. Need to clear SegmentInfo for source.
                         result = this.metadataStore.clearSegmentInfo(sourceStreamSegment, timer.getRemaining());
                     } else {
                         // A different exception. Do not clear anything.
-                        result = CompletableFuture.completedFuture(null);
+                        result = CompletableFuture.completedFuture(false);
                     }
 
                     if (ex == null) {

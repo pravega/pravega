@@ -25,7 +25,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -79,12 +78,26 @@ public class StorageMetadataStore extends MetadataStore {
     }
 
     @Override
-    public CompletableFuture<Void> clearSegmentInfo(String segmentName, Duration timeout) {
+    public CompletableFuture<Boolean> clearSegmentInfo(String segmentName, Duration timeout) {
         String stateSegment = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         return this.storage
                 .openWrite(stateSegment)
                 .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor)
-                .exceptionally(this::handleSegmentNotExistsException);
+                .handle((v, ex) -> {
+                    if (ex != null) {
+                        ex = Exceptions.unwrap(ex);
+                        if (ex instanceof StreamSegmentNotExistsException) {
+                            // Nothing to clear.
+                            return false;
+                        }
+
+                        // Some other kind of exception; re-throw.
+                        throw new CompletionException(ex);
+                    }
+
+                    // Successfully cleared.
+                    return true;
+                });
     }
 
     @Override
@@ -166,17 +179,6 @@ public class StorageMetadataStore extends MetadataStore {
                         throw new CompletionException(originalException);
                     }
                 });
-    }
-
-    @SneakyThrows(Throwable.class)
-    private <T> T handleSegmentNotExistsException(Throwable ex) {
-        ex = Exceptions.unwrap(ex);
-        if (ex instanceof StreamSegmentNotExistsException) {
-            // It's ok if the state segment does not exist.
-            return null;
-        }
-
-        throw ex;
     }
 
     private CompletableFuture<ArrayView> readStateSegment(SegmentProperties stateSegmentInfo, Duration timeout) {

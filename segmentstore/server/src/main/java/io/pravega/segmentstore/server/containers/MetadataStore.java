@@ -152,42 +152,45 @@ public abstract class MetadataStore {
      * - This method removes both the Segment and its Metadata Store entries.
      * - {@link #clearSegmentInfo} only removes Metadata Store entries.
      *
+     * This operation is made of multiple steps and is restart-able. If it was only able to execute partially before being
+     * interrupted (by an unexpected exception or system crash), a reinvocation should be able to pick up from where it
+     * left off previously.
+     *
      * @param segmentName The case-sensitive Segment Name.
      * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the Segment has been deleted.
-     * If the operation failed, this will contain the exception that caused the failure. Notable exceptions:
-     * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Segment does not exist.
-     * </ul>
+     * @return A CompletableFuture that, when completed normally, will contain a Boolean indicating whether  the Segment
+     * has been deleted (true means there was a Segment to delete, false means there was no segment to delete). If the
+     * operation failed, this will contain the exception that caused the failure.
      */
-    CompletableFuture<Void> deleteSegment(String segmentName, Duration timeout) {
+    CompletableFuture<Boolean> deleteSegment(String segmentName, Duration timeout) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, traceObjectId, "deleteSegment", segmentName);
         TimeoutTimer timer = new TimeoutTimer(timeout);
 
         // Find the Segment's Id.
         long segmentId = this.connector.containerMetadata.getStreamSegmentId(segmentName, true);
-        CompletableFuture<Void> result;
+        CompletableFuture<Void> deleteSegment;
         if (isValidSegmentId(segmentId)) {
             // This segment is currently mapped in the ContainerMetadata.
             if (this.connector.containerMetadata.getStreamSegmentMetadata(segmentId).isDeleted()) {
                 // ... but it is marked as Deleted, so nothing more we can do here.
-                result = Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
+                deleteSegment = CompletableFuture.completedFuture(null);
             } else {
                 // Queue it up for deletion. This ensures that any component that is actively using it will be notified.
-                result = this.connector.getLazyDeleteSegment().apply(segmentId, timer.getRemaining());
+                deleteSegment = this.connector.getLazyDeleteSegment().apply(segmentId, timer.getRemaining());
             }
         } else {
             // This segment is not currently mapped in the ContainerMetadata. As such, it is safe to delete it directly.
-            result = this.connector.getDirectDeleteSegment().apply(segmentName, timer.getRemaining());
+            deleteSegment = this.connector.getDirectDeleteSegment().apply(segmentName, timer.getRemaining());
         }
 
         // It is OK if the previous action indicated the Segment was deleted. We still need to make sure that any traces
         // of this Segment are cleared from the Metadata Store as this invocation may be a retry of a previous partially
         // executed operation (where we only managed to delete the Segment, but not clear the Metadata).
-        result = Futures.exceptionallyExpecting(result, ex -> ex instanceof StreamSegmentNotExistsException, null)
-                        .thenComposeAsync(ignored -> clearSegmentInfo(segmentName, timer.getRemaining()), this.executor);
+        val result = Futures
+                .exceptionallyExpecting(deleteSegment, ex -> ex instanceof StreamSegmentNotExistsException, null)
+                .thenComposeAsync(ignored -> clearSegmentInfo(segmentName, timer.getRemaining()), this.executor);
         if (log.isTraceEnabled()) {
-            result.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "deleteSegment", traceId, segmentName));
+            deleteSegment.thenAccept(v -> LoggerHelpers.traceLeave(log, traceObjectId, "deleteSegment", traceId, segmentName));
         }
 
         return result;
@@ -203,10 +206,10 @@ public abstract class MetadataStore {
      *
      * @param segmentName The Segment Name.
      * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate that all information about this Segment
-     * has been removed from the Metadata Store.
+     * @return A CompletableFuture that, when completed normally, will contain a Boolean indicating whether all information
+     * about this Segment has been removed from the Metadata Store (true indicates removed, false means there was nothing there).
      */
-    public abstract CompletableFuture<Void> clearSegmentInfo(String segmentName, Duration timeout);
+    public abstract CompletableFuture<Boolean> clearSegmentInfo(String segmentName, Duration timeout);
 
     //endregion
 
