@@ -30,8 +30,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -49,9 +49,11 @@ class TableIterator<T> implements AsyncIterator<T> {
 
     private final AttributeIterator indexHashIterator;
     private final ConvertResult<T> resultConverter;
+    @GuardedBy("this")
     private final ArrayDeque<Map.Entry<UUID, Long>> cacheHashes;
     private final Executor executor;
-    private final AtomicReference<Iterator<TableBucket>> currentBatch = new AtomicReference<>();
+    @GuardedBy("this")
+    private Iterator<TableBucket> currentBatch = null;
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
 
     //endregion
@@ -98,12 +100,11 @@ class TableIterator<T> implements AsyncIterator<T> {
     /**
      * Gets the next {@link TableBucket} in the iteration from the cached batch. If the batch is exhausted, returns null.
      */
-    private TableBucket getNextBucketFromExistingBatch() {
-        val batch = this.currentBatch.get();
-        if (batch != null) {
-            TableBucket next = batch.next();
-            if (!batch.hasNext()) {
-                this.currentBatch.set(null);
+    private synchronized TableBucket getNextBucketFromExistingBatch() {
+        if (this.currentBatch != null) {
+            TableBucket next = this.currentBatch.next();
+            if (!this.currentBatch.hasNext()) {
+                this.currentBatch = null;
             }
 
             return next;
@@ -116,26 +117,27 @@ class TableIterator<T> implements AsyncIterator<T> {
      * Fetches the next set of {@link TableBucket}s from the indexHashIterator.
      */
     private CompletableFuture<Boolean> fetchNextTableBuckets() {
-        return this.indexHashIterator
-                .getNext()
-                .thenApplyAsync(indexHashes -> {
-                    List<TableBucket> buckets = toBuckets(indexHashes);
-                    if (buckets == null) {
-                        // End of iteration.
-                        return false;
-                    } else if (!buckets.isEmpty()) {
-                        // Got something. Stop here for now.
-                        this.currentBatch.set(buckets.iterator());
-                        return false;
-                    }
-                    return true;
-                }, this.executor);
+        return this.indexHashIterator.getNext().thenApplyAsync(this::fetchNextTableBuckets, this.executor);
+    }
+
+    private synchronized boolean fetchNextTableBuckets(List<Map.Entry<UUID, Long>> indexHashes) {
+        List<TableBucket> buckets = toBuckets(indexHashes);
+        if (buckets == null) {
+            // End of iteration.
+            return false;
+        } else if (!buckets.isEmpty()) {
+            // Got something. Stop here for now.
+            this.currentBatch = buckets.iterator();
+            return false;
+        }
+
+        return true;
     }
 
     /**
      * Merges the given list of Index Hashes with the available Cache Hashes and generates the associated {@link TableBucket}s.
      */
-    private List<TableBucket> toBuckets(List<Map.Entry<UUID, Long>> indexHashes) {
+    private synchronized List<TableBucket> toBuckets(List<Map.Entry<UUID, Long>> indexHashes) {
         val buckets = new ArrayList<TableBucket>();
         if (indexHashes == null) {
             // Nothing more in the index. Add whatever is in the cache attributes.
