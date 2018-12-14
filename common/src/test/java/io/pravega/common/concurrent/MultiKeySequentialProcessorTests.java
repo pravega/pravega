@@ -28,9 +28,9 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 /**
- * Unit tests for the ConcurrentDependentProcessor class.
+ * Unit tests for the MultiKeySequentialProcessor class.
  */
-public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
+public class MultiKeySequentialProcessorTests extends ThreadPooledTestSuite {
     private static final int SHORT_TIMEOUT_MILLIS = 50;
     private static final int TIMEOUT_MILLIS = 10000;
 
@@ -50,7 +50,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
         final int key1 = 1;
         final int key2 = 2;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
+        val proc = new MultiKeySequentialProcessor<Integer>(executorService());
         val toRun1 = new CompletableFuture<Integer>();
         val result1 = proc.add(Collections.singleton(key1), () -> toRun1);
 
@@ -79,7 +79,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
         final int key = 1;
         final int count = 10000;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
+        val proc = new MultiKeySequentialProcessor<Integer>(executorService());
         val running = new AtomicBoolean(false);
         val previousRun = new AtomicReference<CompletableFuture<Integer>>();
         val results = new ArrayList<CompletableFuture<Integer>>();
@@ -121,7 +121,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
         final int key2 = 2;
         final int key3 = 3;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
+        val proc = new MultiKeySequentialProcessor<Integer>(executorService());
 
         // We setup two individual tasks to begin with.
         val toRun1 = new CompletableFuture<Integer>();
@@ -181,7 +181,7 @@ public class ConcurrentDependentProcessorTests extends ThreadPooledTestSuite {
     public void testClose() {
         final int key = 1;
         @Cleanup
-        val proc = new ConcurrentDependentProcessor<Integer>(executorService());
+        val proc = new MultiKeySequentialProcessor<Integer>(executorService());
         val toRun = new CompletableFuture<Integer>();
         val result = proc.add(Collections.singleton(key), () -> toRun);
 

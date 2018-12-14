@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.concurrent;
+package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
@@ -21,7 +21,7 @@ import javax.annotation.concurrent.GuardedBy;
  * An Executor extension that runs the same task asynchronously, but never concurrently. If multiple requests are made
  * during an existing execution of the task, it will be invoked exactly once after the current execution completes.
  */
-public class SequentialAsyncProcessor implements AutoCloseable {
+class SequentialAsyncProcessor implements AutoCloseable {
     //region Members
 
     private final Runnable runnable;
@@ -47,7 +47,7 @@ public class SequentialAsyncProcessor implements AutoCloseable {
      * @param failureCallback A Consumer to invoke if the runnable was unable to complete after applying the Retry policy.
      * @param executor        An Executor to run the task on.
      */
-    public SequentialAsyncProcessor(Runnable runnable, Retry.RetryAndThrowBase<? extends Throwable> retry, Consumer<Throwable> failureCallback, ScheduledExecutorService executor) {
+    SequentialAsyncProcessor(Runnable runnable, Retry.RetryAndThrowBase<? extends Throwable> retry, Consumer<Throwable> failureCallback, ScheduledExecutorService executor) {
         this.runnable = Preconditions.checkNotNull(runnable, "runnable");
         this.retry = Preconditions.checkNotNull(retry, "retry");
         this.failureCallback = Preconditions.checkNotNull(failureCallback, "failureCallback");
@@ -61,7 +61,7 @@ public class SequentialAsyncProcessor implements AutoCloseable {
     /**
      * Executes one instance of the task, or queues it up at most once should the task be currently running.
      */
-    public void runAsync() {
+    void runAsync() {
         // Determine if a task is running. If so, record the fact we want to have it run again, otherwise reserve our spot.
         synchronized (this) {
             Exceptions.checkNotClosed(this.closed, this);
