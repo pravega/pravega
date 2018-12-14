@@ -124,25 +124,34 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         assertEquals(1, clientQueue.size());
         CuratorFramework curatorClient = (CuratorFramework) clientQueue.poll().getClient();
         // Simulate ZK session timeout
-        try {
-            curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
-        } catch (Exception e) {
-            log.error("Failed while simulating client session expiry", e);
-            Assert.fail("Failed while simulating client session expiry");
-        }
-
-        // verify that we are waiting for termination.
-        signalShutdownStarted.join();
+        // we will submit zk session expiration and 
+        CompletableFuture.runAsync(() -> {
+            try {
+                curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
+            } catch (Exception e) {
+                log.error("Failed while simulating client session expiry", e);
+                Assert.fail("Failed while simulating client session expiry");
+            }
+        });
         CompletableFuture<Void> callBackCalled = new CompletableFuture<>();
-        
         // issue a zkClient request.. 
-        curatorClient.getData().inBackground((client1, event) -> {
-            callBackCalled.complete(null);        
-        }).forPath("/test");
-        
+        CompletableFuture.runAsync(() -> {
+            try {
+                curatorClient.getData().inBackground((client1, event) -> {
+                    callBackCalled.complete(null);
+                }).forPath("/test");
+            } catch (Exception e) {
+                Assert.fail("Failed while trying to submit a background request to curator");
+            }
+        });
+
+        // verify that termination is started. We will first make sure curator calls the callback before we let the 
+        // ControllerServiceStarter to shutdown completely. This simulates grpc behaviour where grpc waits until all 
+        // outstanding calls are complete before shutting down. 
+        signalShutdownStarted.join();
         callBackCalled.join();
         
-        // complete termination only when zk call completes. 
+        // Now that callback has been called we can signal the shutdown of ControllerServiceStarter to complete. 
         waitingForShutdownSignal.complete(null);
         
         // Now, that session has expired, lets wait for starter to start again.
@@ -152,7 +161,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             log.error("Failed waiting for controllerServiceStarter termination", e);
             Assert.fail("Failed waiting for controllerServiceStarter termination");
         }
-        
+
         try {
             controllerServiceMain.awaitServiceStarting().awaitRunning();
         } catch (IllegalStateException e) {

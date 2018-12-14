@@ -146,6 +146,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 starter.awaitTerminated();
 
                 if (hasZkConnection) {
+                    log.info("calling close on store client");
                     storeClient.close();
                 }
             }
