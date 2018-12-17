@@ -146,7 +146,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     // if state is sealing, we should continue with commit so that we allow for completion of transactions
                                     // in commit state.
                                     if (state.getObject().equals(State.SEALING)) {
-                                        future = new CompletableFuture<>();
+                                        future = CompletableFuture.completedFuture(null);
                                     } else {
                                         // If state is not SEALING, try to set the state to COMMITTING_TXN before proceeding.
                                         // If we are unable to set the state to COMMITTING_TXN, it will get OPERATION_NOT_ALLOWED
