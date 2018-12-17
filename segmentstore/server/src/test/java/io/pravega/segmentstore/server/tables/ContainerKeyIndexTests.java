@@ -366,6 +366,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val getBucketOffsets = context.index.getBucketOffsets(context.segment, hashes, context.timer);
         val backpointerKey = keysWithOffsets.values().stream().findFirst().get();
         val getBackpointers = context.index.getBackpointerOffset(context.segment, backpointerKey.offset, context.timer.getRemaining());
+        val getUnindexedKeys = context.index.getUnindexedKeyHashes(context.segment);
         val conditionalUpdateKey = TableKey.notExists(generateUnversionedKeys(1, context).get(0).getKey());
         val conditionalUpdate = context.index.update(
                 context.segment,
@@ -389,14 +390,16 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // 3. Verify that all operations are unblocked when we reached the expected IndexOffset.
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), segmentLength - 1);
         Assert.assertFalse("Not expecting anything to be unblocked at this point",
-                getBucketOffsets.isDone() || getBackpointers.isDone() || conditionalUpdate.isDone());
+                getBucketOffsets.isDone() || getBackpointers.isDone() || conditionalUpdate.isDone() || getUnindexedKeys.isDone());
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), segmentLength);
         val getBucketOffsetsResult = getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         val getBackpointersResult = getBackpointers.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         val conditionalUpdateResult = conditionalUpdate.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        val getUnindexedKeysResult = getUnindexedKeys.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         checkKeyOffsets(hashes, keysWithOffsets, getBucketOffsetsResult);
         Assert.assertEquals("Unexpected result from unblocked getBackpointerOffset().", -1L, (long) getBackpointersResult);
         Assert.assertEquals("Unexpected result from unblocked conditional update.", segmentLength + 1L, (long) conditionalUpdateResult.get(0));
+        Assert.assertEquals("Unexpected result size from unblocked getUnindexedKeyHashes().", 1, getUnindexedKeysResult.size());
 
         // 4. Verify no new requests are blocked now.
         getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // A timeout check will suffice
@@ -460,9 +463,13 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
     private void checkBackpointers(List<UpdateItem> updates, TestContext context) {
-        val sortedUpdates = updates.stream().sorted(Comparator.comparingLong(u -> u.offset.get())).collect(Collectors.toList());
-        val highestUpdateHashes = sortedUpdates.get(sortedUpdates.size() - 1).batch
-                .getItems().stream().map(TableKeyBatch.Item::getHash).collect(Collectors.toList());
+        val sortedUpdates = updates.stream()
+                                   .sorted(Comparator.comparingLong(u -> u.offset.get()))
+                                   .collect(Collectors.toList());
+        val highestUpdate = sortedUpdates.get(sortedUpdates.size() - 1);
+        val highestUpdateHashes = highestUpdate.batch.getItems().stream()
+                                                     .map(TableKeyBatch.Item::getHash)
+                                                     .collect(Collectors.toList());
 
         Map<UUID, Long> backpointerSources = context.index.getBucketOffsets(context.segment, highestUpdateHashes, context.timer).join();
         for (int updateId = sortedUpdates.size() - 1; updateId >= 0; updateId--) {
@@ -497,7 +504,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             backpointerSources = expectedBackpointers;
         }
 
-        // Check Backpointers.
+        // Check unindexed key hashes.
+        val unindexedHashes = context.index.getUnindexedKeyHashes(context.segment).join().entrySet().stream()
+                                           .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getSegmentOffset()));
+        val expectedHashes = highestUpdate.batch.getItems().stream()
+                                                .collect(Collectors.toMap(TableKeyBatch.Item::getHash, i -> highestUpdate.offset.get() + i.getOffset()));
+        AssertExtensions.assertMapEquals("Unexpected result from getUnindexedKeyHashes", expectedHashes, unindexedHashes);
     }
 
     private void completePersistArbitrarily(List<UpdateItem> updates, TestContext context) {

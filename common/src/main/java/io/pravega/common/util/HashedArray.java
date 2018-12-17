@@ -35,12 +35,22 @@ public class HashedArray extends ByteArraySegment {
      */
     public HashedArray(ArrayView array) {
         super(array.array(), array.arrayOffset(), array.getLength());
-        this.hashCode = HASH.hash(array.array(), array.arrayOffset(), array.getLength());
+        this.hashCode = hashCode(array);
     }
 
     @Override
     public int hashCode() {
         return this.hashCode;
+    }
+
+    /**
+     * Calculates a Hash Code for the given {@link ArrayView}.
+     *
+     * @param array The {@link ArrayView} to calculate the hash for.
+     * @return The hash code.
+     */
+    public static int hashCode(ArrayView array) {
+        return HASH.hash(array.array(), array.arrayOffset(), array.getLength());
     }
 
     @Override
