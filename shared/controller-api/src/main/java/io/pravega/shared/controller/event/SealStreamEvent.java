@@ -19,7 +19,6 @@ public class SealStreamEvent implements ControllerEvent {
     private final String scope;
     private final String stream;
     private final long requestId;
-    private final long creationTime;
 
     @Override
     public String getKey() {

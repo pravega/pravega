@@ -397,9 +397,8 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("sealStream", scope, stream);
 
         // 1. post event for seal.
-        return streamMetadataStore.getCreationTime(scope, stream, context, executor)
-                           .thenApply(time -> new SealStreamEvent(scope, stream, requestId, time))
-                .thenCompose(event -> writeEvent(event))
+        SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
+        return writeEvent(event)
                 // 2. set state to sealing
                 .thenCompose(x -> streamMetadataStore.getVersionedState(scope, stream, context, executor))
                 .thenCompose(state -> {
