@@ -445,7 +445,7 @@ public class RequestHandlersTest {
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
-    
+
     // concurrent truncate stream
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
