@@ -50,7 +50,6 @@ import io.pravega.test.common.TestingServerStarter;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -147,6 +146,9 @@ public class ControllerEventProcessorTest {
 
     @Test(timeout = 60000)
     public void testCommitEventForSealingStream() {
+        ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+
         String stream = "commitWithSeal";
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         streamStore.createStream(SCOPE, stream, config, System.currentTimeMillis(), null, executor).join();
@@ -162,7 +164,6 @@ public class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTING);
 
         // scale stream
-        ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         List<AbstractMap.SimpleEntry<Double, Double>> newRange = new LinkedList<>();
         newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
         scaleTask.execute(new ScaleOpEvent(SCOPE, stream, Collections.singletonList(0L), newRange, false, System.currentTimeMillis(), 0L)).join();
@@ -179,9 +180,7 @@ public class ControllerEventProcessorTest {
         // set the stream to SEALING
         streamStore.setState(SCOPE, stream, State.SEALING, null, executor).join();
 
-        // attempt to seal the stream. 
-        // This should get postponed because there are outstanding transactions that are in committing state.
-        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+        // attempt to seal the stream. This should fail with postponement. 
         AssertExtensions.assertFutureThrows("Seal stream should fail with operation not allowed as their are outstanding transactions", 
                 sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
@@ -195,7 +194,11 @@ public class ControllerEventProcessorTest {
         assertEquals(1, activeEpoch.getEpoch());
         assertEquals(1, activeEpoch.getReferenceEpoch());
 
-        // verify the same for rolling transactions
+        // attempt to seal the stream. This should still fail with postponement. 
+        AssertExtensions.assertFutureThrows("Seal stream should fail with operation not allowed as their are outstanding transactions",
+                sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
         // now attempt to commit the transaction on epoch 0. 
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData0.getEpoch())).join();
         checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTED);
