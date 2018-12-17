@@ -127,6 +127,7 @@ public class ControllerMetricsTest {
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(parallelism))
                                                                      .build();
+        @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, streamConfiguration);
@@ -134,6 +135,7 @@ public class ControllerMetricsTest {
         ClientFactory clientFactory = ClientFactory.withScope(scope, ClientConfig.builder()
                                                                                  .controllerURI(controllerURI)
                                                                                  .build());
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
