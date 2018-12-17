@@ -1617,7 +1617,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                                        final long creationTime, final int startingSegmentNumber);
 
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
-    
+
     abstract CompletableFuture<Void> deleteStream();
     // endregion
 

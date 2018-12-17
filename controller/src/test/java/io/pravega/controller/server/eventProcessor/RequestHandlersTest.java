@@ -535,7 +535,6 @@ public class RequestHandlersTest {
         DeleteStreamEvent secondDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, newCreationTime);
         // now delete should succeed
         deleteStreamTask.execute(secondDeleteEvent).join();
-
     }
 
     private void createStreamInStore(String stream) {
