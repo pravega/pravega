@@ -16,4 +16,8 @@ public class IllegalDataFormatException extends IllegalArgumentException {
     public IllegalDataFormatException(String message, Object... args) {
         super(String.format(message, args));
     }
+
+    public IllegalDataFormatException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

@@ -11,6 +11,7 @@ package io.pravega.segmentstore.contracts.tables;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.HashedArray;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -83,6 +84,24 @@ public class TableKey {
     @Override
     public String toString() {
         return String.format("{%s} %s", hasVersion() ? this.version : "*", this.key);
+    }
+
+
+    @Override
+    public int hashCode() {
+        return HashedArray.hashCode(this.key);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof TableKey) {
+            TableKey other = (TableKey) obj;
+            return HashedArray.arrayEquals(this.key, other.key)
+                    && this.version == other.version;
+
+        }
+
+        return false;
     }
 
 }
