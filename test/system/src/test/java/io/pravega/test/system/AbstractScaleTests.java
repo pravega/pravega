@@ -37,19 +37,16 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
     @Getter(lazy = true)
     private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
     @Getter(lazy = true)
-    private final ControllerImpl controller = createController();
+    private final ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
+            ControllerImplConfig.builder().clientConfig(
+                    ClientConfig.builder().controllerURI(getControllerURI()).build())
+                                .build(), getConnectionFactory().getInternalExecutor()));
     @Getter(lazy = true)
-    private final ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, getController());
+    private final ControllerImpl controller = new ControllerImpl(
+            ControllerImplConfig.builder().clientConfig(
+                    ClientConfig.builder().controllerURI(getControllerURI()).build()
+            ).build(), getConnectionFactory().getInternalExecutor());
 
-    private ControllerImpl createController() {
-        return new ControllerImpl(ControllerImplConfig.builder()
-                                                      .clientConfig(ClientConfig.builder()
-                                                                                .controllerURI(getControllerURI())
-                                                                                .build())
-                                                      .build(),
-                                  getConnectionFactory().getInternalExecutor());
-    }
-    
     private URI createControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();

@@ -548,7 +548,7 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return Retry.withExpBackoff(500, 10, 2)
+        return Retry.withExpBackoff(500, 10, 3)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
                     .runInExecutor(() -> {
@@ -556,8 +556,8 @@ public class K8sClient {
                         log.debug("copy logs from pod {} to file {}", podName, toFile);
                         try {
                             @Cleanup
-                            InputStream r1 = logUtility.streamNamespacedPodLog(fromPod);
-                            Files.copy(r1, Paths.get(toFile));
+                            InputStream logStream = logUtility.streamNamespacedPodLog(fromPod);
+                            Files.copy(logStream, Paths.get(toFile));
                             log.debug("log copy completed for pod {}", podName);
                         } catch (ApiException | IOException e) {
                             log.error("Error while copying files from pod {}.", podName);
