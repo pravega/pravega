@@ -23,11 +23,6 @@ The remainder of the fields are specific to the type of the message. A few impor
 
 # General
 
-## Partial Message - Request/Reply
-
--  **Begin/Middle/End**: Enum (1 byte)
--  **Data**: A partial message is the one that was broken up when the message was sent over the wire. It is essential that for any reason, the whole message is reconstructed by reading the partial message in sequence and reassembled as whole message. It is not valid to attempt to start a new partial message before completing the previous one.
-
 ## KeepAlive - Request/Reply
 
 - **Data**: Uninterpreted data of the length of the message. (Usually 0 byte)
@@ -40,6 +35,8 @@ The remainder of the fields are specific to the type of the message. A few impor
 1. Segment to read: A length of 2 byte String length, followed by that many bytes of Java's Modified UTF-8.
 2. Offset to read from:  8 byte Long.
 3. Suggested Length of Reply: 4 byte Integer. The clients can request for the required length to server (but the server may allot a different number of bytes).
+4. `delegationToken`: This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
+
 
 ## Segment Read - Reply
 
@@ -49,34 +46,40 @@ The remainder of the fields are specific to the type of the message. A few impor
 4.  Is at `EndOfSegment`: 1 bit.
 5.  Data: Binary (remaining length in the message).
 
-The client requests to read from a particular Stream at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server decides on more or less data to give the client than it asked for, in as many replies as it sees fit.
+The client requests to read from a particular Segment at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server decides on more or less data to give the client than it asked for, in as many replies as it sees fit.
 
 # Appending
 
 ## Setup Append - Request
-
-1.  `ConnectionId`: UUID (16 bytes) Identifies this appender.
-2.  Segment to append: A length of 2 byte String, followed by that many bytes of Java's Modified UTF-8.
+1.  `RequestId`: 8 byte Long. (This field contains the client-generated ID that has been propagated to identify a client request).
+2.  `writerId`: UUID (16 bytes) Identifies this appender.
+3.  Segment to append: A length of 2 byte String, followed by that many bytes of Java's Modified UTF-8.
+4. `delegationToken`: This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
 
 ## Append Setup - Reply
 
-1.  Segment that can be appended: A length of 2 byte String, followed by that many bytes of Java's Modified UTF-8.
-2.  `ConnectionId`: UUID (16 bytes) Identifies the requesting appender.
-3.  `ConnectionOffsetAckLevel`: 8 byte Long. (The last offset received and stored on this Stream Segment for this `ConnectionId` (0 if new)).
+1.  `RequestId`: 8 byte Long. (This field contains the client-generated ID that has been propagated to identify a client request).
+2.  Segment that can be appended: A length of 2 byte String, followed by that many bytes of Java's Modified UTF-8.
+3.  Final `writerId`: UUID (16 bytes) Identifies the requesting appender.
+4.  Final  `lastEventNumber`: 8 byte Long.
 
 ## AppendBlock - Request
 
-1. Final `UUID writerId`: (16 bytes).
+1. Final `writerId`: (UUID 16 bytes).
 2. Final `ByteBuf` data: This holds the contents of the block.
 
 ## AppendBlockEnd - Request
 
-1. Final `UUID writerId`: (16 bytes).
+1. Final `writerId`: (UUID 16 bytes).
 2. Final `sizeOfWholeEvents`: 4 byte Integer
 3. Final `ByteBuf` data: This holds the contents of the block.
 4. Final `numEvents`: 4 byte Integer.
 5. Final  `lastEventNumber`: 8 byte Long.
 
+
+## Partial Event - Request/Reply
+
+-  **Data**: A partial message is the one that was broken up when the message was sent over the wire. It is essential that for any reason, the whole message is reconstructed by reading the partial message in sequence and reassembled as whole message. It is not valid to attempt to start a new partial message before completing the previous one.
 
 
 ## Event - Request
@@ -87,7 +90,7 @@ Only valid inside the block.
 
 ## Data Appended - Reply
 
-1. Final UUID writerId: (16 bytes)
+1. Final `writerId`: (UUID 16 bytes)
 2. Final `eventNumber`: (8 byte Long).This matches the `lastEventNumber` in the append block.
 3. Final `previousEventNumber`: (8 byte Long). This is the previous value of `eventNumber` that was returned in the last `DataAppeneded`.
 
@@ -100,7 +103,7 @@ When appending a client:
 
 After receiving the "Append Setup" reply, it performs the following:
 - Send a `AppendBlock` request.
-- Send as many messages that can fit in the block.
+- Send as many Events that can fit in the block.
 - Send an `AppendBlockEnd` request.
 
 While this is happening, the server will be periodically sending it `DataAppended` replies acking messages. Note that there can be multiple "Appends Setup" for a given TCP connection. This allows a client to share a connection when producing to multiple Segments.
