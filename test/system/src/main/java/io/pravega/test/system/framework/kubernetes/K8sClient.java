@@ -74,6 +74,7 @@ public class K8sClient {
     private static final int DEFAULT_TIMEOUT_MINUTES = 5; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
+    private static final int LOG_DOWNLOAD_RETRY_COUNT = 4;
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
@@ -548,7 +549,7 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return Retry.withExpBackoff(500, 10, 3)
+        return Retry.withExpBackoff(500, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
                     .runInExecutor(() -> {
