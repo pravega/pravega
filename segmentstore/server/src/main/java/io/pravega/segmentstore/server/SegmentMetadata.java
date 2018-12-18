@@ -63,4 +63,17 @@ public interface SegmentMetadata extends SegmentProperties {
      * it was created (changes to the base object will not be reflected in the result).
      */
     SegmentProperties getSnapshot();
+
+    /**
+     * Gets a value indicating whether this {@link SegmentMetadata} instance is pinned to memory. If pinned, this metadata
+     * will never be evicted by the owning metadata (even if there is eviction pressure and this Segment meets all other
+     * eviction criteria).
+     *
+     * Notes:
+     * - This will still be cleared out of the metadata if {@link UpdateableContainerMetadata#reset()} is invoked.
+     * - This has no bearing on the eviction of the Segment's Extended Attributes.
+     *
+     * @return True if pinned, false otherwise.
+     */
+    boolean isPinned();
 }

@@ -49,8 +49,8 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
 
     /**
      * Marks this StreamSegment as sealed in Storage.
-     * This is different from markSealed() in that markSealed() indicates it was sealed in DurableLog, which this indicates
-     * this fact has been persisted in Storage.
+     * This is different from {@link #markSealed()} in that {@link #markSealed()} indicates it was sealed in DurableLog,
+     * which this indicates this fact has been persisted in Storage.
      */
     void markSealedInStorage();
 
@@ -63,6 +63,11 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * Marks this StreamSegment as merged.
      */
     void markMerged();
+
+    /**
+     * Marks this StreamSegment as pinned to memory. See {@link SegmentMetadata#isPinned()} for more details.
+     */
+    void markPinned();
 
     /**
      * Sets/Updates the attributes for this StreamSegment to the exact values provided.
@@ -79,10 +84,10 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     void setLastModified(ImmutableDate date);
 
     /**
-     * Updates this instance of the UpdateableSegmentMetadata to have the same information as the other one.
+     * Updates this instance of the {@link UpdateableSegmentMetadata} to have the same information as the other one.
      *
      * @param other The SegmentMetadata to copy from.
-     * @throws IllegalArgumentException If the other SegmentMetadata refers to a different StreamSegment.
+     * @throws IllegalArgumentException If the other {@link SegmentMetadata} refers to a different StreamSegment.
      */
     void copyFrom(SegmentMetadata other);
 

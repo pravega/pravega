@@ -23,9 +23,9 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
-import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
@@ -65,6 +65,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     private boolean sealedInStorage;
     @Getter
     private boolean merged;
+    @Getter
+    private boolean pinned;
     @Getter
     private boolean deleted;
     @Getter
@@ -178,6 +180,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public void markMerged() {
         this.merged = true;
+        this.isChanged = true;
+    }
+
+    @Override
+    public void markPinned() {
+        this.pinned = true;
         this.isChanged = true;
     }
 
@@ -642,6 +650,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (this.deleted) {
             target.markDeleted();
+        }
+
+        if (this.pinned) {
+            target.markPinned();
         }
     }
 
