@@ -145,7 +145,7 @@ public class PravegaTest extends AbstractReadWriteTest {
         EventRead<String> event = null;
         do {
             try {
-                event = reader.readNextEvent(1000);
+                event = reader.readNextEvent(10_000);
                 log.debug("Read event: {}.", event.getEvent());
                 if (event.getEvent() != null) {
                     readCount++;
@@ -155,7 +155,7 @@ public class PravegaTest extends AbstractReadWriteTest {
                 fail("Reinitialization Exception is not expected");
             }
             // try reading until all the written events are read, else the test will timeout.
-        } while (readCount < NUM_EVENTS);
+        } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
         assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
     }
 }
