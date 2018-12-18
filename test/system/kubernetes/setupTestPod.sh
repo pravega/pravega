@@ -93,7 +93,8 @@ EOF
 kubectl wait --for=condition=Ready pod/task-pv-pod
 
 #Step 7: Compute the checksum of the local test artifact and the artifact on the persistent volume. Copy test artifact only if required.
-checksum="$(kubectl exec task-pv-pod md5sum '/data/test-collection.jar' | awk '{ print $1 }')"
+checksum="$(kubectl exec task-pv-pod md5sum '/data/test-collection.jar' | awk '{ print $1 }' || true)"
+
 echo "Checksum of test artifact on the pod $checksum"
 
 expectedCheckSum="$(md5sum './build/libs/test-collection.jar' | awk '{ print $1 }' )"
