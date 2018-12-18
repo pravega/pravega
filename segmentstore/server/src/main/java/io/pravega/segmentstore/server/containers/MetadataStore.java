@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -70,7 +69,6 @@ public abstract class MetadataStore {
     private final Connector connector;
     @GuardedBy("pendingRequests")
     private final HashMap<String, PendingRequest> pendingRequests;
-    private final AtomicReference<Supplier<CompletableFuture<Void>>> metadataCleanup;
 
     //endregion
 
@@ -86,17 +84,7 @@ public abstract class MetadataStore {
         this.traceObjectId = String.format("MetadataStore[%d]", connector.containerMetadata.getContainerId());
         this.connector = connector;
         this.executor = executor;
-        this.metadataCleanup = new AtomicReference<>();
         this.pendingRequests = new HashMap<>();
-    }
-
-    /**
-     * Sets a callback returning a CompletableFuture that will be invoked when a forced metadata cleanup is requested.
-     *
-     * @param callback The callback to set.
-     */
-    void setMetadataCleanupCallback(@NonNull Supplier<CompletableFuture<Void>> callback) {
-        this.metadataCleanup.set(callback);
     }
 
     //endregion
@@ -533,12 +521,11 @@ public abstract class MetadataStore {
                  // Check if the exception indicates the Metadata has reached capacity. In that case, force a cleanup
                  // and try again, exactly once.
                  try {
-                     val mc = this.metadataCleanup.get();
-                     if (mc != null && Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException) {
+                     if (Exceptions.unwrap(ex) instanceof TooManyActiveSegmentsException) {
                          log.debug("{}: Forcing metadata cleanup due to capacity exceeded ({}).", this.traceObjectId,
                                  Exceptions.unwrap(ex).getMessage());
 
-                         CompletableFuture<T> f = mc.get().thenComposeAsync(v -> toTry.get(), this.executor);
+                         CompletableFuture<T> f = this.connector.getMetadataCleanup().get().thenComposeAsync(v -> toTry.get(), this.executor);
                          f.thenAccept(result::complete);
                          Futures.exceptionListener(f, result::completeExceptionally);
                      } else {
@@ -591,6 +578,14 @@ public abstract class MetadataStore {
          */
         @NonNull
         private final LazyDeleteSegment lazyDeleteSegment;
+
+        /**
+         * A Supplier that, when invoked, executes the Segment Container's Metadata Cleanup task which is responsible with
+         * evicting inactive Segments. This is invoked when a Segment Id assignment is in progress which cannot complete
+         * due to {@link TooManyActiveSegmentsException} being thrown.
+         */
+        @NonNull
+        private Supplier<CompletableFuture<Void>> metadataCleanup;
 
         @FunctionalInterface
         public interface MapSegmentId {

@@ -656,7 +656,8 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                         sm.markDeleted();
                     }
                     return CompletableFuture.completedFuture(null);
-                }
+                },
+                () -> CompletableFuture.completedFuture(null)
         );
 
         return createTestContext(connector);
@@ -696,6 +697,9 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         @Setter
         private MapSegmentId mapSegmentId;
         @Getter
+        @Setter
+        private Supplier<CompletableFuture<Void>> metadataCleanup;
+        @Getter
         private final MetadataStore.Connector.DirectDeleteSegment directDeleteSegment = (name, timeout) -> {
             synchronized (this.directDeleteCount) {
                 this.directDeleteCount.put(name, this.directDeleteCount.getOrDefault(name, 0) + 1);
@@ -706,13 +710,14 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         @Setter
         private LazyDeleteSegment lazyDeleteSegment;
 
-        TestConnector(UpdateableContainerMetadata metadata, MapSegmentId mapSegmentId, LazyDeleteSegment lazyDeleteSegment) {
-            super(metadata, mapSegmentId, (name, timeout) -> CompletableFuture.completedFuture(null), lazyDeleteSegment);
+        TestConnector(UpdateableContainerMetadata metadata, MapSegmentId mapSegmentId, LazyDeleteSegment lazyDeleteSegment, Supplier<CompletableFuture<Void>> runCleanup) {
+            super(metadata, mapSegmentId, (name, timeout) -> CompletableFuture.completedFuture(null), lazyDeleteSegment, runCleanup);
             reset();
         }
 
         void reset() {
             this.mapSegmentId = super.getMapSegmentId();
+            this.metadataCleanup = super.getMetadataCleanup();
             this.lazyDeleteSegment = super.getLazyDeleteSegment();
         }
 

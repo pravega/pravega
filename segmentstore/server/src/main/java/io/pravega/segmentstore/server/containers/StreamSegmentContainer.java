@@ -145,7 +145,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metadataStore = new StorageMetadataStore(getMetadataStoreConnector(), this.storage, this.executor);
         this.metadataCleaner = new MetadataCleaner(config, this.metadata, this.metadataStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
-        this.metadataStore.setMetadataCleanupCallback(this.metadataCleaner::runOnce);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
@@ -798,7 +797,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private MetadataStore.Connector getMetadataStoreConnector() {
-        return new MetadataStore.Connector(this.metadata, this::mapSegmentId, this::deleteSegmentImmediate, this::deleteSegmentDelayed);
+        return new MetadataStore.Connector(this.metadata, this::mapSegmentId, this::deleteSegmentImmediate, this::deleteSegmentDelayed,
+                this::runMetadataCleanup);
+    }
+
+    private CompletableFuture<Void> runMetadataCleanup() {
+        return this.metadataCleaner.runOnce();
     }
 
     private CompletableFuture<Long> mapSegmentId(long segmentId, SegmentProperties segmentProperties, Duration timeout) {

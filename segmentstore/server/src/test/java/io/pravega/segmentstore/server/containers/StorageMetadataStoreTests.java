@@ -123,9 +123,8 @@ public class StorageMetadataStoreTests extends MetadataStoreTestBase {
 
         @Override
         StorageMetadataStore createNewMetadataStore(Supplier<CompletableFuture<Void>> cleanupCallback) {
-            StorageMetadataStore s = new StorageMetadataStore(this.connector, this.storage, executorService());
-            s.setMetadataCleanupCallback(cleanupCallback);
-            return s;
+            this.connector.setMetadataCleanup(cleanupCallback);
+            return new StorageMetadataStore(this.connector, this.storage, executorService());
         }
 
         int getStorageReadCount() {
