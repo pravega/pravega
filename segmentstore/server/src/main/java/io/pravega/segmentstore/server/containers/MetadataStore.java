@@ -72,12 +72,13 @@ public abstract class MetadataStore {
 
     //endregion
 
-    //region Constructor
+    //region Constructor and Initialization
 
     /**
      * Creates a new instance of the MetadataStore class.
      *
-     * @param connector A Connector object that can be used to communicate between the Metadata Store and upstream callers.
+     * @param connector A {@link Connector} object that can be used to communicate between the {@link MetadataStore}
+     *                  and upstream callers.
      * @param executor  The executor to use for async operations.
      */
     public MetadataStore(@NonNull Connector connector, @NonNull Executor executor) {
@@ -86,6 +87,14 @@ public abstract class MetadataStore {
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
     }
+
+    /**
+     * Initializes the MetadataStore, if necessary.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the initialization is done.
+     */
+    abstract CompletableFuture<Void> initialize(Duration timeout);
 
     //endregion
 
@@ -249,8 +258,10 @@ public abstract class MetadataStore {
      * @param segmentName The case-sensitive Segment Name.
      * @param timeout     Timeout for the Operation.
      * @return A CompletableFuture that, when completed, will contain an {@link ArrayView} representing the serialized form
-     * of a {@link SegmentInfo} object, or null if no such information exists. If failed, it will contain the exception
-     * that caused the failure.
+     * of a {@link SegmentInfo} object. If failed, it will contain the exception that caused the failure. Notable exceptions:
+     * <ul>
+     * <li>{@link StreamSegmentNotExistsException} If the Segment already exists.
+     * </ul>
      */
     protected abstract CompletableFuture<ArrayView> getSegmentInfoInternal(String segmentName, Duration timeout);
 
@@ -360,28 +371,6 @@ public abstract class MetadataStore {
     }
 
     /**
-     * Gets a Segment Id, if assigned. First the {@link ContainerMetadata} is queried, then the Metadata Store.
-     *
-     * @param segmentName The Segment Name.
-     * @param timeout     Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the Segment Id. If no Id is assigned, this will
-     * contain {@link ContainerMetadata#NO_STREAM_SEGMENT_ID}. If the Segment does not exist (including recently deleted
-     * ones), it will be failed with {@link StreamSegmentNotExistsException}.
-     */
-    private CompletableFuture<Long> getSegmentId(String segmentName, Duration timeout) {
-        long segmentId = this.connector.containerMetadata.getStreamSegmentId(segmentName, true);
-        if (isValidSegmentId(segmentId)) {
-            if (this.connector.containerMetadata.getStreamSegmentMetadata(segmentId).isDeleted()) {
-                return Futures.failedFuture(new StreamSegmentNotExistsException(segmentName));
-            }
-
-            return CompletableFuture.completedFuture(segmentId);
-        } else {
-            return getSegmentInfoInternal(segmentName, timeout).thenApply(rawData -> SegmentInfo.deserialize(rawData).getSegmentId());
-        }
-    }
-
-    /**
      * Attempts to map a Segment to an Id, by first trying to retrieve an existing id, and, should that not exist,
      * assign a new one.
      *
@@ -407,28 +396,23 @@ public abstract class MetadataStore {
      * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
     private CompletableFuture<Long> submitAssignmentWithRetry(SegmentInfo segmentInfo, Duration timeout) {
-        return retryWithCleanup(() -> submitAssignment(segmentInfo, timeout));
+        return retryWithCleanup(() -> submitAssignment(segmentInfo, false, timeout));
     }
 
     /**
-     * Submits a StreamSegmentMapOperation to the OperationLog. Upon completion, this operation
-     * will have mapped the given Segment to a new internal Segment Id if none was provided in the given SegmentInfo.
-     * If the given SegmentInfo already has a SegmentId set, then all efforts will be made to map that Segment with the
-     * requested Segment Id.
+     * Invokes the {@link Connector#getMapSegmentId()} callback in order to assign an Id to a Segment. Upon completion,
+     * this operation will have mapped the given Segment to a new internal Segment Id if none was provided in the given
+     * SegmentInfo. If the given SegmentInfo already has a SegmentId set, then all efforts will be made to map that Segment
+     * with the requested Segment Id.
      *
      * @param segmentInfo The SegmentInfo for the StreamSegment to generate and persist.
+     * @param pin         If true, this Segment's metadata will be pinned to memory.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned (or the
      * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
-    private CompletableFuture<Long> submitAssignment(SegmentInfo segmentInfo, Duration timeout) {
+    protected CompletableFuture<Long> submitAssignment(SegmentInfo segmentInfo, boolean pin, Duration timeout) {
         SegmentProperties properties = segmentInfo.getProperties();
-        if (properties.isDeleted()) {
-            // Stream does not exist. Fail the request with the appropriate exception.
-            failAssignment(properties.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
-            return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
-        }
-
         long existingSegmentId = this.connector.containerMetadata.getStreamSegmentId(properties.getName(), true);
         if (isValidSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it.
@@ -436,7 +420,7 @@ public abstract class MetadataStore {
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
             return this.connector.getMapSegmentId()
-                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), timeout)
+                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
                                  .thenApply(id -> completeAssignment(properties.getName(), id));
         }
     }
@@ -589,7 +573,7 @@ public abstract class MetadataStore {
 
         @FunctionalInterface
         public interface MapSegmentId {
-            CompletableFuture<Long> apply(long segmentId, SegmentProperties segmentProperties, Duration timeout);
+            CompletableFuture<Long> apply(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout);
         }
 
         @FunctionalInterface
@@ -654,7 +638,7 @@ public abstract class MetadataStore {
 
     @Data
     @Builder
-    private static class SegmentInfo {
+    protected static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
         private final SegmentProperties properties;

@@ -48,6 +48,12 @@ public class StorageMetadataStore extends MetadataStore {
         this.storage = storage;
     }
 
+    @Override
+    CompletableFuture<Void> initialize(Duration timeout) {
+        // Nothing to do here.
+        return CompletableFuture.completedFuture(null);
+    }
+
     /**
      * Attempts to create the given Segment in this Metadata Store, with possible recovery from a previous incomplete
      * attempt. When this method completes successfully, the State File will have been created for this Segment, but not

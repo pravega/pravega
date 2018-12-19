@@ -805,10 +805,14 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         return this.metadataCleaner.runOnce();
     }
 
-    private CompletableFuture<Long> mapSegmentId(long segmentId, SegmentProperties segmentProperties, Duration timeout) {
+    private CompletableFuture<Long> mapSegmentId(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout) {
         StreamSegmentMapOperation op = new StreamSegmentMapOperation(segmentProperties);
         if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             op.setStreamSegmentId(segmentId);
+        }
+
+        if (pin) {
+            op.markPinned();
         }
 
         return this.durableLog.add(op, timeout).thenApply(ignored -> op.getStreamSegmentId());

@@ -20,9 +20,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
 import java.io.ByteArrayInputStream;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.val;
@@ -106,7 +104,7 @@ public class StorageMetadataStoreTests extends MetadataStoreTestBase {
         return new StorageTestContext(connector);
     }
 
-    protected class StorageTestContext extends TestContext {
+    private class StorageTestContext extends TestContext {
         final TestStorage storage;
         @Getter
         final StorageMetadataStore metadataStore;
@@ -116,18 +114,13 @@ public class StorageMetadataStoreTests extends MetadataStoreTestBase {
             super(connector);
             this.storage = new TestStorage(new InMemoryStorage(), executorService());
             this.storage.initialize(1L);
-            this.metadataStore = createNewMetadataStore(this.noOpMetadataCleanup);
+            this.metadataStore = new StorageMetadataStore(this.connector, this.storage, executorService());
             this.storageReadCount = new AtomicInteger(0);
             this.storage.setReadInterceptor((segmentName, w) -> storageReadCount.incrementAndGet());
         }
 
         @Override
-        StorageMetadataStore createNewMetadataStore(Supplier<CompletableFuture<Void>> cleanupCallback) {
-            this.connector.setMetadataCleanup(cleanupCallback);
-            return new StorageMetadataStore(this.connector, this.storage, executorService());
-        }
-
-        int getStorageReadCount() {
+        int getStoreReadCount() {
             return this.storageReadCount.get();
         }
 
