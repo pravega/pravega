@@ -391,6 +391,20 @@ class ContainerKeyIndex implements AutoCloseable {
         this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
     }
 
+    /**
+     * Gets the KeyHashes and their corresponding offsets for not-yet-indexed Table Buckets. These are updates
+     * that have been accepted and written to the Segment but not yet indexed (persisted via the {@link IndexWriter}).
+     *
+     * @param segment A {@link DirectSegmentAccess} representing the Segment for which to get the Unindexed Key Hashes.
+     * @return A CompletableFuture that, when completed, will contain the desired result. This Future will wait on any
+     * Segment-specific recovery to complete before executing.
+     */
+    CompletableFuture<Map<UUID, CacheBucketOffset>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return this.recoveryTracker.waitIfNeeded(segment,
+                () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
+    }
+
     //endregion
 
     //region RecoveryTracker

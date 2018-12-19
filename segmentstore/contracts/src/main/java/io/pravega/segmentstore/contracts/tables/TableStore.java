@@ -12,6 +12,7 @@ package io.pravega.segmentstore.contracts.tables;
 import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -181,55 +182,52 @@ public interface TableStore {
     CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout);
 
     /**
-     * Creates a new Iterator over all the {@link TableKey}s in the given Table Segment.
+     * Creates a new Iterator over all the {@link TableKey} instances in the given Table Segment. This is a resumable
+     * iterator; this method can be reinvoked using the {@link IteratorItem#getState()} from the last processed item
+     * and the resulting iterator will continue from where the previous one left off.
      *
-     * @param segmentName The name of the Table Segment to iterate over.
-     * @param state       An {@link IteratorState} that can be used to resume a previously interrupted iteration. This
-     *                    can be obtained by invoking {@link IteratorItem#getState()}.
-     * @param timeout     Timeout for the operation.
+     * It is important to note that this iterator may not provide a consistent view of the Table Segment. Due to its async
+     * nature, it is expected that the resulting {@link AsyncIterator} may be long lived (especially for large tables).
+     * Since it does not lock the Table Segment for updates or compactions while iterating, it is possible that it will
+     * include changes made to the Table Segment after the initial invocation to this method (this is because, during
+     * compactions, portions of the index may be truncated and rewritten using newer information). Whether this happens
+     * or not, it is completely transparent to the caller and it will still iterate through all the {@link TableKey}s in
+     * the table.
+     *
+     * @param segmentName     The name of the Table Segment to iterate over.
+     * @param serializedState (Optional) A byte array representing the serialized form of the State. This can be obtained
+     *                        from {@link IteratorItem#getState()}. If provided, the iteration will resume from where it
+     *                        left off, otherwise it will start from the beginning.
+     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the {@link TableKey} instances in the given Table Segment. If the operation failed, the Future will be
-     * failed with the causing exception. Notable exceptions:
+     * over all the {@link TableKey} instances in the Table. If the operation failed, the Future will be failed with the
+     * causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
+     * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, IteratorState state, Duration timeout);
+    CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout);
 
     /**
      * Creates a new Iterator over all the {@link TableEntry} instances in the given Table Segment.
      *
-     * @param segmentName The name of the Table Segment to iterate over.
-     * @param state       An {@link IteratorState} that can be used to resume a previously interrupted iteration. This
-     *                    can be obtained by invoking {@link IteratorItem#getState()}.
-     * @param timeout     Timeout for the operation.
+     * Please refer to {@link #keyIterator} for notes about consistency and the ability to resume.
+     *
+     * @param segmentName     The name of the Table Segment to iterate over.
+     * @param serializedState (Optional) A byte array representing the serialized form of the State. This can be obtained
+     *                        from {@link IteratorItem#getState()}. If provided, the iteration will resume from where it
+     *                        left off, otherwise it will start from the beginning.
+     * @param fetchTimeout    Timeout for each invocation to {@link AsyncIterator#getNext()}.
      * @return A CompletableFuture that, when completed, will return an {@link AsyncIterator} that can be used to iterate
-     * over all the {@link TableEntry} instances in the given Table Segment. If the operation failed, the Future will be
-     * failed with the causing exception. Notable exceptions:
+     * over all the {@link TableEntry} instances in the Table. If the operation failed, the Future will be failed with the
+     * causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
+     * @throws IllegalDataFormatException If serializedState is not null and cannot be deserialized.
      */
-    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, IteratorState state, Duration timeout);
-
-    /**
-     * Defines an iteration result that is returned by the {@link AsyncIterator} when invoking
-     * {@link #entryIterator(String, IteratorState, Duration)} or {@link #keyIterator(String, IteratorState, Duration)} .
-     */
-    interface IteratorItem<T> {
-        /**
-         * Gets an {@link IteratorState} that can be used to reinvoke {@link #entryIterator(String, IteratorState, Duration)}
-         * or {@link #keyIterator(String, IteratorState, Duration)} if a previous iteration has been interrupted (by losing
-         * the pointer to the {@link AsyncIterator}), system restart, etc.
-         */
-        IteratorState getState();
-
-        /**
-         * Gets a List of items that are contained in this instance. The items in this list are not necessarily related
-         * to each other, nor are they guaranteed to be in any particular order.
-         */
-        List<T> getEntries();
-    }
+    CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout);
 }

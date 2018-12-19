@@ -179,6 +179,7 @@ public class OperationComparer {
         Assert.assertEquals(message + " Unexpected StreamSegmentLength.", expected.getLength(), actual.getLength());
         Assert.assertEquals(message + " Unexpected StreamSegmentName.", expected.getStreamSegmentName(), actual.getStreamSegmentName());
         AssertExtensions.assertMapEquals(message + "Unexpected attributes.", expected.getAttributes(), actual.getAttributes());
+        Assert.assertEquals("Unexpected Pinned.", expected.isPinned(), actual.isPinned());
     }
 
     private void assertSame(String message, UpdateAttributesOperation expected, UpdateAttributesOperation actual) {

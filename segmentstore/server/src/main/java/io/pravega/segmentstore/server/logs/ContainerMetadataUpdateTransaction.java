@@ -455,6 +455,11 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             metadata.markSealed();
         }
 
+        // Pin this to memory if needed.
+        if (mapping.isPinned()) {
+            metadata.markPinned();
+        }
+
         metadata.updateAttributes(mapping.getAttributes());
     }
 
