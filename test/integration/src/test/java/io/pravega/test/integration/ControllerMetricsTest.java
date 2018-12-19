@@ -175,8 +175,17 @@ public class ControllerMetricsTest {
 
     private void checkCommitOrAbortMetric(Counter metric, int expectedValue) {
         // Check that the metric is being correctly reported.
-        Assert.assertNotNull(metric);
-        Assert.assertEquals(expectedValue, metric.getCount());
+        boolean updatedCounter = false;
+        do {
+            try {
+                Assert.assertNotNull(metric);
+                Assert.assertEquals(expectedValue, metric.getCount());
+                updatedCounter = true;
+            } catch (AssertionError e) {
+                log.info("Metric not updated in the cache. Retrying.", e);
+                Exceptions.handleInterrupted(() -> Thread.sleep(100));
+            }
+        } while (!updatedCounter);
     }
 
     private static String getCounterMetricName(String metricName) {
