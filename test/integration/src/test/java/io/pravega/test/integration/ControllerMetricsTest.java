@@ -116,7 +116,7 @@ public class ControllerMetricsTest {
     /**
      * Verify that transaction metrics counters are being correctly reported.
      */
-    @Test(timeout = 40000)
+    @Test(timeout = 20000)
     public void transactionMetricsTest() throws TxnFailedException {
         final String scope = "transactionMetricsTestScope";
         final String streamName = "transactionMetricsTestStream";
@@ -142,10 +142,8 @@ public class ControllerMetricsTest {
         for (int i = 0; i < iterations; i++) {
             Transaction<String> transaction = writer.beginTxn();
 
-            // Leave some time to (async) report the metric.
-            Exceptions.handleInterrupted(() -> Thread.sleep(2000));
-            Counter createTransactions = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_TRANSACTION +
-                    "." + scope + "." + streamName));
+            // Get the createTransactions metric.
+            Counter createTransactions = getCounter(getCounterMetricName(CREATE_TRANSACTION + "." + scope + "." + streamName));
             Assert.assertNotNull(createTransactions);
             Assert.assertEquals(i + 1, createTransactions.getCount());
 
@@ -156,21 +154,27 @@ public class ControllerMetricsTest {
 
             if (i % 2 == 0) {
                 transaction.commit();
-                // Leave some time to (async) report the metric.
-                Exceptions.handleInterrupted(() -> Thread.sleep(2000));
-                checkCommitOrAbortMetric(getCounterMetricName(COMMIT_TRANSACTION + "." + scope + "." + streamName), i / 2 + 1);
+                checkCommitOrAbortMetric(getCounter(getCounterMetricName(COMMIT_TRANSACTION + "." + scope + "." + streamName)), i / 2 + 1);
             } else {
                 transaction.abort();
-                // Leave some time to (async) report the metric.
-                Exceptions.handleInterrupted(() -> Thread.sleep(2000));
-                checkCommitOrAbortMetric(getCounterMetricName(ABORT_TRANSACTION + "." + scope + "." + streamName), i / 2 + 1);
+                checkCommitOrAbortMetric(getCounter(getCounterMetricName(ABORT_TRANSACTION + "." + scope + "." + streamName)), i / 2 + 1);
             }
         }
     }
 
-    private void checkCommitOrAbortMetric(String metricToCheck, int expectedValue) {
-        // Check that commit transactions metric is being correctly reported.
-        Counter metric = MetricRegistryUtils.getCounter(metricToCheck);
+    private Counter getCounter(String counterName) {
+        Counter counter = null;
+        // Access the cache until the metric is available.
+        while (counter == null) {
+            counter = MetricRegistryUtils.getCounter(counterName);
+            Exceptions.handleInterrupted(() -> Thread.sleep(100));
+        }
+
+        return counter;
+    }
+
+    private void checkCommitOrAbortMetric(Counter metric, int expectedValue) {
+        // Check that the metric is being correctly reported.
         Assert.assertNotNull(metric);
         Assert.assertEquals(expectedValue, metric.getCount());
     }
