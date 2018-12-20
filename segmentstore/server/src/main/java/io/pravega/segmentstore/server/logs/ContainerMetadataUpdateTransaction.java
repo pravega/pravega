@@ -479,7 +479,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
 
     private void assignUniqueSegmentId(StreamSegmentMapOperation mapping) throws TooManyActiveSegmentsException {
         if (!this.recoveryMode) {
-            if (getActiveSegmentCount() >= this.maximumActiveSegmentCount) {
+            if (getActiveSegmentCount() >= this.maximumActiveSegmentCount && !mapping.isPinned()) {
                 throw new TooManyActiveSegmentsException(this.containerId, this.maximumActiveSegmentCount);
             }
 
