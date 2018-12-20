@@ -572,6 +572,7 @@ project('controller') {
 
 project('standalone') {
     apply plugin: 'application'
+    apply plugin: 'maven'
     apply plugin: "com.github.johnrengelman.shadow"
     
     applicationName = "pravega-standalone"
@@ -673,6 +674,12 @@ project('standalone') {
 
     startStandalone.dependsOn shadowJar
     installDist.dependsOn shadowJar
+    assemble.dependsOn shadowJar
+    
+    artifacts {
+        archives file: shadowJar.archivePath, builtBy: shadowJar
+    }
+    
 }
 
 project('test:system') {
