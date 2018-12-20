@@ -572,6 +572,7 @@ project('controller') {
 project('standalone') {
     apply plugin: 'application'
     apply plugin: "com.github.johnrengelman.shadow"
+    
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
@@ -638,8 +639,16 @@ project('standalone') {
     }
 
     jar.configure {
-        classifier = 'original'
+        classifier = 'unshaded'
     }
+
+    // This is a workaround that seems to have worked. 
+    // https://github.com/gradle/gradle/issues/7807
+    distZip.classifier = 'unshaded'
+    distTar.classifier = 'unshaded'
+    
+    shadowDistZip.classifier = null
+    shadowDistTar.classifier = null
 
     shadowJar {
         classifier = null
