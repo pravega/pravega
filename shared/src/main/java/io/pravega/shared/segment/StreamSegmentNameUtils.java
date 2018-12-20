@@ -22,11 +22,6 @@ public final class StreamSegmentNameUtils {
     //region Members
 
     /**
-     * This is appended to the end of the Segment/Transaction name to indicate it stores its State.
-     */
-    private static final String STATE_SUFFIX = "$state";
-
-    /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
      */
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
@@ -138,17 +133,6 @@ public final class StreamSegmentNameUtils {
             return streamSegmentName;
         }
         return streamSegmentName.substring(0, endOfStreamNamePos);
-    }
-
-    /**
-     * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing Segment State.
-     *
-     * @param segmentName The name of the Segment to get the State segment name for.
-     * @return The result.
-     */
-    public static String getStateSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.endsWith(STATE_SUFFIX), "segmentName is already a state segment name");
-        return segmentName + STATE_SUFFIX;
     }
 
     /**

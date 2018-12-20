@@ -42,7 +42,7 @@ import lombok.extern.slf4j.Slf4j;
  * Table Segment per Segment Container.
  */
 @Slf4j
-public class TableMetadataStore extends MetadataStore {
+class TableMetadataStore extends MetadataStore {
     //region Members
     private final TableStore tableStore;
     private final String metadataSegmentName;
@@ -58,7 +58,7 @@ public class TableMetadataStore extends MetadataStore {
      * @param tableStore A {@link TableStore} to use.
      * @param executor   The executor to use for async operations.
      */
-    public TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
+    TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
         super(connector, executor);
         this.tableStore = tableStore;
         this.metadataSegmentName = StreamSegmentNameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
@@ -67,42 +67,29 @@ public class TableMetadataStore extends MetadataStore {
 
     //region MetadataStore Implementation
     @Override
-    CompletableFuture<Void> initialize(Duration timeout) {
+    public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "TableMetadataStore is already initialized.");
 
-        // Use the TableStore to create the metadata segment. Due to the wiring in StreamSegmentContainer, this
-        // call will return to us via a createSegment(this.metadataSegmentName, attributes, timeout). This is important,
-        // as the TableStore generates some TableSegment-specific attributes that we cannot guess, and this is the only
-        // way to intercept them.
-        return this.tableStore.createSegment(this.metadataSegmentName, timeout)
-                              .thenRun(() -> this.initialized.set(true));
+        // Invoke submitAssignment(), which will ensure that the Metadata Segment is mapped in memory and pinned.
+        // If this is the first time we initialize the TableMetadataStore for this SegmentContainer, a new id will be
+        // assigned to it.
+        // TODO: sanity check: invoke Storage.getInfo on this and handle it already existing.
+        // TODO: submitAssignment may throw MetadataUpdateException if we invoke this concurrently.
+        Collection<AttributeUpdate> attributes = TableStore.getInitialTableAttributes();
+        return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, attributes), true, timeout)
+                .thenAccept(segmentId -> {
+                    this.initialized.set(true);
+                    log.info("{}: Metadata Segment created. Name = '{}', Id = '{}'", this.metadataSegmentName, segmentId);
+                });
     }
 
     @Override
     CompletableFuture<Void> createSegment(String segmentName, Collection<AttributeUpdate> attributes, Duration timeout) {
-        if (this.initialized.get()) {
-            // Already initialized. Delegate to the functionality in the parent class.
-            // But first, make sure we don't try to create the Metadata Segment - it is reserved.
-            Preconditions.checkArgument(!this.metadataSegmentName.equals(segmentName),
-                    "Cannot create Metadata Segment if already initialized.");
-
-            return super.createSegment(segmentName, attributes, timeout);
-        } else {
-            // Pre-initialization, the only segment we are allowed to create is the Metadata Segment.
-            Preconditions.checkArgument(segmentName.equals(this.metadataSegmentName),
-                    "Only Metadata Segment can be created if not initialized.");
-
-            // Invoke submitAssignment(), which will ensure that the Metadata Segment is mapped in memory and pinned.
-            // If this is the first time we initialize the TableMetadataStore for this SegmentContainer, a new id will be
-            // assigned to it.
-            // TODO: sanity check: invoke Storage.getInfo on this and handle it already existing.
-            // TODO: submitAssignment may throw MetadataUpdateException if we invoke this concurrently.
-            return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, attributes), true, timeout)
-                    .thenAccept(segmentId -> {
-                        log.info("{}: Metadata Segment created. Name = '{}', Id = '{}'", this.metadataSegmentName, segmentId);
-                        this.initialized.set(true);
-                    });
-        }
+        // Make sure we don't try to create the Metadata Segment - it is reserved.
+        ensureInitialized();
+        Preconditions.checkArgument(!this.metadataSegmentName.equals(segmentName),
+                "Cannot create Metadata Segment if already initialized.");
+        return super.createSegment(segmentName, attributes, timeout);
     }
 
     @Override

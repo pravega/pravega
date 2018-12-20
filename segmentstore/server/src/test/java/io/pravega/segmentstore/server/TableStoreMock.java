@@ -46,21 +46,12 @@ import lombok.val;
  */
 @RequiredArgsConstructor
 @ThreadSafe
-public class TableStoreMock implements TableStore, AutoCloseable {
+public class TableStoreMock implements TableStore {
     @GuardedBy("tables")
     private final HashMap<String, TableData> tables = new HashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     @NonNull
     private final Executor executor;
-
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
-        this.closed.set(true);
-    }
-
-    //endregion
 
     //region TableStore Implementation
 

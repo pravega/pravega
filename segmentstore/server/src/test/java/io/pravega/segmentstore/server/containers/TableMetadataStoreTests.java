@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
@@ -65,7 +66,12 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
 
         @SneakyThrows
         void initialize() {
-            this.metadataStore.initialize(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            this.tableStore
+                    .createSegment(StreamSegmentNameUtils.getMetadataSegmentName(this.connector.getContainerMetadata().getContainerId()), TIMEOUT)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            this.metadataStore
+                    .initialize(TIMEOUT)
+                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -80,7 +86,6 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
 
         @Override
         public void close() {
-            this.tableStore.close();
         }
 
         private class TestTableStore extends TableStoreMock {
@@ -102,12 +107,6 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
 
             void setGetErrorInjector(ErrorInjector<Exception> ei) {
                 this.getErrorInjector.set(ei);
-            }
-
-            @Override
-            public CompletableFuture<Void> createSegment(String segmentName, Duration timeout) {
-                return metadataStore.createSegment(segmentName, null, timeout)
-                                    .thenCompose(v -> super.createSegment(segmentName, timeout));
             }
 
             @Override

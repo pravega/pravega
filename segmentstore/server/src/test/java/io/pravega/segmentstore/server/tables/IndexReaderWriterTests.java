@@ -15,6 +15,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -78,11 +79,11 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     //region IndexWriter specific tests
 
     /**
-     * Tests the {@link IndexWriter#generateInitialTableAttributes()} method.
+     * Tests the {@link TableStore#getInitialTableAttributes()} method.
      */
     @Test
     public void testGenerateInitialTableAttributes() {
-        val updates = IndexWriter.generateInitialTableAttributes();
+        val updates = TableStore.getInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
         Assert.assertEquals("Unexpected number of updates generated.", 1, values.size());
         Assert.assertEquals("Unexpected value for TableIndexOffset.", 0L, (long) values.get(Attributes.TABLE_INDEX_OFFSET));
@@ -301,7 +302,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         checkNoBackpointers(segment);
 
         // Verify that all surviving attributes are the core indexing attributes.
-        val initialAttributeCount = IndexWriter.generateInitialTableAttributes().size();
+        val initialAttributeCount = TableStore.getInitialTableAttributes().size();
         int attributeCount = segment.getAttributeCount();
         Assert.assertEquals("Unexpected number of nodes left after complete removal.", initialAttributeCount, attributeCount);
     }
@@ -492,7 +493,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     private SegmentMock newMock() {
         val mock = new SegmentMock(executorService());
-        mock.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
+        mock.updateAttributes(TableStore.getInitialTableAttributes(), TIMEOUT).join();
         return mock;
     }
 

@@ -13,12 +13,16 @@ import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -59,6 +63,18 @@ public interface TableStore {
      */
     default int maximumValueLength() {
         return 1040384; // 1MB - maximumKeyLength();
+    }
+
+    /**
+     * Generates a set of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
+     *
+     * Attributes:
+     * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
+     *
+     * @return A Collection of {@link AttributeUpdate}s.
+     */
+    static Collection<AttributeUpdate> getInitialTableAttributes() {
+        return Collections.singleton(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
     }
 
     /**

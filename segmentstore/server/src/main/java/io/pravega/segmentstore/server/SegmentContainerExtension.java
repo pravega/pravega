@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.server;
 
 import java.util.Collection;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Defines an Extension that can be associated with a {@link SegmentContainer}, which will be instantiated (and initialized)
@@ -24,12 +23,6 @@ import java.util.concurrent.CompletableFuture;
 public interface SegmentContainerExtension extends AutoCloseable {
     @Override
     void close();
-
-    /**
-     * Performs any initialization required for this SegmentContainerExtension instance.
-     * @return A CompletableFuture that, when completed, will indicate that the initialization is done.
-     */
-    CompletableFuture<Void> initialize();
 
     /**
      * Creates a Collection of any {@link WriterSegmentProcessor} to pass to the {@link SegmentContainer}'s StorageWriter.

@@ -61,7 +61,7 @@ import lombok.val;
  */
 @Slf4j
 @ThreadSafe
-public abstract class MetadataStore {
+abstract class MetadataStore {
     //region Members
 
     protected final String traceObjectId;
@@ -81,7 +81,7 @@ public abstract class MetadataStore {
      *                  and upstream callers.
      * @param executor  The executor to use for async operations.
      */
-    public MetadataStore(@NonNull Connector connector, @NonNull Executor executor) {
+    MetadataStore(@NonNull Connector connector, @NonNull Executor executor) {
         this.traceObjectId = String.format("MetadataStore[%d]", connector.containerMetadata.getContainerId());
         this.connector = connector;
         this.executor = executor;
@@ -535,7 +535,7 @@ public abstract class MetadataStore {
      */
     @RequiredArgsConstructor
     @Getter
-    public static class Connector {
+    static class Connector {
         /**
          * The {@link ContainerMetadata} to bind to. All assignments are vetted from here, but the Metadata is not touched
          * directly from this component.

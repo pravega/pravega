@@ -610,9 +610,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         ContainerTableExtensionImpl createExtension() {
-            val result = new ContainerTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, this.hasher, executorService());
-            result.initialize().join();
-            return result;
+            return new ContainerTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, this.hasher, executorService());
         }
 
         UpdateableSegmentMetadata createSegmentMetadata() {

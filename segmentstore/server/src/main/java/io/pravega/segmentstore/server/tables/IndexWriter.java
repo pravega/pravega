@@ -19,7 +19,6 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -55,22 +54,6 @@ class IndexWriter extends IndexReader {
     IndexWriter(@NonNull KeyHasher keyHasher, ScheduledExecutorService executor) {
         super(executor);
         this.hasher = keyHasher;
-    }
-
-    //endregion
-
-    //region Initial Table Attributes
-
-    /**
-     * Generates a set of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
-     *
-     * Attributes:
-     * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
-     *
-     * @return A Collection of {@link AttributeUpdate}s.
-     */
-    static Collection<AttributeUpdate> generateInitialTableAttributes() {
-        return Collections.singleton(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
     }
 
     //endregion
