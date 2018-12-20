@@ -123,7 +123,6 @@ public class ControllerMetricsTest {
         final int parallelism = 4;
         int iterations = 6;
 
-        // At this point, we have at least 6 internal streams.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
                                                                      .scalingPolicy(ScalingPolicy.fixed(parallelism))
                                                                      .build();
@@ -152,6 +151,7 @@ public class ControllerMetricsTest {
                 transaction.writeEvent(String.valueOf(j));
             }
 
+            // Test counters for aborted and committed transactions.
             if (i % 2 == 0) {
                 transaction.commit();
                 checkCommitOrAbortMetric(getCounter(getCounterMetricName(COMMIT_TRANSACTION + "." + scope + "." + streamName)), i / 2 + 1);
