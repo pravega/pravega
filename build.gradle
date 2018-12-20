@@ -491,6 +491,7 @@ project('controller') {
     apply plugin: 'application'
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
+    
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
@@ -624,9 +625,41 @@ project('standalone') {
         runtime.exclude group: "com.sun.jersey", module: "jersey-server"
     }
 
+    // This is a workaround that seems to have worked. 
+    // https://github.com/gradle/gradle/issues/7807
+    jar.classifier = 'unshaded'
+    shadowJar.classifier = null
+    
+    distZip.classifier = 'unshaded'
+    distTar.classifier = 'unshaded'
+    
+    shadowDistZip.classifier = null
+    shadowDistTar.classifier = null
+    
+
+    jar.configure {
+        classifier = 'unshaded'
+    }
+
+    shadowJar {
+        classifier = null
+
+        mergeServiceFiles()
+
+        relocate "com.google", "io.pravega.shaded.com.google"
+        relocate "io.dropwizard", "io.pravega.shaded.io.dropwizard"
+        relocate "io.grpc", "io.pravega.shaded.io.grpc"
+        relocate "io.netty", "io.pravega.shaded.io.netty"
+        relocate "org.apache", "io.pravega.shaded.org.apache"
+
+
+        relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
+        relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
+    }
+
     task startStandalone(type: JavaExec) {
         main = "-jar"
-        args = [jar.archivePath]
+        args = [shadowJar.archivePath]
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
@@ -638,33 +671,8 @@ project('standalone') {
         jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
     }
 
-    jar.configure {
-        classifier = 'unshaded'
-    }
-
-    // This is a workaround that seems to have worked. 
-    // https://github.com/gradle/gradle/issues/7807
-    distZip.classifier = 'unshaded'
-    distTar.classifier = 'unshaded'
-    
-    shadowDistZip.classifier = null
-    shadowDistTar.classifier = null
-
-    shadowJar {
-        classifier = null
-        
-        mergeServiceFiles()
-        
-        relocate "com.google", "io.pravega.shaded.com.google"
-        relocate "io.dropwizard", "io.pravega.shaded.io.dropwizard"
-        relocate "io.grpc", "io.pravega.shaded.io.grpc"
-        relocate "io.netty", "io.pravega.shaded.io.netty"
-        relocate "org.apache", "io.pravega.shaded.org.apache"
-
-
-        relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
-        relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
-    }
+    startStandalone.dependsOn shadowJar
+    installDist.dependsOn shadowJar
 }
 
 project('test:system') {
