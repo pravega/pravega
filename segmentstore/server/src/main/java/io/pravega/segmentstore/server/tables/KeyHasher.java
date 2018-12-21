@@ -24,8 +24,21 @@ import lombok.RequiredArgsConstructor;
 /**
  * Defines a Hasher for a Table Key.
  */
-public abstract class KeyHasher {
+abstract class KeyHasher {
+    /**
+     * Size of the Hash, in bytes.
+     */
     static final int HASH_SIZE_BYTES = Long.BYTES + Long.BYTES; // UUID length.
+
+    /**
+     * Minimum value for any Key Hash, when compared using {@link UUID#compareTo}.
+     */
+    static final UUID MIN_HASH = new UUID(TableBucket.CORE_ATTRIBUTE_PREFIX + 1, Long.MIN_VALUE);
+
+    /**
+     * Maximum value for any Key Hash, when compared using {@link UUID#compareTo}.
+     */
+    static final UUID MAX_HASH = new UUID(TableBucket.BACKPOINTER_PREFIX - 1, Long.MAX_VALUE);
 
     /**
      * Generates a new Key Hash for the given Key.
@@ -59,11 +72,48 @@ public abstract class KeyHasher {
     }
 
     /**
+     * Generates a new Key Hash that is immediately after the given one. We define Key Hash H2 to be immediately after
+     * Key Hash h1 if there doesn't exist Key Hash H3 such that H1&lt;H3&lt;H2. The ordering is performed using {@link UUID#compareTo}.
+     *
+     * @return The successor Key Hash, or null if no more successors are available (if {@link IteratorState#isEnd} returns true).
+     */
+    static UUID getNextHash(UUID hash) {
+        if (hash == null) {
+            // No hash given. By definition, the first hash is the "next" one".
+            hash = MIN_HASH;
+        } else if (hash.compareTo(MAX_HASH) >= 0) {
+            // Given hash already equals or exceeds the max value. There is no successor.
+            return null;
+        }
+
+        long msb = hash.getMostSignificantBits();
+        long lsb = hash.getLeastSignificantBits();
+        if (lsb == Long.MAX_VALUE) {
+            msb++; // This won't overflow since we've checked that state is not end (i.e., id != MAX).
+            lsb = Long.MIN_VALUE;
+        } else {
+            lsb++;
+        }
+
+        return new UUID(msb, lsb);
+    }
+
+    /**
+     * Determines whether the given UUID is a valid Key Hash.
+     *
+     * @param keyHash The UUID to test.
+     * @return True if a valid Key Hash, false otherwise.
+     */
+    static boolean isValid(UUID keyHash) {
+        return MIN_HASH.compareTo(keyHash) <= 0 && MAX_HASH.compareTo(keyHash) >= 0;
+    }
+
+    /**
      * Creates a new instance of the KeyHasher class that generates hashes using the SHA-256 algorithm.
      *
      * @return A new instance of the KeyHasher class.
      */
-    public static KeyHasher sha256() {
+    static KeyHasher sha256() {
         return new Sha256Hasher();
     }
 
@@ -74,19 +124,19 @@ public abstract class KeyHasher {
      * @return A new instance of the KeyHasher class.
      */
     @VisibleForTesting
-    public static KeyHasher custom(Function<ArrayView, byte[]> hashFunction) {
+    static KeyHasher custom(Function<ArrayView, byte[]> hashFunction) {
         return new CustomHasher(hashFunction);
     }
 
     //region Sha256Hasher
 
     private static class Sha256Hasher extends KeyHasher {
-        private final HashFunction hash = Hashing.sha256();
+        private static final HashFunction HASH = Hashing.sha256();
 
         @Override
         public UUID hash(@NonNull ArrayView key) {
             byte[] rawHash = new byte[HASH_SIZE_BYTES];
-            int c = this.hash.hashBytes(key.array(), key.arrayOffset(), key.getLength()).writeBytesTo(rawHash, 0, rawHash.length);
+            int c = HASH.hashBytes(key.array(), key.arrayOffset(), key.getLength()).writeBytesTo(rawHash, 0, rawHash.length);
             assert c == rawHash.length;
             return toUUID(rawHash);
         }

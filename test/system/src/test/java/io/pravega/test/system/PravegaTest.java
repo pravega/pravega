@@ -145,7 +145,7 @@ public class PravegaTest extends AbstractReadWriteTest {
         EventRead<String> event = null;
         do {
             try {
-                event = reader.readNextEvent(1000);
+                event = reader.readNextEvent(10_000);
                 log.debug("Read event: {}.", event.getEvent());
                 if (event.getEvent() != null) {
                     readCount++;

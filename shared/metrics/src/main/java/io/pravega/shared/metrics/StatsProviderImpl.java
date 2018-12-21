@@ -64,6 +64,7 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public void start() {
         init();
+        log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
         if (conf.isEnableCSVReporter()) {
             // NOTE:  metrics output files are exclusive to a given process

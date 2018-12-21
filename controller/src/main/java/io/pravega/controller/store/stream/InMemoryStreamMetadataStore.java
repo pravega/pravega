@@ -333,7 +333,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> {
                         HashMap<String, StreamConfiguration> result = new HashMap<>();
                         for (String stream : streams) {
-                            result.put(stream, this.getConfiguration(scopeName, stream, null, executor).join());
+                            StreamConfiguration configuration = Futures.exceptionallyExpecting(
+                                    getConfiguration(scopeName, stream, null, executor),
+                                    e -> e instanceof StoreException.DataNotFoundException, null).join();
+                            if (configuration != null) {
+                                result.put(stream, configuration);
+                            }
                         }
                         return result;
                     });

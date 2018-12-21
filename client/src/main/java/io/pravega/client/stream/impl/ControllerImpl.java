@@ -976,7 +976,11 @@ public class ControllerImpl implements Controller {
         @Override
         public void onError(Throwable t) {
             log.warn("gRPC call for {} with trace id {} failed with server error.", method, traceId, t);
-            future.completeExceptionally(t);
+            if (t instanceof RuntimeException) {
+                future.completeExceptionally(t);
+            } else {
+                future.completeExceptionally(new RuntimeException(t));
+            }
         }
 
         @Override

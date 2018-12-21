@@ -9,13 +9,12 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.client.StoreType;
-import io.pravega.controller.util.ZKUtils;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
 import com.google.common.util.concurrent.Monitor;
 import lombok.extern.slf4j.Slf4j;
@@ -134,7 +133,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     // stop ControllerServiceStarter.
                     if (sessionExpiryFuture.isDone()) {
                         log.info("ZK session expired");
-                        storeClient.close();
                     }
                 } else {
                     this.serviceStopFuture.join();
@@ -146,6 +144,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
                 log.info("Awaiting termination of ControllerServiceStarter");
                 starter.awaitTerminated();
+
+                if (hasZkConnection) {
+                    log.info("calling close on store client");
+                    storeClient.close();
+                }
             }
         } catch (Exception e) {
             log.error("Controller Service Main thread exited exceptionally", e);
@@ -160,6 +163,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     /**
      * Changes internal state to the new value.
+     *
      * @param newState new internal state.
      */
     private void notifyServiceStateChange(ServiceState newState) {
@@ -214,6 +218,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         Preconditions.checkState(serviceConfig.isControllerClusterListenerEnabled(),
                 "Controller Cluster not enabled");
         awaitServiceStarting();
-        ZKUtils.simulateZkSessionExpiry((CuratorFramework) this.storeClient.getClient());
+        ((CuratorFramework) this.storeClient.getClient()).getZookeeperClient().getZooKeeper()
+                                                         .getTestable().injectSessionExpiration();
     }
 }

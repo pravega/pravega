@@ -112,16 +112,15 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
         final int offsetEvents = RG_PARALLELISM * 20;
         final int batchIterations = 4;
         final Stream stream = Stream.of(SCOPE, STREAM);
+        final ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURI).build();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                                           .clientConfig(ClientConfig.builder()
-                                                                           .controllerURI(controllerURI).build()).build(),
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                                             connectionFactory.getInternalExecutor());
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().build());
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
         log.info("Invoking batchClientSimpleTest test with Controller URI: {}", controllerURI);
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
