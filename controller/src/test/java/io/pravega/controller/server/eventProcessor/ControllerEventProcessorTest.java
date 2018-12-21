@@ -150,7 +150,7 @@ public class ControllerEventProcessorTest {
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
 
         String stream = "commitWithSeal";
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(ScalingPolicy.fixed(1)).build();
         streamStore.createStream(SCOPE, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore.setState(SCOPE, stream, State.ACTIVE, null, executor).join();
 
