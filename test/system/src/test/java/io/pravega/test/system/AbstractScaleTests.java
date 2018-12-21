@@ -49,7 +49,7 @@ abstract class AbstractScaleTests extends AbstractReadWriteTest {
                                                       .build(),
                                   getConnectionFactory().getInternalExecutor());
     }
-    
+
     private URI createControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
