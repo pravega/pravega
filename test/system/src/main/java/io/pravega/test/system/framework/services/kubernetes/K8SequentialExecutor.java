@@ -11,10 +11,13 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.models.V1ObjectMetaBuilder;
+import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSourceBuilder;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodBuilder;
 import io.kubernetes.client.models.V1ServiceAccount;
 import io.kubernetes.client.models.V1ServiceAccountBuilder;
+import io.kubernetes.client.models.V1VolumeBuilder;
+import io.kubernetes.client.models.V1VolumeMountBuilder;
 import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
@@ -77,16 +80,17 @@ public class K8SequentialExecutor implements TestExecutor {
         return new V1PodBuilder()
                 .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName)).endMetadata()
                 .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)
+                .withVolumes(new V1VolumeBuilder().withName("task-pv-storage")
+                                                  .withPersistentVolumeClaim(new V1PersistentVolumeClaimVolumeSourceBuilder().withClaimName("task-pv-claim").build())
+                                                  .build())
                 .addNewContainer()
                 .withName(podName) // container name is same as that of the pod.
                 .withImage("openjdk:8-jre-alpine")
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
-                .withArgs("-c",
-                          "wget " + repoUrl + "/io/pravega/pravega-test-system/" + testVersion + "/pravega-test-system-" + testVersion + ".jar && "
-                                  + "echo \"download of system test jar complete\" && "
-                                  + "java -DexecType=KUBERNETES -cp ./pravega-test-system-" + testVersion + ".jar io.pravega.test.system.SingleJUnitTestRunner "
+                .withArgs("-c", "java -DexecType=KUBERNETES -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
                                   + className + "#" + methodName /*+ " > server.log 2>&1 */ + "; exit $?")
+                .withVolumeMounts(new V1VolumeMountBuilder().withMountPath("/data").withName("task-pv-storage").build())
                 .endContainer()
                 .withRestartPolicy("Never")
                 .endSpec().build();
