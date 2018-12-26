@@ -27,7 +27,7 @@ import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
 import io.pravega.controller.server.bucket.AbstractBucketService;
 import io.pravega.controller.server.bucket.BucketManager;
-import io.pravega.controller.server.bucket.StreamCutBucketService;
+import io.pravega.controller.server.bucket.RetentionBucketService;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -179,10 +179,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
 
-            Function<Integer, AbstractBucketService> streamCutSupplier = bucket -> new StreamCutBucketService(bucket, streamStore, bucketStore, streamMetadataTasks,
-                    periodicExecutor, requestTracker);
-            streamCutService = new BucketManager(Config.BUCKET_COUNT, host.getHostId(), bucketStore, periodicExecutor,
-                    streamCutSupplier);
+            Function<Integer, AbstractBucketService> streamCutSupplier = bucket -> 
+                    new RetentionBucketService(bucket, streamStore, bucketStore, streamMetadataTasks, periodicExecutor, requestTracker);
+            
+            streamCutService = new BucketManager(host.getHostId(), bucketStore, RetentionBucketService.SERVICE_NAME, 
+                    periodicExecutor, streamCutSupplier);
+            
             log.info("starting backgroup periodic service asynchronously");
             streamCutService.startAsync();
             streamCutService.awaitRunning();

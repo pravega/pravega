@@ -58,7 +58,7 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Synchronized
     @Override
-    public void unregisterBucketChangeListenerForRetention(int bucket) {
+    public void unregisterBucketChangeListener(int bucket) {
         listeners.remove(bucket);
     }
 
@@ -80,7 +80,7 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<List<String>> getStreamsForRetention(int bucket, Executor executor) {
+    public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
         if (bucketedStreams.containsKey(bucket)) {
             return CompletableFuture.completedFuture(Collections.unmodifiableList(bucketedStreams.get(bucket)));
         } else {
@@ -90,8 +90,8 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> addUpdateStreamForRetention(String scope, String stream, RetentionPolicy retentionPolicy,
-                                                                   Executor executor) {
+    public CompletableFuture<Void> addUpdateStreamToBucketStore(String scope, String stream, RetentionPolicy retentionPolicy,
+                                                                Executor executor) {
         Preconditions.checkNotNull(retentionPolicy);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         List<String> list;

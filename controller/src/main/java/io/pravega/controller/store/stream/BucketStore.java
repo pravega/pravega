@@ -21,17 +21,24 @@ import java.util.concurrent.Executor;
  * Stream Metadata.
  */
 public interface BucketStore {
+
+    /**
+     * Method to get count of buckets in the store. 
+     * @return
+     */
+    int getBucketCount();
+    
     /**
      * Method to register listener for changes to bucket's ownership.
      *
      * @param listener listener
      */
-    void registerBucketOwnershipListener(BucketOwnershipListener listener);
+    void registerBucketOwnershipListener(String bucketRoot, BucketOwnershipListener listener);
 
     /**
      * Unregister listeners for bucket ownership.
      */
-    void unregisterBucketOwnershipListener();
+    void unregisterBucketOwnershipListener(String bucketRoot);
     
     /**
      * Method to take ownership of a bucket.
@@ -40,7 +47,7 @@ public interface BucketStore {
      * @param processId process id
      *@param executor executor  @return future boolean which tells if ownership attempt succeeded or failed.
      */
-    CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, final Executor executor);
+    CompletableFuture<Boolean> takeBucketOwnership(String bucketRoot, int bucket, String processId, Executor executor);
 
     // region retention
     /**
@@ -49,14 +56,14 @@ public interface BucketStore {
      * @param bucket   bucket
      * @param listener listener
      */
-    void registerBucketChangeListenerForRetention(int bucket, BucketChangeListener listener);
+    void registerBucketChangeListener(String bucketRoot, int bucket, BucketChangeListener listener);
 
     /**
      * Method to unregister listeners for changes to streams under the bucket.
      *
      * @param bucket bucket
      */
-    void unregisterBucketChangeListenerForRetention(int bucket);
+    void unregisterBucketChangeListener(String bucketRoot, int bucket);
 
     /**
      * Return all streams in the bucket.
@@ -65,19 +72,17 @@ public interface BucketStore {
      * @param executor executor
      * @return List of scopedStreamName (scope/stream)
      */
-    CompletableFuture<List<String>> getStreamsForRetention(final int bucket, final Executor executor);
+    CompletableFuture<List<String>> getStreamsForBucket(String bucketRoot, int bucket, Executor executor);
 
     /**
      * Add the given stream to appropriate bucket for auto-retention.
      *
      * @param scope           scope
      * @param stream          stream
-     * @param retentionPolicy retention policy
      * @param executor        executor
      * @return future
      */
-    CompletableFuture<Void> addUpdateStreamForRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
-                                                        final Executor executor);
+    CompletableFuture<Void> addUpdateStreamToBucketStore(String bucketRoot, String scope, String stream, Executor executor);
 
     /**
      * Remove stream from auto retention bucket.
@@ -87,8 +92,7 @@ public interface BucketStore {
      * @param executor executor
      * @return future
      */
-    CompletableFuture<Void> removeStreamFromRetention(final String scope, final String stream,
-                                                      final Executor executor);
+    CompletableFuture<Void> removeStreamFromBucketStore(String bucketRoot, String scope, String stream, Executor executor);
     // endregion
     
     static int getBucket(String scope, String stream, int bucketCount) {

@@ -13,7 +13,6 @@ import io.pravega.controller.util.RetryHelper;
 import io.pravega.common.tracing.TagLogger;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,33 +20,24 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import org.slf4j.LoggerFactory;
 
-public class StreamCutBucketService extends AbstractBucketService {
-    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(StreamCutBucketService.class));
+public class RetentionBucketService extends AbstractBucketService {
+    public static final String SERVICE_NAME = "retention";
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(RetentionBucketService.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
     private final RequestTracker requestTracker;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
-    StreamCutBucketService(int bucketId, StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                                  StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor,
-                                  RequestTracker requestTracker) {
-        super(bucketId, bucketStore, executor);
+    public RetentionBucketService(int bucketId, StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                           StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor,
+                           RequestTracker requestTracker) {
+        super(SERVICE_NAME, bucketId, bucketStore, executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
         this.requestTracker = requestTracker;
     }
-
-    @Override
-    void registerBucketChangeListener(BucketChangeListener bucketService) {
-        bucketStore.registerBucketChangeListenerForRetention(bucketId, this);
-    }
-
-    @Override
-    public CompletableFuture<List<String>> getStreamsForBucket() {
-        return bucketStore.getStreamsForRetention(bucketId, executor);
-    }
-
+    
     CompletableFuture<Void> startWork(StreamImpl stream) {
         // Randomly distribute retention work across RETENTION_FREQUENCY_IN_MINUTES spectrum by introducing a random initial
         // delay. This will ensure that not all streams become eligible for processing of retention at around similar times.

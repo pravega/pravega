@@ -9,10 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.server.retention.BucketChangeListener;
-import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;

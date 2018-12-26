@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.RetentionPolicy;
+import com.google.common.base.Strings;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.bucket.BucketChangeListener;
@@ -31,7 +31,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.server.bucket.BucketOwnershipListener.BucketNotification;
@@ -44,28 +43,27 @@ import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNot
 @Slf4j
 public class ZookeeperBucketStore implements BucketStore {
     private static final String BUCKET_ROOT_PATH = "/buckets";
-    private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
-    private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
-    private static final String RETENTION_PATH = BUCKET_PATH + "/retention" + "/%s";
-    private static final String WATERMARK_PATH = BUCKET_PATH + "/watermark" + "/%s";
+    private static final String OWNERSHIP_CHILD_PATH = "ownership";
     
     private final int bucketCount;
-    private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
-    private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
+    private final ConcurrentMap<String, PathChildrenCache> bucketOwnershipCacheMap;
+    private final ConcurrentMap<String, PathChildrenCache> bucketCacheMap;
     private final ZKStoreHelper storeHelper;
 
     protected ZookeeperBucketStore(int bucketCount, CuratorFramework client, Executor executor) {
         this.bucketCount = bucketCount;
         this.bucketCacheMap = new ConcurrentHashMap<>();
-        this.bucketOwnershipCacheRef = new AtomicReference<>();
+        this.bucketOwnershipCacheMap = new ConcurrentHashMap<>();
         storeHelper = new ZKStoreHelper(client, executor);
     }
 
     @Override
     @SneakyThrows
-    public void registerBucketOwnershipListener(BucketOwnershipListener listener) {
+    public void registerBucketOwnershipListener(String bucketRoot, BucketOwnershipListener listener) {
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(bucketRoot));
         Preconditions.checkNotNull(listener);
 
+        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, bucketRoot);
         PathChildrenCacheListener bucketListener = (client, event) -> {
             switch (event.getType()) {
                 case CHILD_ADDED:
@@ -79,23 +77,31 @@ public class ZookeeperBucketStore implements BucketStore {
                     listener.notify(new BucketNotification(Integer.MIN_VALUE, BucketNotification.NotificationType.ConnectivityError));
                     break;
                 default:
-                    log.warn("Received unknown event {}", event.getType());
+                    log.warn("Received unknown event {} on bucket root {} ", event.getType(), bucketRoot);
             }
         };
 
-        bucketOwnershipCacheRef.compareAndSet(null, new PathChildrenCache(storeHelper.getClient(), BUCKET_OWNERSHIP_PATH, true));
+        String bucketOwnershipPath = ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
+        bucketOwnershipCacheMap.computeIfAbsent(bucketRoot, 
+                x -> {
+                    PathChildrenCache pathChildrenCache = new PathChildrenCache(storeHelper.getClient(), 
+                            bucketOwnershipPath, true);
 
-        bucketOwnershipCacheRef.get().getListenable().addListener(bucketListener);
-        bucketOwnershipCacheRef.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
-        log.info("bucket ownership listener registered");
-    }
+                    pathChildrenCache.getListenable().addListener(bucketListener);
+                    pathChildrenCache.start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+                    log.info("bucket ownership listener registered on bucket root {}", bucketRoot);
+
+                    return pathChildrenCache;
+                });
+        }
 
     @Override
-    public void unregisterBucketOwnershipListener() {
-        if (bucketOwnershipCacheRef.get() != null) {
+    public synchronized void unregisterBucketOwnershipListener(String bucketRoot) {
+        PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.remove(bucketRoot);
+        if (pathChildrenCache != null) {
             try {
-                bucketOwnershipCacheRef.get().clear();
-                bucketOwnershipCacheRef.get().close();
+                pathChildrenCache.clear();
+                pathChildrenCache.close();
             } catch (IOException e) {
                 log.warn("unable to close listener for bucket ownership {}", e);
             }
@@ -104,7 +110,7 @@ public class ZookeeperBucketStore implements BucketStore {
 
     @Override
     @SneakyThrows
-    public void registerBucketChangeListenerForRetention(int bucket, BucketChangeListener listener) {
+    public synchronized void registerBucketChangeListener(String bucketRoot, int bucket, BucketChangeListener listener) {
         Preconditions.checkNotNull(listener);
 
         PathChildrenCacheListener bucketListener = (client, event) -> {
@@ -130,34 +136,46 @@ public class ZookeeperBucketStore implements BucketStore {
             }
         };
 
-        String bucketRoot = String.format(BUCKET_PATH, bucket);
-
-        bucketCacheMap.put(bucket, new PathChildrenCache(storeHelper.getClient(), bucketRoot, true));
-        PathChildrenCache pathChildrenCache = bucketCacheMap.get(bucket);
-        pathChildrenCache.getListenable().addListener(bucketListener);
-        pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
-        log.info("bucket {} change notification listener registered", bucket);
+        String bucketPath = getBucketPath(bucketRoot, bucket);
+        
+        bucketCacheMap.computeIfAbsent(bucketPath, x -> {
+            PathChildrenCache pathChildrenCache = new PathChildrenCache(storeHelper.getClient(), bucketPath, true);
+            pathChildrenCache.getListenable().addListener(bucketListener);
+            pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
+            log.info("bucket {} change notification listener registered", bucket);
+            return pathChildrenCache;
+        });
     }
 
     @Override
-    public void unregisterBucketChangeListenerForRetention(int bucket) {
-        PathChildrenCache cache = bucketCacheMap.remove(bucket);
+    public void unregisterBucketChangeListener(String bucketRoot, int bucket) {
+        String bucketPath = getBucketPath(bucketRoot, bucket);
+
+        PathChildrenCache cache = bucketCacheMap.remove(bucketPath);
         if (cache != null) {
             try {
                 cache.clear();
                 cache.close();
             } catch (IOException e) {
-                log.warn("unable to close watch on bucket {} with exception {}", bucket, e);
+                log.warn("unable to close watch on bucket {} with exception {}", bucketPath, e);
             }
         }
     }
 
+    private String getBucketPath(String bucketRoot, int bucket) {
+        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, bucketRoot);
+        return ZKPaths.makePath(bucketRootPath, "" + bucket);
+    }
+
     @Override
-    public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+    public CompletableFuture<Boolean> takeBucketOwnership(String bucketRoot, int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketCount);
 
+        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, bucketRoot);
+        String bucketOwnershipPath = ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
+
         // try creating an ephemeral node
-        String bucketPath = ZKPaths.makePath(BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
+        String bucketPath = ZKPaths.makePath(bucketOwnershipPath, String.valueOf(bucket));
 
         return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
                           .thenCompose(created -> {
@@ -171,20 +189,21 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    public CompletableFuture<List<String>> getStreamsForRetention(int bucket, Executor executor) {
-        return storeHelper.getChildren(String.format(BUCKET_PATH, bucket))
+    public CompletableFuture<List<String>> getStreamsForBucket(String bucketRoot, int bucket, Executor executor) {
+        String bucketPath = getBucketPath(bucketRoot, bucket);
+
+        return storeHelper.getChildren(bucketPath)
                           .thenApply(list -> list.stream().map(this::decodedScopedStreamName).collect(Collectors.toList()));
     }
 
     @Override
-    public CompletableFuture<Void> addUpdateStreamForRetention(final String scope, final String stream, final RetentionPolicy retentionPolicy,
-                                                                   final Executor executor) {
-        Preconditions.checkNotNull(retentionPolicy);
+    public CompletableFuture<Void> addUpdateStreamToBucketStore(final String bucketRoot, final String scope, final String stream, 
+                                                                final Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
-        String retentionPath = String.format(RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
-        byte[] serialize = SerializationUtils.serialize(retentionPolicy);
+        String bucketPath = getBucketPath(bucketRoot, bucket);
+        String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
 
-        return storeHelper.getData(retentionPath)
+        return storeHelper.getData(streamPath)
                           .exceptionally(e -> {
                               if (e instanceof StoreException.DataNotFoundException) {
                                   return null;
@@ -193,19 +212,21 @@ public class ZookeeperBucketStore implements BucketStore {
                               }
                           }).thenCompose(data -> {
                     if (data == null) {
-                        return Futures.toVoid(storeHelper.createZNodeIfNotExist(retentionPath, serialize));
+                        return Futures.toVoid(storeHelper.createZNodeIfNotExist(streamPath));
                     } else {
-                        return Futures.toVoid(storeHelper.setData(retentionPath, new Data(serialize, data.getVersion())));
+                        return Futures.toVoid(storeHelper.setData(streamPath));
                     }
                 });
     }
 
     @Override
-    public CompletableFuture<Void> removeStreamFromRetention(final String scope, final String stream, final Executor executor) {
+    public CompletableFuture<Void> removeStreamFromBucketStore(final String bucketRoot, final String scope, 
+                                                               final String stream, final Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
-        String retentionPath = String.format(RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
+        String bucketPath = getBucketPath(bucketRoot, bucket);
+        String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
 
-        return storeHelper.deleteNode(retentionPath)
+        return storeHelper.deleteNode(streamPath)
                           .exceptionally(e -> {
                               if (e instanceof StoreException.DataNotFoundException) {
                                   return null;

@@ -11,17 +11,16 @@ package io.pravega.controller.server.bucket;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.util.RetryHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,28 +28,29 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public class BucketManager extends AbstractService implements BucketOwnershipListener {
-    private final int bucketCount;
     private final String processId;
-    private final ConcurrentSet<AbstractBucketService> buckets;
+    private final String serviceId;
     private final BucketStore bucketStore;
-    private final ScheduledExecutorService executor;
     private final Function<Integer, AbstractBucketService> bucketServiceSupplier;
+    private final ConcurrentMap<Integer, AbstractBucketService> buckets;
+    private final ScheduledExecutorService executor;
+    private final Object bucketOwnershipLock = new Object();
 
-    public BucketManager(final int bucketCount, final String processId, final BucketStore bucketStore, 
-                         final ScheduledExecutorService executor,
+    public BucketManager(final String processId, final BucketStore bucketStore,
+                         final String serviceId, final ScheduledExecutorService executor,
                          final Function<Integer, AbstractBucketService> bucketServiceSupplier) {
-        this.bucketCount = bucketCount;
         this.processId = processId;
         this.bucketStore = bucketStore;
+        this.serviceId = serviceId;
         this.executor = executor;
-        this.buckets = new ConcurrentSet<>();
+        this.buckets = new ConcurrentHashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
     }
 
     @Override
     protected void doStart() {
-        Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
-                .thenAccept(x -> bucketStore.registerBucketOwnershipListener(this))
+        Futures.allOf(IntStream.range(0, bucketStore.getBucketCount()).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
+                .thenAccept(x -> bucketStore.registerBucketOwnershipListener(serviceId, this))
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         notifyFailed(e);
@@ -61,32 +61,38 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     }
 
     private CompletableFuture<Void> tryTakeOwnership(int bucket) {
-        return RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.takeBucketOwnership(bucket, processId, executor),
+        return RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.takeBucketOwnership(serviceId, bucket, 
+                processId, executor),
                 e -> log.warn("exception while attempting to take ownership"), executor)
                 .thenCompose(isOwner -> {
-                    if (isOwner && buckets.stream().noneMatch(x -> x.getBucketId() == bucket)) {
+                    if (isOwner) {
                         log.info("Taken ownership for bucket {}", bucket);
-                        
-                        AbstractBucketService bucketService = bucketServiceSupplier.apply(bucket);
-                        buckets.add(bucketService);
 
+                        // Once we have taken ownership of the bucket, we will register listeners on the bucket. 
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
+
+                        buckets.computeIfAbsent(bucket, x -> bucketServiceSupplier.apply(bucket));
+
+                        AbstractBucketService bucketService = buckets.get(bucket);
                         bucketService.addListener(new Listener() {
                             @Override
                             public void running() {
                                 super.running();
+                                log.info("successfully started bucket service for bucket: {} bucket: {} ", BucketManager.this.serviceId, bucket);
                                 bucketFuture.complete(null);
                             }
 
                             @Override
                             public void failed(State from, Throwable failure) {
                                 super.failed(from, failure);
-                                buckets.remove(bucketService);
+                                log.error("Failed to start bucket service: {} bucket: {} ", BucketManager.this.serviceId, bucket);
+                                buckets.remove(serviceId);
                                 bucketFuture.completeExceptionally(failure);
                             }
                         }, executor);
+
                         bucketService.startAsync();
-                        
+
                         return bucketFuture;
                     } else {
                         return CompletableFuture.completedFuture(null);
@@ -96,7 +102,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
 
     @Override
     protected void doStop() {
-        Futures.allOf(buckets.stream().map(bucketService -> {
+        Futures.allOf(buckets.values().stream().map(bucketService -> {
             CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
             bucketService.addListener(new Listener() {
                 @Override
@@ -116,7 +122,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
             return bucketFuture;
         }).collect(Collectors.toList()))
                 .whenComplete((r, e) -> {
-                    bucketStore.unregisterBucketOwnershipListener();
+                    bucketStore.unregisterBucketOwnershipListener(serviceId);
                     if (e != null) {
                         notifyFailed(e);
                     } else {
@@ -138,7 +144,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     }
 
     @VisibleForTesting
-    Set<AbstractBucketService> getBucketServices() {
-        return Collections.unmodifiableSet(buckets);
+    Map<Integer, AbstractBucketService> getBucketServices() {
+        return Collections.unmodifiableMap(buckets);
     }
 }

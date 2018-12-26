@@ -13,7 +13,6 @@ import lombok.Getter;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,16 +25,18 @@ import java.util.stream.Collectors;
 public abstract class AbstractBucketService extends AbstractService implements BucketChangeListener {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AbstractBucketService.class));
 
+    private final String serviceId;
     @Getter
     final int bucketId;
-    final BucketStore bucketStore;
-    final ScheduledExecutorService executor;
+    private final BucketStore bucketStore;
+    protected final ScheduledExecutorService executor;
     private final ConcurrentMap<Stream, CompletableFuture<Void>> workFutureMap;
     private final LinkedBlockingQueue<StreamNotification> notifications;
     private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
 
-    public AbstractBucketService(int bucketId, BucketStore bucketStore, ScheduledExecutorService executor) {
+    AbstractBucketService(String serviceId, int bucketId, BucketStore bucketStore, ScheduledExecutorService executor) {
+        this.serviceId = serviceId;
         this.bucketId = bucketId;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -44,13 +45,9 @@ public abstract class AbstractBucketService extends AbstractService implements B
         this.latch = new CompletableFuture<>();
     }
     
-    abstract void registerBucketChangeListener(BucketChangeListener bucketService);
-
-    abstract CompletableFuture<List<String>> getStreamsForBucket();
-    
     @Override
     protected void doStart() {
-        RetryHelper.withIndefiniteRetriesAsync(() -> getStreamsForBucket()
+        RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.getStreamsForBucket(serviceId, bucketId, executor)
                         .thenAccept(streams -> workFutureMap.putAll(streams.stream().map(s -> {
                                     String[] splits = s.split("/");
                                     log.info("Adding new stream {}/{} to bucket {} during bootstrap", splits[0], splits[1], bucketId);
@@ -60,7 +57,7 @@ public abstract class AbstractBucketService extends AbstractService implements B
                 e -> log.warn("exception thrown getting streams for bucket {}, e = {}", bucketId, e), executor)
                    .thenAccept(x -> {
                        log.info("streams collected for the bucket {}, registering for change notification and starting loop for processing notifications", bucketId);
-                       registerBucketChangeListener(this);
+                       bucketStore.registerBucketChangeListener(serviceId, bucketId, this);
                    })
                    .whenComplete((r, e) -> {
                        if (e != null) {
@@ -92,7 +89,7 @@ public abstract class AbstractBucketService extends AbstractService implements B
                     case StreamUpdated:
                         break;
                     case ConnectivityError:
-                        log.info("Retention.StreamNotification for connectivity error");
+                        log.info("Bucket service {} StreamNotification for connectivity error", serviceId);
                         break;
                 }
             }
@@ -108,7 +105,7 @@ public abstract class AbstractBucketService extends AbstractService implements B
             notificationLoop.thenAccept(x -> {
                 // cancel all retention futures
                 workFutureMap.forEach((key, value) -> value.cancel(true));
-                bucketStore.unregisterBucketChangeListenerForRetention(bucketId);
+                bucketStore.unregisterBucketChangeListener(serviceId, bucketId);
             }).whenComplete((r, e) -> {
                 if (e != null) {
                     notifyFailed(e);
