@@ -15,7 +15,6 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -371,22 +370,24 @@ class BTreePage {
      * * May overflow (a split may be necessary)
      * * Will have all entries sorted by Key
      *
-     * @param entries The Entries to insert or update. This collection need not be sorted.
+     * @param entries The Entries to insert or update. This List must be sorted by {@link PageEntry#getKey()}.
+     * @throws IllegalDataFormatException If any of the entries do not conform to the Key/Value size constraints.
+     * @throws IllegalArgumentException   If the entries are not sorted by {@link PageEntry#getKey()}.
      */
-    void update(@NonNull Collection<PageEntry> entries) {
+    void update(@NonNull List<PageEntry> entries) {
         if (entries.isEmpty()) {
             // Nothing to do.
             return;
         }
 
         // Apply the in-place updates and collect the new entries to be added.
-        val newEntries = applyUpdates(entries);
-        if (newEntries.isEmpty()) {
+        val ci = applyUpdates(entries);
+        if (ci.changes.isEmpty()) {
             // Nothing else to change. We've already updated the keys in-place.
             return;
         }
 
-        val newPage = insertNewEntries(newEntries);
+        val newPage = applyInsertsAndRemovals(ci);
 
         // Make sure we swap all the segments with those from the new page. We need to release all pointers to our
         // existing buffers.
@@ -395,30 +396,6 @@ class BTreePage {
         this.contents = newPage.contents;
         this.footer = newPage.footer;
         this.count = newPage.count;
-    }
-
-    /**
-     * Updates the contents of this BTreePage so that it does not contain any entry with the given Keys anymore.
-     *
-     * After this method completes, this BTreePage:
-     * * May underflow (a merge may be necessary)
-     * * Will have all entries sorted by Key
-     * * Will reuse the same underlying buffer as before (no new buffers allocated). As such it may underutilize the buffer.
-     *
-     * @param keys A Collection of Keys to remove. The Keys need not be sorted.
-     */
-    void delete(@NonNull Collection<ByteArraySegment> keys) {
-        if (keys.isEmpty()) {
-            // Nothing to do.
-            return;
-        }
-
-        // Locate the positions of the Keys to remove.
-        val removedPositions = searchPositions(keys);
-        if (removedPositions.size() > 0) {
-            // Remove them.
-            removePositions(removedPositions);
-        }
     }
 
     /**
@@ -476,129 +453,75 @@ class BTreePage {
     }
 
     /**
-     * Gets a list of positions where the given Keys exist.
-     *
-     * @param keys A Collection of ByteArraySegment instances representing the Keys to search.
-     * @return A sorted List of Positions representing locations in this BTreePage where the given Keys exist. Keys that
-     * do not exist in this BTreePage will not be included.
-     */
-    private List<Integer> searchPositions(Collection<ByteArraySegment> keys) {
-        int maxCount = getCount();
-        int lastPos = 0;
-        val positions = new ArrayList<Integer>();
-        val keyIterator = keys.stream().sorted(KEY_COMPARATOR::compare).iterator();
-        while (keyIterator.hasNext() && positions.size() < maxCount) {
-            val key = keyIterator.next();
-            if (key.getLength() != this.config.keyLength) {
-                throw new IllegalDataFormatException("Found a key with unexpected length.");
-            }
-
-            val sr = search(key, lastPos);
-            if (!sr.exactMatch) {
-                // Key does not exist.
-                continue;
-            }
-
-            positions.add(sr.getPosition());
-            lastPos = sr.getPosition() + 1;
-        }
-
-        return positions;
-    }
-
-    /**
-     * Removes the given positions from this BTreePage.
-     *
-     * @param removedPositions A Sorted List of Positions to remove.
-     */
-    private void removePositions(List<Integer> removedPositions) {
-        // Remember the new count now, before we mess around with things.
-        int initialCount = getCount();
-        int newCount = initialCount - removedPositions.size();
-
-        // Trim away the data buffer, move the footer back and trim the contents buffer.
-        int prevRemovedPos = removedPositions.get(0);
-        int writeIndex = prevRemovedPos * this.config.entryLength;
-        removedPositions.add(initialCount); // Add a sentinel at the end to make this easier.
-        for (int i = 1; i < removedPositions.size(); i++) {
-            int removedPos = removedPositions.get(i);
-            assert removedPos > prevRemovedPos : "removedPositions is not sorted";
-            int readIndex = (prevRemovedPos + 1) * this.config.entryLength;
-            int readLength = removedPos * this.config.entryLength - readIndex;
-            prevRemovedPos = removedPos;
-            if (readLength == 0) {
-                // Nothing to do now.
-                continue;
-            }
-
-            // Copy the data.
-            this.data.copyFrom(this.data, readIndex, writeIndex, readLength);
-            writeIndex += readLength;
-        }
-
-        // Trim away the data buffer, move the footer back and trim the contents buffer.
-        assert writeIndex == (initialCount - removedPositions.size() + 1) * this.config.entryLength : "unexpected number of bytes remaining";
-        shrink(newCount);
-    }
-
-    /**
      * Updates (in-place) the contents of this BTreePage with the given entries for those Keys that already exist. For
-     * all the new Keys, collects them into a List and calculates the offset where they would have to be inserted.
+     * all the new or deleted Keys, collects them into a List and calculates the offset where they would have to be
+     * inserted at or removed from.
      *
-     * @param entries A Collection of PageEntries to update.
-     * @return A sorted List of Map.Entry instances (Offset -> PageEntry) indicating the new PageEntry instances to insert
-     * and at which offset.
+     * @param entries A List of PageEntries to update, in sorted order by {@link PageEntry#getKey()}.
+     * @return A {@link ChangeInfo} object.
+     * @throws IllegalDataFormatException If any of the entries do not conform to the Key/Value size constraints.
+     * @throws IllegalArgumentException   If the entries are not sorted by {@link PageEntry#getKey()}.
      */
-    private List<Map.Entry<Integer, PageEntry>> applyUpdates(Collection<PageEntry> entries) {
+    private ChangeInfo applyUpdates(List<PageEntry> entries) {
         // Keep track of new keys to be added along with the offset (in the original page) where they would have belonged.
-        val newEntries = new ArrayList<Map.Entry<Integer, PageEntry>>();
+        val changes = new ArrayList<Map.Entry<Integer, PageEntry>>();
+        int removeCount = 0;
 
         // Process all the Entries, in order (by Key).
         int lastPos = 0;
-        val entryIterator = entries.stream().sorted((e1, e2) -> KEY_COMPARATOR.compare(e1.getKey(), e2.getKey())).iterator();
-        while (entryIterator.hasNext()) {
-            val e = entryIterator.next();
-            if (e.getKey().getLength() != this.config.keyLength || e.getValue().getLength() != this.config.valueLength) {
+        ByteArraySegment lastKey = null;
+        for (val e : entries) {
+            if (e.getKey().getLength() != this.config.keyLength || (e.hasValue() && e.getValue().getLength() != this.config.valueLength)) {
                 throw new IllegalDataFormatException("Found an entry with unexpected Key or Value length.");
+            }
+
+            if (lastKey != null) {
+                Preconditions.checkArgument(KEY_COMPARATOR.compare(lastKey, e.getKey()) < 0,
+                        "Entries must be sorted by key and no duplicates are allowed.");
             }
 
             // Figure out if this entry exists already.
             val searchResult = search(e.getKey(), lastPos);
             if (searchResult.isExactMatch()) {
-                // Keys already exists: update in-place.
-                setValueAtPosition(searchResult.getPosition(), e.getValue());
-            } else {
-                // This entry's key does not exist. We need to remember it for later. Since this was not an exact match,
-                // binary search returned the position where it should have been.
-                int dataIndex = searchResult.getPosition() * this.config.entryLength;
-                newEntries.add(new AbstractMap.SimpleImmutableEntry<>(dataIndex, e));
+                if (e.hasValue()) {
+                    // Key already exists: update in-place.
+                    setValueAtPosition(searchResult.getPosition(), e.getValue());
+                } else {
+                    // Key exists but this is a removal. Record it for later.
+                    changes.add(new AbstractMap.SimpleImmutableEntry<>(searchResult.getPosition(), null));
+                    removeCount++;
+                }
+            } else if (e.hasValue()) {
+                // This entry's key does not exist and we want to insert it (we don't care if we want to delete an inexistent
+                // key). We need to remember it for later. Since this was not an exact match, binary search returned the
+                // position where it should have been.
+                changes.add(new AbstractMap.SimpleImmutableEntry<>(searchResult.getPosition(), e));
             }
 
             // Remember the last position so we may resume the next search from there.
-            lastPos = searchResult.position;
+            lastPos = searchResult.getPosition();
+            lastKey = e.getKey();
         }
 
-        return newEntries;
+        return new ChangeInfo(changes, changes.size() - removeCount, removeCount);
     }
 
     /**
      * Inserts the new PageEntry instances at the given offsets.
      *
-     * @param newEntries A sorted List of Map.Entry instances (Offset -> PageEntry) indicating the new PageEntry instances
-     *                   to insert and at which offset.
+     * @param ci A {@link ChangeInfo} object containing information to change.
      * @return A new BTreePage instance with the updated contents.
      */
-    private BTreePage insertNewEntries(List<Map.Entry<Integer, PageEntry>> newEntries) {
-        int newCount = getCount() + newEntries.size();
+    private BTreePage applyInsertsAndRemovals(ChangeInfo ci) {
+        int newCount = getCount() + ci.insertCount - ci.deleteCount;
 
-        // If we have extra entries: allocate new buffer of the correct size and start copying from the old one.
-        // We cannot reuse the existing buffer because we need more space.
+        // Allocate new buffer of the correct size and start copying from the old one.
         val newPage = new BTreePage(this.config, new ByteArraySegment(new byte[DATA_OFFSET + newCount * this.config.entryLength + FOOTER_LENGTH]), false);
         newPage.formatHeaderAndFooter(newCount, getHeaderId());
         int readIndex = 0;
         int writeIndex = 0;
-        for (val e : newEntries) {
-            int entryIndex = e.getKey();
+        for (val e : ci.changes) {
+            int entryIndex = e.getKey() * this.config.entryLength;
             if (entryIndex > readIndex) {
                 // Copy from source.
                 int length = entryIndex - readIndex;
@@ -609,9 +532,16 @@ class BTreePage {
 
             // Write new Entry.
             PageEntry entryContents = e.getValue();
-            newPage.setEntryAtIndex(writeIndex, entryContents);
-            writeIndex += this.config.entryLength;
             readIndex = entryIndex;
+            if (entryContents != null) {
+                // Insert new PageEntry.
+                newPage.setEntryAtIndex(writeIndex, entryContents);
+                writeIndex += this.config.entryLength;
+            } else {
+                // This PageEntry has been deleted. Skip over it.
+                readIndex += this.config.getEntryLength();
+            }
+
         }
 
         if (readIndex < this.data.getLength()) {
@@ -621,21 +551,6 @@ class BTreePage {
         }
 
         return newPage;
-    }
-
-    /**
-     * Shrinks this BTreePage to only contain the given number of elements.
-     *
-     * @param itemCount The new number of items in this BTreePage.
-     */
-    private void shrink(int itemCount) {
-        Preconditions.checkArgument(itemCount >= 0 && itemCount <= getCount(), "itemCount must be non-negative and at most the current element count");
-        int dataLength = itemCount * this.config.entryLength;
-        this.data = new ByteArraySegment(this.contents.array(), this.data.arrayOffset(), dataLength);
-        this.footer = new ByteArraySegment(this.contents.array(), this.data.arrayOffset() + this.data.getLength(), FOOTER_LENGTH);
-        this.contents = new ByteArraySegment(this.contents.array(), this.contents.arrayOffset(), this.footer.arrayOffset() + this.footer.getLength());
-        setCount(itemCount);
-        setFooterId(getHeaderId());
     }
 
     /**
@@ -708,6 +623,30 @@ class BTreePage {
 
     //endregion
 
+    //region ChangeInfo
+
+    /**
+     * Keeps track of updates that would result in structural changes to the Page.
+     */
+    @RequiredArgsConstructor
+    private static class ChangeInfo {
+        /**
+         * A sorted List of Map.Entry instances (Offset -> PageEntry) indicating the new PageEntry instances to insert or
+         * remove and at which offset.
+         */
+        private final List<Map.Entry<Integer, PageEntry>> changes;
+        /**
+         * The number of insertions.
+         */
+        private final int insertCount;
+        /**
+         * The number of removals.
+         */
+        private final int deleteCount;
+    }
+
+    //endregion
+
     //region Config
 
     /**
@@ -716,6 +655,7 @@ class BTreePage {
     @RequiredArgsConstructor
     @Getter
     static class Config {
+        private static final int MAX_PAGE_SIZE = Short.MAX_VALUE; // 2-byte (signed) short.
         /**
          * The length, in bytes, for all Keys.
          */
@@ -746,6 +686,7 @@ class BTreePage {
          * @param isIndexPage Whether this is an Index Page or not.
          */
         Config(int keyLength, int valueLength, int maxPageSize, boolean isIndexPage) {
+            Preconditions.checkArgument(maxPageSize <= MAX_PAGE_SIZE, "maxPageSize must be at most %s, given %s.", MAX_PAGE_SIZE, maxPageSize);
             Preconditions.checkArgument(keyLength > 0, "keyLength must be a positive integer.");
             Preconditions.checkArgument(valueLength > 0, "valueLength must be a positive integer.");
             Preconditions.checkArgument(keyLength + valueLength + DATA_OFFSET + FOOTER_LENGTH <= maxPageSize,

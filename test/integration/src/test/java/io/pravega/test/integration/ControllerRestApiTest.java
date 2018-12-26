@@ -10,7 +10,6 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -258,13 +257,11 @@ public class ControllerRestApiTest {
             streamManager.createScope(testScope);
 
             log.info("Creating stream: {}", testStream1);
-            StreamConfiguration streamConf1 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream1).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf1 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream1, streamConf1);
 
             log.info("Creating stream: {}", testStream2);
-            StreamConfiguration streamConf2 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream2).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream2, streamConf2);
         }
 
@@ -272,7 +269,7 @@ public class ControllerRestApiTest {
         final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
+        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder()

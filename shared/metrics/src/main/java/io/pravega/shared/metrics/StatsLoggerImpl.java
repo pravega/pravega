@@ -95,12 +95,7 @@ public class StatsLoggerImpl implements StatsLogger {
         @Override
         public void close() {
             metrics.remove(this.name);
-        }
-
-        @Override
-        protected void finalize() {
-            close();
-        }
+        }        
 
         @Override
         public synchronized void clear() {
@@ -146,10 +141,6 @@ public class StatsLoggerImpl implements StatsLogger {
             metrics.remove(this.name);
         }
 
-        @Override
-        protected void finalize() {
-            close();
-        }
     }
 
     private class MeterImpl implements Meter {
@@ -165,11 +156,6 @@ public class StatsLoggerImpl implements StatsLogger {
         @Override
         public void close() {
             metrics.remove(this.name);
-        }
-
-        @Override
-        protected void finalize() {
-            close();
         }
 
         @Override

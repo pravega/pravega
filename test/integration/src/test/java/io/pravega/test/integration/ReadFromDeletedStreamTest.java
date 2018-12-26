@@ -30,8 +30,6 @@ import org.junit.Test;
 @Slf4j
 public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
-                                                                 .scope("test")
-                                                                 .streamName("test")
                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
                                                                  .build();
 

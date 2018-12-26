@@ -55,13 +55,16 @@ public class ClientConfig implements Serializable {
     private final String trustStore;
 
     /**
-     * If the flag {@link #isEnableTls is set, this flag decides whether to enable host name validation or not.
+     * If the flag {@link #isEnableTls()}  is set, this flag decides whether to enable host name validation or not.
      */
     private boolean validateHostName;
 
     public boolean isEnableTls() {
-        return this.controllerURI.getScheme().equals("tls") || this.controllerURI.getScheme().equals("ssl")
-                || this.controllerURI.getScheme().equals("pravegas");
+        String scheme = this.controllerURI.getScheme();
+        if (scheme == null) {
+            return false;
+        }
+        return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
     }
 
     /**

@@ -85,7 +85,7 @@ public class ZkStreamTest {
 
         final String streamName = "testfail";
 
-        final StreamConfiguration streamConfig = StreamConfiguration.builder().scope(streamName).streamName(streamName).scalingPolicy(policy).build();
+        final StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         zkTestServer.stop();
 
@@ -105,8 +105,6 @@ public class ZkStreamTest {
         final String streamName = "testfail";
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 
@@ -140,21 +138,19 @@ public class ZkStreamTest {
         final String streamName1 = "Stream1";
         final String streamName2 = "Stream2";
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
-        StreamConfiguration streamConfig =
-                StreamConfiguration.builder().scope(scopeName).streamName(streamName1).scalingPolicy(policy).build();
+        StreamConfiguration streamConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
-        StreamConfiguration streamConfig2 =
-                StreamConfiguration.builder().scope(scopeName).streamName(streamName2).scalingPolicy(policy).build();
+        StreamConfiguration streamConfig2 = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         store.createStream(scopeName, streamName1, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName1, State.ACTIVE, null, executor).get();
         store.createStream(scopeName, streamName2, streamConfig2, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName2, State.ACTIVE, null, executor).get();
 
-        List<StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
+        Map<String, StreamConfiguration> listOfStreams = store.listStreamsInScope(scopeName).get();
         assertEquals("Size of list", 2, listOfStreams.size());
-        assertEquals("Name of stream at index zero", "Stream1", listOfStreams.get(0).getStreamName());
-        assertEquals("Name of stream at index one", "Stream2", listOfStreams.get(1).getStreamName());
+        assertTrue("Name of stream at index zero", listOfStreams.containsKey("Stream1"));
+        assertTrue("Name of stream at index one", listOfStreams.containsKey("Stream2"));
     }
 
     @Test
@@ -176,7 +172,7 @@ public class ZkStreamTest {
         store.createScope("Scope3").get();
         final ScalingPolicy policy = ScalingPolicy.fixed(5);
         final StreamConfiguration streamConfig =
-                StreamConfiguration.builder().scope("Scope3").streamName("Stream3").scalingPolicy(policy).build();
+                StreamConfiguration.builder().scalingPolicy(policy).build();
 
         store.createStream("Scope3", "Stream3", streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState("Scope3", "Stream3", State.ACTIVE, null, executor).get();
@@ -232,8 +228,6 @@ public class ZkStreamTest {
         store.createScope(SCOPE).get();
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(streamName)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 
@@ -448,8 +442,6 @@ public class ZkStreamTest {
                 ex -> Exceptions.unwrap(ex) instanceof StoreException.IllegalStateException;
 
         StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(streamName)
                 .scalingPolicy(policy)
                 .build();
 
@@ -560,8 +552,7 @@ public class ZkStreamTest {
         final int startingSegmentNumber = 0;
         storeHelper.createZNodeIfNotExist("/store/scope").join();
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope("scope").streamName("stream").scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         stream.create(configuration1, System.currentTimeMillis(), startingSegmentNumber).join();
         stream.updateState(State.ACTIVE).join();
         UUID txId = stream.generateNewTxnId(0, 0L).join();
@@ -581,7 +572,7 @@ public class ZkStreamTest {
 
         ZKStream stream2 = new ZKStream("scope", "stream", storeHelper);
         // verify that the call fails
-        AssertExtensions.assertThrows("", stream2.getCurrentTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("", stream2.getCurrentTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         reset(storeHelper);
         ZKStream stream3 = new ZKStream("scope", "stream", storeHelper);
@@ -592,11 +583,11 @@ public class ZkStreamTest {
     private void testCommitFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
                                    OperationContext context,
                                    Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Seal txn to commit it failure",
+        AssertExtensions.assertSuppliedFutureThrows("Seal txn to commit it failure",
                 () -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), context, executor),
                 checker);
 
-        AssertExtensions.assertThrows("Commit txn failure",
+        AssertExtensions.assertSuppliedFutureThrows("Commit txn failure",
                 () -> store.commitTransaction(scope, stream, txnId, context, executor),
                 checker);
     }
@@ -604,11 +595,11 @@ public class ZkStreamTest {
     private void testAbortFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
                                   OperationContext context,
                                   Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Seal txn to abort it failure",
+        AssertExtensions.assertSuppliedFutureThrows("Seal txn to abort it failure",
                 () -> store.sealTransaction(scope, stream, txnId, false, Optional.empty(), context, executor),
                 checker);
 
-        AssertExtensions.assertThrows("Abort txn failure",
+        AssertExtensions.assertSuppliedFutureThrows("Abort txn failure",
                 () -> store.abortTransaction(scope, stream, txnId, context, executor),
                 checker);
     }

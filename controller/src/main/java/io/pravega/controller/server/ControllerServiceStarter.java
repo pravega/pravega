@@ -25,9 +25,10 @@ import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
-import io.pravega.controller.server.bucket.AbstractBucketService;
 import io.pravega.controller.server.bucket.BucketManager;
-import io.pravega.controller.server.bucket.RetentionBucketService;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -58,7 +59,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -79,7 +79,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private BucketManager streamCutService;
+    private BucketManager retentionService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
 
@@ -97,6 +97,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private RESTServer restServer;
 
     private Cluster cluster = null;
+
+    private StreamMetrics streamMetrics;
+    private TransactionMetrics transactionMetrics;
 
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
@@ -178,16 +181,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
+            
+            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, streamStore, 
+                    streamMetadataTasks, periodicExecutor, requestTracker);
+            retentionService = bucketServiceFactory.getBucketManagerService(BucketServiceFactory.ServiceType.RetentionService);
 
-            Function<Integer, AbstractBucketService> streamCutSupplier = bucket -> 
-                    new RetentionBucketService(bucket, streamStore, bucketStore, streamMetadataTasks, periodicExecutor, requestTracker);
-            
-            streamCutService = new BucketManager(host.getHostId(), bucketStore, RetentionBucketService.SERVICE_NAME, 
-                    periodicExecutor, streamCutSupplier);
-            
-            log.info("starting backgroup periodic service asynchronously");
-            streamCutService.startAsync();
-            streamCutService.awaitRunning();
+            log.info("starting background periodic service for retention");
+            retentionService.startAsync();
+            retentionService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -205,8 +206,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -303,9 +306,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Controller cluster listener shutdown");
             }
 
-            if (streamCutService != null) {
+            if (retentionService != null) {
                 log.info("Stopping auto periodic service");
-                streamCutService.stopAsync();
+                retentionService.stopAsync();
             }
 
             log.info("Closing stream metadata tasks");
@@ -340,9 +343,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerClusterListener.awaitTerminated();
             }
 
-            if (streamCutService != null) {
+            if (retentionService != null) {
                 log.info("Awaiting termination of auto periodic");
-                streamCutService.awaitTerminated();
+                retentionService.awaitTerminated();
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
@@ -365,6 +368,15 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
+
+            // Close metrics.
+            if (streamMetrics != null) {
+                streamMetrics.close();
+            }
+
+            if (transactionMetrics != null) {
+                transactionMetrics.close();
+            }
 
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

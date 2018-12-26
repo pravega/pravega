@@ -10,8 +10,6 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import java.util.HashMap;
 
 /**
  * Defines an immutable StreamSegment Metadata.
@@ -64,7 +62,5 @@ public interface SegmentMetadata extends SegmentProperties {
      * @return The new SegmentProperties instance. This object is completely detached from the SegmentMetadata from which
      * it was created (changes to the base object will not be reflected in the result).
      */
-    default SegmentProperties getSnapshot() {
-        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
-    }
+    SegmentProperties getSnapshot();
 }

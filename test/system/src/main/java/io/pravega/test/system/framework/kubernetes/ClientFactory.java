@@ -7,12 +7,23 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.contracts.tables;
-
-import java.io.Serializable;
+package io.pravega.test.system.framework.kubernetes;
 
 /**
- * Defines the state of a resumable iterator.
+ * Client factory.
  */
-public interface IteratorState extends Serializable {
+public enum ClientFactory {
+
+    INSTANCE;
+
+    private final K8sClient client;
+
+    ClientFactory() {
+        this.client = new K8sClient();
+    }
+
+    public K8sClient getK8sClient() {
+        return client;
+    }
+
 }

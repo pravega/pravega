@@ -10,7 +10,6 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -59,7 +58,7 @@ public class EndToEndChannelLeakTest {
     private static final String SCOPE = "test";
     private static final String STREAM_NAME = "test";
     private static final String READER_GROUP = "reader";
-    private static final long ASSERT_TIMEOUT = 3000;
+    private static final long ASSERT_TIMEOUT = 5000;
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
@@ -101,17 +100,15 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakSegmentSealed() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM_NAME)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build(), new InlineExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
 
         //Create a writer.
         @Cleanup
@@ -170,13 +167,11 @@ public class EndToEndChannelLeakTest {
     @Test(timeout = 30000)
     public void testDetectChannelLeakMultiReader() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM_NAME)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, STREAM_NAME, config).get();
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
@@ -228,9 +223,12 @@ public class EndToEndChannelLeakTest {
         assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
 
         //Write more events.
-        writer.writeEvent("0", "one").get();
-        writer.writeEvent("0", "two").get();
-        writer.writeEvent("1", "three").get();
+        writer.writeEvent("1", "one").get();
+        writer.writeEvent("2", "two").get();
+        writer.writeEvent("3", "three").get();
+        writer.writeEvent("4", "four").get();
+        writer.writeEvent("5", "five").get();
+        writer.writeEvent("6", "six").get();
 
         //2 new connections are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
         // -1 connection to segment 0 which is sealed.)
@@ -245,7 +243,7 @@ public class EndToEndChannelLeakTest {
         expectedChannelCount += 4;
 
         event = reader1.readNextEvent(10000);
-        assertNotNull(event);
+        assertNotNull(event.getEvent());
 
         //+1 connection (-1 since segment 0 of stream is sealed + 2 connections to two segments of stream (there are
         // 2 readers and 3 segments and the reader1 will be assigned 2 segments))
@@ -253,7 +251,7 @@ public class EndToEndChannelLeakTest {
         assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
 
         event = reader2.readNextEvent(10000);
-        assertNotNull(event);
+        assertNotNull(event.getEvent());
 
         //+1 connection (a new connection to the remaining stream segment)
         expectedChannelCount += 1;

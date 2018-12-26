@@ -58,73 +58,77 @@ public class StreamManagerImpl implements StreamManager {
 
     @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
-        log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
         NameUtils.validateUserStreamName(streamName);
-        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                        .scope(scopeName)
-                        .streamName(streamName)
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Creating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
+        return  Futures.getThrowingException(controller.createStream(scopeName, streamName, StreamConfiguration.builder()
                         .scalingPolicy(config.getScalingPolicy())
                         .retentionPolicy(config.getRetentionPolicy())
-                        .build()),
-                RuntimeException::new);
+                        .build()));
     }
 
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
+        NameUtils.validateUserStreamName(streamName);
+        NameUtils.validateUserScopeName(scopeName);
         log.info("Updating scope/stream: {}/{} with configuration: {}", scopeName, streamName, config);
-        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                        .scope(scopeName)
-                        .streamName(streamName)
+        return Futures.getThrowingException(controller.updateStream(scopeName, streamName, StreamConfiguration.builder()
                         .scalingPolicy(config.getScalingPolicy())
                         .retentionPolicy(config.getRetentionPolicy())
-                        .build()),
-                RuntimeException::new);
+                        .build()));
     }
 
     @Override
     public boolean truncateStream(String scopeName, String streamName, StreamCut streamCut) {
+        NameUtils.validateUserStreamName(streamName);
+        NameUtils.validateUserScopeName(scopeName);
         Preconditions.checkNotNull(streamCut);
-
         log.info("Truncating scope/stream: {}/{} with stream cut: {}", scopeName, streamName, streamCut);
-        return Futures.getAndHandleExceptions(controller.truncateStream(scopeName, streamName, streamCut),
-                RuntimeException::new);
+        return Futures.getThrowingException(controller.truncateStream(scopeName, streamName, streamCut));
     }
 
     @Override
     public boolean sealStream(String scopeName, String streamName) {
-        return Futures.getAndHandleExceptions(controller.sealStream(scopeName, streamName), RuntimeException::new);
+        NameUtils.validateUserStreamName(streamName);
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Sealing scope/stream: {}/{}", scopeName, streamName);
+        return Futures.getThrowingException(controller.sealStream(scopeName, streamName));
     }
 
     @Override
-    public boolean deleteStream(String scopeName, String toDelete) {
-        return Futures.getAndHandleExceptions(controller.deleteStream(scopeName, toDelete), RuntimeException::new);
+    public boolean deleteStream(String scopeName, String streamName) {
+        NameUtils.validateUserStreamName(streamName);
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope/stream: {}/{}", scopeName, streamName);
+        return  Futures.getThrowingException(controller.deleteStream(scopeName, streamName));
     }
 
     @Override
     public boolean createScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
-        return Futures.getAndHandleExceptions(controller.createScope(scopeName),
-                RuntimeException::new);
-        
+        log.info("Creating scope: {}", scopeName);
+        return  Futures.getThrowingException(controller.createScope(scopeName));
     }
 
     @Override
     public boolean deleteScope(String scopeName) {
-        return Futures.getAndHandleExceptions(controller.deleteScope(scopeName),
-                RuntimeException::new);
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Deleting scope: {}", scopeName);
+        return  Futures.getThrowingException(controller.deleteScope(scopeName));
     }
 
     @Override
     public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        NameUtils.validateUserStreamName(streamName);
+        NameUtils.validateUserScopeName(scopeName);
         log.info("Fetching StreamInfo for scope/stream: {}/{}", scopeName, streamName);
-        CompletableFuture<StreamInfo> streamInfo = getStreamInfo(Stream.of(scopeName, streamName));
-        return Futures.getAndHandleExceptions(streamInfo, RuntimeException::new);
+        return Futures.getThrowingException(getStreamInfo(Stream.of(scopeName, streamName)));
     }
 
     /**
      * Fetch the {@link StreamInfo} for a given stream.
-     * Note: The access level of this method can be reduced once the deprecated method {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)}
-     * is removed.
+     * Note: The access level of this method can be reduced once the deprecated method
+     * {@link io.pravega.client.batch.BatchClient#getStreamInfo(Stream)} is removed.
      *
      * @param stream The Stream.
      * @return A future representing {@link StreamInfo}.

@@ -36,7 +36,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     private final ScheduledExecutorService executor;
     private final Object bucketOwnershipLock = new Object();
 
-    public BucketManager(final String processId, final BucketStore bucketStore,
+    BucketManager(final String processId, final BucketStore bucketStore,
                          final String serviceId, final ScheduledExecutorService executor,
                          final Function<Integer, AbstractBucketService> bucketServiceSupplier) {
         this.processId = processId;

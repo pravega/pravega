@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
@@ -21,14 +22,19 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.utils.ZKPaths;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -50,6 +56,10 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     static final int COUNTER_RANGE = 10000;
     static final String COUNTER_PATH = "/counter";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
+    private static final String BUCKET_ROOT_PATH = "/buckets";
+    private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
+    private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
+    private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
     static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
@@ -77,7 +87,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor));
-        initialize();
         storeHelper = new ZKStoreHelper(client, executor);
         this.lock = new Object();
         this.counter = new AtomicInt96();
@@ -86,10 +95,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
-    }
-
-    private void initialize() {
-        METRICS_PROVIDER.start();
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
@@ -277,7 +282,22 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                               }
                           });
     }
-    
+
+    private String encodedScopedStreamName(String scope, String stream) {
+        String scopedStreamName = getScopedStreamName(scope, stream);
+        return Base64.getEncoder().encodeToString(scopedStreamName.getBytes());
+    }
+
+    private String decodedScopedStreamName(String encodedScopedStreamName) {
+        return new String(Base64.getDecoder().decode(encodedScopedStreamName));
+    }
+
+    private StreamImpl getStreamFromPath(String path) {
+        String scopedStream = decodedScopedStreamName(ZKPaths.getNodeFromPath(path));
+        String[] splits = scopedStream.split("/");
+        return new StreamImpl(splits[0], splits[1]);
+    }
+
     // region getters and setters for testing
     @VisibleForTesting
     void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {

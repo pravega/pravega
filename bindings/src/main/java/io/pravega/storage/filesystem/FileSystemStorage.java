@@ -279,9 +279,12 @@ public class FileSystemStorage implements SyncStorage {
         FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
 
         Path path = Paths.get(config.getRoot(), streamSegmentName);
-        Files.createDirectories(path.getParent());
+        Path parent = path.getParent();
+        assert parent != null;
+        Files.createDirectories(parent);
         Files.createFile(path, fileAttributes);
         LoggerHelpers.traceLeave(log, "create", traceId);
+        FileSystemMetrics.CREATE_COUNT.inc();
         return this.doGetStreamSegmentInfo(streamSegmentName);
     }
 

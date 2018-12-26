@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 /**
  * In-memory stream store.
@@ -43,6 +43,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @GuardedBy("$lock")
     private final Map<String, InMemoryScope> scopes = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private final Map<Integer, List<String>> bucketedStreams = new HashMap<>();
+
+    @GuardedBy("$lock")
+    private final Map<String, RetentionPolicy> streamPolicyMap = new HashMap<>();
 
     private final AtomicInt96 counter;
 
@@ -160,7 +166,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-
+    
     @Override
     @Synchronized
     public CompletableFuture<CreateScopeStatus> createScope(final String scopeName) {
@@ -219,12 +225,22 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     @Override
     @Synchronized
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
         InMemoryScope inMemoryScope = scopes.get(scopeName);
         if (inMemoryScope != null) {
             return inMemoryScope.listStreamsInScope()
-                    .thenApply(streams -> streams.stream().map(
-                            stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
+                    .thenApply(streams -> {
+                        HashMap<String, StreamConfiguration> result = new HashMap<>();
+                        for (String stream : streams) {
+                            StreamConfiguration configuration = Futures.exceptionallyExpecting(
+                                    getConfiguration(scopeName, stream, null, executor),
+                                    e -> e instanceof StoreException.DataNotFoundException, null).join();
+                            if (configuration != null) {
+                                result.put(stream, configuration);
+                            }
+                        }
+                        return result;
+                    });
         } else {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }

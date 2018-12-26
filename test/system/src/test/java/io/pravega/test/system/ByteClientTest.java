@@ -9,12 +9,13 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.byteStream.ByteStreamClient;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
@@ -69,8 +70,7 @@ public class ByteClientTest extends AbstractSystemTest {
     @Rule
     public final Timeout globalTimeout = Timeout.seconds(8 * 60);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(STREAM)
+    private final StreamConfiguration config = StreamConfiguration.builder()
             .scalingPolicy(scalingPolicy).build();
     private URI controllerURI = null;
     private StreamManager streamManager = null;
@@ -124,8 +124,8 @@ public class ByteClientTest extends AbstractSystemTest {
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking byteClientTest test with Controller URI: {}", controllerURI);
-
-        ByteStreamClient byteStreamClient = clientFactory.createByteStreamClient();
+        @Cleanup
+        ByteStreamClientFactory byteStreamClient = new ByteStreamClientImpl(SCOPE, controller, connectionFactory);
         @Cleanup("closeAndSeal")
         ByteStreamWriter writer = byteStreamClient.createByteStreamWriter(STREAM);
         @Cleanup

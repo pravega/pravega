@@ -80,7 +80,7 @@ public class TaskTest {
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore;
@@ -120,8 +120,8 @@ public class TaskTest {
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
         // region createStream
         streamStore.createScope(SCOPE).join();
@@ -191,7 +191,7 @@ public class TaskTest {
         final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
@@ -217,8 +217,6 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null, executor).get();
-        assertTrue(config.getStreamName().equals(configuration.getStreamName()));
-        assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
@@ -228,8 +226,7 @@ public class TaskTest {
         final String deadHost = "deadHost";
         final int initialSegments = 2;
         final ScalingPolicy policy1 = ScalingPolicy.fixed(initialSegments);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         final ArrayList<Long> sealSegments = new ArrayList<>();
         sealSegments.add(0L);
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
@@ -248,12 +245,13 @@ public class TaskTest {
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
-        List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        Assert.assertTrue(streams.stream().allMatch(x -> !x.getStreamName().equals(stream)));
+        Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
+        assertEquals(3, streams.size());
+        assertEquals(configuration1, streams.get(stream));
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
-        AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
+        AssertExtensions.assertFutureThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
         sweeper.handleFailedProcess(hostId).join();
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(hostId).join();
         assertFalse(child.isPresent());
@@ -269,8 +267,8 @@ public class TaskTest {
         final String stream1 = "parallelSweeper1";
         final String stream2 = "parallelSweeper2";
 
-        final StreamConfiguration config1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration config2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy1).build();
+        final StreamConfiguration config1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration config2 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
@@ -315,10 +313,10 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1, null, executor).get();
-        assertTrue(config.getStreamName().equals(stream1));
+        assertEquals(config1, config);
 
         config = streamStore.getConfiguration(SCOPE, stream2, null, executor).get();
-        assertTrue(config.getStreamName().equals(stream2));
+        assertEquals(config2, config);
     }
 
     @Test

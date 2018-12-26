@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -354,7 +355,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ReadResultEntry secondEntry = rr.next();
         Assert.assertTrue("Unexpected ReadResultEntryType.isTerminal of truncated result entry.", secondEntry.getType().isTerminal());
         Assert.assertEquals("Unexpected ReadResultEntryType of truncated result entry.", ReadResultEntryType.Truncated, secondEntry.getType());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expecting getContent() to return a failed CompletableFuture.",
                 secondEntry::getContent,
                 ex -> ex instanceof StreamSegmentTruncatedException);
@@ -558,7 +559,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.metadata.getStreamSegmentMetadata(segmentId).markSealed();
         context.readIndex.triggerFutureReads(Collections.singleton(segmentId));
         Assert.assertTrue("Expected future read to be failed after sealing.", futureReadEntry.getContent().isCompletedExceptionally());
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Expected future read to be failed with appropriate exception.",
                 futureReadEntry::getContent,
                 ex -> ex instanceof StreamSegmentSealedException);
@@ -1082,9 +1083,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // we can do is check periodically until that is done.
         TestUtils.await(entry::hasSecondEntrySet, 10, TIMEOUT.toMillis());
 
-        // Close the index and verify the entry is cancelled.
+        // Close the index.
         context.readIndex.close();
-        Assert.assertTrue("Expected entry to have been cancelled upon closing", entry.getContent().isCancelled());
+
+        // Verify the entry is cancelled. Invoke get() since the cancellation is asynchronous so it may not yet have
+        // been executed; get() will block until that happens.
+        AssertExtensions.assertThrows(
+                "Expected entry to have been cancelled upon closing",
+                () -> entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof CancellationException);
     }
 
     /**
@@ -1278,7 +1285,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 val first = truncatedResult.next();
                 Assert.assertEquals("Read request for a truncated offset did not start with a Truncated ReadResultEntryType.",
                         ReadResultEntryType.Truncated, first.getType());
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Truncate ReadResultEntryType did not throw when getContent() was invoked.",
                         () -> {
                             first.requestContent(TIMEOUT);

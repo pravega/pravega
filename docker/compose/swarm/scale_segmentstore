@@ -61,7 +61,7 @@ for instance in to_create:
           -e HDFS_URL={hdfs_url} \
           -e ZK_URL={zk_url} \
           -e CONTROLLER_URL=tcp://controller:9090 \
-          -e JAVA_OPTS='-Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress={published_address} -Dpravegaservice.listeningPort={port} -Dpravegaservice.listeningIPAddress=0 -Xmx900m -XX:OnError="kill -9 p%" -XX:+ExitOnOutOfMemoryError -XX:+CrashOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError' \
+          -e JAVA_OPTS='-Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress={published_address} -Dpravegaservice.listeningPort={port} -Dpravegaservice.listeningIPAddress=0 -Dbookkeeper.bkEnsembleSize=2 -Dbookkeeper.bkAckQuorumSize=2 -Dbookkeeper.bkWriteQuorumSize=2 -Xmx900m -XX:OnError="kill -9 p%" -XX:+ExitOnOutOfMemoryError -XX:+CrashOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError' \
           pravega/pravega segmentstore"""
 
     cmd = template.format(

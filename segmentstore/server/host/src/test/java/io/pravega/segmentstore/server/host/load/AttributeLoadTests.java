@@ -9,12 +9,15 @@
  */
 package io.pravega.segmentstore.server.host.load;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.AttributeIndex;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -54,7 +57,7 @@ import org.junit.Test;
 public class AttributeLoadTests extends ThreadPooledTestSuite {
     private static final String OUTPUT_DIR_NAME = "/tmp/pravega/attribute_load_test";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
-    private static final int SEGMENT_ROLLING_SIZE = 4 * 1024 * 1024;
+    private static final int SEGMENT_ROLLING_SIZE = 16 * 1024 * 1024;
     private static final int REPORT_EVERY = 500 * 1000;
     private static final int UPDATE_INSERT_BATCH_SIZE = 1000 * 1000;
     private static final int[] BATCH_SIZES = new int[]{10, 100, 1000, 1000 * 1000};
@@ -109,6 +112,15 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testInsert32K1M() {
+        final int pageSize = Short.MAX_VALUE;
+        final int count = 1000 * 1000;
+        for (int batchSize : BATCH_SIZES) {
+            testInsert(pageSize, count, batchSize, TEST_GET.test(batchSize));
+        }
+    }
+
     //endregion
 
     //region Update
@@ -140,6 +152,15 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         }
     }
 
+    @Test
+    public void testUpdate32K1M() {
+        final int pageSize = Short.MAX_VALUE;
+        final int count = 1000 * 1000;
+        for (int batchSize : BATCH_SIZES) {
+            testUpdate(pageSize, count, batchSize);
+        }
+    }
+
     //endregion
 
     //region Helpers
@@ -160,7 +181,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         Timer insertTimer = new Timer();
         AtomicInteger lastReport = new AtomicInteger();
         executeInBatches(attributeCount, batchSize, false, (count, batch) -> {
-            idx.put(batch, TIMEOUT).join();
+            idx.update(batch, TIMEOUT).join();
             if (count - lastReport.get() >= REPORT_EVERY) {
                 System.out.println(String.format("\tInserted %s.", count));
                 lastReport.set(count);
@@ -171,8 +192,9 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
 
         // Report insert status.
         val info = context.storage.getStreamSegmentInfo(context.attributeSegmentName, TIMEOUT).join();
+        long startOffset = getStartOffset(info, context);
         long theoreticalDataSize = (long) attributeCount * (RevisionDataOutput.UUID_BYTES + Long.BYTES);
-        long actualDataSize = info.getLength();
+        long actualDataSize = info.getLength() - startOffset;
         double excess = calculateExcessPercentage(actualDataSize, theoreticalDataSize);
         long insertElapsedSeconds = insertElapsedNanos / 1000 / 1000 / 1000;
         double insertPerBatchMillis = insertElapsedNanos / 1000.0 / 1000 / ((double) attributeCount / batchSize);
@@ -204,16 +226,17 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         val idx = context.index.forSegment(context.segmentId, TIMEOUT).join();
 
         // Bulk upload.
-        executeInBatches(attributeCount, UPDATE_INSERT_BATCH_SIZE, false, (count, batch) -> idx.put(batch, TIMEOUT).join());
+        executeInBatches(attributeCount, UPDATE_INSERT_BATCH_SIZE, false, (count, batch) -> idx.update(batch, TIMEOUT).join());
         val insertInfo = context.storage.getStreamSegmentInfo(context.attributeSegmentName, TIMEOUT).join();
+        long startOffset = getStartOffset(insertInfo, context);
         long theoreticalDataSize = (long) attributeCount * (RevisionDataOutput.UUID_BYTES + Long.BYTES);
-        long insertDataSize = insertInfo.getLength();
+        long insertDataSize = insertInfo.getLength() - startOffset;
         double insertExcess = calculateExcessPercentage(insertDataSize, theoreticalDataSize);
 
         Timer updateTimer = new Timer();
         AtomicInteger lastReport = new AtomicInteger();
         executeInBatches(attributeCount, batchSize, true, (count, batch) -> {
-            idx.put(batch, TIMEOUT).join();
+            idx.update(batch, TIMEOUT).join();
             if (count - lastReport.get() >= REPORT_EVERY) {
                 System.out.println(String.format("\tUpdated %s.", count));
                 lastReport.set(count);
@@ -223,8 +246,9 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
 
         // Report status.
         val updateInfo = context.storage.getStreamSegmentInfo(context.attributeSegmentName, TIMEOUT).join();
+        startOffset = getStartOffset(updateInfo, context);
         theoreticalDataSize = theoreticalDataSize * 2; // Old way would have us double our size.
-        long updateDataSize = updateInfo.getLength();
+        long updateDataSize = updateInfo.getLength() - startOffset;
         double updateExcess = calculateExcessPercentage(updateDataSize, theoreticalDataSize) - insertExcess;
         long updateElapsedSeconds = updateElapsedNanos / 1000 / 1000 / 1000;
         double updatePerBatchMillis = updateElapsedNanos / 1000.0 / 1000 / ((double) attributeCount / batchSize);
@@ -273,6 +297,29 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
             count += bs;
             batchId++;
         }
+    }
+
+    private long getStartOffset(SegmentProperties segmentInfo, TestContext context) {
+        if (segmentInfo.getLength() == 0) {
+            return 0;
+        }
+
+        long offset = 0;
+        val handle = context.storage.openRead(segmentInfo.getName()).join();
+        byte[] buffer = new byte[1];
+        while (offset < segmentInfo.getLength()) {
+            try {
+                context.storage.read(handle, offset, buffer, 0, buffer.length, TIMEOUT).join();
+                break; // If we make it here, we stumbled across a valid offset.
+            } catch (Exception ex) {
+                if (!(Exceptions.unwrap(ex) instanceof StreamSegmentTruncatedException)) {
+                    throw ex;
+                }
+            }
+            offset += SEGMENT_ROLLING_SIZE;
+        }
+
+        return offset - SEGMENT_ROLLING_SIZE;
     }
 
     private UUID getKey(int count) {

@@ -171,9 +171,9 @@ public interface StreamMetadataStore {
      * List existing streams in scopes.
      *
      * @param scopeName Name of the scope
-     * @return List of streams in scope
+     * @return A map of streams in scope to their configurations
      */
-    CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName);
+    CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName);
 
     /**
      * List Scopes in cluster.

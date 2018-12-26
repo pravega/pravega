@@ -15,6 +15,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.bucket.BucketChangeListener;
 import io.pravega.controller.server.bucket.BucketOwnershipListener;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -44,7 +45,7 @@ import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNot
 public class ZookeeperBucketStore implements BucketStore {
     private static final String BUCKET_ROOT_PATH = "/buckets";
     private static final String OWNERSHIP_CHILD_PATH = "ownership";
-    
+    @Getter
     private final int bucketCount;
     private final ConcurrentMap<String, PathChildrenCache> bucketOwnershipCacheMap;
     private final ConcurrentMap<String, PathChildrenCache> bucketCacheMap;
