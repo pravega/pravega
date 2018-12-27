@@ -138,7 +138,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore, bucketStore2, hostStore, taskMetadataStore,
+        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, hostStore, taskMetadataStore,
                 segmentHelper, executor2, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         String scope = "scope1";
@@ -150,7 +150,6 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
         BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, streamMetadataStore2, streamMetadataTasks2, executor, requestTracker);
-        service = bucketStoreFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
 
         BucketManager service2 = bucketStoreFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
         service2.startAsync();

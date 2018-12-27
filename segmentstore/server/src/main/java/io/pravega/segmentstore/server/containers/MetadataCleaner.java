@@ -31,7 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * Utility Service that performs ContainerMetadata cleanup on a bucket basis.
+ * Utility Service that performs ContainerMetadata cleanup on a periodic basis.
  */
 @Slf4j
 @ThreadSafe

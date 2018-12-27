@@ -136,7 +136,7 @@ class SegmentStoreReader implements StoreReader {
         private long readBufferOffset;
 
         /**
-         * Runs in a loop as long as the CancellationToken is not cancelled. Checks, on a bucket basis, if the Segment's
+         * Runs in a loop as long as the CancellationToken is not cancelled. Checks, on a periodic basis, if the Segment's
          * length changed in Storage. If so, it reads the outstanding data and interprets it as an ordered sequence of Events,
          * which are then passed on via the given event handler.
          */

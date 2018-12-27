@@ -65,7 +65,7 @@ public class AutoScalerConfig {
     private final Duration cacheExpiry;
     /**
      * Periodic time period for scheduling auto-scaler cache clean up. Since guava cache does not maintain its own executor,
-     * we need to keep performing bucket cache maintenance activities otherwise caller's thread using the cache will be used
+     * we need to keep performing periodic cache maintenance activities otherwise caller's thread using the cache will be used
      * for cache maintenance.
      * This also ensures that if there is no traffic in the cluster, all segments that have expired are cleaned up from the cache
      * and their respective removal code is invoked.
