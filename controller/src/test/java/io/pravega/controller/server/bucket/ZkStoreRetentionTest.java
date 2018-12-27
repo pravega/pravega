@@ -9,10 +9,8 @@
  */
 package io.pravega.controller.server.bucket;
 
-import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -32,7 +30,6 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
 import io.pravega.test.common.TestingServerStarter;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -101,7 +98,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         BucketStore bucketStore2 = StreamStoreFactory.createZKBucketStore(zkClient2, executor);
         String scope = "scope1";
         String streamName = "stream1";
-        bucketStore2.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
+        bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
         zkClient2.close();
 
         zkClient.getZookeeperClient().start();
@@ -146,11 +143,11 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
 
         String scope = "scope1";
         String streamName = "stream1";
-        bucketStore2.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor2).join();
+        bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor2).join();
 
         String scope2 = "scope2";
         String streamName2 = "stream2";
-        bucketStore2.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
+        bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
         BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, streamMetadataStore2, streamMetadataTasks2, executor, requestTracker);
         service = bucketStoreFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);

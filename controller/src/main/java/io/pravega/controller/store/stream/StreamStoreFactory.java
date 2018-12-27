@@ -28,10 +28,9 @@ public class StreamStoreFactory {
                 throw new NotImplementedException(storeClient.getType().toString());
         }
     }
-    
+
     @VisibleForTesting
-    public static StreamMetadataStore createZKStore(final CuratorFramework client,
-                                                    final Executor executor) {
+    public static StreamMetadataStore createZKStore(final CuratorFramework client, final Executor executor) {
         return new ZKStreamMetadataStore(client, executor);
     }
     
@@ -44,6 +43,7 @@ public class StreamStoreFactory {
         return createBucketStore(Config.BUCKET_COUNT, storeClient, executor);
     }
 
+    // TODO: shivesh
     public static BucketStore createBucketStore(final int bucketCount, final StoreClient storeClient, final Executor executor) {
         switch (storeClient.getType()) {
             case InMemory:

@@ -84,7 +84,7 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> addUpdateStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
+    public CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketName = getBucketName(serviceType, bucket);
         Set<String> set;

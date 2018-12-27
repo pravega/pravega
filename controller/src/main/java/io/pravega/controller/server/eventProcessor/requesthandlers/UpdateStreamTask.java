@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.bucket.RetentionBucketService;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -79,16 +78,16 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         StreamConfigurationRecord configProperty = record.getObject();
 
         return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, state, context, executor)
-                .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, context, configProperty, updated)
+                .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
                         .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
                         .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
                         .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor))));
     }
 
     private CompletableFuture<Void> updateStreamForAutoStreamCut(String scope, String stream,
-                        OperationContext context, StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
+                        StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
         if (configProperty.getStreamConfiguration().getRetentionPolicy() != null) {
-            return bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
+            return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
         } else {
             return bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
         }

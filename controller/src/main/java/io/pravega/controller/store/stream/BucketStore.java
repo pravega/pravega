@@ -84,7 +84,7 @@ public interface BucketStore {
      * @param executor        executor
      * @return future
      */
-    CompletableFuture<Void> addUpdateStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
+    CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
 
     /**
      * Remove stream from auto retention bucket.
@@ -97,8 +97,9 @@ public interface BucketStore {
     CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
     // endregion
     
-    public enum ServiceType {
-        RetentionService ("retention"),;
+    enum ServiceType {
+        // Naming the service id as "buckets" for backward compatibility
+        RetentionService ("buckets"),;
 
         @Getter
         private final String name;

@@ -965,7 +965,7 @@ public abstract class StreamMetadataStoreTest {
         bucketStore.registerBucketChangeListener(BucketStore.ServiceType.RetentionService, 0, notificationRef::set);
         bucketStore.unregisterBucketChangeListener(BucketStore.ServiceType.RetentionService, 0);
 
-        bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
         List<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).get();
         assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
 
@@ -1027,7 +1027,7 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
         List<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).get();
         assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
 

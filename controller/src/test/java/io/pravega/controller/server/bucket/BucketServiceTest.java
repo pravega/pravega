@@ -105,7 +105,7 @@ public abstract class BucketServiceTest {
         String streamName = "stream";
         Stream stream = new StreamImpl(scope, streamName);
         
-        bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
 
         // verify that at least one of the buckets got the notification
         int bucketId = stream.getScopedName().hashCode() % 3;

@@ -42,7 +42,7 @@ import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNot
  */
 @Slf4j
 public class ZookeeperBucketStore implements BucketStore {
-    private static final String BUCKET_ROOT_PATH = "/buckets";
+    private static final String ROOT_PATH = "/";
     private static final String OWNERSHIP_CHILD_PATH = "ownership";
     @Getter
     private final int bucketCount;
@@ -61,7 +61,7 @@ public class ZookeeperBucketStore implements BucketStore {
     public void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener listener) {
         Preconditions.checkNotNull(listener);
 
-        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, serviceType.getName());
+        String bucketRootPath = ZKPaths.makePath(ROOT_PATH, serviceType.getName());
         PathChildrenCacheListener bucketListener = (client, event) -> {
             switch (event.getType()) {
                 case CHILD_ADDED:
@@ -174,7 +174,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     private String getBucketPath(String bucketRoot, int bucket) {
-        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, bucketRoot);
+        String bucketRootPath = ZKPaths.makePath(ROOT_PATH, bucketRoot);
         return ZKPaths.makePath(bucketRootPath, "" + bucket);
     }
 
@@ -182,7 +182,7 @@ public class ZookeeperBucketStore implements BucketStore {
     public CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketCount);
 
-        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, serviceType.getName());
+        String bucketRootPath = ZKPaths.makePath(ROOT_PATH, serviceType.getName());
         String bucketOwnershipPath = ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
 
         // try creating an ephemeral node
@@ -208,8 +208,8 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    public CompletableFuture<Void> addUpdateStreamToBucketStore(final ServiceType serviceType, final String scope, final String stream,
-                                                                final Executor executor) {
+    public CompletableFuture<Void> addStreamToBucketStore(final ServiceType serviceType, final String scope, final String stream,
+                                                          final Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketPath = getBucketPath(serviceType.getName(), bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
@@ -225,7 +225,7 @@ public class ZookeeperBucketStore implements BucketStore {
                     if (data == null) {
                         return Futures.toVoid(storeHelper.createZNodeIfNotExist(streamPath));
                     } else {
-                        return Futures.toVoid(storeHelper.setData(streamPath));
+                        return CompletableFuture.completedFuture(null);
                     }
                 });
     }
