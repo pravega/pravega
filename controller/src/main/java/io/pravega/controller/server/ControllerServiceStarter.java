@@ -59,7 +59,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -74,7 +73,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private final String objectId;
 
     private ScheduledExecutorService controllerExecutor;
-    private ScheduledExecutorService periodicExecutor;
+    private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataTasks streamMetadataTasks;
@@ -129,8 +128,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             controllerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(serviceConfig.getThreadPoolSize(),
                                                                                "controllerpool");
 
-            periodicExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.PERIODIC_THREAD_POOL_SIZE,
-                                                                               "periodicpool");
+            retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
+                                                                               "retentionpool");
 
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
@@ -183,7 +182,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     connectionFactory, authHelper);
             
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, streamStore, 
-                    streamMetadataTasks, periodicExecutor, requestTracker);
+                    streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
 
             log.info("starting background periodic service for retention");
@@ -307,7 +306,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             if (retentionService != null) {
-                log.info("Stopping auto periodic service");
+                log.info("Stopping auto retention service");
                 retentionService.stopAsync();
             }
 
@@ -344,7 +343,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             if (retentionService != null) {
-                log.info("Awaiting termination of auto periodic");
+                log.info("Awaiting termination of auto retention");
                 retentionService.awaitTerminated();
             }
         } catch (Exception e) {
@@ -356,7 +355,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping controller executor");
-            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, periodicExecutor);
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");
