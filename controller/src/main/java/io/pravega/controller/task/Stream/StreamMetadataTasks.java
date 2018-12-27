@@ -622,7 +622,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     return withRetries(() -> {
                                         CompletableFuture<Void> future;
                                         if (config.getRetentionPolicy() != null) {
-                                            future = bucketStore.addUpdateStreamToBucketStore("retention", scope, stream, executor);
+                                            future = bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
                                         } else {
                                             future = CompletableFuture.completedFuture(null);
                                         }

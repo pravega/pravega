@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.controller.server.bucket.BucketChangeListener;
 import io.pravega.controller.server.bucket.BucketOwnershipListener;
+import lombok.Getter;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -24,7 +25,7 @@ public interface BucketStore {
 
     /**
      * Method to get count of buckets in the store. 
-     * @return
+     * @return number of buckets. 
      */
     int getBucketCount();
     
@@ -33,12 +34,12 @@ public interface BucketStore {
      *
      * @param listener listener
      */
-    void registerBucketOwnershipListener(String bucketRoot, BucketOwnershipListener listener);
+    void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener listener);
 
     /**
      * Unregister listeners for bucket ownership.
      */
-    void unregisterBucketOwnershipListener(String bucketRoot);
+    void unregisterBucketOwnershipListener(ServiceType serviceType);
     
     /**
      * Method to take ownership of a bucket.
@@ -47,7 +48,7 @@ public interface BucketStore {
      * @param processId process id
      *@param executor executor  @return future boolean which tells if ownership attempt succeeded or failed.
      */
-    CompletableFuture<Boolean> takeBucketOwnership(String bucketRoot, int bucket, String processId, Executor executor);
+    CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor);
 
     // region retention
     /**
@@ -56,14 +57,14 @@ public interface BucketStore {
      * @param bucket   bucket
      * @param listener listener
      */
-    void registerBucketChangeListener(String bucketRoot, int bucket, BucketChangeListener listener);
+    void registerBucketChangeListener(ServiceType serviceType, int bucket, BucketChangeListener listener);
 
     /**
      * Method to unregister listeners for changes to streams under the bucket.
      *
      * @param bucket bucket
      */
-    void unregisterBucketChangeListener(String bucketRoot, int bucket);
+    void unregisterBucketChangeListener(ServiceType serviceType, int bucket);
 
     /**
      * Return all streams in the bucket.
@@ -72,17 +73,18 @@ public interface BucketStore {
      * @param executor executor
      * @return List of scopedStreamName (scope/stream)
      */
-    CompletableFuture<List<String>> getStreamsForBucket(String bucketRoot, int bucket, Executor executor);
+    CompletableFuture<List<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor);
 
     /**
      * Add the given stream to appropriate bucket for auto-retention.
      *
+     * @param serviceId       service id
      * @param scope           scope
      * @param stream          stream
      * @param executor        executor
      * @return future
      */
-    CompletableFuture<Void> addUpdateStreamToBucketStore(String bucketRoot, String scope, String stream, Executor executor);
+    CompletableFuture<Void> addUpdateStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
 
     /**
      * Remove stream from auto retention bucket.
@@ -92,8 +94,18 @@ public interface BucketStore {
      * @param executor executor
      * @return future
      */
-    CompletableFuture<Void> removeStreamFromBucketStore(String bucketRoot, String scope, String stream, Executor executor);
+    CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
     // endregion
+    
+    public enum ServiceType {
+        RetentionService ("retention"),;
+
+        @Getter
+        private final String name;
+        ServiceType(String name) {
+            this.name = name;
+        }
+    }
     
     static int getBucket(String scope, String stream, int bucketCount) {
         String scopedStreamName = getScopedStreamName(scope, stream);

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public abstract class AbstractBucketService extends AbstractService implements BucketChangeListener {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AbstractBucketService.class));
 
-    private final String serviceId;
+    private final BucketStore.ServiceType serviceType;
     @Getter
     final int bucketId;
     private final BucketStore bucketStore;
@@ -35,8 +35,8 @@ public abstract class AbstractBucketService extends AbstractService implements B
     private final CompletableFuture<Void> latch;
     private CompletableFuture<Void> notificationLoop;
 
-    AbstractBucketService(String serviceId, int bucketId, BucketStore bucketStore, ScheduledExecutorService executor) {
-        this.serviceId = serviceId;
+    AbstractBucketService(BucketStore.ServiceType serviceType, int bucketId, BucketStore bucketStore, ScheduledExecutorService executor) {
+        this.serviceType = serviceType;
         this.bucketId = bucketId;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -44,10 +44,10 @@ public abstract class AbstractBucketService extends AbstractService implements B
         this.workFutureMap = new ConcurrentHashMap<>();
         this.latch = new CompletableFuture<>();
     }
-    
+
     @Override
     protected void doStart() {
-        RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.getStreamsForBucket(serviceId, bucketId, executor)
+        RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.getStreamsForBucket(serviceType, bucketId, executor)
                         .thenAccept(streams -> workFutureMap.putAll(streams.stream().map(s -> {
                                     String[] splits = s.split("/");
                                     log.info("Adding new stream {}/{} to bucket {} during bootstrap", splits[0], splits[1], bucketId);
@@ -57,7 +57,7 @@ public abstract class AbstractBucketService extends AbstractService implements B
                 e -> log.warn("exception thrown getting streams for bucket {}, e = {}", bucketId, e), executor)
                    .thenAccept(x -> {
                        log.info("streams collected for the bucket {}, registering for change notification and starting loop for processing notifications", bucketId);
-                       bucketStore.registerBucketChangeListener(serviceId, bucketId, this);
+                       bucketStore.registerBucketChangeListener(serviceType, bucketId, this);
                    })
                    .whenComplete((r, e) -> {
                        if (e != null) {
@@ -72,7 +72,8 @@ public abstract class AbstractBucketService extends AbstractService implements B
 
     private CompletableFuture<Void> processNotification() {
         return CompletableFuture.runAsync(() -> {
-            StreamNotification notification = Exceptions.handleInterrupted(() -> notifications.poll(1, TimeUnit.SECONDS));
+            StreamNotification notification =
+                    Exceptions.handleInterruptedCall(() -> notifications.poll(1, TimeUnit.SECONDS));
             if (notification != null) {
                 final StreamImpl stream;
                 switch (notification.getType()) {
@@ -89,13 +90,13 @@ public abstract class AbstractBucketService extends AbstractService implements B
                     case StreamUpdated:
                         break;
                     case ConnectivityError:
-                        log.info("Bucket service {} StreamNotification for connectivity error", serviceId);
+                        log.info("Bucket service {} StreamNotification for connectivity error", serviceType);
                         break;
                 }
             }
         }, executor);
     }
-
+    
     abstract CompletableFuture<Void> startWork(StreamImpl stream);
 
     @Override
@@ -105,7 +106,7 @@ public abstract class AbstractBucketService extends AbstractService implements B
             notificationLoop.thenAccept(x -> {
                 // cancel all retention futures
                 workFutureMap.forEach((key, value) -> value.cancel(true));
-                bucketStore.unregisterBucketChangeListener(serviceId, bucketId);
+                bucketStore.unregisterBucketChangeListener(serviceType, bucketId);
             }).whenComplete((r, e) -> {
                 if (e != null) {
                     notifyFailed(e);

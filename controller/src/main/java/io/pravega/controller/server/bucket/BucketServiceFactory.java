@@ -29,14 +29,14 @@ public class BucketServiceFactory {
         this.requestTracker = requestTracker;
     }
 
-    public BucketManager getBucketManagerService(ServiceType type) {
-        Function<Integer, AbstractBucketService> streamCutSupplier = bucket ->
-                new RetentionBucketService(bucket, streamStore, bucketStore, streamMetadataTasks, executorService, requestTracker);
-
+    public BucketManager getBucketManagerService(BucketStore.ServiceType type) {
         BucketManager manager;
         switch (type) {
             case RetentionService:
-                manager = new BucketManager(hostId, bucketStore, RetentionBucketService.SERVICE_NAME,
+                Function<Integer, AbstractBucketService> streamCutSupplier = bucket ->
+                        new RetentionBucketService(bucket, streamStore, bucketStore, streamMetadataTasks, executorService, requestTracker);
+
+                manager = new BucketManager(hostId, bucketStore, BucketStore.ServiceType.RetentionService,
                         executorService, streamCutSupplier);
                 break;
                 default:
@@ -44,9 +44,5 @@ public class BucketServiceFactory {
         }
         
         return manager;
-    }
-
-    public enum ServiceType {
-        RetentionService,
     }
 }

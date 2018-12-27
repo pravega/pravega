@@ -10,13 +10,12 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.bucket.BucketChangeListener;
 import io.pravega.controller.server.bucket.BucketOwnershipListener;
 import lombok.Getter;
-import lombok.SneakyThrows;
+import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -47,7 +46,7 @@ public class ZookeeperBucketStore implements BucketStore {
     private static final String OWNERSHIP_CHILD_PATH = "ownership";
     @Getter
     private final int bucketCount;
-    private final ConcurrentMap<String, PathChildrenCache> bucketOwnershipCacheMap;
+    private final ConcurrentMap<ServiceType, PathChildrenCache> bucketOwnershipCacheMap;
     private final ConcurrentMap<String, PathChildrenCache> bucketCacheMap;
     private final ZKStoreHelper storeHelper;
 
@@ -59,12 +58,10 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    @SneakyThrows
-    public void registerBucketOwnershipListener(String bucketRoot, BucketOwnershipListener listener) {
-        Preconditions.checkArgument(!Strings.isNullOrEmpty(bucketRoot));
+    public void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener listener) {
         Preconditions.checkNotNull(listener);
 
-        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, bucketRoot);
+        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, serviceType.getName());
         PathChildrenCacheListener bucketListener = (client, event) -> {
             switch (event.getType()) {
                 case CHILD_ADDED:
@@ -78,27 +75,32 @@ public class ZookeeperBucketStore implements BucketStore {
                     listener.notify(new BucketNotification(Integer.MIN_VALUE, BucketNotification.NotificationType.ConnectivityError));
                     break;
                 default:
-                    log.warn("Received unknown event {} on bucket root {} ", event.getType(), bucketRoot);
+                    log.warn("Received unknown event {} on bucket root {} ", event.getType(), serviceType);
             }
         };
 
         String bucketOwnershipPath = ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
-        bucketOwnershipCacheMap.computeIfAbsent(bucketRoot, 
+        bucketOwnershipCacheMap.computeIfAbsent(serviceType, 
                 x -> {
                     PathChildrenCache pathChildrenCache = new PathChildrenCache(storeHelper.getClient(), 
                             bucketOwnershipPath, true);
 
                     pathChildrenCache.getListenable().addListener(bucketListener);
-                    pathChildrenCache.start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
-                    log.info("bucket ownership listener registered on bucket root {}", bucketRoot);
+                    try {
+                        pathChildrenCache.start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
+                    } catch (Exception e) {
+                        log.error("Starting ownership listener for service {} threw exception {}", serviceType, e);
+                        throw Lombok.sneakyThrow(e);
+                    }
+                    log.info("bucket ownership listener registered on bucket root {}", serviceType);
 
                     return pathChildrenCache;
                 });
         }
 
     @Override
-    public synchronized void unregisterBucketOwnershipListener(String bucketRoot) {
-        PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.remove(bucketRoot);
+    public synchronized void unregisterBucketOwnershipListener(ServiceType serviceType) {
+        PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.remove(serviceType);
         if (pathChildrenCache != null) {
             try {
                 pathChildrenCache.clear();
@@ -110,8 +112,7 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    @SneakyThrows
-    public synchronized void registerBucketChangeListener(String bucketRoot, int bucket, BucketChangeListener listener) {
+    public synchronized void registerBucketChangeListener(ServiceType serviceType, int bucket, BucketChangeListener listener) {
         Preconditions.checkNotNull(listener);
 
         PathChildrenCacheListener bucketListener = (client, event) -> {
@@ -137,20 +138,29 @@ public class ZookeeperBucketStore implements BucketStore {
             }
         };
 
-        String bucketPath = getBucketPath(bucketRoot, bucket);
+        String bucketPath = getBucketPath(serviceType.getName(), bucket);
         
         bucketCacheMap.computeIfAbsent(bucketPath, x -> {
             PathChildrenCache pathChildrenCache = new PathChildrenCache(storeHelper.getClient(), bucketPath, true);
             pathChildrenCache.getListenable().addListener(bucketListener);
-            pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
+            try {
+                pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
+            } catch (Exception e) {
+                log.error("Starting listener on bucket {} for service {} threw exception {}", bucket, serviceType, e);
+                throw Lombok.sneakyThrow(e);
+            }
             log.info("bucket {} change notification listener registered", bucket);
             return pathChildrenCache;
         });
     }
 
+    private void withThrows(Runnable runnable) {
+    }
+
+
     @Override
-    public void unregisterBucketChangeListener(String bucketRoot, int bucket) {
-        String bucketPath = getBucketPath(bucketRoot, bucket);
+    public void unregisterBucketChangeListener(ServiceType serviceType, int bucket) {
+        String bucketPath = getBucketPath(serviceType.getName(), bucket);
 
         PathChildrenCache cache = bucketCacheMap.remove(bucketPath);
         if (cache != null) {
@@ -169,10 +179,10 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    public CompletableFuture<Boolean> takeBucketOwnership(String bucketRoot, int bucket, String processId, Executor executor) {
+    public CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketCount);
 
-        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, bucketRoot);
+        String bucketRootPath = ZKPaths.makePath(BUCKET_ROOT_PATH, serviceType.getName());
         String bucketOwnershipPath = ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
 
         // try creating an ephemeral node
@@ -190,18 +200,18 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    public CompletableFuture<List<String>> getStreamsForBucket(String bucketRoot, int bucket, Executor executor) {
-        String bucketPath = getBucketPath(bucketRoot, bucket);
+    public CompletableFuture<List<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor) {
+        String bucketPath = getBucketPath(serviceType.getName(), bucket);
 
         return storeHelper.getChildren(bucketPath)
                           .thenApply(list -> list.stream().map(this::decodedScopedStreamName).collect(Collectors.toList()));
     }
 
     @Override
-    public CompletableFuture<Void> addUpdateStreamToBucketStore(final String bucketRoot, final String scope, final String stream, 
+    public CompletableFuture<Void> addUpdateStreamToBucketStore(final ServiceType serviceType, final String scope, final String stream,
                                                                 final Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
-        String bucketPath = getBucketPath(bucketRoot, bucket);
+        String bucketPath = getBucketPath(serviceType.getName(), bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
 
         return storeHelper.getData(streamPath)
@@ -221,10 +231,10 @@ public class ZookeeperBucketStore implements BucketStore {
     }
 
     @Override
-    public CompletableFuture<Void> removeStreamFromBucketStore(final String bucketRoot, final String scope, 
+    public CompletableFuture<Void> removeStreamFromBucketStore(final ServiceType serviceType, final String scope, 
                                                                final String stream, final Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
-        String bucketPath = getBucketPath(bucketRoot, bucket);
+        String bucketPath = getBucketPath(serviceType.getName(), bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
 
         return storeHelper.deleteNode(streamPath)

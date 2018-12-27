@@ -16,7 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.periodic.BucketChangeListener;
+import io.pravega.controller.server.bucket.BucketChangeListener;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -73,6 +73,7 @@ public abstract class StreamMetadataStoreTest {
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
+    protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected final String scope = "scope";
     protected final String stream1 = "stream1";
@@ -961,11 +962,11 @@ public abstract class StreamMetadataStoreTest {
 
         AtomicReference<BucketChangeListener.StreamNotification> notificationRef = new AtomicReference<>();
 
-        store.registerBucketChangeListener(0, notificationRef::set);
-        store.unregisterBucketListener(0);
+        bucketStore.registerBucketChangeListener(BucketStore.ServiceType.RetentionService, 0, notificationRef::set);
+        bucketStore.unregisterBucketChangeListener(BucketStore.ServiceType.RetentionService, 0);
 
-        store.addUpdateStreamForAutoStreamCut(scope, stream, retentionPolicy, null, executor).get();
-        List<String> streams = store.getStreamsForBucket(0, executor).get();
+        bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
+        List<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).get();
         assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
 
         Map<Long, Long> map1 = new HashMap<>();
@@ -1005,8 +1006,8 @@ public abstract class StreamMetadataStoreTest {
         assertTrue(!list.contains(streamCut2));
         assertTrue(list.contains(streamCut3));
 
-        store.removeStreamFromAutoStreamCut(scope, stream, null, executor).get();
-        streams = store.getStreamsForBucket(0, executor).get();
+        bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
+        streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).get();
         assertTrue(!streams.contains(String.format("%s/%s", scope, stream)));
     }
 
@@ -1026,8 +1027,8 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
-        store.addUpdateStreamForAutoStreamCut(scope, stream, retentionPolicy, null, executor).get();
-        List<String> streams = store.getStreamsForBucket(0, executor).get();
+        bucketStore.addUpdateStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor).get();
+        List<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).get();
         assertTrue(streams.contains(String.format("%s/%s", scope, stream)));
 
         // region Size Computation on stream cuts on epoch 0

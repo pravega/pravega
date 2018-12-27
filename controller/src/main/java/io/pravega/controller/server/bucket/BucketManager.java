@@ -29,7 +29,7 @@ import java.util.stream.IntStream;
 @Slf4j
 public class BucketManager extends AbstractService implements BucketOwnershipListener {
     private final String processId;
-    private final String serviceId;
+    private final BucketStore.ServiceType serviceType;
     private final BucketStore bucketStore;
     private final Function<Integer, AbstractBucketService> bucketServiceSupplier;
     private final ConcurrentMap<Integer, AbstractBucketService> buckets;
@@ -37,11 +37,11 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     private final Object bucketOwnershipLock = new Object();
 
     BucketManager(final String processId, final BucketStore bucketStore,
-                         final String serviceId, final ScheduledExecutorService executor,
-                         final Function<Integer, AbstractBucketService> bucketServiceSupplier) {
+                  final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
+                  final Function<Integer, AbstractBucketService> bucketServiceSupplier) {
         this.processId = processId;
         this.bucketStore = bucketStore;
-        this.serviceId = serviceId;
+        this.serviceType = serviceType;
         this.executor = executor;
         this.buckets = new ConcurrentHashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
@@ -50,7 +50,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     @Override
     protected void doStart() {
         Futures.allOf(IntStream.range(0, bucketStore.getBucketCount()).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
-                .thenAccept(x -> bucketStore.registerBucketOwnershipListener(serviceId, this))
+                .thenAccept(x -> bucketStore.registerBucketOwnershipListener(serviceType, this))
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         notifyFailed(e);
@@ -61,7 +61,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     }
 
     private CompletableFuture<Void> tryTakeOwnership(int bucket) {
-        return RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.takeBucketOwnership(serviceId, bucket, 
+        return RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.takeBucketOwnership(serviceType, bucket, 
                 processId, executor),
                 e -> log.warn("exception while attempting to take ownership"), executor)
                 .thenCompose(isOwner -> {
@@ -78,15 +78,15 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
                             @Override
                             public void running() {
                                 super.running();
-                                log.info("successfully started bucket service for bucket: {} bucket: {} ", BucketManager.this.serviceId, bucket);
+                                log.info("successfully started bucket service for bucket: {} bucket: {} ", BucketManager.this.serviceType, bucket);
                                 bucketFuture.complete(null);
                             }
 
                             @Override
                             public void failed(State from, Throwable failure) {
                                 super.failed(from, failure);
-                                log.error("Failed to start bucket service: {} bucket: {} ", BucketManager.this.serviceId, bucket);
-                                buckets.remove(serviceId);
+                                log.error("Failed to start bucket service: {} bucket: {} ", BucketManager.this.serviceType, bucket);
+                                buckets.remove(serviceType);
                                 bucketFuture.completeExceptionally(failure);
                             }
                         }, executor);
@@ -122,7 +122,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
             return bucketFuture;
         }).collect(Collectors.toList()))
                 .whenComplete((r, e) -> {
-                    bucketStore.unregisterBucketOwnershipListener(serviceId);
+                    bucketStore.unregisterBucketOwnershipListener(serviceType);
                     if (e != null) {
                         notifyFailed(e);
                     } else {

@@ -184,7 +184,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, streamStore, 
                     streamMetadataTasks, periodicExecutor, requestTracker);
-            retentionService = bucketServiceFactory.getBucketManagerService(BucketServiceFactory.ServiceType.RetentionService);
+            retentionService = bucketServiceFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
 
             log.info("starting background periodic service for retention");
             retentionService.startAsync();
@@ -219,7 +219,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                        bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                         controllerExecutor);
 
                 // Bootstrap and start it asynchronously.

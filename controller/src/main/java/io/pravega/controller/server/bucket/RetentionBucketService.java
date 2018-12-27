@@ -21,7 +21,6 @@ import java.util.function.Supplier;
 import org.slf4j.LoggerFactory;
 
 public class RetentionBucketService extends AbstractBucketService {
-    static final String SERVICE_NAME = "retention";
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(RetentionBucketService.class));
 
     private final StreamMetadataTasks streamMetadataTasks;
@@ -32,7 +31,7 @@ public class RetentionBucketService extends AbstractBucketService {
     public RetentionBucketService(int bucketId, StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                            StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executor,
                            RequestTracker requestTracker) {
-        super(SERVICE_NAME, bucketId, bucketStore, executor);
+        super(BucketStore.ServiceType.RetentionService, bucketId, bucketStore, executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
         this.requestTracker = requestTracker;

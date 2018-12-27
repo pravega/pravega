@@ -44,37 +44,37 @@ public class InMemoryBucketStore implements BucketStore {
 
 
     @Override
-    public void registerBucketChangeListener(String bucketRoot, int bucket, BucketChangeListener listener) {
-        listeners.put(getBucketName(bucketRoot, bucket), listener);
+    public void registerBucketChangeListener(ServiceType serviceType, int bucket, BucketChangeListener listener) {
+        listeners.put(getBucketName(serviceType, bucket), listener);
     }
 
-    private String getBucketName(String bucketRoot, int bucket) {
-        return bucketRoot + "/" + bucket;
-    }
-
-    @Override
-    public void unregisterBucketChangeListener(String bucketRoot, int bucket) {
-        listeners.remove(getBucketName(bucketRoot, bucket));
+    private String getBucketName(ServiceType serviceType, int bucket) {
+        return serviceType.getName() + "/" + bucket;
     }
 
     @Override
-    public void registerBucketOwnershipListener(String bucketRoot, BucketOwnershipListener ownershipListener) {
+    public void unregisterBucketChangeListener(ServiceType serviceType, int bucket) {
+        listeners.remove(getBucketName(serviceType, bucket));
     }
 
     @Override
-    public void unregisterBucketOwnershipListener(String bucketRoot) {
+    public void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener ownershipListener) {
     }
 
     @Override
-    public CompletableFuture<Boolean> takeBucketOwnership(String bucketRoot, int bucket, String processId, Executor executor) {
+    public void unregisterBucketOwnershipListener(ServiceType serviceType) {
+    }
+
+    @Override
+    public CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketCount);
         return CompletableFuture.completedFuture(true);
     }
 
     @Synchronized
     @Override
-    public CompletableFuture<List<String>> getStreamsForBucket(String bucketRoot, int bucket, Executor executor) {
-        String bucketName = getBucketName(bucketRoot, bucket);
+    public CompletableFuture<List<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor) {
+        String bucketName = getBucketName(serviceType, bucket);
         if (bucketedStreams.containsKey(bucketName)) {
             return CompletableFuture.completedFuture(ImmutableList.copyOf(bucketedStreams.get(bucketName)));
         } else {
@@ -84,9 +84,9 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> addUpdateStreamToBucketStore(String bucketRoot, String scope, String stream, Executor executor) {
+    public CompletableFuture<Void> addUpdateStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
-        String bucketName = getBucketName(bucketRoot, bucket);
+        String bucketName = getBucketName(serviceType, bucket);
         Set<String> set;
         if (bucketedStreams.containsKey(bucketName)) {
             set = bucketedStreams.get(bucketName);
@@ -112,9 +112,9 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Synchronized
     @Override
-    public CompletableFuture<Void> removeStreamFromBucketStore(String bucketRoot, String scope, String stream, Executor executor) {
+    public CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
-        String bucketName = getBucketName(bucketRoot, bucket);
+        String bucketName = getBucketName(serviceType, bucket);
 
         String scopedStreamName = BucketStore.getScopedStreamName(scope, stream);
 
@@ -123,7 +123,7 @@ public class InMemoryBucketStore implements BucketStore {
             return set;
         });
         
-        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(getBucketName(bucketRoot, bucket), (b, listener) -> {
+        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(getBucketName(serviceType, bucket), (b, listener) -> {
             listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
                     BucketChangeListener.StreamNotification.NotificationType.StreamRemoved));
             return listener;
