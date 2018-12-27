@@ -72,7 +72,7 @@ public final class ExecutorServiceHelpers {
         // Caller runs only occurs after shutdown, as queue size is unbounded.
         ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns());
 
-        // Do not execute any bucket tasks after shutdown.
+        // Do not execute any periodic tasks after shutdown.
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
 
         // Do not execute any delayed tasks after shutdown.

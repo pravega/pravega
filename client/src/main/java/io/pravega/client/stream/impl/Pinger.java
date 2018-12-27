@@ -107,7 +107,7 @@ public class Pinger implements AutoCloseable {
 
     @Override
     public void close() {
-        log.info("Closing Pinger bucket task");
+        log.info("Closing Pinger periodic task");
         ExecutorServiceHelpers.shutdown(executor);
     }
 }
