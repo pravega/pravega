@@ -86,7 +86,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
                             public void failed(State from, Throwable failure) {
                                 super.failed(from, failure);
                                 log.error("Failed to start bucket service: {} bucket: {} ", BucketManager.this.serviceType, bucket);
-                                buckets.remove(serviceType);
+                                buckets.remove(bucket);
                                 bucketFuture.completeExceptionally(failure);
                             }
                         }, executor);
