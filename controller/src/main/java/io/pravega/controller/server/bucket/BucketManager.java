@@ -63,10 +63,10 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
     private CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.takeBucketOwnership(serviceType, bucket, 
                 processId, executor),
-                e -> log.warn("exception while attempting to take ownership"), executor)
+                e -> log.warn("exception while attempting to take ownership for bucket {} for service {}", bucket, serviceType), executor)
                 .thenCompose(isOwner -> {
                     if (isOwner) {
-                        log.info("Taken ownership for bucket {}", bucket);
+                        log.info("Taken ownership for bucket {} for service {}", bucket, serviceType);
 
                         // Once we have taken ownership of the bucket, we will register listeners on the bucket. 
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
@@ -78,7 +78,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
                             @Override
                             public void running() {
                                 super.running();
-                                log.info("successfully started bucket service for bucket: {} bucket: {} ", BucketManager.this.serviceType, bucket);
+                                log.info("successfully started bucket service for service: {} bucket: {} ", BucketManager.this.serviceType, bucket);
                                 bucketFuture.complete(null);
                             }
 
@@ -102,6 +102,7 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
 
     @Override
     protected void doStop() {
+        log.info("Stop request received for bucket service {}", serviceType);
         Futures.allOf(buckets.values().stream().map(bucketService -> {
             CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
             bucketService.addListener(new Listener() {
@@ -124,8 +125,10 @@ public class BucketManager extends AbstractService implements BucketOwnershipLis
                 .whenComplete((r, e) -> {
                     bucketStore.unregisterBucketOwnershipListener(serviceType);
                     if (e != null) {
+                        log.error("bucket service {} shutdown failed with exception {}", serviceType, e);
                         notifyFailed(e);
                     } else {
+                        log.info("bucket service {} stopped", serviceType);
                         notifyStopped();
                     }
                 });

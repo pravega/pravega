@@ -59,13 +59,15 @@ public abstract class AbstractBucketService extends AbstractService implements B
         RetryHelper.withIndefiniteRetriesAsync(() -> bucketStore.getStreamsForBucket(serviceType, bucketId, executor)
                         .thenAccept(streams -> workFutureMap.putAll(streams.stream().map(s -> {
                                     String[] splits = s.split("/");
-                                    log.info("Adding new stream {}/{} to bucket {} during bootstrap", splits[0], splits[1], bucketId);
+                                    log.info("Adding new stream {}/{} to bucket {} during bootstrap for service {}", splits[0], 
+                                            splits[1], bucketId, serviceType);
                                     return new StreamImpl(splits[0], splits[1]);
                                 }).collect(Collectors.toMap(s -> s, this::startWork))
                         )),
                 e -> log.warn("exception thrown getting streams for bucket {}, e = {}", bucketId, e), executor)
                    .thenAccept(x -> {
-                       log.info("streams collected for the bucket {}, registering for change notification and starting loop for processing notifications", bucketId);
+                       log.info("streams collected for the bucket {} for service {}, registering for change notification and starting loop " +
+                               "for processing notifications", bucketId, serviceType);
                        bucketStore.registerBucketChangeListener(serviceType, bucketId, this);
                    })
                    .whenComplete((r, e) -> {
@@ -87,12 +89,14 @@ public abstract class AbstractBucketService extends AbstractService implements B
                 final StreamImpl stream;
                 switch (notification.getType()) {
                     case StreamAdded:
-                        log.info("New stream {}/{} added to bucket {} ", notification.getScope(), notification.getStream(), bucketId);
+                        log.info("New stream {}/{} added to bucket {} for service {}", notification.getScope(), 
+                                notification.getStream(), bucketId, serviceType);
                         stream = new StreamImpl(notification.getScope(), notification.getStream());
                         workFutureMap.computeIfAbsent(stream, x -> startWork(stream));
                         break;
                     case StreamRemoved:
-                        log.info("Stream {}/{} removed from bucket {} ", notification.getScope(), notification.getStream(), bucketId);
+                        log.info("Stream {}/{} removed from bucket {} for service {}", notification.getScope(), 
+                                notification.getStream(), bucketId, serviceType);
                         stream = new StreamImpl(notification.getScope(), notification.getStream());
                         workFutureMap.remove(stream).cancel(true);
                         break;
@@ -110,6 +114,7 @@ public abstract class AbstractBucketService extends AbstractService implements B
 
     @Override
     protected void doStop() {
+        log.info("Stop request received for bucket {} for service {}", bucketId, serviceType);
         Futures.await(latch);
         if (notificationLoop != null) {
             notificationLoop.thenAccept(x -> {
@@ -118,8 +123,10 @@ public abstract class AbstractBucketService extends AbstractService implements B
                 bucketStore.unregisterBucketChangeListener(serviceType, bucketId);
             }).whenComplete((r, e) -> {
                 if (e != null) {
+                    log.error("Error while stopping bucket {} for service {} {}", bucketId, serviceType, e);
                     notifyFailed(e);
                 } else {
+                    log.info("Cancellation for all background work for bucket {} for service {} issued", bucketId, serviceType);
                     notifyStopped();
                 }
             });
