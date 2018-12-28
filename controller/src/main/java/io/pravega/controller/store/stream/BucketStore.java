@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.controller.server.bucket.BucketChangeListener;
 import io.pravega.controller.server.bucket.BucketOwnershipListener;
 import lombok.Getter;
@@ -22,92 +21,103 @@ import java.util.concurrent.Executor;
  * Stream Metadata.
  */
 public interface BucketStore {
-
     /**
-     * Method to get count of buckets in the store. 
-     * @return number of buckets. 
+     * Method to get count of buckets in the store.
+     *
+     * @return number of buckets.
      */
     int getBucketCount();
-    
+
     /**
      * Method to register listener for changes to bucket's ownership.
      *
-     * @param listener listener
+     * @param serviceType service type
+     * @param listener    listener
      */
     void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener listener);
 
     /**
      * Unregister listeners for bucket ownership.
+     *
+     * @param serviceType service type
      */
     void unregisterBucketOwnershipListener(ServiceType serviceType);
-    
+
     /**
      * Method to take ownership of a bucket.
      *
-     * @param bucket   bucket id
-     * @param processId process id
-     *@param executor executor  @return future boolean which tells if ownership attempt succeeded or failed.
+     * @param serviceType service type
+     * @param bucket      bucket id
+     * @param processId   process id
+     * @param executor    executor
+     * @return future, which when completed, will contain a boolean which tells if ownership attempt succeeded or failed.
      */
     CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor);
 
     // region retention
+
     /**
      * Method to register listeners for changes to streams under the bucket.
      *
-     * @param bucket   bucket
-     * @param listener listener
+     * @param serviceType service type
+     * @param bucket      bucket
+     * @param listener    listener
      */
     void registerBucketChangeListener(ServiceType serviceType, int bucket, BucketChangeListener listener);
 
     /**
      * Method to unregister listeners for changes to streams under the bucket.
      *
-     * @param bucket bucket
+     * @param serviceType service type
+     * @param bucket      bucket
      */
     void unregisterBucketChangeListener(ServiceType serviceType, int bucket);
 
     /**
      * Return all streams in the bucket.
      *
-     * @param bucket   bucket id.
-     * @param executor executor
-     * @return List of scopedStreamName (scope/stream)
+     * @param serviceType service type
+     * @param bucket      bucket id.
+     * @param executor    executor
+     * @return Future, which when completed will have a list of scopedStreamName (scope/stream) of all streams under the bucket.
      */
     CompletableFuture<List<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor);
 
     /**
      * Add the given stream to appropriate bucket for auto-retention.
      *
-     * @param serviceId       service id
-     * @param scope           scope
-     * @param stream          stream
-     * @param executor        executor
-     * @return future
+     * @param serviceType service type
+     * @param scope       scope
+     * @param stream      stream
+     * @param executor    executor
+     * @return future, which when completed will indicate that stream is added to bucket store.
      */
     CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
 
     /**
      * Remove stream from auto retention bucket.
      *
-     * @param scope    scope
-     * @param stream   stream
-     * @param executor executor
-     * @return future
+     * @param serviceType service type
+     * @param scope       scope
+     * @param stream      stream
+     * @param executor    executor
+     * @return future, which when completed will indicate that stream is removed from the store.
      */
     CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
     // endregion
-    
+
     enum ServiceType {
         // Naming the service id as "buckets" for backward compatibility
-        RetentionService ("buckets"),;
+        RetentionService("buckets"),;
 
         @Getter
         private final String name;
+
         ServiceType(String name) {
             this.name = name;
         }
     }
-    
+
     static int getBucket(String scope, String stream, int bucketCount) {
         String scopedStreamName = getScopedStreamName(scope, stream);
         return scopedStreamName.hashCode() % bucketCount;

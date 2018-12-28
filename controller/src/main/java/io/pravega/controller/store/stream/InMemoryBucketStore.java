@@ -25,9 +25,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 
-/**
- * TODO: shivesh
- */
 public class InMemoryBucketStore implements BucketStore {
     @Getter
     private final int bucketCount;

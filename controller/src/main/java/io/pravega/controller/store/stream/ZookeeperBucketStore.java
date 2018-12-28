@@ -37,9 +37,6 @@ import static io.pravega.controller.server.bucket.BucketOwnershipListener.Bucket
 import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNotification;
 import static io.pravega.controller.server.bucket.BucketChangeListener.StreamNotification.NotificationType;
 
-/**
- * TODO: shivesh
- */
 @Slf4j
 public class ZookeeperBucketStore implements BucketStore {
     private static final String ROOT_PATH = "/";

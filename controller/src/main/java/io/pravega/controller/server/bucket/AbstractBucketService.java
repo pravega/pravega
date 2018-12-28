@@ -34,11 +34,11 @@ import java.util.stream.Collectors;
 public abstract class AbstractBucketService extends AbstractService implements BucketChangeListener {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AbstractBucketService.class));
 
-    private final BucketStore.ServiceType serviceType;
     @Getter
     final int bucketId;
+    final ScheduledExecutorService executor;
     private final BucketStore bucketStore;
-    protected final ScheduledExecutorService executor;
+    private final BucketStore.ServiceType serviceType;
     private final ConcurrentMap<Stream, CompletableFuture<Void>> workFutureMap;
     private final LinkedBlockingQueue<StreamNotification> notifications;
     private final CompletableFuture<Void> latch;
