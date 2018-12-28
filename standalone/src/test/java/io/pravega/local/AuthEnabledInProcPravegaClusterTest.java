@@ -23,7 +23,7 @@ import org.junit.Test;
 /**
  * Unit tests for secure standalone cluster.
  */
-public class PartialSecurePravegaClusterTest extends InProcPravegaClusterTest {
+public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest {
     @Before
     @Override
     public void setUp() throws Exception {
