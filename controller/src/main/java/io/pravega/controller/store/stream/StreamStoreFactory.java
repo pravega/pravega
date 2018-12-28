@@ -40,16 +40,11 @@ public class StreamStoreFactory {
     }
 
     public static BucketStore createBucketStore(final StoreClient storeClient, final Executor executor) {
-        return createBucketStore(Config.BUCKET_COUNT, storeClient, executor);
-    }
-
-    // TODO: shivesh
-    public static BucketStore createBucketStore(final int bucketCount, final StoreClient storeClient, final Executor executor) {
         switch (storeClient.getType()) {
             case InMemory:
-                return new InMemoryBucketStore(bucketCount);
+                return new InMemoryBucketStore(Config.BUCKET_COUNT);
             case Zookeeper:
-                return new ZookeeperBucketStore(bucketCount, (CuratorFramework) storeClient.getClient(), executor);
+                return new ZookeeperBucketStore(Config.BUCKET_COUNT, (CuratorFramework) storeClient.getClient(), executor);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }
