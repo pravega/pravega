@@ -165,6 +165,41 @@ public class BoundedStreamReaderTest {
     }
 
     @Test(timeout = 60000)
+    public void testReaderGroupWithSameBounds() throws Exception {
+        createScope(SCOPE);
+        createStream(STREAM1);
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        @Cleanup
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
+                                                                            EventWriterConfig.builder().build());
+        // 1. Prep the stream with data.
+        // Write events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
+
+        // 2. Create a StreamCut Pointing to offset 30L
+        StreamCut streamCut = getStreamCut(STREAM1, 30L, 0);
+
+        // 3. Create a ReaderGroup where the lower and upper bound are the same.
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        groupManager.createReaderGroup("group", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM1), streamCut, streamCut)
+                .build());
+
+        // 4. Create a reader
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
+                                                                      ReaderConfig.builder().build());
+
+        // 5. Verify if configuration is enforced.
+        Assert.assertNull("Null is expected", reader.readNextEvent(1000).getEvent());
+    }
+
+    @Test(timeout = 60000)
     public void testBoundedStreamWithScaleTest() throws Exception {
         createScope(SCOPE);
         createStream(STREAM1);
