@@ -75,8 +75,6 @@ public class K8SequentialExecutor implements TestExecutor {
     }
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
-        String repoUrl = System.getProperty("repoUrl");
-        String testVersion = System.getProperty("testVersion");
         return new V1PodBuilder()
                 .withNewMetadata().withName(podName).withNamespace(NAMESPACE).withLabels(ImmutableMap.of("POD_NAME", podName)).endMetadata()
                 .withNewSpec().withServiceAccountName(SERVICE_ACCOUNT).withAutomountServiceAccountToken(true)

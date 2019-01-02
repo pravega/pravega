@@ -66,8 +66,8 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
             //read the type of testExecutor from system property. This is sent by the gradle task. By default
             //the tests are executed locally.
             TestExecutorType executionType = TestExecutorType.valueOf(getConfig("execType", "LOCAL"));
-            //sleep for 10 seconds before running tests, remove once pravega/pravega/issues/1665 is resolved
-            Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(10));
+            //sleep for 15 seconds before running tests, remove once pravega/pravega/issues/1665 is resolved
+            Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(15));
             invokeTest(notifier, executionType, method);
         }
     }
