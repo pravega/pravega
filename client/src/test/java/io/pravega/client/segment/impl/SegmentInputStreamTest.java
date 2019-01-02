@@ -414,10 +414,9 @@ public class SegmentInputStreamTest {
     public void testReadWithInvalidEndOffset() {
         AsyncSegmentInputStream mockAsyncInputStream = mock(AsyncSegmentInputStream.class);
 
-        //Set the end offset which is less than startOffset+WireCommands.TYPE_PLUS_LENGTH_SIZE
+        //Set the end offset which is less than startOffset
         @Cleanup
-        EventSegmentReaderImpl stream = SegmentInputStreamFactoryImpl.getEventSegmentReader(mockAsyncInputStream, 0,
-                WireCommands.TYPE_PLUS_LENGTH_SIZE - 1, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+        EventSegmentReaderImpl stream = SegmentInputStreamFactoryImpl.getEventSegmentReader(mockAsyncInputStream, 10, 9, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Test(expected = IllegalArgumentException.class)
