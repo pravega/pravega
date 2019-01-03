@@ -23,6 +23,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestH
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -34,6 +35,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -42,10 +44,14 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -138,6 +144,74 @@ public class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
     }
 
+    @Test(timeout = 60000)
+    public void testCommitEventForSealingStream() {
+        ScaleOperationTask scaleTask = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
+        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+
+        String stream = "commitWithSeal";
+        StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(ScalingPolicy.fixed(1)).build();
+        streamStore.createStream(SCOPE, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(SCOPE, stream, State.ACTIVE, null, executor).join();
+
+        UUID txnOnEpoch0 = streamStore.generateTransactionId(SCOPE, stream, null, executor).join();
+        VersionedTransactionData txnData0 = streamStore.createTransaction(SCOPE, stream, txnOnEpoch0, 10000, 10000,
+                null, executor).join();
+        Assert.assertNotNull(txnData0);
+        checkTransactionState(SCOPE, stream, txnOnEpoch0, TxnStatus.OPEN);
+
+        streamStore.sealTransaction(SCOPE, stream, txnData0.getId(), true, Optional.empty(), null, executor).join();
+        checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTING);
+
+        // scale stream
+        List<AbstractMap.SimpleEntry<Double, Double>> newRange = new LinkedList<>();
+        newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        scaleTask.execute(new ScaleOpEvent(SCOPE, stream, Collections.singletonList(0L), newRange, false, System.currentTimeMillis(), 0L)).join();
+
+        UUID txnOnEpoch1 = streamStore.generateTransactionId(SCOPE, stream, null, executor).join();
+        VersionedTransactionData txnData1 = streamStore.createTransaction(SCOPE, stream, txnOnEpoch1, 10000, 10000,
+                null, executor).join();
+        Assert.assertNotNull(txnData1);
+        checkTransactionState(SCOPE, stream, txnOnEpoch1, TxnStatus.OPEN);
+
+        streamStore.sealTransaction(SCOPE, stream, txnData1.getId(), true, Optional.empty(), null, executor).join();
+        checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTING);
+
+        // set the stream to SEALING
+        streamStore.setState(SCOPE, stream, State.SEALING, null, executor).join();
+
+        // attempt to seal the stream. This should fail with postponement. 
+        AssertExtensions.assertThrows("Seal stream should fail with operation not allowed as their are outstanding transactions",
+                sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
+        // now attempt to commit the transaction on epoch 1. 
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData1.getEpoch())).join();
+        checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTED);
+
+        EpochRecord activeEpoch = streamStore.getActiveEpoch(SCOPE, stream, null, true, executor).join();
+        assertEquals(1, activeEpoch.getEpoch());
+        assertEquals(1, activeEpoch.getReferenceEpoch());
+
+        // attempt to seal the stream. This should still fail with postponement. 
+        AssertExtensions.assertThrows("Seal stream should fail with operation not allowed as their are outstanding transactions",
+                sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+
+        // now attempt to commit the transaction on epoch 0. 
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData0.getEpoch())).join();
+        checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTED);
+
+        // verify transaction has rolled over
+        activeEpoch = streamStore.getActiveEpoch(SCOPE, stream, null, true, executor).join();
+        assertEquals(3, activeEpoch.getEpoch());
+        assertEquals(1, activeEpoch.getReferenceEpoch());
+
+        // now attempt to seal the stream. it should complete. 
+        sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)).join();
+    }
+    
     @Test(timeout = 10000)
     public void testMultipleTransactionsSuccess() {
         // 1. commit request for an older epoch
