@@ -487,23 +487,20 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         targetSegmentId -> this.metadataStore.getOrAssignSegmentId(sourceStreamSegment, timer.getRemaining(),
                                 sourceSegmentId -> mergeStreamSegment(targetSegmentId, sourceSegmentId, timer)))
                 .handleAsync((sp, ex) -> {
-                    CompletableFuture<Boolean> result;
                     if (ex == null || Exceptions.unwrap(ex) instanceof StreamSegmentMergedException) {
                         // No exception or segment was already merged. Need to clear SegmentInfo for source.
-                        result = this.metadataStore.clearSegmentInfo(sourceStreamSegment, timer.getRemaining());
-                    } else {
-                        // A different exception. Do not clear anything.
-                        result = CompletableFuture.completedFuture(false);
+                        // We can do this asynchronously and not wait on it.
+                        this.metadataStore.clearSegmentInfo(sourceStreamSegment, timer.getRemaining());
                     }
 
                     if (ex == null) {
                         // Everything is good. Return the result.
-                        return result.thenApply(v -> sp);
+                        return sp;
                     } else {
                         // Re-throw the exception to the caller in this case.
-                        return result.thenCompose(v -> Futures.<SegmentProperties>failedFuture(ex));
+                        throw new CompletionException(ex);
                     }
-                }, this.executor).thenCompose(f -> f);
+                }, this.executor);
     }
 
     private CompletableFuture<SegmentProperties> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer) {
