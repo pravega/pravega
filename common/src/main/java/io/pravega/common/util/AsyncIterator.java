@@ -24,9 +24,9 @@ public interface AsyncIterator<T> {
      * Attempts to get the next element in the iteration.
      *
      * Note: since this is an async call, it is possible to invoke this method before the previous call to it completed;
-     * in this case the behavior is undefined and it may be possible that the internal state of the {@link AsyncIterator}
-     * may be corrupted. Consider invoking {@link #asSequential(Executor)} which will provide a thin wrapper on top of
-     * this instance that serializes calls to this method.
+     * in this case the behavior is undefined and, depending on the actual implementation, the internal state of the
+     * {@link AsyncIterator} may get corrupted. Consider invoking {@link #asSequential(Executor)} which will provide a
+     * thin wrapper on top of this instance that serializes calls to this method.
      *
      * @return A CompletableFuture that, when completed, will contain the next element in the iteration. If the iteration
      * has reached its end, this will complete with null. If an exception occurred, this will be completed exceptionally

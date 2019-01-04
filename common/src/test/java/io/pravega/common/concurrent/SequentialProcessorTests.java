@@ -36,7 +36,7 @@ public class SequentialProcessorTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 3;
+        return 1;
     }
 
     /**

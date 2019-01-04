@@ -41,7 +41,7 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
 
     @Override
     protected int getThreadPoolSize() {
-        return 2;
+        return 1;
     }
 
     /**
