@@ -19,17 +19,18 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 
+import java.net.URI;
+import java.util.concurrent.ExecutionException;
+
 import lombok.Cleanup;
 
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import java.net.URI;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Tests for TLS enabled standalone cluster.
@@ -82,6 +83,4 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     public void tearDown() throws Exception {
         super.tearDown();
     }
-
-
 }
