@@ -21,8 +21,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.Data;
@@ -44,7 +47,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 6;
+    public static final int WIRE_VERSION = 7;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -275,6 +278,43 @@ public final class WireCommands {
             return "No such segment: " + segment;
         }
         
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Data
+    public static final class NotEmptyTableSegment implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.NOT_EMPTY_TABLE_SEGMENT;
+        final long requestId;
+        final String segment;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.notEmptyTableSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE; //TODO: this check is redundant.
+            return new NotEmptyTableSegment(requestId, segment, serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Table Segment is not empty: " + segment;
+        }
+
         @Override
         public boolean isFailure() {
             return true;
@@ -991,6 +1031,35 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class CreateTableSegment implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.createTableSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+
+            return new CreateTableSegment(requestId, segment, delegationToken);
+        }
+    }
+
+    @Data
     public static final class SegmentCreated implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_CREATED;
         final long requestId;
@@ -1104,6 +1173,36 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class MergeTableSegments implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
+        final long requestId;
+        final String target;
+        final String source;
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.mergeTableSegments(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(target);
+            out.writeUTF(source);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String target = in.readUTF();
+            String source = in.readUTF();
+            String delegationToken = in.readUTF();
+            return new MergeTableSegments(requestId, target, source, delegationToken);
+        }
+    }
+
+    @Data
     public static final class SegmentsMerged implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENTS_MERGED;
         final long requestId;
@@ -1154,6 +1253,33 @@ public final class WireCommands {
             String segment = in.readUTF();
             String delegationToken = in.readUTF();
             return new SealSegment(requestId, segment, delegationToken);
+        }
+    }
+
+    @Data
+    public static final class SealTableSegment implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.SEAL_TABLE_SEGMENT;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.sealTableSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            return new SealTableSegment(requestId, segment, delegationToken);
         }
     }
 
@@ -1263,6 +1389,36 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class DeleteTableSegment implements Request, WireCommand {
+        final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
+        final long requestId;
+        final String segment;
+        final boolean mustBeEmpty; // If true, the Table Segment will only be deleted if it is empty (contains no keys)
+        final String delegationToken;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.deleteTableSegment(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeBoolean(mustBeEmpty);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            boolean mustBeEmpty = in.readBoolean();
+            String delegationToken = in.readUTF();
+            return new DeleteTableSegment(requestId, segment, mustBeEmpty, delegationToken);
+        }
+    }
+
+    @Data
     public static final class SegmentDeleted implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.SEGMENT_DELETED;
         final long requestId;
@@ -1349,4 +1505,106 @@ public final class WireCommands {
             return new AuthTokenCheckFailed(requestId, serverStackTrace);
         }
     }
+
+    @Data
+    public static final class PutTableEntry implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.PUT_TABLE_ENTRY;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+        final int numberOfentries;
+        final List<Map.Entry<TableKey, TableValue>> entries;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.putTableEntries(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(numberOfentries);
+            for (Map.Entry<TableKey, TableValue> ent :entries) {
+                ent.getKey().writeFields(out);
+                ent.getValue().writeFields(out);
+            }
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int numberOfEntries = in.readInt();
+            List<Map.Entry<TableKey, TableValue>> entries = new ArrayList<>();
+            for (int i = 0; i < numberOfEntries; i++) {
+                entries.add(new AbstractMap.SimpleImmutableEntry<>((TableKey) TableKey.readFrom(in, 0),
+                                                                   (TableValue) TableValue.readFrom(in, 0)));
+            }
+
+            return new CreateTableSegment(requestId, segment, delegationToken);
+        }
+    }
+
+    @Data
+    public static final class TableKey implements WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEY;
+        final long version;
+        final long length;
+        final ByteBuf data;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(type.getCode());
+            out.writeLong(version);
+            out.writeInt(data.readableBytes());
+            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            int typeCode = in.readInt();
+            if (typeCode != WireCommandType.TABLE_KEY.getCode()) {
+                throw new InvalidMessageException("Was expecting Table Key but found: " + typeCode);
+            }
+            long version = in.readLong();
+            int keyLength = in.readInt();
+            if (keyLength <= 0) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + keyLength);
+            }
+            byte[] msg = new byte[keyLength];
+            in.readFully(msg);
+            return new TableKey(version, keyLength, wrappedBuffer(msg));
+        }
+    }
+
+    @Data
+    public static final class TableValue implements WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_VALUE;
+        final long length;
+        final ByteBuf data;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(type.getCode());
+            out.writeInt(data.readableBytes());
+            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            int typeCode = in.readInt();
+            if (typeCode != WireCommandType.TABLE_KEY.getCode()) {
+                throw new InvalidMessageException("Was expecting Table Value but found: " + typeCode);
+            }
+            int valueLength = in.readInt();
+            if (valueLength <= 0) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + valueLength);
+            }
+            byte[] msg = new byte[valueLength];
+            in.readFully(msg);
+            return new TableValue(valueLength, wrappedBuffer(msg));
+        }
+    }
+
 }

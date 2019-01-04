@@ -32,6 +32,8 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
+    void notEmptyTableSegment(WireCommands.NotEmptyTableSegment notEmptyTableSegment);
+
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);

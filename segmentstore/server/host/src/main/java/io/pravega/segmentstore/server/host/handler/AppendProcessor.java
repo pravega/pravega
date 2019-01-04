@@ -418,5 +418,30 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         performNextWrite();
     }
 
+    @Override
+    public void mergeTableSegments(WireCommands.MergeTableSegments mergeSegments) {
+        // TODO:
+    }
+
+    @Override
+    public void sealTableSegment(WireCommands.SealTableSegment sealTableSegment) {
+        // TODO:
+    }
+
+    @Override
+    public void createTableSegment(WireCommands.CreateTableSegment createTableSegment) {
+        // TODO:
+    }
+
+    @Override
+    public void deleteTableSegment(WireCommands.DeleteTableSegment deleteSegment) {
+        // TODO:
+    }
+
+    @Override
+    public void putTableEntries(WireCommands.PutTableEntry tableEntries) {
+        // TODO:
+    }
+
     //endregion
 }
