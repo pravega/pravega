@@ -26,6 +26,12 @@
     <Match> <!-- Lots of harmless calls to System.exit() in our codebase -->
         <Bug pattern="DM_EXIT" />
     </Match>
+    <Match> <!-- does not work from JDK11 onwards https://github.com/spotbugs/spotbugs/issues/756 -->
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE" />
+    </Match>
+    <Match> <!-- does not work from JDK11 onwards https://github.com/spotbugs/spotbugs/issues/756 -->
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE" />
+    </Match>
     <Match> <!-- Returning a java.lang.Boolean is common with Streams/Lambdas -->
         <Bug pattern="NP_BOOLEAN_RETURN_NULL" />
     </Match>
