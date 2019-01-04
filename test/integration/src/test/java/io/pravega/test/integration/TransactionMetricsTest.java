@@ -137,8 +137,8 @@ public class TransactionMetricsTest {
     EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
             EventWriterConfig.builder().build());
 
-    int write_bytes = 0;
-    int write_events = 0;
+    int writeBytes = 0;
+    int writeEvents = 0;
     for (int i = 0; i < iterations; i++) {
       Transaction<String> transaction = writer.beginTxn();
 
@@ -150,14 +150,14 @@ public class TransactionMetricsTest {
       // Test counters for aborted and committed transaction segments.
       if (i % 2 == 0) {
         transaction.commit();
-        write_bytes += 160;
-        write_events += 10;
+        writeBytes += 160;
+        writeEvents += 10;
       } else {
         transaction.abort();
       }
 
-      checkCommitOrAbortMetric(getCounter(getSegmentWriteBytesMetricName(scope, streamName, 0)), write_bytes);
-      checkCommitOrAbortMetric(getCounter(getSegmentWriteEventsMetricName(scope, streamName, 0)), write_events);
+      checkCommitOrAbortMetric(getCounter(getSegmentWriteBytesMetricName(scope, streamName, 0)), writeBytes);
+      checkCommitOrAbortMetric(getCounter(getSegmentWriteEventsMetricName(scope, streamName, 0)), writeEvents);
     }
   }
 
@@ -195,13 +195,4 @@ public class TransactionMetricsTest {
     return "pravega." + SEGMENT_WRITE_EVENTS + "." + scopeName + "." + streamName + "." + segmentId
             + ".#epoch.0.Counter";
   }
-
-//  private static String getGlobalWriteBytesMetricName() {
-//    return "pravega." + SEGMENT_WRITE_BYTES + "_global.Counter";
-//  }
-//
-//  private static String getGlobalWriteEventsMetricName() {
-//    return "pravega." + SEGMENT_WRITE_EVENTS + "_global.Counter";
-//  }
-
 }

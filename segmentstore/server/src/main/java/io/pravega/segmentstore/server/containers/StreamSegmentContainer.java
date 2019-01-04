@@ -526,7 +526,9 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             //if segment is a transaction, add its length onto metrics of target segment
             if (StreamSegmentNameUtils.isTransactionSegment(sourceMetadata.getName())) {
                 DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, targetMetadata.getName()), sourceMetadata.getLength());
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetMetadata.getName()), sourceMetadata.getAttributes().get(EVENT_COUNT));
+                if (sourceMetadata.getAttributes() != null && sourceMetadata.getAttributes().get(EVENT_COUNT) != null) {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetMetadata.getName()), sourceMetadata.getAttributes().get(EVENT_COUNT));
+                }
             }
         }
 
