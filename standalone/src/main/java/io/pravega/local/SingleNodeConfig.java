@@ -27,7 +27,7 @@ public class SingleNodeConfig {
     public final static Property<String> PASSWD_FILE = Property.named("passwdFile", "../config/passwd");
     public final static Property<String> USER_NAME = Property.named("userName", "");
     public final static Property<String> PASSWD = Property.named("passwd", "");
-    public final static Property<Boolean> ENABLE_REST_SERVER = Property.named("enableRestServer", false);
+    public final static Property<Boolean> ENABLE_REST_SERVER = Property.named("enableRestServer", true);
     public final static Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public final static Property<Boolean> ENABLE_AUTH = Property.named("enableAuth", false);
     public final static Property<String> KEYSTORE_JKS =
