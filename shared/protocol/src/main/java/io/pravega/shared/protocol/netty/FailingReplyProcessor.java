@@ -145,6 +145,22 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation: " + segmentDeleted);
     }
 
+
+    @Override
+    public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesUpdated);
+    }
+
+    @Override
+    public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeysRemoved);
+    }
+
+    @Override
+    public void tableRead(WireCommands.TableRead tableRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableRead);
+    }
+
     @Override
     public void notEmptyTableSegment(NotEmptyTableSegment notEmptyTableSegment) {
         throw new IllegalStateException("Unexpected operation: " + notEmptyTableSegment);

@@ -19,7 +19,8 @@ import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
-import io.pravega.shared.protocol.netty.WireCommands.PutTableEntry;
+import io.pravega.shared.protocol.netty.WireCommands.RemoveTableKeys;
+import io.pravega.shared.protocol.netty.WireCommands.UpdateTableEntries;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealTableSegment;
@@ -68,5 +69,9 @@ public interface RequestProcessor {
 
     void deleteTableSegment(DeleteTableSegment deleteSegment);
 
-    void putTableEntries(PutTableEntry tableEntries);
+    void updateTableEntries(UpdateTableEntries tableEntries);
+
+    void removeTableKeys(RemoveTableKeys tableKeys);
+
+    void readTable(WireCommands.ReadTable readTable);
 }

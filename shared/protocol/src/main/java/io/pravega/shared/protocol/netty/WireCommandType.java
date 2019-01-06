@@ -81,13 +81,24 @@ public enum WireCommandType {
 
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
-    MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
-    SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
-    PUT_TABLE_ENTRY(74, WireCommands.PutTableEntry::readFrom),
 
-    NOT_EMPTY_TABLE_SEGMENT(75,  WireCommands.NotEmptyTableSegment::readFrom),
-    TABLE_KEY(76, WireCommands.TableKey::readFrom),
-    TABLE_VALUE(77, WireCommands.TableValue::readFrom),
+    MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
+
+    SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
+
+    TABLE_KEY(74, WireCommands.TableKey::readFrom),
+    TABLE_VALUE(75, WireCommands.TableValue::readFrom),
+    TABLE_ENTRIES(76, WireCommands.TableEntries::readFrom),
+
+    UPDATE_TABLE_ENTRIES(77, WireCommands.UpdateTableEntries::readFrom),
+    TABLE_ENTRIES_UPDATED(78, WireCommands.TableEntriesUpdated::readFrom),
+
+    REMOVE_TABLE_KEYS(79, WireCommands.RemoveTableKeys::readFrom),
+    TABLE_KEYS_REMOVED(80, WireCommands.TableKeysRemoved::readFrom),
+
+    READ_TABLE(81, WireCommands.ReadTable::readFrom),
+
+    NOT_EMPTY_TABLE_SEGMENT(84,  WireCommands.NotEmptyTableSegment::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

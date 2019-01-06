@@ -23,6 +23,7 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1507,18 +1508,17 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class PutTableEntry implements Request, WireCommand {
+    public static final class UpdateTableEntries implements Request, WireCommand {
 
-        final WireCommandType type = WireCommandType.PUT_TABLE_ENTRY;
+        final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId;
         final String segment;
         final String delegationToken;
-        final int numberOfentries;
-        final List<Map.Entry<TableKey, TableValue>> entries;
+        final TableEntries entries;
 
         @Override
         public void process(RequestProcessor cp) {
-            cp.putTableEntries(this);
+            cp.updateTableEntries(this);
         }
 
         @Override
@@ -1526,25 +1526,201 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            out.writeInt(numberOfentries);
+            entries.writeFields(out);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+
+            return new UpdateTableEntries(requestId, segment, delegationToken, entries);
+        }
+    }
+
+    @Data
+    public static final class TableEntriesUpdated implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_ENTRIES_UPDATED;
+        final long requestId;
+        final List<Long> updatedVersions;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableEntriesUpdated(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeInt(updatedVersions.size());
+            for (long version: updatedVersions) {
+                out.writeLong(version);
+            }
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            int numberOfEntries = in.readInt();
+            List<Long> updatedVersions = new ArrayList<>(numberOfEntries);
+            for (int i = 0; i < numberOfEntries; i++) {
+                updatedVersions.add(in.readLong());
+            }
+            return new TableEntriesUpdated(requestId, updatedVersions);
+        }
+    }
+
+    @Data
+    public static final class RemoveTableKeys implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+        final List<TableKey> keys;
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.removeTableKeys(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(keys.size());
+            for (TableKey key : keys) {
+                key.writeFields(out);
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int numberOfKeys = in.readInt();
+            List<TableKey> keys = new ArrayList<>(numberOfKeys);
+            for (int i = 0; i < numberOfKeys; i++) {
+                keys.add((TableKey) TableKey.readFrom(in, in.available()));
+            }
+            return new RemoveTableKeys(requestId, segment, delegationToken, keys);
+        }
+    }
+
+    @Data
+    public static final class TableKeysRemoved implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEYS_REMOVED;
+        final long requestId;
+        final String segment;
+        // TODO: should all the keys be listed here?
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableKeysRemoved(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            return new TableKeysRemoved(requestId, segment);
+        }
+    }
+
+    @Data
+    public static final class ReadTable implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.READ_TABLE;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+        final List<TableKey> keys; // the version of the key is always set to io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.readTable(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(keys.size());
+            for (TableKey key : keys) {
+                key.writeFields(out);
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int numberOfKeys = in.readInt();
+            List<TableKey> keys = new ArrayList<>(numberOfKeys);
+            for (int i = 0; i < numberOfKeys; i++) {
+                keys.add((TableKey) TableKey.readFrom(in, in.available()));
+            }
+            return new RemoveTableKeys(requestId, segment, delegationToken, keys);
+        }
+    }
+
+    @Data
+    public static final class TableRead implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEYS_REMOVED;
+        final long requestId;
+        final String segment;
+        final TableEntries entries;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableRead(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            entries.writeFields(out);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+            return new TableRead(requestId, segment, entries);
+        }
+    }
+
+    @Data
+    public static final class TableEntries implements WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_ENTRIES;
+        final List<Map.Entry<TableKey, TableValue>> entries;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeInt(entries.size());
             for (Map.Entry<TableKey, TableValue> ent :entries) {
                 ent.getKey().writeFields(out);
                 ent.getValue().writeFields(out);
             }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String delegationToken = in.readUTF();
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             int numberOfEntries = in.readInt();
             List<Map.Entry<TableKey, TableValue>> entries = new ArrayList<>();
             for (int i = 0; i < numberOfEntries; i++) {
-                entries.add(new AbstractMap.SimpleImmutableEntry<>((TableKey) TableKey.readFrom(in, 0),
-                                                                   (TableValue) TableValue.readFrom(in, 0)));
+                entries.add(new AbstractMap.SimpleImmutableEntry<>((TableKey) TableKey.readFrom(in, in.available()),
+                                                                   (TableValue) TableValue.readFrom(in, in.available())));
             }
 
-            return new CreateTableSegment(requestId, segment, delegationToken);
+            return new TableEntries(entries);
         }
     }
 
@@ -1570,8 +1746,8 @@ public final class WireCommands {
             }
             long version = in.readLong();
             int keyLength = in.readInt();
-            if (keyLength <= 0) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + keyLength);
+            if (length < keyLength) {
+                throw new InvalidMessageException("Was expecting length of atleast : " + keyLength + " but found: " + length);
             }
             byte[] msg = new byte[keyLength];
             in.readFully(msg);
@@ -1594,12 +1770,12 @@ public final class WireCommands {
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
             int typeCode = in.readInt();
-            if (typeCode != WireCommandType.TABLE_KEY.getCode()) {
+            if (typeCode != WireCommandType.TABLE_VALUE.getCode()) {
                 throw new InvalidMessageException("Was expecting Table Value but found: " + typeCode);
             }
             int valueLength = in.readInt();
-            if (valueLength <= 0) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + valueLength);
+            if ( length < valueLength) {
+                throw new InvalidMessageException("Was expecting length of atleast : " + valueLength + " but found: " + length);
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);

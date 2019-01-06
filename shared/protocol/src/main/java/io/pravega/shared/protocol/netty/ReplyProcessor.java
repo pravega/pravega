@@ -71,4 +71,10 @@ public interface ReplyProcessor {
     void processingFailure(Exception error);
 
     void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
+
+    void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated);
+
+    void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved);
+
+    void tableRead(WireCommands.TableRead tableRead);
 }
