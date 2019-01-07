@@ -152,7 +152,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
             // Unconditional updates.
             val updates = generateUpdates(keyInfo, false, rnd);
-            Map<String, List<Long>> updateVersions = executeUpdates(updates, tableStore);
+            val updateVersions = executeUpdates(updates, tableStore);
             acceptUpdates(updates, updateVersions, keyInfo);
             log.info("Finished unconditional updates.");
 
@@ -340,7 +340,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
         Assert.assertEquals(updatesBySegment.size(), versionsBySegment.size());
         for (val e : updatesBySegment.entrySet()) {
             val updates = e.getValue();
-            List<Long> versions = versionsBySegment.get(e.getKey());
+            val versions = versionsBySegment.get(e.getKey());
             Assert.assertEquals(updates.size(), versions.size());
             for (int i = 0; i < updates.size(); i++) {
                 val u = updates.get(i);
