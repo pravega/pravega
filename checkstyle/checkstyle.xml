@@ -12,7 +12,7 @@
     <property name="header" value="/\*\*\n *"/>
   </module>
   <module name="SuppressionFilter">
-        <property name="file" value="checkstyle/suppressions.xml"/>
+        <property name="file" value="${suppressionsFile}"/>
   </module>
   <module name="SuppressWarningsFilter"/>
   <module name="FileTabCharacter"/>
