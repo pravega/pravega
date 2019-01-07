@@ -77,4 +77,10 @@ public interface ReplyProcessor {
     void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved);
 
     void tableRead(WireCommands.TableRead tableRead);
+
+    void tableKeyTooLong(WireCommands.TableKeyTooLong tableKeyTooLong);
+
+    void tableValueTooLong(WireCommands.TableValueTooLong tableValueTooLong);
+
+    void conditionalTableUpdateFailed(WireCommands.ConditionalTableUpdateFailed conditionalTableUpdateFailed);
 }

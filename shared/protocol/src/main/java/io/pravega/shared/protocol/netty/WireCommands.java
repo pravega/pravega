@@ -1783,4 +1783,115 @@ public final class WireCommands {
         }
     }
 
+    @Data
+    public static final class TableKeyTooLong implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEY_TOO_LONG;
+        final long requestId;
+        final String segment;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableKeyTooLong(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String serverStackTrace = in.readUTF();
+            return new TableKeyTooLong(requestId, segment, serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Table key too long for table segment : " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Data
+    public static final class TableValueTooLong implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_VALUE_TOO_LONG;
+        final long requestId;
+        final String segment;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableValueTooLong(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String serverStackTrace = in.readUTF();
+            return new TableKeyTooLong(requestId, segment, serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Table value too long for table segment : " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Data
+    public static final class ConditionalTableUpdateFailed implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.CONDITIONAL_TABLE_UPDATE_FAILED;
+        final long requestId;
+        final String segment;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.conditionalTableUpdateFailed(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String serverStackTrace = in.readUTF();
+            return new TableKeyTooLong(requestId, segment, serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Conditional table update failed for table segment : " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
 }

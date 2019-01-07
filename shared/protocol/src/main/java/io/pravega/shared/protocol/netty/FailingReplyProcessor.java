@@ -176,4 +176,20 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation: " + keepAlive);
     }
 
+    @Override
+    public void tableKeyTooLong(WireCommands.TableKeyTooLong tableKeyTooLong) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyTooLong);
+    }
+
+    @Override
+    public void tableValueTooLong(WireCommands.TableValueTooLong tableValueTooLong) {
+        throw new IllegalStateException("Unexpected operation: " + tableValueTooLong);
+    }
+
+    @Override
+    public void conditionalTableUpdateFailed(WireCommands.ConditionalTableUpdateFailed conditionalTableUpdateFailed) {
+        throw new IllegalStateException("Unexpected operation: " + conditionalTableUpdateFailed);
+    }
+
+
 }
