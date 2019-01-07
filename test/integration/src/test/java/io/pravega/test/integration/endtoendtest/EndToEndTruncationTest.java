@@ -47,31 +47,21 @@ import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.ArrayView;
-import io.pravega.common.util.HashedArray;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.contracts.tables.TableEntry;
-import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.ReadWriteUtils;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -81,13 +71,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.apache.curator.test.TestingServer;
-import org.apache.http.impl.conn.Wire;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.omg.CORBA.TIMEOUT;
 
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
@@ -103,14 +90,6 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndTruncationTest {
 
-    private static final int SEGMENT_COUNT = 1;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
-    private static final int THREADPOOL_SIZE_TEST = 3;
-    private static final int KEY_COUNT = 1;
-    private static final int MAX_KEY_LENGTH = 128;
-    private static final int MAX_VALUE_LENGTH = 32;
-    private static final Duration TIMEOUT = Duration.ofSeconds(30); // Individual call timeout
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
     private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
@@ -121,7 +100,6 @@ public class EndToEndTruncationTest {
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
-    private TableStore tableStore;
 
     @Before
     public void setUp() throws Exception {
@@ -131,7 +109,6 @@ public class EndToEndTruncationTest {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        tableStore = serviceBuilder.createTableStoreService();
 
         server = new PravegaConnectionListener(false, servicePort, store);
         server.startListening();
@@ -153,84 +130,7 @@ public class EndToEndTruncationTest {
         serviceBuilder.close();
         zkTestServer.close();
     }
-
-    @Test
-    public void testConvertion() throws Exception {
-        val rnd = new Random(0);
-
-        ArrayList<String> segments = createSegments(tableStore);
-        log.info("TableStore Segment created : {}", segments.get(0));
-        ArrayList<HashedArray> keys = generateKeys(rnd);
-
-        System.out.println(keys);
-        TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-        TableEntry e2 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-
-        ArrayList<TableEntry> entries = new ArrayList<>();
-        entries.add(e1); entries.add(e2);
-
-        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> r = new ArrayList<>();
-
-        for(TableEntry te : entries) {
-            TableKey k = te.getKey();
-            ArrayView v = te.getValue();
-            new WireCommands.TableKey(k.getVersion(), k.getKey().getLength(), wrappedBuffer(k.getKey().array())
-        }
-
-        new WireCommands.PutTableEntry(1l, segments.get(0), "", 2, )
-        CompletableFuture<List<Long>> r = tableStore.put(segments.get(0), entries, TIMEOUT);
-        Futures.await(r);
-        List<Long> putRes = r.get();
-
-        System.out.println(putRes);
-
-        List<ArrayView> keys1 = Arrays.asList(keys.get(0));
-        CompletableFuture<List<TableEntry>> r3 = tableStore.get(segments.get(0), keys1, TIMEOUT);
-        Futures.await(r3);
-
-        List<TableEntry> r4 = r3.get();
-
-        System.out.println(r4);
-
-
-    }
-
-    private HashedArray generateData(int minLength, int maxLength, Random rnd) {
-        byte[] keyData = new byte[Math.max(minLength, rnd.nextInt(maxLength))];
-        rnd.nextBytes(keyData);
-        return new HashedArray(keyData);
-    }
-
-    private HashedArray generateValue(Random rnd) {
-        return generateData(0, MAX_VALUE_LENGTH, rnd);
-    }
-
-    private ArrayList<HashedArray> generateKeys(Random rnd) {
-        val result = new ArrayList<HashedArray>(KEY_COUNT);
-        for (int i = 0; i < KEY_COUNT; i++) {
-            result.add(generateData(1, MAX_KEY_LENGTH, rnd));
-        }
-
-        return result;
-    }
-
-    private ArrayList<String> createSegments(TableStore store) throws Exception {
-        ArrayList<String> segmentNames = new ArrayList<>();
-        ArrayList<CompletableFuture<Void>> futures = new ArrayList<>();
-        for (int i = 0; i < SEGMENT_COUNT; i++) {
-            String segmentName = getSegmentName(i);
-            segmentNames.add(segmentName);
-            futures.add(store.createSegment(segmentName, TIMEOUT));
-        }
-
-        Futures.allOf(futures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        return segmentNames;
-    }
-
-    private static String getSegmentName(int i) {
-        return "TableSegment_" + i;
-    }
-
+    
     @Test(timeout = 7000)
     public void testTruncationOffsets() throws InterruptedException, ExecutionException, TimeoutException,
                                         TruncatedDataException, ReinitializationRequiredException {

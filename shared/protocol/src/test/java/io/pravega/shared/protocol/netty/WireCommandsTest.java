@@ -92,7 +92,7 @@ public class WireCommandsTest {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 authTokenCheckFailedCalled.set(true);
             }
-          };
+        };
 
         new WireCommands.AuthTokenCheckFailed(0, "").process(rp);
         assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
