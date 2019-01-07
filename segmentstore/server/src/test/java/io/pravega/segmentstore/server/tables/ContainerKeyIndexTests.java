@@ -497,7 +497,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected backpointer count for update " + updateId, expectedBackpointers.size(), actualBackpointers.size());
             for (val e : expectedBackpointers.entrySet()) {
                 val a = actualBackpointers.get(e.getKey());
-                Assert.assertNotNull("No backpointer for update "+updateId, a);
+                Assert.assertNotNull("No backpointer for update " + updateId, a);
                 Assert.assertEquals("Unexpected backpointer for update " + updateId, e.getValue(), a);
             }
 
