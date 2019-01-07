@@ -62,7 +62,7 @@ manages these Stream Segments, does not have any notion of a Stream.  A Stream i
 orchestrates all lifecycle operations on a Pravega Stream while ensuring its consistency.
 
 The Controller plays a central role in the lifecycle of a Stream:
-_creation_, _modification_, [_scaling_](pravega-concepts.md#elastic-streams-auto-scaling), and _deletion_.  To implement these operations, the Controller manages both a Stream's metadata and its associated Stream Segments. For example, as part of Stream’s
+_creation_, _updation_, _truncation_, _sealing_, [_scaling_](pravega-concepts.md#elastic-streams-auto-scaling) and _deletion_.  To implement these operations, the Controller manages both a Stream's metadata and its associated Stream Segments. For example, as part of Stream’s
 lifecycle, new segments can be created and existing segments can be sealed. The
 Controller decides on performing these operations by ensuring the availability and consistency of the Streams for the clients accessing them.
 
@@ -111,7 +111,7 @@ have two policies that users can define, namely [**Scaling** **Policy**](https:/
 [**Retention** **Policy**](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java).
 
        - **Scaling policy** describes if and under what circumstances a Stream should automatically scale its number of segments.  
-       - **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time-based Retention*) and data **size**(*Size-based Retention*).
+       - **Retention policy** describes a policy about how much data to retain within a Stream based on **time** (*Time-based Retention*) and data **size** (*Size-based Retention*).
 
   3. [**Transaction**](pravega-concepts.md#transactions) **Management**: Implementing Transactions requires the manipulation of Stream Segments. With
 each Transaction, Pravega creates a set of Transaction segments, which
@@ -171,7 +171,7 @@ Transactions.
 For administration, the Controller implements and exposes a `REST`
 interface. This includes API calls for Stream management as well as
 other administration API primarily dealing with _creation_ and _deletion_ of
-[**Scopes**](pravega-concepts.md#streams). We use swagger to describe our `REST` API. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger) file.
+[**Scopes**](pravega-concepts.md#streams). We use [swagger](https://swagger.io) to describe our `REST` API. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger) file.
 
 ## Pravega Controller Service
 
@@ -273,9 +273,7 @@ _Epoch: ⟨time, list-of-segments-in-epoch⟩_.
 We store the series of _active_ Stream Segments as they transition from one epoch to another into individual epoch records. Each epoch record corresponds to an epoch which captures a logically consistent (as defined earlier) set of Stream Segments that form the Stream and are valid through the lifespan of the epoch. The epoch record is stored against the epoch number. This record is optimized to answer to query Segments from an epoch with a single call into the store that also enables retrieval of all Stream Segment records in the epoch in _O(1)_. This record is also used for fetching a Segment-specific record by first computing Stream Segment's creation epoch from Stream Segment ID and then retrieving the epoch record.
 
  - **Current Epoch:**
- A special epoch record called `currentEpoch`. This is the currently _active_ epoch in the Stream. At any time exactly one epoch is marked as the current epoch. Typically this is the latest epoch with the highest epoch number. However, during an ongoing Stream update workflow like _scale_ or _rolling Transaction_, the current epoch may not necessarily be the latest epoch. However, at the completion of these workflows, the current epoch is marked as the latest epoch in the stream.
-
-  The following are three most commonly used scenarios where we want to efficiently know the set of Segments that form the Stream:
+ A special epoch record called `currentEpoch`. This is the currently _active_ epoch in the Stream. At any time exactly one epoch is marked as the current epoch. Typically this is the latest epoch with the highest epoch number. However, during an ongoing Stream update workflow like _scale_ or _rolling Transaction_, the current epoch may not necessarily be the latest epoch. However, at the completion of these workflows, the current epoch is marked as the latest epoch in the stream. The following are three most commonly used scenarios where we want to efficiently know the set of Segments that form the Stream:
    1. _Initial set of Stream Segments_: The **head** of the Stream computation is very efficient as it is typically either the first epoch record or the latest truncation record.
    2. _Current set of Stream Segments_: The **tail** of the Stream is identified by the current epoch record.
    3. _Successors of a particular Stream Segment_: The successor query results in two calls into the store to retrieve Stream Segment's sealed epoch and the corresponding epoch record. The successors are computed as the Stream Segments that overlap with the given Stream Segment.
@@ -710,17 +708,17 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 <p>
-<img src="img/Transaction_Management.png" width="880" height="750" alt="Transaction Management">
+<img src="img/Transaction-Management.png" width="880" height="750" alt="Transaction Management">
 <i>Transaction Management Diagram </i>
 </p>
 
 Client calls into Controller process to _create, ping commit_ or _abort
-transactions_. Each of these requests is received on Controller and handled by the _Transaction Utility_ module which
+transactions_. Each of these requests is received on Controller and handled by the Transaction Management module which
 implements the business logic for processing each request.
 
 ### Create Transaction
 
-Writers interact with Controller to create new Transactions. Controller Service passes the create transaction request to Transaction Utility module.
+Writers interact with Controller to create new Transactions. Controller Service passes the create transaction request to Transaction Management module.
 
 The create Transaction function in the module performs the following steps:
 
@@ -733,7 +731,7 @@ The Controller creates shadow Stream Segments for current _active_ Segments by a
 
 ### Commit Transaction
 
-Upon receiving the request to commit a Transaction, Controller Service passes the request to Transaction Utility module. This module first tries to mark the Transaction for commit in the Transaction specific metadata record via metadata store.
+Upon receiving the request to commit a Transaction, Controller Service passes the request to Transaction Management module. This module first tries to mark the Transaction for commit in the Transaction specific metadata record via metadata store.
 
 Following this, it posts a commit Event in the internal Commit Stream. The commit event only captures the epoch in which the Transaction has to be committed. Commit Transaction workflow is implemented on commit Event processor and thereby processed asynchronously.
 
@@ -756,7 +754,7 @@ This is achieved by using a scheme (Rolling Transactions) where controller allow
 
 Abort, like commit, can be requested explicitly by the application. However, abort can also be initiated automatically if the Transaction’s timeout elapses.
 
-1. The Controller tracks the timeout for each and every Transaction in the system and whenever timeout elapses, or upon explicit user request, Transaction utility module marks the Transaction for abort in its respective metadata.
+1. The Controller tracks the timeout for each and every Transaction in the system and whenever timeout elapses, or upon explicit user request, Transaction Management module marks the Transaction for abort in its respective metadata.
 2. After this, the Event is picked for processing by abort Event Processor and the Transactions abort is immediately attempted.
 3. There is no ordering requirement for abort Transaction and hence it is
 performed concurrently and across Streams.
