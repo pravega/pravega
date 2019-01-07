@@ -16,7 +16,6 @@ import lombok.Getter;
 
 public class SingleNodeConfig {
     //region config names
-    private static final String COMPONENT_CODE = "singlenode";
     public final static String PROPERTY_FILE = "singlenode.configurationFile";
 
     public final static Property<Integer> ZK_PORT = Property.named("zkPort", 4000);
@@ -39,6 +38,8 @@ public class SingleNodeConfig {
     public final static Property<String> KEYSTORE_JKS_PASSWORD_FILE =
             Property.named("keyStoreJKSPasswordFile", "");
     public final static Property<String> TRUSTSTORE_JKS = Property.named("trustStoreJKS", "");
+
+    private static final String COMPONENT_CODE = "singlenode";
     //end region
 
     //region members
