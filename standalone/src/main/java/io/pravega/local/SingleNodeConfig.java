@@ -22,20 +22,18 @@ public class SingleNodeConfig {
     public final static Property<Integer> SEGMENTSTORE_PORT = Property.named("segmentstorePort", 6000);
     public final static Property<Integer> CONTROLLER_PORT = Property.named("controllerPort", 9090);
     public final static Property<Integer> REST_SERVER_PORT = Property.named("restServerPort", 9091);
-    public final static Property<String> CERT_FILE = Property.named("certFile", "../config/cert.pem");
-    public final static Property<String> KEY_FILE = Property.named("keyFile", "../config/key.pem");
-    public final static Property<String> PASSWD_FILE = Property.named("passwdFile", "../config/passwd");
+    public final static Property<String> CERT_FILE = Property.named("certFile", "");
+    public final static Property<String> KEY_FILE = Property.named("keyFile", "");
+    public final static Property<String> PASSWD_FILE = Property.named("passwdFile", "");
     public final static Property<String> USER_NAME = Property.named("userName", "");
     public final static Property<String> PASSWD = Property.named("passwd", "");
     public final static Property<Boolean> ENABLE_REST_SERVER = Property.named("enableRestServer", true);
     public final static Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public final static Property<Boolean> ENABLE_AUTH = Property.named("enableAuth", false);
-    public final static Property<String> KEYSTORE_JKS =
-            Property.named("keyStoreJKS", "../config/standalone.keystore.jks");
+    public final static Property<String> KEYSTORE_JKS = Property.named("keyStoreJKS", "");
     public final static Property<String> KEYSTORE_JKS_PASSWORD_FILE =
-            Property.named("keyStoreJKSPasswordFile", "../config/standalone.keystore.jks.passwd");
-    public final static Property<String> TRUSTSTORE_JKS =
-            Property.named("trustStoreJKS", "../config/standalone.truststore.jks");
+            Property.named("keyStoreJKSPasswordFile", "");
+    public final static Property<String> TRUSTSTORE_JKS = Property.named("trustStoreJKS", "");
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
