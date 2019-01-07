@@ -562,7 +562,7 @@ and _delete_. These workflows are invoked both via direct API and in some
 cases as applicable via background policy manager ([Auto Scaling](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java)).
 
 <p>
-<img src="img/Request-Processing_Flow.png" width="880" height="750" alt="request processing">
+<img src="img/Request-Processing-Flow.png" width="880" height="750" alt="request processing">
 <i>Request Processing Flow Diagram</i>
 </p>
 
