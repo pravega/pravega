@@ -76,19 +76,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
 
 /**
  * Container for StreamSegments. All StreamSegments that are related (based on a hashing functions) will belong to the
@@ -99,7 +90,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region Members
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     protected final StreamSegmentContainerMetadata metadata;
     private final String traceObjectId;
     private final OperationLog durableLog;
@@ -499,7 +489,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private CompletableFuture<SegmentProperties> mergeStreamSegment(long targetSegmentId, long sourceSegmentId, TimeoutTimer timer) {
         // Get a reference to the source segment's metadata now, before the merge. It may not be accessible afterwards.
         SegmentMetadata sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceSegmentId);
-        SegmentMetadata targetMetadata = this.metadata.getStreamSegmentMetadata(targetSegmentId);
 
         CompletableFuture<Void> result = trySealStreamSegment(sourceMetadata, timer.getRemaining());
         if (sourceMetadata.getLength() == 0) {
@@ -523,13 +512,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
             // the Merge right after the Seal.
             result = CompletableFuture.allOf(result,
                     this.durableLog.add(new MergeSegmentOperation(targetSegmentId, sourceSegmentId), timer.getRemaining()));
-            //if segment is a transaction, add its length onto metrics of target segment
-            if (StreamSegmentNameUtils.isTransactionSegment(sourceMetadata.getName())) {
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, targetMetadata.getName()), sourceMetadata.getLength());
-                if (sourceMetadata.getAttributes() != null && sourceMetadata.getAttributes().get(EVENT_COUNT) != null) {
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetMetadata.getName()), sourceMetadata.getAttributes().get(EVENT_COUNT));
-                }
-            }
         }
 
         return result.thenApply(v -> sourceMetadata.getSnapshot());
