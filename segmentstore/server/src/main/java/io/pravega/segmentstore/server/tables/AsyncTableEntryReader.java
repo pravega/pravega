@@ -241,18 +241,18 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
             assert header != null : "acceptResult called with no header loaded.";
 
             // The key has been read.
+            if (this.soughtKey != null && header.getKeyLength() != this.soughtKey.getLength()) {
+                // Key length mismatch. This is not the Table Entry we're looking for.
+                complete(null);
+                return false;
+            }
+
+            if (readData.getLength() < EntrySerializer.HEADER_LENGTH + header.getKeyLength()) {
+                // The key hasn't been fully read. Need more info.
+                return false;
+            }
+
             if (!this.keyValidated) {
-                if (header.getKeyLength() != this.soughtKey.getLength()) {
-                    // Key length mismatch. This is not the Table Entry we're looking for.
-                    complete(null);
-                    return false;
-                }
-
-                if (readData.getLength() < EntrySerializer.HEADER_LENGTH + this.soughtKey.getLength()) {
-                    // The key hasn't been fully read. Need more info.
-                    return false;
-                }
-
                 // Compare the sought key and the data we read, byte-by-byte.
                 ByteArraySegment keyData = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
                 for (int i = 0; i < this.soughtKey.getLength(); i++) {
@@ -291,11 +291,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
         private ArrayView getKeyData(ArrayView soughtKey, ByteArraySegment readData, EntrySerializer.Header header) {
             if (soughtKey == null) {
-                if (readData.getLength() >= header.getKeyOffset() + header.getKeyLength()) {
-                    soughtKey = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
-                } else {
-                    soughtKey = new ByteArraySegment(new byte[0]);
-                }
+                soughtKey = readData.subSegment(header.getKeyOffset(), header.getKeyLength());
             }
 
             return soughtKey;

@@ -13,7 +13,7 @@ import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.ConcurrentDependentProcessor;
+import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -60,7 +60,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
-    private final ConcurrentDependentProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
+    private final MultiKeySequentialProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
     private final RecoveryTracker recoveryTracker;
     private final AtomicBoolean closed;
 
@@ -82,7 +82,7 @@ class ContainerKeyIndex implements AutoCloseable {
         this.cacheManager.register(this.cache);
         this.executor = executor;
         this.indexReader = new IndexReader(executor);
-        this.conditionalUpdateProcessor = new ConcurrentDependentProcessor<>(this.executor);
+        this.conditionalUpdateProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.recoveryTracker = new RecoveryTracker();
         this.closed = new AtomicBoolean();
     }
@@ -389,6 +389,20 @@ class ContainerKeyIndex implements AutoCloseable {
     void notifyIndexOffsetChanged(long segmentId, long indexOffset) {
         this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
         this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
+    }
+
+    /**
+     * Gets the KeyHashes and their corresponding offsets for not-yet-indexed Table Buckets. These are updates
+     * that have been accepted and written to the Segment but not yet indexed (persisted via the {@link IndexWriter}).
+     *
+     * @param segment A {@link DirectSegmentAccess} representing the Segment for which to get the Unindexed Key Hashes.
+     * @return A CompletableFuture that, when completed, will contain the desired result. This Future will wait on any
+     * Segment-specific recovery to complete before executing.
+     */
+    CompletableFuture<Map<UUID, CacheBucketOffset>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        return this.recoveryTracker.waitIfNeeded(segment,
+                () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
     }
 
     //endregion

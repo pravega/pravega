@@ -727,8 +727,14 @@ project('test:system') {
         onlyIf { dockerRegistryUrl && repoUrl }
     }
 
-    //This is  used to invoke systemTests
+    task copyTestsToK8sCluster(type: Exec) {
+        description 'Used to copy test artifacts to the Kubernetes Cluster.'
+        dependsOn 'jar'
+        commandLine './kubernetes/setupTestPod.sh'
+    }
+
     task startK8SystemTests(type: Test) {
+        dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
         testClassesDirs = sourceSets.test.output.classesDirs
@@ -736,19 +742,23 @@ project('test:system') {
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
-        systemProperty "imageVersion", System.getProperty("imageVersion")
+        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest") // default value is "latest"
+        // The below properties are used to to specify the pravega docker image properties
+        // e.g: private-docker-repo/pravega-prefix/pravega:version
+        if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
+            systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
+        }
+        systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
+        systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
+        // bookkeeper version defaults to pravega version.
+        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
-        systemProperty "skipServiceInstallation", "false"
-        systemProperty "repoUrl", "${repoUrl}"
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
 
         maxParallelForks = 1
-        systemProperty "testVersion", pravegaVersion
-
-        onlyIf { repoUrl }
     }
 
     task execShellScript(type: Exec) {

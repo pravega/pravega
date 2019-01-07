@@ -132,7 +132,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFindAllKeys() {
-        testFindAll(TableBucketReader::key, TableEntry::getKey, this::areEqual);
+        testFindAll(TableBucketReader::key, TableEntry::getKey, TableKey::equals);
     }
 
     /**
@@ -140,7 +140,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testFindAllEntries() {
-        testFindAll(TableBucketReader::entry, e -> e, this::areEqual);
+        testFindAll(TableBucketReader::entry, e -> e, TableEntry::equals);
     }
 
     @SneakyThrows
@@ -204,16 +204,6 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         }
 
         return result;
-    }
-
-    private boolean areEqual(TableEntry e1, TableEntry e2) {
-        return areEqual(e1.getKey(), e2.getKey())
-                && HashedArray.arrayEquals(e1.getValue(), e2.getValue());
-    }
-
-    private boolean areEqual(TableKey k1, TableKey k2) {
-        return HashedArray.arrayEquals(k1.getKey(), k2.getKey())
-                && k1.getVersion() == k2.getVersion();
     }
 
     @RequiredArgsConstructor
