@@ -81,9 +81,7 @@ public enum WireCommandType {
 
     CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
     DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
-
     MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
-
     SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
 
     TABLE_KEY(74, WireCommands.TableKey::readFrom),
@@ -97,6 +95,7 @@ public enum WireCommandType {
     TABLE_KEYS_REMOVED(80, WireCommands.TableKeysRemoved::readFrom),
 
     READ_TABLE(81, WireCommands.ReadTable::readFrom),
+    TABLE_READ(82, WireCommands.ReadTable::readFrom),
 
     NOT_EMPTY_TABLE_SEGMENT(84,  WireCommands.NotEmptyTableSegment::readFrom),
     TABLE_KEY_TOO_LONG(85, WireCommands.TableKeyTooLong::readFrom),

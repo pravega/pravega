@@ -1666,13 +1666,13 @@ public final class WireCommands {
             for (int i = 0; i < numberOfKeys; i++) {
                 keys.add((TableKey) TableKey.readFrom(in, in.available()));
             }
-            return new RemoveTableKeys(requestId, segment, delegationToken, keys);
+            return new ReadTable(requestId, segment, delegationToken, keys);
         }
     }
 
     @Data
     public static final class TableRead implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TABLE_KEYS_REMOVED;
+        final WireCommandType type = WireCommandType.TABLE_READ;
         final long requestId;
         final String segment;
         final TableEntries entries;
@@ -1842,7 +1842,7 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
-            return new TableKeyTooLong(requestId, segment, serverStackTrace);
+            return new TableValueTooLong(requestId, segment, serverStackTrace);
         }
 
         @Override
@@ -1879,7 +1879,7 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
-            return new TableKeyTooLong(requestId, segment, serverStackTrace);
+            return new ConditionalTableUpdateFailed(requestId, segment, serverStackTrace);
         }
 
         @Override
