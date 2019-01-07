@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -51,7 +49,6 @@ class SegmentAttributeIterator implements AttributeIterator {
     private final UUID fromId;
     private final UUID toId;
     private final AtomicReference<UUID> lastIndexAttribute;
-    private final AtomicBoolean inProgress;
 
     //endregion
 
@@ -76,7 +73,6 @@ class SegmentAttributeIterator implements AttributeIterator {
         this.fromId = fromId;
         this.toId = toId;
         this.lastIndexAttribute = new AtomicReference<>();
-        this.inProgress = new AtomicBoolean();
     }
 
     //endregion
@@ -85,20 +81,9 @@ class SegmentAttributeIterator implements AttributeIterator {
 
     @Override
     public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
-        // Verify no other call to getNext() is currently executing.
-        Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
-
         return this.indexIterator
                 .getNext()
-                .thenApply(this::mix)
-                .handle((r, ex) -> {
-                    this.inProgress.set(false);
-                    if (ex == null) {
-                        return r;
-                    } else {
-                        throw new CompletionException(ex);
-                    }
-                });
+                .thenApply(this::mix);
     }
 
     /**
