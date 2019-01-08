@@ -724,12 +724,12 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApply(ranges -> {
             log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
-            NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+            NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
             for (SegmentRange r : ranges.getSegmentRangesList()) {
                 Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
                                          "Min keyrange %s was not less than maximum keyRange %s for segment %s",
                                          r.getMinKey(), r.getMaxKey(), r.getSegmentId());
-                rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+                rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
             }
             return new StreamSegments(rangeMap, ranges.getDelegationToken());
         }).whenComplete((x, e) -> {
@@ -812,11 +812,11 @@ public class ControllerImpl implements Controller {
     }
 
     private TxnSegments convert(CreateTxnResponse response) {
-        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
 
         for (SegmentRange r : response.getActiveSegmentsList()) {
             Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
-            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
         StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));

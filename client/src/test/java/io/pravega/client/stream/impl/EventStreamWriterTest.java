@@ -94,8 +94,8 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     private StreamSegments getSegments(Segment segment) {
-        NavigableMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(1.0, segment);
+        NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
         return new StreamSegments(segments, "");
     }
     
