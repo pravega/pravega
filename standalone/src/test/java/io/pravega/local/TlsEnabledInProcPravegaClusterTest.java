@@ -11,30 +11,39 @@ package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.EventRead;
 
 import java.net.URI;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import lombok.Cleanup;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
  * Tests for TLS enabled standalone cluster.
  */
+@Slf4j
 public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest {
 
     @Before
@@ -45,11 +54,17 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         super.setUp();
     }
 
+    // Note: Strictly speaking, this test is really an "integration test" and is a little
+    // time consuming. For now, its intended to run as a unit test, but it could be moved
+    // to an integration test suite if and when necessary.
     @Test
-    public void writeEventToClusterWithProperConfiguration() throws ExecutionException, InterruptedException {
-        String scope = "Scope";
-        String streamName = "Stream";
+    public void testWriteAndReadEventWhenConfigurationIsProper() throws ExecutionException,
+            InterruptedException, ReinitializationRequiredException {
+
+        String scope = "TlsTestScope";
+        String streamName = "TlsTestStream";
         int numSegments = 10;
+        String message = "Test event over TLS channel";
 
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
@@ -70,12 +85,38 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                 .build());
         Assert.assertTrue("Failed to create the stream ", isStreamCreated);
 
+        @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+
+        // Write an event to the stream.
+
+        @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
-                new JavaSerializer<String>(),
-                EventWriterConfig.builder().build());
-        writer.writeEvent("hello").get();
-        // If the control reaches here, the write event operation was successful.
+                    new JavaSerializer<String>(),
+                    EventWriterConfig.builder().build());
+        writer.writeEvent(message).get();
+        log.debug("Done writing message '{}' to stream '{} / {}'", message, scope, streamName);
+
+        // Now, read the event from the stream.
+
+        String readerGroup = UUID.randomUUID().toString().replace("-", "");
+        ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
+                    .stream(Stream.of(scope, streamName))
+                    .build();
+
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
+
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader(
+                    "readerId", readerGroup,
+                    new JavaSerializer<String>(), ReaderConfig.builder().build());
+
+        EventRead<String> event = reader.readNextEvent(2000);
+        String readMessage = event.getEvent();
+        log.debug("Read event '{}", event.getEvent());
+        assertEquals(message, readMessage);
     }
 
     @After
