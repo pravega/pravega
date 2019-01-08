@@ -181,8 +181,8 @@ public class StreamSegmentsTest {
     private StreamSegments initStreamSegments(int num) {
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         double stride = 1.0 / num;
-        for (int i=0; i < num;i++) {            
-            addNewSegment(segments, i, i * stride, (i+1) * stride);
+        for (int i = 0; i < num; i++) {
+            addNewSegment(segments, i, i * stride, (i + 1) * stride);
         }
         StreamSegments streamSegments = new StreamSegments(segments, "");
         return streamSegments;
