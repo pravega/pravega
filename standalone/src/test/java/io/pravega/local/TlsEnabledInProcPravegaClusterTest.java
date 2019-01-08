@@ -115,9 +115,9 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        EventRead<String> event = reader.readNextEvent(20000);
+        EventRead<String> event = reader.readNextEvent(50000);
         String readMessage = event.getEvent();
-        log.debug("Read event '{}", event.getEvent());
+        log.debug("Read event '{}", readMessage);
         assertEquals(message, readMessage);
     }
 
