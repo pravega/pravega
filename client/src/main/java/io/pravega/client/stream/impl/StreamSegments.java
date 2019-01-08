@@ -95,19 +95,20 @@ public class StreamSegments {
         SegmentWithRange lastSegmentValue = null;
         for (Entry<Double, SegmentWithRange> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final SegmentWithRange existingSegment = existingEntry.getValue();
-            if (existingSegment.equals(lastSegmentValue)) {
-                // last value was the same segment, it can be consolidated.
-                continue;
-            }
             if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
                 // Invariant: The successor segment(s)'s range should be limited to the replaced segment's range, thereby
                 // ensuring that newer writes to the successor(s) happen only for the replaced segment's range.
                 for (SegmentWithRange segmentWithRange : replacements) {
-                    result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange);
+                    Double lowerBound = segments.lowerKey(existingEntry.getKey()); // Used to skip over items not in the clients view yet.
+                    if (lowerBound == null || segmentWithRange.getHigh() >= lowerBound) { 
+                        result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange);
+                    }
                 }
             } else {
-                // update remaining values.
-                result.put(existingEntry.getKey(), existingEntry.getValue());
+                if (!existingSegment.equals(lastSegmentValue)) { // last value was the same segment, it can be consolidated.
+                    // update remaining values.
+                    result.put(existingEntry.getKey(), existingEntry.getValue());
+                }
             }
             lastSegmentValue = existingSegment; // update lastSegmentValue to reduce number of entries in the map.
         }
