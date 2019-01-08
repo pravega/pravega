@@ -113,7 +113,9 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                     "readerId", readerGroup,
                     new JavaSerializer<String>(), ReaderConfig.builder().build());
 
-        EventRead<String> event = reader.readNextEvent(2000);
+        // Keeping the read timeout large so that there is ample time for reading the event even in
+        // case of abnormal delays in test environments.
+        EventRead<String> event = reader.readNextEvent(20000);
         String readMessage = event.getEvent();
         log.debug("Read event '{}", event.getEvent());
         assertEquals(message, readMessage);
