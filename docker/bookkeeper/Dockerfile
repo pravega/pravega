@@ -26,10 +26,14 @@ EXPOSE $bookiePort
 RUN mkdir -p /opt \
     && cd /opt \
     && wget -q https://archive.apache.org/dist/bookkeeper/bookkeeper-${BOOKKEEPER_VERSION}/bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz \
+    && wget -q https://archive.apache.org/dist/bookkeeper/bookkeeper-${BOOKKEEPER_VERSION}/bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz.sha512 \
+    && sha512sum -c bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz.sha512 \
     && tar xvzf bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz \
     && mv bookkeeper-server-${BOOKKEEPER_VERSION} /opt/bookkeeper \
     && rm -rf bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz \
     && wget -q https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz \
+    && wget -q https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz.sha1 \
+    && sha1sum -c zookeeper-${ZOOKEEPER_VERSION}.tar.gz.sha1 \
     && tar xvf zookeeper-${ZOOKEEPER_VERSION}.tar.gz \
     && mv zookeeper-${ZOOKEEPER_VERSION} /opt/zookeeper \
     && rm zookeeper-${ZOOKEEPER_VERSION}.tar.gz
