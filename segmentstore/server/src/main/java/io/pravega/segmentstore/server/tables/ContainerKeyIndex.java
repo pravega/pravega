@@ -223,7 +223,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * Performs a Batch Update or Removal.
      *
      * If {@link TableKeyBatch#isConditional()} returns true, this will execute an atomic Conditional Update/Removal based
-     * on the condition items in the batch ({@link TableKeyBatch#versionedItems}. The entire TableKeyBatch will be
+     * on the condition items in the batch ({@link TableKeyBatch#getVersionedItems}. The entire TableKeyBatch will be
      * conditioned on those items, including those items that do not have a condition set. The entire TableKeyBatch will
      * either all be committed as one unit or not at all.
      *

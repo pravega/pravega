@@ -18,14 +18,15 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.NonNull;
@@ -70,7 +71,9 @@ class IndexWriter extends IndexReader {
      * @return A Collection of {@link AttributeUpdate}s.
      */
     static Collection<AttributeUpdate> generateInitialTableAttributes() {
-        return Collections.singleton(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
+        return Arrays.asList(
+                new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L),
+                new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.None, 0L));
     }
 
     //endregion
@@ -130,13 +133,14 @@ class IndexWriter extends IndexReader {
 
         // Process each Key in the given Map.
         // Locate the Key's Bucket, then generate necessary Attribute Updates to integrate new Keys into it.
+        int delta = 0;
         for (BucketUpdate bucketUpdate : bucketUpdates) {
-            generateAttributeUpdates(bucketUpdate, attributeUpdates);
+            delta += generateAttributeUpdates(bucketUpdate, attributeUpdates);
         }
 
         if (lastIndexedOffset > firstIndexedOffset) {
             // Atomically update the Table-related attributes in the Segment's metadata, once we apply these changes.
-            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, attributeUpdates);
+            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, delta, attributeUpdates);
         }
 
         if (attributeUpdates.isEmpty()) {
@@ -168,11 +172,12 @@ class IndexWriter extends IndexReader {
      *
      * @param bucketUpdate     The {@link BucketUpdate} to generate updates for.
      * @param attributeUpdates A List of {@link AttributeUpdate}s to collect into.
+     * @return A number representing the count of index insertions minus the count of removals.
      */
-    private void generateAttributeUpdates(BucketUpdate bucketUpdate, List<AttributeUpdate> attributeUpdates) {
+    private int generateAttributeUpdates(BucketUpdate bucketUpdate, List<AttributeUpdate> attributeUpdates) {
         if (!bucketUpdate.hasUpdates()) {
-            // Nothing to do.
-            return;
+            // No changes.
+            return 0;
         }
 
         // Sanity check: If we get an existing bucket (that points to a Table Entry), then it must have at least one existing
@@ -181,12 +186,9 @@ class IndexWriter extends IndexReader {
         Preconditions.checkArgument(bucket.exists() != bucketUpdate.getExistingKeys().isEmpty(),
                 "Non-existing buckets must have no existing keys, while non-index Buckets must have at least one.");
 
-        // Keep track whether the bucket was deleted (if we get at least one update, it was not).
-        boolean isDeleted = true;
-
         // All Keys in this bucket have the same hash. If there is more than one key per such hash, then we have
         // a collision, which must be resolved (this also handles removed keys).
-        generateBackpointerUpdates(bucketUpdate, attributeUpdates);
+        int delta = generateBackpointerUpdates(bucketUpdate, attributeUpdates);
 
         // Backpointers help us create a linked list (of keys) for those buckets which have collisions (in reverse
         // order, by offset). At this point, we only need to figure out the highest offset of a Key in each bucket,
@@ -199,6 +201,8 @@ class IndexWriter extends IndexReader {
             // We have a deletion.
             generateBucketDelete(bucket, attributeUpdates);
         }
+
+        return delta;
     }
 
     /**
@@ -228,14 +232,16 @@ class IndexWriter extends IndexReader {
      * Generates conditional {@link AttributeUpdate}s that update the values for Core Attributes representing the indexing
      * state of the Table Segment.
      *
-     * @param currentOffset      The offset from which this indexing batch began. This will be checked against {@link Attributes#TABLE_INDEX_OFFSET}.
-     * @param newOffset          The new offset to set for {@link Attributes#TABLE_INDEX_OFFSET}.
-     * @param attributeUpdates   A List of {@link AttributeUpdate} to add the updates to.
+     * @param currentOffset    The offset from which this indexing batch began. This will be checked against {@link Attributes#TABLE_INDEX_OFFSET}.
+     * @param newOffset        The new offset to set for {@link Attributes#TABLE_INDEX_OFFSET}.
+     * @param delta            A number representing the count of index insertions minus the count of removals.
+     * @param attributeUpdates A List of {@link AttributeUpdate} to add the updates to.
      */
-    private void generateTableAttributeUpdates(long currentOffset, long newOffset, List<AttributeUpdate> attributeUpdates) {
+    private void generateTableAttributeUpdates(long currentOffset, long newOffset, int delta, List<AttributeUpdate> attributeUpdates) {
         // Add an Update for the TABLE_INDEX_OFFSET to indicate we have indexed everything up to this offset.
         Preconditions.checkArgument(currentOffset <= newOffset, "newOffset must be larger than existingOffset");
         attributeUpdates.add(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset));
+        attributeUpdates.add(new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.Accumulate, delta));
     }
 
     //endregion
@@ -247,8 +253,9 @@ class IndexWriter extends IndexReader {
      *
      * @param update           The BucketUpdate to generate Backpointers for.
      * @param attributeUpdates A List of {@link AttributeUpdate} where the updates will be collected.
+     * @return A number representing the count of index insertions minus the count of removals.
      */
-    private void generateBackpointerUpdates(BucketUpdate update, List<AttributeUpdate> attributeUpdates) {
+    private int generateBackpointerUpdates(BucketUpdate update, List<AttributeUpdate> attributeUpdates) {
         // Keep track of the previous, non-deleted Key's offset. The first one points to nothing.
         AtomicLong previousOffset = new AtomicLong(Attributes.NULL_ATTRIBUTE_VALUE);
 
@@ -257,6 +264,7 @@ class IndexWriter extends IndexReader {
 
         // Process all existing Keys, in order of Offsets, and either unlink them (if replaced) or update pointers as needed.
         AtomicBoolean first = new AtomicBoolean(true);
+        AtomicInteger delta = new AtomicInteger(0);
         update.getExistingKeys().stream()
               .sorted(Comparator.comparingLong(BucketUpdate.KeyInfo::getOffset))
               .forEach(keyInfo -> {
@@ -268,7 +276,9 @@ class IndexWriter extends IndexReader {
                             attributeUpdates.add(generateBackpointerRemoval(keyInfo.getOffset()));
                         }
 
-                        previousReplaced.set(true); // Record that this has been replaced.
+                        // Record that this has been replaced.
+                        delta.decrementAndGet();
+                        previousReplaced.set(true);
                     } else {
                         if (previousReplaced.get()) {
                             // This one hasn't been replaced or removed, however its previous one has been.
@@ -294,8 +304,11 @@ class IndexWriter extends IndexReader {
                         attributeUpdates.add(generateBackpointerUpdate(keyUpdate.getOffset(), previousOffset.get()));
                     }
 
+                  delta.incrementAndGet();
                     previousOffset.set(keyUpdate.getOffset());
                 });
+
+        return delta.get();
     }
 
     /**

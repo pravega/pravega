@@ -84,8 +84,9 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     public void testGenerateInitialTableAttributes() {
         val updates = IndexWriter.generateInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-        Assert.assertEquals("Unexpected number of updates generated.", 1, values.size());
+        Assert.assertEquals("Unexpected number of updates generated.", 2, values.size());
         Assert.assertEquals("Unexpected value for TableIndexOffset.", 0L, (long) values.get(Attributes.TABLE_INDEX_OFFSET));
+        Assert.assertEquals("Unexpected value for TableEntryCount.", 0L, (long) values.get(Attributes.TABLE_ENTRY_COUNT));
     }
 
     /**
@@ -409,6 +410,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     private void checkIndex(Collection<HashedArray> allKeys, Map<Long, HashedArray> existingKeysByOffset, IndexWriter w,
                             KeyHasher hasher, SegmentMock segment) {
+        checkEntryCount(existingKeysByOffset.size(), segment, w);
         val timer = new TimeoutTimer(TIMEOUT);
 
         // Group all keys by their full hash (each hash should translate to a bucket), and make sure they're ordered by
@@ -455,6 +457,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Missing key from bucket " + hash, NO_OFFSET, prevKeyOffset);
             }
         }
+    }
+
+    private void checkEntryCount(int expectedCount, SegmentMock segment, IndexReader ir) {
+        Assert.assertEquals("Unexpected number of entries.", expectedCount, ir.getEntryCount(segment.getInfo()));
     }
 
     private void checkNoBackpointers(SegmentMock segment) {
