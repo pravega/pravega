@@ -63,10 +63,11 @@ class IndexWriter extends IndexReader {
     //region Initial Table Attributes
 
     /**
-     * Generates a set of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
+     * Generates a Collection of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
      *
      * Attributes:
      * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
+     * * {@link Attributes#TABLE_ENTRY_COUNT} is initialized to 0.
      *
      * @return A Collection of {@link AttributeUpdate}s.
      */

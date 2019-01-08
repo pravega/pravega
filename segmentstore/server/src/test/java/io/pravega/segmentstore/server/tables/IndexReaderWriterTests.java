@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -21,7 +22,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import lombok.val;
 import org.junit.Assert;
@@ -62,15 +63,22 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
      * Test the {@link IndexReader#getLastIndexedOffset(SegmentProperties)} method.
      */
     @Test
-    public void testGetLastIndexedOffset() {
+    public void testTableAttributes() {
         val ir = newReader();
-        Assert.assertEquals("Unexpected value when attribute is not present.",
+        Assert.assertEquals("Unexpected value for TABLE_INDEX_OFFSET when attribute is not present.",
                 0, ir.getLastIndexedOffset(StreamSegmentInformation.builder().name("s").build()));
+        Assert.assertEquals("Unexpected value for TABLE_ENTRY_COUNT when attribute is not present.",
+                0, ir.getEntryCount(StreamSegmentInformation.builder().name("s").build()));
         val si = StreamSegmentInformation.builder().name("s")
-                                         .attributes(Collections.singletonMap(Attributes.TABLE_INDEX_OFFSET, 123456L))
+                                         .attributes(ImmutableMap.<UUID, Long>builder()
+                                                 .put(Attributes.TABLE_INDEX_OFFSET, 123456L)
+                                                 .put(Attributes.TABLE_ENTRY_COUNT, 2345L)
+                                                 .build())
                                          .build();
-        Assert.assertEquals("Unexpected value when attribute present.",
+        Assert.assertEquals("Unexpected value for TABLE_INDEX_OFFSET when attribute present.",
                 123456, ir.getLastIndexedOffset(si));
+        Assert.assertEquals("Unexpected value for TABLE_ENTRY_COUNT when attribute present.",
+                2345, ir.getEntryCount(si));
     }
 
     //endregion
@@ -378,6 +386,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
         // Fetch existing keys.
         val oldOffsets = new ArrayList<Long>();
+        val entryCount = new AtomicLong(w.getEntryCount(segment.getInfo()));
         for (val bu : bucketUpdates) {
             w.getBucketOffsets(segment, bu.getBucket(), timer).join()
              .forEach(offset -> {
@@ -388,13 +397,19 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 // Key replacement; remove this offset.
                 if (keysWithOffset.containsKey(existingKey)) {
                     oldOffsets.add(offset);
+                    entryCount.decrementAndGet(); // Replaced or removed, we'll add it back if replaced.
                 }
              });
+
+            // Add back the count of all keys that have been updated or added; we've already discounted all updates, insertions
+            // and removals above, so adding just the updates and insertions will ensure the expected count is accurate.
+            entryCount.addAndGet(bu.getKeyUpdates().stream().filter(u -> !u.isDeleted()).count());
         }
 
         // Apply the updates.
         val attrCount = w.updateBuckets(segment, bucketUpdates, firstKeyOffset, postIndexOffset, TIMEOUT).join();
         AssertExtensions.assertGreaterThan("Expected at least one attribute to be modified.", 0, attrCount);
+        checkEntryCount(entryCount.get(), segment, w);
 
         // Record the key as being updated.
         oldOffsets.forEach(existingKeys::remove);
@@ -459,7 +474,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         }
     }
 
-    private void checkEntryCount(int expectedCount, SegmentMock segment, IndexReader ir) {
+    private void checkEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
         Assert.assertEquals("Unexpected number of entries.", expectedCount, ir.getEntryCount(segment.getInfo()));
     }
 
