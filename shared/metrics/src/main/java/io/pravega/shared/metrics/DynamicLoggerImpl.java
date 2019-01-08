@@ -41,7 +41,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         this.metrics = metrics;
         this.underlying = statsLogger;
         this.cacheSize = metricsConfig.getDynamicCacheSize();
-        this.cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMs();
+        this.cacheEvictionDuration = metricsConfig.getDynamicCacheEvictionDurationMinutes();
 
         countersCache = CacheBuilder.newBuilder().
                 maximumSize(cacheSize).expireAfterAccess(cacheEvictionDuration, TimeUnit.MILLISECONDS).

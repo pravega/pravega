@@ -84,7 +84,7 @@ public class ControllerMetricsTest {
                                                    .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
                                                    .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                                                    .build();
-        metricsConfig.setDynamicCacheEvictionDurationMs(300000);
+        metricsConfig.setDynamicCacheEvictionDurationMinutes(300000);
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
