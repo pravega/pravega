@@ -10,14 +10,23 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Range;
 import io.pravega.client.segment.impl.Segment;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
-
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
@@ -1173,6 +1182,120 @@ public class StreamSegmentsTest {
         assertEquals(getSegment(5, 1), streamSegments.getSegmentForKey(0.8));
     }
 
+    
+    /**
+     * Out of order re-split
+             ^
+             |
+         1.0 +---------+---------+-------+-------->
+             |         |    5    |       | 
+             |         |         |       |   9
+             |    1    +---------+       | 
+         0.66|         |    4    |       +--------> 
+             |         |         |       | 
+             |---------+---------+   6   |   8
+             |         |    3    |       | 
+         0.33|         |         |       +--------> 
+             |    0    +---------+       | 
+             |         |    2    |       |   7
+             |         |         |       | 
+             +---------+---------+-------+-------->
+                       1         2       3
+        When end of segments are encountered on 1, 5, and 6 followed by 0, 3, and 6.
+     */
+    @Test
+    public void testOutOfOrderSplit2() {
+        StreamSegments streamSegments = initStreamSegments(2);
+        
+        // Verify.
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(1, 0), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(1, 0), streamSegments.getSegmentForKey(0.8));
+
+        // 1 is split into 4, 5.
+        Map<SegmentWithRange, List<Long>> newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(4, 1), 0.5, 0.75), ImmutableList.of(computeSegmentId(1, 0)));
+        newRange.put(new SegmentWithRange(getSegment(5, 1), 0.75, 1.0), ImmutableList.of(computeSegmentId(1, 0)));
+
+        // Simulate fetch successors for segment 1.
+        streamSegments = streamSegments.withReplacementRange(getSegment(1, 0),
+                                                             new StreamSegmentsWithPredecessors(newRange, ""));
+        // Verify.
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 1), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(5, 1), streamSegments.getSegmentForKey(0.8));
+
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(6, 2), 0.0, 1.0),
+                     ImmutableList.of(computeSegmentId(2, 1), computeSegmentId(3, 1), computeSegmentId(4, 1),
+                                      computeSegmentId(5, 1)));
+
+        // Simulate fetch successors for segment 5.
+        streamSegments = streamSegments.withReplacementRange(getSegment(5, 1),
+                                                             new StreamSegmentsWithPredecessors(newRange, ""));
+        // Verify.
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 1), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(6, 2), streamSegments.getSegmentForKey(0.8));
+
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(7, 3), 0.0, 0.33), ImmutableList.of(computeSegmentId(6, 2)));
+        newRange.put(new SegmentWithRange(getSegment(8, 3), 0.33, 0.66), ImmutableList.of(computeSegmentId(6, 2)));
+        newRange.put(new SegmentWithRange(getSegment(9, 3), 0.66, 1.0), ImmutableList.of(computeSegmentId(6, 2)));
+
+        // Simulate fetch successors for segment 6.
+        streamSegments = streamSegments.withReplacementRange(getSegment(6, 2),
+                                                             new StreamSegmentsWithPredecessors(newRange, ""));
+        // Verify.
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(0, 0), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 1), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(9, 3), streamSegments.getSegmentForKey(0.8));
+
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(2, 1), 0.0, 0.25), ImmutableList.of(computeSegmentId(0, 0)));
+        newRange.put(new SegmentWithRange(getSegment(3, 1), 0.25, 0.5), ImmutableList.of(computeSegmentId(0, 0)));
+
+        // Simulate fetch successors for segment 0.
+        streamSegments = streamSegments.withReplacementRange(getSegment(0, 0),
+                                                             new StreamSegmentsWithPredecessors(newRange, ""));
+        // Verify.
+        assertEquals(getSegment(2, 1), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(3, 1), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 1), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(9, 3), streamSegments.getSegmentForKey(0.8));
+
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(6, 2), 0.0, 1.0),
+                     ImmutableList.of(computeSegmentId(2, 1), computeSegmentId(3, 1), computeSegmentId(4, 1),
+                                      computeSegmentId(5, 1)));
+        // Simulate fetch successors for segment 3.
+        streamSegments = streamSegments.withReplacementRange(getSegment(3, 1),
+                                                             new StreamSegmentsWithPredecessors(newRange, ""));
+        // Verify.
+        assertEquals(getSegment(2, 1), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(6, 2), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 1), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(9, 3), streamSegments.getSegmentForKey(0.8));
+
+        newRange = new HashMap<>();
+        newRange.put(new SegmentWithRange(getSegment(7, 3), 0.0, 0.33), ImmutableList.of(computeSegmentId(6, 2)));
+        newRange.put(new SegmentWithRange(getSegment(8, 3), 0.33, 0.66), ImmutableList.of(computeSegmentId(6, 2)));
+        newRange.put(new SegmentWithRange(getSegment(9, 3), 0.66, 1.0), ImmutableList.of(computeSegmentId(6, 2)));
+
+        // Simulate fetch successors for segment 6.
+        streamSegments = streamSegments.withReplacementRange(getSegment(6, 2),
+                                                             new StreamSegmentsWithPredecessors(newRange, ""));
+        // Verify.
+        assertEquals(getSegment(2, 1), streamSegments.getSegmentForKey(0.2));
+        assertEquals(getSegment(8, 3), streamSegments.getSegmentForKey(0.4));
+        assertEquals(getSegment(4, 1), streamSegments.getSegmentForKey(0.6));
+        assertEquals(getSegment(9, 3), streamSegments.getSegmentForKey(0.8));
+    }
+    
 
     private void addNewSegment(TreeMap<Double, SegmentWithRange> segments, int number, double low, double high) {
         segments.put(high, new SegmentWithRange(new Segment(scope, streamName, number), low, high));
@@ -1181,4 +1304,148 @@ public class StreamSegmentsTest {
     private Segment getSegment(int segmentNumber, int epoch) {
         return new Segment(scope, streamName, computeSegmentId(segmentNumber, epoch));
     }
+    
+
+    @Test
+    public void testRandomSplitMerge() {
+        Random r = new Random(0);
+        NavigableMap<Double, SegmentWithRange> segmentMap = new TreeMap<>();
+        HashMap<Segment, Range<Double>> ranges = new HashMap<>();
+        segmentMap.put(1.0, new SegmentWithRange(createSegment(1, 0), 0.0, 1.0));
+        ranges.put(createSegment(1, 0), Range.openClosed(0.0, 1.0));
+        StreamSegments streamSegments = new StreamSegments(segmentMap, "");
+        int segumentNumber = 10;
+
+        for (int epoch = 1; epoch < 1000; epoch++) {
+            System.out.println("Begin epoch " + epoch);
+            LinkedHashMap<Segment, Integer> counts = getCounts(streamSegments);
+            System.out.println("Counts are: " + counts);
+            List<Segment> toSplit = findSegmentsToSplit(counts);
+
+            HashMap<Segment, StreamSegmentsWithPredecessors> toApply = new HashMap<>();
+
+            for (Segment s : toSplit) {
+                if (r.nextDouble() < .2) {
+                    Segment lower = createSegment(segumentNumber++, epoch);
+                    Segment upper = createSegment(segumentNumber++, epoch);
+                    toApply.putAll(splitSegment(ranges, s, lower, upper));
+                }
+            }
+
+            Map<Segment, Segment> toMerge = findSegmentsToMerge(streamSegments, counts);
+            for (Entry<Segment, Segment> pair : toMerge.entrySet()) {
+                if (r.nextDouble() < .2) {
+                    Segment combined = createSegment(segumentNumber++, epoch);
+                    toApply.putAll(mergeSegments(ranges, pair, combined));
+                }
+            }
+
+            streamSegments = applyUpdates(toApply, streamSegments, ranges, r);
+
+            HashSet<Segment> actualSegments = new HashSet<>(streamSegments.getSegments());
+            Set<Segment> expectedSegments = ranges.keySet();
+
+            assertEquals(expectedSegments, actualSegments);
+            System.out.println(ranges);
+            System.out.println(streamSegments);
+        }
+    }
+
+    private StreamSegments applyUpdates(HashMap<Segment, StreamSegmentsWithPredecessors> replacements,
+                                        StreamSegments current, HashMap<Segment, Range<Double>> ranges, Random r) {
+        ArrayList<Entry<Segment, StreamSegmentsWithPredecessors>> updates = new ArrayList<>(replacements.entrySet());
+        Collections.shuffle(updates, r);
+        for (Entry<Segment, StreamSegmentsWithPredecessors> entry : updates) {
+            ranges.remove(entry.getKey());
+            entry.getValue()
+                 .getReplacementRanges()
+                 .values()
+                 .stream()
+                 .flatMap(c -> c.stream())
+                 .forEach(newSegment -> ranges.put(newSegment.getSegment(),
+                                                   Range.openClosed(newSegment.getLow(), newSegment.getHigh())));
+            current = current.withReplacementRange(entry.getKey(), entry.getValue());
+        }
+        return current;
+    }
+
+    private HashMap<Segment, StreamSegmentsWithPredecessors> mergeSegments(HashMap<Segment, Range<Double>> ranges,
+                                                                           Entry<Segment, Segment> pair,
+                                                                           Segment combined) {
+        Range<Double> lowerRange = ranges.get(pair.getKey());
+        Range<Double> upperRange = ranges.get(pair.getValue());
+        assertEquals(lowerRange.upperEndpoint(), upperRange.lowerEndpoint());
+
+        Map<SegmentWithRange, List<Long>> newSegments = new HashMap<>();
+        newSegments.put(new SegmentWithRange(combined, lowerRange.lowerEndpoint(), upperRange.upperEndpoint()),
+                        ImmutableList.of(pair.getKey().getSegmentId(), pair.getValue().getSegmentId()));
+        System.out.println("Merging " + lowerRange + " and " + upperRange);
+        StreamSegmentsWithPredecessors replacementRanges = new StreamSegmentsWithPredecessors(newSegments, "");
+        HashMap<Segment, StreamSegmentsWithPredecessors> replacements = new HashMap<>();
+        replacements.put(pair.getKey(), replacementRanges);
+        replacements.put(pair.getValue(), replacementRanges);
+        return replacements;
+    }
+
+    private List<Segment> findSegmentsToSplit(HashMap<Segment, Integer> counts) {
+        List<Segment> toSplit = counts.entrySet()
+                                      .stream()
+                                      .filter(e -> e.getValue() >= 3)
+                                      .map(e -> e.getKey())
+                                      .collect(Collectors.toList());
+        return toSplit;
+    }
+
+    private Map<Segment, Segment> findSegmentsToMerge(StreamSegments streamSegments, HashMap<Segment, Integer> counts) {
+        Map<Segment, Segment> toMerge = new HashMap<>();
+        Segment previous = null;
+        for (Segment segment : new LinkedHashSet<>(streamSegments.getSegments())) {
+            if (previous != null) {
+                if (counts.get(previous) + counts.get(segment) <= 4) {
+                    toMerge.put(previous, segment);
+                    previous = null;
+                } else {
+                    previous = segment;
+                }
+            } else {
+                previous = segment;
+            }
+        }
+        return toMerge;
+    }
+
+    private HashMap<Segment, StreamSegmentsWithPredecessors> splitSegment(HashMap<Segment, Range<Double>> ranges,
+                                                                          Segment oldSegment, Segment lower,
+                                                                          Segment upper) {
+        Range<Double> range = ranges.get(oldSegment);
+        double midpoint = (range.upperEndpoint() + range.lowerEndpoint()) / 2.0;
+        Map<SegmentWithRange, List<Long>> newSegments = new HashMap<>();
+        newSegments.put(new SegmentWithRange(lower, range.lowerEndpoint(), midpoint),
+                        Collections.singletonList(oldSegment.getSegmentId()));
+        newSegments.put(new SegmentWithRange(upper, midpoint, range.upperEndpoint()),
+                        Collections.singletonList(oldSegment.getSegmentId()));
+        System.out.println("Splitting " + range + " at " + midpoint);
+        StreamSegmentsWithPredecessors replacementRanges = new StreamSegmentsWithPredecessors(newSegments, "");
+
+        HashMap<Segment, StreamSegmentsWithPredecessors> replacements = new HashMap<>();
+        replacements.put(oldSegment, replacementRanges);
+        return replacements;
+    }
+
+    private LinkedHashMap<Segment, Integer> getCounts(StreamSegments streamSegments) {
+        LinkedHashMap<Segment, Integer> counts = new LinkedHashMap<>();
+        for (Segment s : streamSegments.getSegments()) {
+            counts.put(s, 0);
+        }
+        for (double key : new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9 }) {
+            Segment segment = streamSegments.getSegmentForKey(key);
+            counts.put(segment, counts.get(segment) + 1);
+        }
+        return counts;
+    }
+
+    private Segment createSegment(int num, int epoch) {
+        return new Segment("scope", "stream", StreamSegmentNameUtils.computeSegmentId(num, epoch));
+    }
+    
 }
