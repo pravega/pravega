@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -92,7 +93,6 @@ public class StreamSegments {
         List<SegmentWithRange> replacements = replacedRanges.get(segment.getSegmentId());
         Preconditions.checkNotNull(replacements, "Empty set of replacements for: {}", segment.getSegmentId());
         replacements.sort(Comparator.comparingDouble(SegmentWithRange::getHigh).reversed());
-        SegmentWithRange lastSegmentValue = null;
         for (Entry<Double, SegmentWithRange> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final SegmentWithRange existingSegment = existingEntry.getValue();
             if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
@@ -105,16 +105,25 @@ public class StreamSegments {
                     }
                 }
             } else {
-                if (!existingSegment.equals(lastSegmentValue)) { // last value was the same segment, it can be consolidated.
-                    // update remaining values.
-                    result.put(existingEntry.getKey(), existingEntry.getValue());
-                }
+                // update remaining values.
+                result.put(existingEntry.getKey(), existingEntry.getValue());
             }
-            lastSegmentValue = existingSegment; // update lastSegmentValue to reduce number of entries in the map.
         }
+        removeDuplicates(result);
         return new StreamSegments(result, delegationToken);
     }
     
+    private void removeDuplicates(NavigableMap<Double, SegmentWithRange> result) {
+        Segment last = null;
+        for (Iterator<SegmentWithRange> iterator = result.descendingMap().values().iterator(); iterator.hasNext();) {
+            SegmentWithRange current = iterator.next();
+            if (current.getSegment().equals(last)) {
+                iterator.remove();
+            }
+            last = current.getSegment();
+        }
+    }
+
     private SegmentWithRange findReplacedSegment(Segment segment) {
         return segments.values()
                        .stream()
