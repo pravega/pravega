@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -1082,9 +1083,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // we can do is check periodically until that is done.
         TestUtils.await(entry::hasSecondEntrySet, 10, TIMEOUT.toMillis());
 
-        // Close the index and verify the entry is cancelled.
+        // Close the index.
         context.readIndex.close();
-        Assert.assertTrue("Expected entry to have been cancelled upon closing", entry.getContent().isCancelled());
+
+        // Verify the entry is cancelled. Invoke get() since the cancellation is asynchronous so it may not yet have
+        // been executed; get() will block until that happens.
+        AssertExtensions.assertThrows(
+                "Expected entry to have been cancelled upon closing",
+                () -> entry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS),
+                ex -> ex instanceof CancellationException);
     }
 
     /**
