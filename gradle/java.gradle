@@ -16,8 +16,6 @@ plugins.withId('java') {
     apply plugin: 'maven'
 
     compileJava {
-        sourceCompatibility = "8"
-        targetCompatibility = "8"
         
         options.compilerArgs.addAll([
                 "-Xlint:deprecation",
