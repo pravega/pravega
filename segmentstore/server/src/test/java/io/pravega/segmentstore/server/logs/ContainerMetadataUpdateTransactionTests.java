@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -648,6 +649,39 @@ public class ContainerMetadataUpdateTransactionTests {
     }
 
     //endregion
+
+    //region DeleteSegmentOperation
+
+    /**
+     * Tests the preProcess and accept method with DeleteSegmentOperations.
+     */
+    @Test
+    public void testProcessDeleteSegmentOperation() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+
+        // Get the metadata
+        UpdateableSegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
+        val txn = createUpdateTransaction(metadata);
+
+        // Process the operation.
+        DeleteSegmentOperation deleteOp = createDelete();
+        txn.preProcessOperation(deleteOp);
+        txn.acceptOperation(deleteOp);
+
+        // Verify pre-commit.
+        Assert.assertTrue("acceptOperation did not update the transaction.", txn.getStreamSegmentMetadata(SEGMENT_ID).isDeleted());
+        Assert.assertFalse("acceptOperation updated the metadata.", segmentMetadata.isDeleted());
+        AssertExtensions.assertThrows("preProcess allowed the operation even though the Segment is deleted.",
+                () -> txn.preProcessOperation(deleteOp),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // Verify post-commit.
+        txn.commit(metadata);
+        Assert.assertTrue("commit did not update the metadata.", segmentMetadata.isDeleted());
+    }
+
+    //endregion
+
 
     //region MergeSegmentOperation
 
@@ -1386,6 +1420,10 @@ public class ContainerMetadataUpdateTransactionTests {
 
     private StreamSegmentTruncateOperation createTruncate(long offset) {
         return new StreamSegmentTruncateOperation(SEGMENT_ID, offset);
+    }
+
+    private DeleteSegmentOperation createDelete() {
+        return new DeleteSegmentOperation(SEGMENT_ID);
     }
 
     private MergeSegmentOperation createMerge() {

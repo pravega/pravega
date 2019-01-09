@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.IllegalContainerStateException;
@@ -25,16 +26,14 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.containers.InMemoryStateStore;
-import io.pravega.segmentstore.server.containers.StreamSegmentMapper;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.storage.DurableDataLogException;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -52,11 +51,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -98,20 +99,17 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     /**
      * Creates a number of StreamSegments in the given Metadata and OperationLog.
      */
-    HashSet<Long> createStreamSegmentsWithOperations(int streamSegmentCount, ContainerMetadata containerMetadata,
-                                                     OperationLog durableLog, Storage storage) {
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
-                storage, executorService());
-        HashSet<Long> result = new HashSet<>();
+    Set<Long> createStreamSegmentsWithOperations(int streamSegmentCount, OperationLog durableLog) {
+        val operations = new ArrayList<StreamSegmentMapOperation>();
+        val futures = new ArrayList<CompletableFuture<Void>>();
         for (int i = 0; i < streamSegmentCount; i++) {
-            String name = getStreamSegmentName(i);
-            long streamSegmentId = mapper
-                    .createNewStreamSegment(name, null, Duration.ZERO)
-                    .thenCompose(v -> mapper.getOrAssignStreamSegmentId(name, Duration.ZERO)).join();
-            result.add(streamSegmentId);
+            val op = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name(getStreamSegmentName(i)).build());
+            operations.add(op);
+            futures.add(durableLog.add(op, TIMEOUT));
         }
 
-        return result;
+        Futures.allOf(futures).join();
+        return operations.stream().map(StreamSegmentMapOperation::getStreamSegmentId).collect(Collectors.toSet());
     }
 
     /**
@@ -141,23 +139,19 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
     /**
      * Creates a number of Transaction Segments in the given Metadata and OperationLog.
      */
-    AbstractMap<Long, Long> createTransactionsWithOperations(HashSet<Long> streamSegmentIds, int transactionsPerStreamSegment,
-                                                             ContainerMetadata containerMetadata, OperationLog durableLog, Storage storage) {
-        HashMap<Long, Long> result = new HashMap<>();
-        StreamSegmentMapper mapper = new StreamSegmentMapper(containerMetadata, durableLog, new InMemoryStateStore(), NO_OP_METADATA_CLEANUP,
-                storage, executorService());
+    AbstractMap<Long, Long> createTransactionsWithOperations(Set<Long> streamSegmentIds, int transactionsPerStreamSegment,
+                                                             ContainerMetadata containerMetadata, OperationLog durableLog) {
+        val result = new HashMap<Long, Long>();
         for (long streamSegmentId : streamSegmentIds) {
             String streamSegmentName = containerMetadata.getStreamSegmentMetadata(streamSegmentId).getName();
 
             for (int i = 0; i < transactionsPerStreamSegment; i++) {
                 String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, UUID.randomUUID());
-                long transactionId = mapper
-                        .createNewStreamSegment(transactionName, null, Duration.ZERO)
-                        .thenCompose(v -> mapper.getOrAssignStreamSegmentId(transactionName, Duration.ZERO)).join();
-                result.put(transactionId, streamSegmentId);
+                StreamSegmentMapOperation op = new StreamSegmentMapOperation(StreamSegmentInformation.builder().name(transactionName).build());
+                durableLog.add(op, TIMEOUT).join();
+                result.put(op.getStreamSegmentId(), streamSegmentId);
             }
         }
-
         return result;
     }
 

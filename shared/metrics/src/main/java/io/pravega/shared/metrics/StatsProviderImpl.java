@@ -127,7 +127,7 @@ class StatsProviderImpl implements StatsProvider {
                 .build());
         }
         for (ScheduledReporter r : reporters) {
-            r.start(conf.getStatsOutputFrequencySeconds(), TimeUnit.SECONDS);
+            r.start(conf.getStatsOutputFrequencySeconds().getSeconds(), TimeUnit.SECONDS);
         }
     }
 
