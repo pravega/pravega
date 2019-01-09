@@ -49,7 +49,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
 
     /**
      * Marks this StreamSegment as sealed in Storage.
-     * This is different from markSealed() in that markSealed() indicates it was sealed in DurableLog, which this indicates
+     * This is different from markSealed() in that markSealed() indicates it was sealed in the Metadata, while this indicates
      * this fact has been persisted in Storage.
      */
     void markSealedInStorage();
@@ -58,6 +58,13 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
      * Marks this StreamSegment as deleted.
      */
     void markDeleted();
+
+    /**
+     * Marks this StreamSegment as deleted in Storage.
+     * This is different from markDeleted() in that markDeleted() indicates it was deleted in the Metadata, while this
+     * indicates the Segment has been deleted from Storage.
+     */
+    void markDeletedInStorage();
 
     /**
      * Marks this StreamSegment as merged.
