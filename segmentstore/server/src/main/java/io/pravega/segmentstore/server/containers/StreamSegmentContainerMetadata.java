@@ -191,32 +191,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public SegmentMetadata deleteStreamSegment(String streamSegmentName) {
-        StreamSegmentMetadata segmentMetadata;
-        synchronized (this.lock) {
-            segmentMetadata = this.metadataByName.getOrDefault(streamSegmentName, null);
-            if (segmentMetadata == null) {
-                // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
-                // with it, so no need to do anything else.
-                log.info("{}: DeleteStreamSegments (nothing)", this.traceObjectId);
-                return null;
-            } else if (segmentMetadata.isDeleted() || segmentMetadata.isMerged()) {
-                // Do not attempt to re-delete the Segment if already deleted or merged. That is more likely to cause
-                // issues in downstream components.
-                log.info("{}: DeleteStreamSegments {} ('{}') - no action (deleted={}, merged={}).", this.traceObjectId,
-                        segmentMetadata.getId(), segmentMetadata.getName(), segmentMetadata.isDeleted(), segmentMetadata.isMerged());
-                return null;
-            }
-
-            // Mark this segment as deleted.
-            segmentMetadata.markDeleted();
-        }
-
-        log.info("{}: DeleteStreamSegment {} ('{}').", this.traceObjectId, segmentMetadata.getId(), segmentMetadata.getName());
-        return segmentMetadata;
-    }
-
-    @Override
     public long nextOperationSequenceNumber() {
         ensureNonRecoveryMode();
         return this.sequenceNumber.incrementAndGet();

@@ -62,6 +62,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private boolean deleted;
     @GuardedBy("this")
+    private boolean deletedInStorage;
+    @GuardedBy("this")
     private boolean merged;
     @GuardedBy("this")
     private ImmutableDate lastModified;
@@ -96,6 +98,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.sealed = false;
         this.sealedInStorage = false;
         this.deleted = false;
+        this.deletedInStorage = false;
         this.merged = false;
         this.startOffset = 0;
         this.storageLength = -1;
@@ -148,6 +151,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized boolean isMerged() {
         return this.merged;
+    }
+
+    @Override
+    public synchronized boolean isDeletedInStorage() {
+        return this.deletedInStorage;
     }
 
     @Override
@@ -233,9 +241,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void markSealedInStorage() {
-        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
+        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in Metadata.");
         log.debug("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
+    }
+
+    @Override
+    public synchronized void markMerged() {
+        log.debug("{}: Merged = true.", this.traceObjectId);
+        this.merged = true;
     }
 
     @Override
@@ -245,9 +259,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void markMerged() {
-        log.debug("{}: Merged = true.", this.traceObjectId);
-        this.merged = true;
+    public synchronized void markDeletedInStorage() {
+        Preconditions.checkState(this.deleted, "Cannot mark DeletedInStorage if not Deleted in Metadata.");
+        log.debug("{}: DeletedInStorage = true.", this.traceObjectId);
+        this.deletedInStorage = true;
     }
 
     @Override
@@ -300,6 +315,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isDeleted()) {
             markDeleted();
+            if (base.isDeletedInStorage()) {
+                markDeletedInStorage();
+            }
         }
 
         if (base.isPinned()) {

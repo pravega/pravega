@@ -646,54 +646,37 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         private final AtomicReference<AsyncIterator<List<PageEntry>>> pageEntryIterator;
         private final AtomicReference<UUID> lastProcessedId;
         private final AtomicBoolean firstInvocation;
-        private final AtomicBoolean inProgress;
 
         AttributeIteratorImpl(UUID firstId, CreatePageEntryIterator getPageEntryIterator) {
             this.getPageEntryIterator = getPageEntryIterator;
             this.pageEntryIterator = new AtomicReference<>();
             this.lastProcessedId = new AtomicReference<>(firstId);
             this.firstInvocation = new AtomicBoolean(true);
-            this.inProgress = new AtomicBoolean(false);
             reinitialize();
         }
 
         @Override
         public CompletableFuture<List<Map.Entry<UUID, Long>>> getNext() {
-            // Verify no other call to getNext() is currently executing.
-            Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
-            try {
-                return READ_RETRY
-                        .runAsync(this::getNextPageEntries, executor)
-                        .thenApply(pageEntries -> {
-                            if (pageEntries == null) {
-                                // We are done.
-                                return null;
-                            }
+            return READ_RETRY
+                    .runAsync(this::getNextPageEntries, executor)
+                    .thenApply(pageEntries -> {
+                        if (pageEntries == null) {
+                            // We are done.
+                            return null;
+                        }
 
-                            val result = pageEntries.stream()
-                                                    .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
-                                                    .collect(Collectors.toList());
-                            if (result.size() > 0) {
-                                // Update the last Attribute Id and also indicate that we have processed at least one iteration.
-                                this.lastProcessedId.set(result.get(result.size() - 1).getKey());
-                                this.firstInvocation.set(false);
-                            }
+                        val result = pageEntries.stream()
+                                                .map(e -> Maps.immutableEntry(deserializeKey(e.getKey()), deserializeValue(e.getValue())))
+                                                .collect(Collectors.toList());
+                        if (result.size() > 0) {
+                            // Update the last Attribute Id and also indicate that we have processed at least one iteration.
+                            this.lastProcessedId.set(result.get(result.size() - 1).getKey());
+                            this.firstInvocation.set(false);
+                        }
 
-                            return result;
-                        })
-                        .handle((result, ex) -> {
-                            this.inProgress.set(false);
-                            if (ex != null) {
-                                handleIndexOperationException(ex); // This will throw.
-                            }
-
-                            return result;
-                        });
-            } catch (Throwable ex) {
-                // Clear the inProgress flag if a sync exception occurred.
-                this.inProgress.set(false);
-                throw ex;
-            }
+                        return result;
+                    })
+                    .exceptionally(SegmentAttributeBTreeIndex.this::handleIndexOperationException);
         }
 
         private CompletableFuture<List<PageEntry>> getNextPageEntries() {

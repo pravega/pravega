@@ -194,7 +194,8 @@ class ZKStream extends PersistentStreamBase {
                                                              }));
     }
 
-    private CompletableFuture<Long> getCreationTime() {
+    @Override
+    public CompletableFuture<Long> getCreationTime() {
         return cache.getCachedData(creationPath)
                     .thenApply(data -> BitConverter.readLong(data.getData(), 0));
     }

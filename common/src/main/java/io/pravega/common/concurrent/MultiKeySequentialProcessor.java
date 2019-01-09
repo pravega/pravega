@@ -33,7 +33,7 @@ import lombok.val;
  */
 @ThreadSafe
 @RequiredArgsConstructor
-public class ConcurrentDependentProcessor<KeyType> implements AutoCloseable {
+public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
     private final Executor executor;
     @GuardedBy("queue")
     private final Map<KeyType, CompletableFuture<?>> queue = new HashMap<>();
