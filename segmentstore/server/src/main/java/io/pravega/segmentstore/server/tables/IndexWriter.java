@@ -150,8 +150,9 @@ class IndexWriter extends IndexReader {
             log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, No Changes.", segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset);
             return CompletableFuture.completedFuture(0);
         } else {
-            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, UpdateCount={}.",
-                    segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, update.getAttributes().size());
+            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, Updates={}, Entries+={}, Buckets+={}.",
+                    segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, update.getAttributes().size(),
+                    update.getEntryCountDelta(), update.getBucketCountDelta());
             return segment.updateAttributes(update.getAttributes(), timeout)
                           .thenApply(v -> update.getAttributes().size());
         }
