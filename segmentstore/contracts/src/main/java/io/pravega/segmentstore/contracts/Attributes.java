@@ -83,6 +83,11 @@ public final class Attributes {
     public static final UUID TABLE_ENTRY_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 8);
 
     /**
+     * Defines an attribute that is used to store the the number of Table Buckets in a (Table) Segment.
+     */
+    public static final UUID TABLE_BUCKET_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
+
+    /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
      *
      * @param attributeId The Attribute Id to check.

@@ -85,7 +85,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
-    private static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -179,7 +179,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesUnconditional() {
-        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey, true);
+        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
     }
 
     /**
@@ -188,7 +188,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesUnconditionalWithCollisions() {
-        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey, false);
+        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
     }
 
     /**
@@ -196,7 +196,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesConditional() {
-        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey, true);
+        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
     }
 
     /**
@@ -204,7 +204,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesConditionalWithCollisions() {
-        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey, false);
+        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
     }
 
     /**
@@ -218,8 +218,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 KeyHashers.DEFAULT_HASHER,
                 this::toUnconditionalTableEntry,
                 this::toUnconditionalKey,
-                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext),
-                true);
+                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
     }
 
     /**
@@ -233,8 +232,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 KeyHashers.COLLISION_HASHER,
                 this::toUnconditionalTableEntry,
                 this::toUnconditionalKey,
-                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext),
-                false);
+                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
     }
 
     /**
@@ -362,13 +360,13 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         deleteSegment(expectedEntries.keySet(), context.ext);
     }
 
-    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove, boolean deleteSegment) {
-        testBatchUpdates(BATCH_UPDATE_COUNT, BATCH_SIZE, keyHasher, generateToUpdate, generateToRemove, this::check, deleteSegment);
+    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
+        testBatchUpdates(BATCH_UPDATE_COUNT, BATCH_SIZE, keyHasher, generateToUpdate, generateToRemove, this::check);
     }
 
     @SneakyThrows
     private void testBatchUpdates(int updateCount, int maxBatchSize, KeyHasher keyHasher, EntryGenerator generateToUpdate,
-                                  KeyGenerator generateToRemove, CheckTable checkTable, boolean deleteSegment) {
+                                  KeyGenerator generateToRemove, CheckTable checkTable) {
         @Cleanup
         val context = new TestContext(keyHasher);
 
@@ -437,9 +435,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         ext2.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
         checkTable.accept(Collections.emptyMap(), removedKeys, ext2);
-        if (deleteSegment) {
-            deleteSegment(Collections.emptyList(), ext2);
-        }
+        deleteSegment(Collections.emptyList(), ext2);
     }
 
     private void deleteSegment(Collection<HashedArray> remainingKeys, ContainerTableExtension ext) throws Exception {

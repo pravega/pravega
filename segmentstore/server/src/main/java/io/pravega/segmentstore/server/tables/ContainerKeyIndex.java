@@ -136,7 +136,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
                 () -> {
                     SegmentProperties sp = segment.getInfo();
-                    long entryCount = this.indexReader.getEntryCount(sp) + this.cache.getEntryCountDelta(segment.getSegmentId());
+                    long entryCount = this.indexReader.getBucketCount(sp) + this.cache.getBucketCountDelta(segment.getSegmentId());
                     if (entryCount <= 0) {
                         // Segment is empty.
                         return action.get();

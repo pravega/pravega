@@ -83,6 +83,16 @@ class IndexReader {
     }
 
     /**
+     * Gets the number of Table Buckets in the Segment for the given {@link SegmentProperties}.
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The count.
+     */
+    long getBucketCount(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_BUCKET_COUNT, 0L);
+    }
+
+    /**
      * Locates the {@link TableBucket}s for the given Key Hashes in the given Segment's Extended Attribute Index.
      *
      * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.

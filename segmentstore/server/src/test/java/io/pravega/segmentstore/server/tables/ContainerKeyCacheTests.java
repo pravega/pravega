@@ -474,7 +474,7 @@ public class ContainerKeyCacheTests {
             }
         }
 
-        checkEntryCountDelta(keyCache);
+        checkBucketCountDelta(keyCache);
     }
 
     private void checkNotInCache(List<TestKey> keys, ContainerKeyCache keyCache) {
@@ -484,11 +484,11 @@ public class ContainerKeyCacheTests {
         }
     }
 
-    private void checkEntryCountDelta(ContainerKeyCache keyCache) {
+    private void checkBucketCountDelta(ContainerKeyCache keyCache) {
         for (long segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
             val expected = keyCache.getTailHashes(segmentId).values().stream().mapToInt(e -> e.isRemoval() ? -1 : 1).sum();
-            val actual = keyCache.getEntryCountDelta(segmentId);
-            Assert.assertEquals("Unexpected value from getEntryCountDelta()", expected, actual);
+            val actual = keyCache.getBucketCountDelta(segmentId);
+            Assert.assertEquals("Unexpected value from getBucketCountDelta()", expected, actual);
         }
     }
 

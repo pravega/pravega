@@ -73,12 +73,15 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                          .attributes(ImmutableMap.<UUID, Long>builder()
                                                  .put(Attributes.TABLE_INDEX_OFFSET, 123456L)
                                                  .put(Attributes.TABLE_ENTRY_COUNT, 2345L)
+                                                 .put(Attributes.TABLE_BUCKET_COUNT, 3456L)
                                                  .build())
                                          .build();
         Assert.assertEquals("Unexpected value for TABLE_INDEX_OFFSET when attribute present.",
                 123456, ir.getLastIndexedOffset(si));
         Assert.assertEquals("Unexpected value for TABLE_ENTRY_COUNT when attribute present.",
                 2345, ir.getEntryCount(si));
+        Assert.assertEquals("Unexpected value for TABLE_BUCKET_COUNT when attribute present.",
+                3456, ir.getBucketCount(si));
     }
 
     //endregion
@@ -92,9 +95,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     public void testGenerateInitialTableAttributes() {
         val updates = IndexWriter.generateInitialTableAttributes();
         val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-        Assert.assertEquals("Unexpected number of updates generated.", 2, values.size());
+        Assert.assertEquals("Unexpected number of updates generated.", 3, values.size());
         Assert.assertEquals("Unexpected value for TableIndexOffset.", 0L, (long) values.get(Attributes.TABLE_INDEX_OFFSET));
         Assert.assertEquals("Unexpected value for TableEntryCount.", 0L, (long) values.get(Attributes.TABLE_ENTRY_COUNT));
+        Assert.assertEquals("Unexpected value for TableBucketCount.", 0L, (long) values.get(Attributes.TABLE_BUCKET_COUNT));
     }
 
     /**
@@ -403,7 +407,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
             // Add back the count of all keys that have been updated or added; we've already discounted all updates, insertions
             // and removals above, so adding just the updates and insertions will ensure the expected count is accurate.
-            entryCount.addAndGet(bu.getKeyUpdates().stream().filter(u -> !u.isDeleted()).count());
+            val deletedCount = bu.getKeyUpdates().stream().filter(BucketUpdate.KeyUpdate::isDeleted).count();
+            entryCount.addAndGet(bu.getKeyUpdates().size() - deletedCount);
         }
 
         // Apply the updates.
@@ -425,7 +430,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     private void checkIndex(Collection<HashedArray> allKeys, Map<Long, HashedArray> existingKeysByOffset, IndexWriter w,
                             KeyHasher hasher, SegmentMock segment) {
-        checkEntryCount(existingKeysByOffset.size(), segment, w);
         val timer = new TimeoutTimer(TIMEOUT);
 
         // Group all keys by their full hash (each hash should translate to a bucket), and make sure they're ordered by
@@ -436,6 +440,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                 .map(key -> new BucketUpdate.KeyInfo(key, existingKeys.getOrDefault(key, NO_OFFSET)))
                                 .sorted((k1, k2) -> Long.compare(k2.getOffset(), k1.getOffset())) // Reverse order.
                                 .collect(Collectors.groupingBy(keyInfo -> hasher.hash(keyInfo.getKey())));
+        int existentBucketCount = 0;
         val buckets = w.locateBuckets(segment, keysByHash.keySet(), timer).join();
         for (val e : keysByHash.entrySet()) {
             val hash = e.getKey();
@@ -451,6 +456,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Not expecting any offsets to be returned for bucket: " + hash, 0, bucketOffsets.size());
             } else {
                 AssertExtensions.assertGreaterThan("Expected at least one offset to be returned for bucket: " + hash, 0, bucketOffsets.size());
+                existentBucketCount++;
             }
 
             AssertExtensions.assertLessThanOrEqual("Too many offsets returned for bucket: " + hash, keys.size(), bucketOffsets.size());
@@ -472,10 +478,17 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Missing key from bucket " + hash, NO_OFFSET, prevKeyOffset);
             }
         }
+
+        checkEntryCount(existingKeysByOffset.size(), segment, w);
+        checkBucketCount(existentBucketCount, segment, w);
     }
 
     private void checkEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
         Assert.assertEquals("Unexpected number of entries.", expectedCount, ir.getEntryCount(segment.getInfo()));
+    }
+
+    private void checkBucketCount(long expectedCount, SegmentMock segment, IndexReader ir) {
+        Assert.assertEquals("Unexpected number of buckets.", expectedCount, ir.getBucketCount(segment.getInfo()));
     }
 
     private void checkNoBackpointers(SegmentMock segment) {

@@ -266,14 +266,14 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
-     * Gets a value representing the difference between the number of Table Entries updated (or inserted) and the ones
+     * Gets a value representing the difference between the number of Table Buckets updated (or inserted) and the ones
      * that have been removed for the given Segment.
      *
      * @param segmentId The Id of the Segment to get the difference for.
      * @return The result.
      */
-    int getEntryCountDelta(long segmentId) {
-        return forSegmentCache(segmentId, SegmentKeyCache::getEntryCountDelta, 0);
+    int getBucketCountDelta(long segmentId) {
+        return forSegmentCache(segmentId, SegmentKeyCache::getBucketCountDelta, 0);
     }
 
     private <T> T forSegmentCache(long segmentId, Function<SegmentKeyCache, T> ifExists, T ifNotExists) {

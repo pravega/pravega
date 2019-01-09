@@ -287,12 +287,12 @@ class SegmentKeyCache {
     }
 
     /**
-     * Gets a value representing the difference between the number of Table Entries updated (or inserted) and the ones
+     * Gets a value representing the difference between the number of Table Buckets updated (or inserted) and the ones
      * that have been removed.
      *
      * @return The result.
      */
-    synchronized int getEntryCountDelta() {
+    synchronized int getBucketCountDelta() {
         int result = 0;
         for (val s : this.tailOffsets.values()) {
             result += s.isRemoval() ? -1 : 1;
