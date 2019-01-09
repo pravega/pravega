@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -84,7 +85,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final int ITERATOR_BATCH_UPDATE_SIZE = 69;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(3000);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -110,8 +111,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         checkIterators(Collections.emptyMap(), context.ext);
 
-        context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).join();
+        context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Segment not deleted.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
     /**
@@ -174,7 +179,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesUnconditional() {
-        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey, true);
     }
 
     /**
@@ -183,7 +188,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesUnconditionalWithCollisions() {
-        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey);
+        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toUnconditionalTableEntry, this::toUnconditionalKey, false);
     }
 
     /**
@@ -191,7 +196,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesConditional() {
-        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+        testBatchUpdates(KeyHashers.DEFAULT_HASHER, this::toConditionalTableEntry, this::toConditionalKey, true);
     }
 
     /**
@@ -199,7 +204,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testBatchUpdatesConditionalWithCollisions() {
-        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey);
+        testBatchUpdates(KeyHashers.COLLISION_HASHER, this::toConditionalTableEntry, this::toConditionalKey, false);
     }
 
     /**
@@ -213,7 +218,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 KeyHashers.DEFAULT_HASHER,
                 this::toUnconditionalTableEntry,
                 this::toUnconditionalKey,
-                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
+                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext),
+                true);
     }
 
     /**
@@ -227,7 +233,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 KeyHashers.COLLISION_HASHER,
                 this::toUnconditionalTableEntry,
                 this::toUnconditionalKey,
-                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
+                (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext),
+                false);
     }
 
     /**
@@ -352,15 +359,16 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         checkIterators(expectedEntries, context.ext);
+        deleteSegment(expectedEntries.keySet(), context.ext);
     }
 
-    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
-        testBatchUpdates(BATCH_UPDATE_COUNT, BATCH_SIZE, keyHasher, generateToUpdate, generateToRemove, this::check);
+    private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove, boolean deleteSegment) {
+        testBatchUpdates(BATCH_UPDATE_COUNT, BATCH_SIZE, keyHasher, generateToUpdate, generateToRemove, this::check, deleteSegment);
     }
 
     @SneakyThrows
     private void testBatchUpdates(int updateCount, int maxBatchSize, KeyHasher keyHasher, EntryGenerator generateToUpdate,
-                                  KeyGenerator generateToRemove, CheckTable checkTable) {
+                                  KeyGenerator generateToRemove, CheckTable checkTable, boolean deleteSegment) {
         @Cleanup
         val context = new TestContext(keyHasher);
 
@@ -429,6 +437,22 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         ext2.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
         checkTable.accept(Collections.emptyMap(), removedKeys, ext2);
+        if (deleteSegment) {
+            deleteSegment(Collections.emptyList(), ext2);
+        }
+    }
+
+    private void deleteSegment(Collection<HashedArray> remainingKeys, ContainerTableExtension ext) throws Exception {
+        if (remainingKeys.size() > 0) {
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "deleteIfEmpty worked on a non-empty segment.",
+                    () -> ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                    ex -> ex instanceof TableSegmentNotEmptyException);
+        }
+
+        val toRemove = remainingKeys.stream().map(TableKey::unversioned).collect(Collectors.toList());
+        ext.remove(SEGMENT_NAME, toRemove, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void check(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {

@@ -473,12 +473,22 @@ public class ContainerKeyCacheTests {
                 Assert.assertEquals("Unexpected value from getSegmentOffset().", e.getValue().getSegmentOffset(), result.getSegmentOffset());
             }
         }
+
+        checkEntryCountDelta(keyCache);
     }
 
     private void checkNotInCache(List<TestKey> keys, ContainerKeyCache keyCache) {
         for (val e : keys) {
             val result = keyCache.get(e.segmentId, e.keyHash);
             Assert.assertNull("Found key that is not supposed to be in the cache.", result);
+        }
+    }
+
+    private void checkEntryCountDelta(ContainerKeyCache keyCache) {
+        for (long segmentId = 0; segmentId < SEGMENT_COUNT; segmentId++) {
+            val expected = keyCache.getTailHashes(segmentId).values().stream().mapToInt(e -> e.isRemoval() ? -1 : 1).sum();
+            val actual = keyCache.getEntryCountDelta(segmentId);
+            Assert.assertEquals("Unexpected value from getEntryCountDelta()", expected, actual);
         }
     }
 
