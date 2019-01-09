@@ -177,7 +177,7 @@ class IndexWriter extends IndexReader {
      */
     private void generateAttributeUpdates(BucketUpdate bucketUpdate, UpdateInstructions update) {
         if (!bucketUpdate.hasUpdates()) {
-            // No changes.
+            // Nothing to do.
             return;
         }
 
@@ -314,8 +314,8 @@ class IndexWriter extends IndexReader {
                         updateInstructions.withAttribute(generateBackpointerUpdate(keyUpdate.getOffset(), previousOffset.get()));
                     }
 
-                  updateInstructions.entryAdded();
-                  previousOffset.set(keyUpdate.getOffset());
+                    updateInstructions.entryAdded();
+                    previousOffset.set(keyUpdate.getOffset());
                 });
     }
 
