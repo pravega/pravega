@@ -50,6 +50,14 @@ allprojects {
             testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
             compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
             testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+        test {
+          // From JDK9+ Netty will try not to access JDK internals
+          // in order not to produce scary "illegal access" warnings.
+          // This will slow down performances.
+          // We don't care about the warning but we care about performance.
+          systemProperty "io.netty.tryReflectionSetAccessible", "true"
+          // From JDK11+ Java will try to use TLSv1.3, we don't need it in tests
+          systemProperty "https.protocols", "TLSv1,TLSv1.1,TLSv1.2"
         }
     }
     // Plugin configurations
