@@ -41,6 +41,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -107,7 +108,7 @@ public class MetricsTest {
         MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
-        metricsConfig.setDynamicCacheEvictionDurationMs(5000);
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
