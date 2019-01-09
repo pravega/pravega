@@ -64,13 +64,13 @@ public class MetricsConfig {
      */
 
     @Getter
-    private long dynamicCacheEvictionDurationMinutes;
+    private Duration dynamicCacheEvictionDurationMinutes;
 
     /**
      * Gets a value indicating output frequency in seconds.
      */
     @Getter
-    private final int statsOutputFrequencySeconds;
+    private final Duration statsOutputFrequencySeconds;
 
     /**
      * The metrics prefix.
@@ -174,8 +174,8 @@ public class MetricsConfig {
     private MetricsConfig(TypedProperties properties) throws ConfigurationException {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
         this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
-        this.dynamicCacheEvictionDurationMinutes = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES)).toMillis();
-        this.statsOutputFrequencySeconds = properties.getInt(OUTPUT_FREQUENCY);
+        this.dynamicCacheEvictionDurationMinutes = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES));
+        this.statsOutputFrequencySeconds = Duration.ofSeconds(properties.getInt(OUTPUT_FREQUENCY));
         this.metricsPrefix = properties.get(METRICS_PREFIX);
         this.csvEndpoint = properties.get(CSV_ENDPOINT);
         this.statsDHost = properties.get(STATSD_HOST);
@@ -204,7 +204,7 @@ public class MetricsConfig {
 
 
     @VisibleForTesting
-    public void setDynamicCacheEvictionDurationMinutes(long duration) {
+    public void setDynamicCacheEvictionDuration(Duration duration) {
         this.dynamicCacheEvictionDurationMinutes = duration;
     }
 

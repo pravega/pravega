@@ -36,6 +36,7 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
+import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -84,7 +85,7 @@ public class ControllerMetricsTest {
                                                    .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
                                                    .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                                                    .build();
-        metricsConfig.setDynamicCacheEvictionDurationMinutes(300000);
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofMinutes(5));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
