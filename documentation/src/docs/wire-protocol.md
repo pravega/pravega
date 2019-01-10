@@ -42,7 +42,9 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 4.  Is at `EndOfSegment`: 1 bit.
 5.  `Data`: Binary (remaining length in the message).
 
-The client requests to read from a particular Segment at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server decides on more or less data to give the client than it asked for, in as many replies as it sees fit.
+The client requests to read from a particular Segment at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
+
+.
 
 # Appending
 
@@ -87,7 +89,7 @@ Only valid inside the block.
 ## Data Appended - Reply
 
 1. `writerId`: UUID (16 bytes) identifies the requesting appender.
-2. `eventNumber`: Long (8 bytes).This matches the `lastEventNumber` in the append block.
+2. `eventNumber`: Long (8 bytes). This matches the `lastEventNumber` in the append block.
 3. `previousEventNumber`: Long (8 bytes). This is the previous value of `eventNumber` that was returned in the last `DataAppeneded`.
 
 
