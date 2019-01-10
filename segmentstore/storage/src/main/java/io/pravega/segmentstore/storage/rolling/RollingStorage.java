@@ -232,12 +232,12 @@ public class RollingStorage implements SyncStorage {
     //region SyncStorage Implementation
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return create(streamSegmentName, this.defaultRollingPolicy);
     }
 
     @Override
-    public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
+    public SegmentHandle create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
@@ -279,8 +279,9 @@ public class RollingStorage implements SyncStorage {
             throw ex;
         }
 
+        val handle = openHandle(segmentName, false);
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
-        return StreamSegmentInformation.builder().name(segmentName).build();
+        return handle;
     }
 
     @Override

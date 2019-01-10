@@ -90,7 +90,7 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, Duration timeout) {
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
                 () -> this.wrappedStorage.create(streamSegmentName, timeout))
                             .thenApply(sp -> {
@@ -100,7 +100,7 @@ public class TestStorage implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
         return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
                 () -> this.wrappedStorage.create(streamSegmentName, rollingPolicy, timeout))
                             .thenApply(sp -> {

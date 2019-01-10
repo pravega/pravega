@@ -431,7 +431,7 @@ class HDFSStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         // Creates a file with the lowest possible epoch (0).
         // There is a possible race during create where more than one segmentstore may be trying to create a streamsegment.
         // If one create is delayed, it is possible that other segmentstore will be able to create the file with
@@ -479,7 +479,9 @@ class HDFSStorage implements SyncStorage {
             log.warn("Exception while deleting a file with epoch 0.", e);
         }
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
-        return StreamSegmentInformation.builder().name(streamSegmentName).build();
+
+        // return handle
+        return HDFSSegmentHandle.write(streamSegmentName);
     }
     //endregion
 
