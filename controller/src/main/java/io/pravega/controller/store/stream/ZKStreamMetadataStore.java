@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
@@ -322,9 +323,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         Preconditions.checkNotNull(listener);
 
         String bucketRoot = String.format(BUCKET_PATH, bucket);
-        // We specifically create the bucket node as a zNode. Otherwise, it may be inadvertently created as a Container
-        // by Curator. This would lead the bucket node to be automatically removed by Zookeeper if it becomes empty.
-        storeHelper.addNode(bucketRoot).join();
+        initializeBucketZNode(bucketRoot);
 
         PathChildrenCacheListener bucketListener = (client, event) -> {
             StreamImpl stream;
@@ -476,6 +475,24 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         String scopedStream = decodedScopedStreamName(ZKPaths.getNodeFromPath(path));
         String[] splits = scopedStream.split("/");
         return new StreamImpl(splits[0], splits[1]);
+    }
+
+    /**
+     * We specifically create the bucket node as a zNode. Otherwise, it may be inadvertently created as a Container
+     * by Curator. This would lead the bucket node to be automatically removed by Zookeeper if it becomes empty.
+     *
+     * @param bucketRoot    Bucket to be created as zNode.
+     */
+    private void initializeBucketZNode(String bucketRoot) {
+        storeHelper.addNode(bucketRoot).whenComplete((r, ex) -> {
+            if (ex == null) {
+                log.debug("Bucket correctly initialized: {}.", bucketRoot);
+            } else if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                log.debug("Bucket already initialized: {}.", bucketRoot);
+            } else {
+                log.error("Unknown exception initializing stream bucket.", ex);
+            }
+        });
     }
 
     // region getters and setters for testing
