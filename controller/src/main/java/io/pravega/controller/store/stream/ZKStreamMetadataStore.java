@@ -321,6 +321,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     public void registerBucketChangeListener(int bucket, BucketChangeListener listener) {
         Preconditions.checkNotNull(listener);
 
+        String bucketRoot = String.format(BUCKET_PATH, bucket);
+        // We specifically create the bucket node as a zNode. Otherwise, it may be inadvertently created as a Container
+        // by Curator. This would lead the bucket node to be automatically removed by Zookeeper if it becomes empty.
+        storeHelper.addNode(bucketRoot).join();
+
         PathChildrenCacheListener bucketListener = (client, event) -> {
             StreamImpl stream;
             switch (event.getType()) {
@@ -343,8 +348,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                     log.warn("Received unknown event {} on bucket", event.getType(), bucket);
             }
         };
-
-        String bucketRoot = String.format(BUCKET_PATH, bucket);
 
         bucketCacheMap.put(bucket, new PathChildrenCache(storeHelper.getClient(), bucketRoot, true));
         PathChildrenCache pathChildrenCache = bucketCacheMap.get(bucket);
