@@ -129,6 +129,7 @@ public abstract class AbstractService implements Service {
                 .put("autoScale.cacheExpiryInSeconds", "120")
                 .put("autoScale.cacheCleanUpInSeconds", "120")
                 .put("curator-default-session-timeout", "10000")
+                .put("bookkeeper.bkAckQuorumSize", "3")
                 // Controller properties.
                 .put("MAX_LEASE_VALUE", "60000")
                 .put("RETENTION_FREQUENCY_MINUTES", "2")
