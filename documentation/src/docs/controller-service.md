@@ -134,7 +134,7 @@ available Segment Store nodes.
 The following diagram shows the main components of a Controller process.
 The elements of the diagram are discussed in detail in the following sections.
 
- ![Controller system_diagram](img/ControllerSystem-Diagram.png)
+ ![Controller system_diagram](img/controller-diagram.png)
 
 _Controller Process Diagram_
 
@@ -562,7 +562,7 @@ and _delete_. These workflows are invoked both via direct API and in some
 cases as applicable via background policy manager ([Auto Scaling](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/ScalingPolicy.java) and [Retention](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/stream/RetentionPolicy.java)).
 
 <p>
-<img src="img/Request-Processing-Flow.png" alt="request processing">
+<img src="img/request-process-flow.png" alt="request processing">
 <i>Request Processing Flow Diagram</i>
 </p>
 
@@ -708,7 +708,7 @@ potential concurrent scale operation play well with each other and
 ensure all promises made with respect to either are honored and
 enforced.
 <p>
-<img src="img/Transaction-Management.png" alt="Transaction Management">
+<img src="img/transaction-management.png" alt="Transaction Management">
 <i>Transaction Management Diagram </i>
 </p>
 
