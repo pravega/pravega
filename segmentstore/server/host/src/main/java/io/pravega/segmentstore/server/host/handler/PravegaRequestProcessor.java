@@ -626,7 +626,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
                 }
 
-                //if source segment is a transaction, add its length and event count onto metrics of target segment
+                // If source segment is a transaction, add its length and event count onto metrics of target segment
                 if (StreamSegmentNameUtils.isTransactionSegment(sourceInfo.getName())) {
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, targetSegmentName), sourceInfo.getLength());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetSegmentName), sourceInfo.getAttributes().get(EVENT_COUNT));
