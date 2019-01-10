@@ -26,6 +26,7 @@ import io.pravega.controller.util.RetryHelper;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -197,5 +198,22 @@ public class StreamCutBucketService extends AbstractService implements BucketCha
     @Override
     public int compareTo(StreamCutBucketService streamCutBucketService) {
         return Integer.compare(bucketId, streamCutBucketService.bucketId);
+    }
+
+    @Override
+    public boolean equals(java.lang.Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        StreamCutBucketService s = (StreamCutBucketService) o;
+        return Objects.equals(this.bucketId, s.bucketId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(bucketId);
     }
 }
