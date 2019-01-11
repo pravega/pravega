@@ -89,7 +89,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class StreamSegmentContainer extends AbstractService implements SegmentContainer {
     //region Members
-    private static final Duration METADATA_INIT_TIMEOUT = Duration.ofSeconds(30);
     private static final RetryAndThrowConditionally CACHE_ATTRIBUTES_RETRY = Retry.withExpBackoff(50, 2, 10, 1000)
             .retryWhen(ex -> ex instanceof BadAttributeUpdateException);
     protected final StreamSegmentContainerMetadata metadata;
@@ -105,6 +104,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.Container metrics;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
+    private final ContainerConfig config;
 
     //endregion
 
@@ -139,6 +139,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         this.executor = executor;
+        this.config = config;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
         this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage);
@@ -159,7 +160,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
         Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
         return new TableMetadataStore(connector, tableExtension, this.executor);
-        //return new StorageMetadataStore(connector, this.storage, this.executor);
     }
 
     /**
@@ -249,7 +249,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
 
     private CompletableFuture<Void> initializeSecondaryServices() {
         this.storage.initialize(this.metadata.getContainerEpoch());
-        return this.metadataStore.initialize(METADATA_INIT_TIMEOUT);
+        return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }
 
     private CompletableFuture<Void> startSecondaryServicesAsync() {
