@@ -113,6 +113,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
+        initializeZNodes();
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
@@ -322,9 +323,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     public void registerBucketChangeListener(int bucket, BucketChangeListener listener) {
         Preconditions.checkNotNull(listener);
 
-        String bucketRoot = String.format(BUCKET_PATH, bucket);
-        initializeBucketZNode(bucketRoot);
-
         PathChildrenCacheListener bucketListener = (client, event) -> {
             StreamImpl stream;
             switch (event.getType()) {
@@ -347,6 +345,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                     log.warn("Received unknown event {} on bucket", event.getType(), bucket);
             }
         };
+
+        String bucketRoot = String.format(BUCKET_PATH, bucket);
 
         bucketCacheMap.put(bucket, new PathChildrenCache(storeHelper.getClient(), bucketRoot, true));
         PathChildrenCache pathChildrenCache = bucketCacheMap.get(bucket);
@@ -478,20 +478,24 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     }
 
     /**
-     * We specifically create the bucket node as a zNode. Otherwise, it may be inadvertently created as a Container
-     * by Curator. This would lead the bucket node to be automatically removed by Zookeeper if it becomes empty.
-     *
-     * @param bucketRoot    Bucket to be created as zNode.
+     * We explicitly create parent zNodes that will contain other zNodes and may get empty during their lifetime.
+     * Otherwise, they may be inadvertently created as Zookeeper "containers" by Curator. This would lead these zNodes
+     * to be candidates for automatic removal by Zookeeper if they become empty.
      */
-    private void initializeBucketZNode(String bucketRoot) {
-        storeHelper.addNode(bucketRoot).whenComplete((r, ex) -> {
-            if (ex == null) {
-                log.debug("Bucket correctly initialized: {}.", bucketRoot);
-            } else if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
-                log.debug("Bucket already initialized: {}.", bucketRoot);
+    private void initializeZNodes() {
+        for (int bucket = 0; bucket < bucketCount; bucket++) {
+            initializeZNode(String.format(BUCKET_PATH, bucket)).join();
+        }
+    }
+
+    private CompletableFuture<Void> initializeZNode(String zNodePath) {
+        return storeHelper.addNode(zNodePath).exceptionally(ex -> {
+            if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                log.debug("zNode already initialized: {}.", zNodePath);
             } else {
-                log.error("Unknown exception initializing stream bucket.", ex);
+                throw new CompletionException("Unexpected exception initializing zNode.", ex);
             }
+            return null;
         });
     }
 
