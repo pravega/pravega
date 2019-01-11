@@ -298,13 +298,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         previousEventNumber);
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
-                //Don't report metrics if segment is a transaction
-                //Update the parent segment metrics, once the transaction is merged
-                //TODO: https://github.com/pravega/pravega/issues/2570
+
+                DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
+                DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
+                //Don't report segment specific metrics if segment is a transaction
+                //The parent segment metrics will be updated once the transaction is merged
                 if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
                     DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
                 }
             }
