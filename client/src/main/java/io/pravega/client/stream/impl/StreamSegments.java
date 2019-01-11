@@ -155,15 +155,13 @@ public class StreamSegments {
             Preconditions.checkArgument(replacedSegment.getLow() >= getLowerBound(replacements));
         }
         for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
-            double upperReplacementRange = getUpperBound(ranges.getValue());
-            double lowerReplacementRange = getLowerBound(ranges.getValue());
-            Entry<Double, SegmentWithRange> upperReplacedSegment = segments.floorEntry(upperReplacementRange);
-            Entry<Double, SegmentWithRange> lowerReplacedSegment =  segments.higherEntry(lowerReplacementRange);
+            Entry<Double, SegmentWithRange> upperReplacedSegment = segments.floorEntry(getUpperBound(ranges.getValue()));
+            Entry<Double, SegmentWithRange> lowerReplacedSegment = segments.higherEntry(getLowerBound(ranges.getValue()));
             Preconditions.checkArgument(upperReplacedSegment != null, "Missing replaced replacement segments %s",
                                         replacementSegments);
             Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
                                         replacementSegments);
-         }
+        }
     }
 
     private double getLowerBound(List<SegmentWithRange> values) {
