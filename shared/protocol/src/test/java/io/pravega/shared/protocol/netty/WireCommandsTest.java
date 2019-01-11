@@ -18,6 +18,10 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
@@ -441,6 +445,11 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testCreateTableSegment() throws IOException {
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, ""));
+    }
+
+    @Test
     public void testSegmentCreated() throws IOException {
         testCommand(new WireCommands.SegmentCreated(l, testString1));
     }
@@ -451,6 +460,11 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testMergeTableSegments() throws IOException {
+        testCommand(new WireCommands.MergeTableSegments(l, testString1, testString2, ""));
+    }
+
+    @Test
     public void testSegmentsMerged() throws IOException {
         testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2));
     }
@@ -458,6 +472,11 @@ public class WireCommandsTest {
     @Test
     public void testSealSegment() throws IOException {
         testCommand(new WireCommands.SealSegment(l, testString1, ""));
+    }
+
+    @Test
+    public void testSealTableSegment() throws IOException {
+        testCommand(new WireCommands.SealTableSegment(l, testString1, ""));
     }
 
     @Test
@@ -483,6 +502,12 @@ public class WireCommandsTest {
     @Test
     public void testDeleteSegment() throws IOException {
         testCommand(new WireCommands.DeleteSegment(l, testString1, ""));
+    }
+
+    @Test
+    public void testDeleteTableSegment() throws IOException {
+        testCommand(new WireCommands.DeleteTableSegment(l, testString1, true, ""));
+        testCommand(new WireCommands.DeleteTableSegment(l, testString1, false, ""));
     }
 
     @Test
@@ -521,6 +546,11 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testNotEmptyTableSegment() throws IOException {
+        testCommand(new WireCommands.NotEmptyTableSegment(l, testString1, "SomeException"));
+    }
+
+    @Test
     public void testInvalidEventNumber() throws IOException {
         testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException"));
     }
@@ -528,6 +558,57 @@ public class WireCommandsTest {
     @Test
     public void testKeepAlive() throws IOException {
         testCommand(new WireCommands.KeepAlive());
+    }
+
+    @Test
+    public void testTableKey() throws IOException {
+        testCommand(new WireCommands.TableKey(l, buf));
+    }
+
+    @Test
+    public void testUpdateTableEntries() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(l, buf), new WireCommands.TableValue(buf)),
+                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(l, buf), new WireCommands.TableValue(buf))
+        );
+        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
+    }
+
+    @Test
+    public void testTableEntriesUpdated() throws IOException {
+        testCommand(new WireCommands.TableEntriesUpdated(l, Arrays.asList(1L, 2L, 3L)));
+    }
+
+    @Test
+    public void testRemoveTableKeys() throws IOException {
+        testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(1L, buf),
+                                                                                       new WireCommands.TableKey(2L, buf))));
+    }
+
+    @Test
+    public void testTableKeysRemoved() throws IOException {
+        testCommand(new WireCommands.TableKeysRemoved(l, testString1));
+    }
+
+    @Test
+    public void testReadTable() throws IOException {
+        testCommand(new WireCommands.ReadTable(l, testString1, "", Arrays.asList(new WireCommands.TableKey(1L, buf),
+                                                                                 new WireCommands.TableKey(2L, buf))));
+    }
+
+    @Test
+    public void testTableRead() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(1L, buf), new WireCommands.TableValue(buf)),
+                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(2L, buf), new WireCommands.TableValue(buf))
+        );
+
+        testCommand(new WireCommands.TableRead(l, testString1, new WireCommands.TableEntries(entries)));
+    }
+
+    @Test
+    public void testConditionalTableUpdateFailed() throws IOException {
+        testCommand(new WireCommands.ConditionalTableUpdateFailed(l, testString1, ""));
     }
 
     private void testCommand(WireCommand command) throws IOException {

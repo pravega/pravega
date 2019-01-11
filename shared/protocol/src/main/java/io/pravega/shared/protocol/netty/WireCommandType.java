@@ -95,7 +95,7 @@ public enum WireCommandType {
     TABLE_KEYS_REMOVED(80, WireCommands.TableKeysRemoved::readFrom),
 
     READ_TABLE(81, WireCommands.ReadTable::readFrom),
-    TABLE_READ(82, WireCommands.ReadTable::readFrom),
+    TABLE_READ(82, WireCommands.TableRead::readFrom),
 
     NOT_EMPTY_TABLE_SEGMENT(84,  WireCommands.NotEmptyTableSegment::readFrom),
     TABLE_KEY_TOO_LONG(85, WireCommands.TableKeyTooLong::readFrom),

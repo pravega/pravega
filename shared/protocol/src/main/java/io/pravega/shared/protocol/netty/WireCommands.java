@@ -1174,7 +1174,7 @@ public final class WireCommands {
 
     @Data
     public static final class MergeTableSegments implements Request, WireCommand {
-        final WireCommandType type = WireCommandType.MERGE_SEGMENTS;
+        final WireCommandType type = WireCommandType.MERGE_TABLE_SEGMENTS;
         final long requestId;
         final String target;
         final String source;
@@ -1726,14 +1726,13 @@ public final class WireCommands {
     @Data
     public static final class TableKey implements WireCommand {
         final WireCommandType type = WireCommandType.TABLE_KEY;
-        final long version;
-        final long length;
+        final long keyVersion;
         final ByteBuf data;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
-            out.writeLong(version);
+            out.writeLong(keyVersion);
             out.writeInt(data.readableBytes());
             data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
@@ -1743,21 +1742,20 @@ public final class WireCommands {
             if (typeCode != WireCommandType.TABLE_KEY.getCode()) {
                 throw new InvalidMessageException("Was expecting Table Key but found: " + typeCode);
             }
-            long version = in.readLong();
+            long keyVersion = in.readLong();
             int keyLength = in.readInt();
             if (length < keyLength) {
                 throw new InvalidMessageException("Was expecting length of atleast : " + keyLength + " but found: " + length);
             }
             byte[] msg = new byte[keyLength];
             in.readFully(msg);
-            return new TableKey(version, keyLength, wrappedBuffer(msg));
+            return new TableKey(keyVersion, wrappedBuffer(msg));
         }
     }
 
     @Data
     public static final class TableValue implements WireCommand {
         final WireCommandType type = WireCommandType.TABLE_VALUE;
-        final long length;
         final ByteBuf data;
 
         @Override
@@ -1778,12 +1776,13 @@ public final class WireCommands {
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);
-            return new TableValue(valueLength, wrappedBuffer(msg));
+            return new TableValue(wrappedBuffer(msg));
         }
     }
 
     @Data
     public static final class TableKeyTooLong implements Reply, WireCommand {
+        //TODO : remove it as it is not required as this can be checked on the client end.
         final WireCommandType type = WireCommandType.TABLE_KEY_TOO_LONG;
         final long requestId;
         final String segment;
@@ -1821,6 +1820,7 @@ public final class WireCommands {
 
     @Data
     public static final class TableValueTooLong implements Reply, WireCommand {
+        //TODO: remove it as it is not required as this can be checked on the client end.
         final WireCommandType type = WireCommandType.TABLE_VALUE_TOO_LONG;
         final long requestId;
         final String segment;
