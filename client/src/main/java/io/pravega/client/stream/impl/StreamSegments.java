@@ -37,9 +37,9 @@ public class StreamSegments {
     /**
      * Maps the upper end of a range to the corresponding segment. The range in the value is the
      * range of keyspace the segment has been assigned. The range in the value is NOT the same as
-     * the difference between two keys. The keys correspond to the range that the client client
+     * the difference between two keys. The keys correspond to the range that the client
      * should route to, where as the one in the value is the range the segment it assigned. These
-     * may be different if a client still has a preceding segment in it's map. In which case a
+     * may be different if a client still has a preceding segment in its map. In which case a
      * segment's keys may not contain the full assigned range.
      */
     private final NavigableMap<Double, SegmentWithRange> segments;
@@ -113,6 +113,10 @@ public class StreamSegments {
         return new StreamSegments(result, delegationToken);
     }
     
+    /**
+     * This combines consecutive entries in the map that refer to the same segment.
+     * This happens following a merge because the preceeding segments are replaced one at a time.
+     */
     private void removeDuplicates(NavigableMap<Double, SegmentWithRange> result) {
         Segment last = null;
         for (Iterator<SegmentWithRange> iterator = result.descendingMap().values().iterator(); iterator.hasNext();) {
@@ -162,9 +166,9 @@ public class StreamSegments {
          }
     }
 
-    private double getLowerBound(List<SegmentWithRange> value) {
+    private double getLowerBound(List<SegmentWithRange> values) {
         double lowerReplacementRange = 1;
-        for (SegmentWithRange range : value) {
+        for (SegmentWithRange range : values) {
             lowerReplacementRange = Math.min(lowerReplacementRange, range.getLow());
         }
         return lowerReplacementRange;
