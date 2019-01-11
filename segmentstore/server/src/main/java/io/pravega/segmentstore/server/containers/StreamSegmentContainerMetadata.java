@@ -280,6 +280,7 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
 
     /**
      * Determines whether the Segment with given metadata can be evicted, based on the the given Sequence Number Threshold.
+     * A Segment will not be chosen for eviction if {@link SegmentMetadata#isPinned()} is true.
      *
      * @param metadata             The Metadata for the Segment that is considered for eviction.
      * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
@@ -288,8 +289,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * @return True if the Segment can be evicted, false otherwise.
      */
     private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
-        return metadata.getLastUsed() < sequenceNumberCutoff
-                || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
+        return !metadata.isPinned()
+                && (metadata.getLastUsed() < sequenceNumberCutoff
+                || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get());
     }
 
     //endregion

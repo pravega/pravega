@@ -71,6 +71,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long lastUsed;
     @GuardedBy("this")
     private boolean active;
+    @GuardedBy("this")
+    private boolean pinned;
 
     //endregion
 
@@ -264,6 +266,12 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized void markPinned() {
+        log.debug("{}: Pinned = true.", this.traceObjectId);
+        this.pinned = true;
+    }
+
+    @Override
     public synchronized void setLastModified(ImmutableDate date) {
         this.lastModified = date;
         log.trace("{}: LastModified = {}.", this.lastModified);
@@ -312,6 +320,10 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             }
         }
 
+        if (base.isPinned()) {
+            markPinned();
+        }
+
         setLastUsed(base.getLastUsed());
     }
 
@@ -333,6 +345,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized SegmentProperties getSnapshot() {
         return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
+    }
+
+    @Override
+    public synchronized boolean isPinned() {
+        return this.pinned;
     }
 
     /**

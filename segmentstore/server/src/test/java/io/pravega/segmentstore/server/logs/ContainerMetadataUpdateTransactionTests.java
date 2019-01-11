@@ -853,6 +853,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.commit(metadata);
 
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        Assert.assertFalse("Not expecting segment to be pinned yet.", segmentMetadata.isPinned());
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().",
                 mapOp.getAttributes(), segmentMetadata.getAttributes());
 
@@ -888,6 +889,22 @@ public class ContainerMetadataUpdateTransactionTests {
                 length, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
         Assert.assertEquals("Unexpected StartOffset after call to acceptOperation with remap (post-commit).",
                 startOffset, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStartOffset());
+
+        // Pinned segments.
+        val pinnedMap = new StreamSegmentMapOperation(StreamSegmentInformation
+                .builder()
+                .name(mapOp.getStreamSegmentName() + "_pinned")
+                .startOffset(startOffset)
+                .length(storageLength)
+                .sealed(true)
+                .attributes(createAttributes())
+                .build());
+        pinnedMap.markPinned();
+        txn2.preProcessOperation(pinnedMap);
+        txn2.acceptOperation(pinnedMap);
+        txn2.commit(metadata);
+        val pinnedMetadata = metadata.getStreamSegmentMetadata(metadata.getStreamSegmentId(pinnedMap.getStreamSegmentName(), false));
+        Assert.assertTrue("Unexpected isPinned for pinned map.", pinnedMetadata.isPinned());
     }
 
     /**
