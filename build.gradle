@@ -51,13 +51,8 @@ allprojects {
             compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
             testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
         test {
-          // From JDK9+ Netty will try not to access JDK internals
-          // in order not to produce scary "illegal access" warnings.
-          // This will slow down performances.
-          // We don't care about the warning but we care about performance.
-          systemProperty "io.netty.tryReflectionSetAccessible", "true"
           // From JDK11+ Java will try to use TLSv1.3, we don't need it in tests
-          systemProperty "https.protocols", "TLSv1,TLSv1.1,TLSv1.2"
+          // systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
         }
     }
     // Plugin configurations
@@ -702,8 +697,8 @@ project('standalone') {
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
-        systemProperty "io.netty.tryReflectionSetAccessible", "true"
-        systemProperty "https.protocols", "TLSv1,TLSv1.1,TLSv1.2"
+        systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
+
 
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
@@ -781,8 +776,7 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
-        systemProperty "io.netty.tryReflectionSetAccessible", "true"
-        systemProperty "https.protocols", "TLSv1,TLSv1.1,TLSv1.2"
+        systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
