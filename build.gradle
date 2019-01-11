@@ -702,6 +702,8 @@ project('standalone') {
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
+        systemProperty "io.netty.tryReflectionSetAccessible", "true"
+        systemProperty "https.protocols", "TLSv1,TLSv1.1,TLSv1.2"
 
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
@@ -779,6 +781,8 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+        systemProperty "io.netty.tryReflectionSetAccessible", "true"
+        systemProperty "https.protocols", "TLSv1,TLSv1.1,TLSv1.2"
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
