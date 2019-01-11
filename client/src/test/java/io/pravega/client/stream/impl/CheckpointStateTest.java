@@ -93,7 +93,7 @@ public class CheckpointStateTest {
         CheckpointState state = new CheckpointState();
         state.beginNewCheckpoint("1", ImmutableSet.of("a"), Collections.emptyMap());
         state.beginNewCheckpoint("2", ImmutableSet.of("a"), Collections.emptyMap());
-        state.beginNewCheckpoint("3"+ SILENT, ImmutableSet.of("a"), Collections.emptyMap());
+        state.beginNewCheckpoint("3" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
         state.beginNewCheckpoint("4", ImmutableSet.of("a"), Collections.emptyMap());
         // Silent checkpoint should not be counted as part of CheckpointState#getOutstandingCheckpoints.
         assertEquals(3, state.getOutstandingCheckpoints());
@@ -108,8 +108,8 @@ public class CheckpointStateTest {
         // Only checkpoint "4" is outstanding as checkpoints "1" and "2" are complete and silent checkpoints are ignored.
         assertEquals(1, state.getOutstandingCheckpoints());
 
-        state.readerCheckpointed("3"+SILENT, "a", Collections.emptyMap());
-        assertTrue(state.isCheckpointComplete("4"+SILENT));
+        state.readerCheckpointed("3" + SILENT, "a", Collections.emptyMap());
+        assertTrue(state.isCheckpointComplete("4" + SILENT));
         assertEquals(1, state.getOutstandingCheckpoints()); // Checkpoint 4 is outstanding.
 
         state.readerCheckpointed("4", "a", Collections.emptyMap());

@@ -50,7 +50,7 @@ public interface UpdateableSegmentMetadata extends SegmentMetadata {
     /**
      * Marks this StreamSegment as sealed in Storage.
      * This is different from {@link #markSealed()} in that {@link #markSealed()} indicates it was sealed in the Metadata,
-     * which this indicates this fact has been persisted in Storage.
+     * while this indicates this fact has been persisted in Storage.
      */
     void markSealedInStorage();
 

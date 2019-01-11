@@ -21,7 +21,9 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
@@ -43,7 +45,9 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
@@ -69,6 +73,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -488,5 +493,55 @@ public class RequestHandlersTest {
         assertFalse(versioned.getObject().isUpdating());
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+    }
+    
+    @Test
+    public void testDeleteStreamReplay() {
+        String stream = "delete";
+        createStreamInStore(stream);
+
+        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, executor);
+
+        // seal stream. 
+        SealStreamEvent sealEvent = new SealStreamEvent(scope, stream, 0L);
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        sealStreamTask.execute(sealEvent).join();
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+
+        // delete the stream
+        long creationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+        DeleteStreamEvent firstDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, creationTime);
+        deleteStreamTask.execute(firstDeleteEvent).join();
+
+        // recreate stream with same name in the store
+        createStreamInStore(stream);
+
+        long newCreationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+
+        assertNotEquals(creationTime, newCreationTime);
+
+        // seal stream. 
+        sealEvent = new SealStreamEvent(scope, stream, 0L);
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        sealStreamTask.execute(sealEvent).join();
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+
+        // replay old event. it should not seal the stream
+        AssertExtensions.assertFutureThrows("Replaying older delete event should have no effect",
+                deleteStreamTask.execute(firstDeleteEvent), e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+        DeleteStreamEvent secondDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, newCreationTime);
+        // now delete should succeed
+        deleteStreamTask.execute(secondDeleteEvent).join();
+    }
+
+    private void createStreamInStore(String stream) {
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 }

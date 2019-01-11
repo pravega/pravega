@@ -57,11 +57,11 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * Helps assign unique Ids to StreamSegments and persists them in Metadata.
+ * Stores Segment Metadata information and assigns unique Ids to the same.
  */
 @Slf4j
 @ThreadSafe
-abstract class MetadataStore {
+public abstract class MetadataStore {
     //region Members
 
     protected final String traceObjectId;
@@ -151,7 +151,8 @@ abstract class MetadataStore {
      *
      * This operation is made of multiple steps and is restart-able. If it was only able to execute partially before being
      * interrupted (by an unexpected exception or system crash), a reinvocation should be able to pick up from where it
-     * left off previously.
+     * left off previously. A partial invocation may leave the Segment in an undefined state, so it is highly recommended
+     * that such an interrupted call be reinvoked until successful.
      *
      * @param segmentName The case-sensitive Segment Name.
      * @param timeout     Timeout for the operation.
@@ -413,6 +414,12 @@ abstract class MetadataStore {
      */
     protected CompletableFuture<Long> submitAssignment(SegmentInfo segmentInfo, boolean pin, Duration timeout) {
         SegmentProperties properties = segmentInfo.getProperties();
+        if (properties.isDeleted()) {
+            // Stream does not exist. Fail the request with the appropriate exception.
+            failAssignment(properties.getName(), new StreamSegmentNotExistsException("StreamSegment does not exist."));
+            return Futures.failedFuture(new StreamSegmentNotExistsException(properties.getName()));
+        }
+
         long existingSegmentId = this.connector.containerMetadata.getStreamSegmentId(properties.getName(), true);
         if (isValidSegmentId(existingSegmentId)) {
             // Looks like someone else beat us to it.

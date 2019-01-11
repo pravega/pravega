@@ -66,6 +66,7 @@ class TableMetadataStore extends MetadataStore {
     }
 
     //region MetadataStore Implementation
+
     @Override
     public CompletableFuture<Void> initialize(Duration timeout) {
         Preconditions.checkState(!this.initialized.get(), "TableMetadataStore is already initialized.");
@@ -73,13 +74,11 @@ class TableMetadataStore extends MetadataStore {
         // Invoke submitAssignment(), which will ensure that the Metadata Segment is mapped in memory and pinned.
         // If this is the first time we initialize the TableMetadataStore for this SegmentContainer, a new id will be
         // assigned to it.
-        // TODO: sanity check: invoke Storage.getInfo on this and handle it already existing.
-        // TODO: submitAssignment may throw MetadataUpdateException if we invoke this concurrently.
         Collection<AttributeUpdate> attributes = TableStore.getInitialTableAttributes();
         return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, attributes), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
-                    log.info("{}: Metadata Segment created. Name = '{}', Id = '{}'", this.metadataSegmentName, segmentId);
+                    log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.metadataSegmentName, segmentId);
                 });
     }
 

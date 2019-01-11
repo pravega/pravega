@@ -13,7 +13,7 @@ import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.ConcurrentDependentProcessor;
+import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -60,7 +60,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
-    private final ConcurrentDependentProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
+    private final MultiKeySequentialProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
     private final RecoveryTracker recoveryTracker;
     private final AtomicBoolean closed;
 
@@ -82,7 +82,7 @@ class ContainerKeyIndex implements AutoCloseable {
         this.cacheManager.register(this.cache);
         this.executor = executor;
         this.indexReader = new IndexReader(executor);
-        this.conditionalUpdateProcessor = new ConcurrentDependentProcessor<>(this.executor);
+        this.conditionalUpdateProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.recoveryTracker = new RecoveryTracker();
         this.closed = new AtomicBoolean();
     }

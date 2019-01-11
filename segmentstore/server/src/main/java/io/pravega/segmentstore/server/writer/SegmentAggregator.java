@@ -260,7 +260,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                     if (this.metadata.getStorageLength() != segmentInfo.getLength()) {
                         if (this.metadata.getStorageLength() >= 0) {
                             // Only log warning if the StorageLength has actually been initialized, but is different.
-                            log.warn("{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one ({}) - updating metadata.", this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
+                            log.info("{}: SegmentMetadata has a StorageLength ({}) that is different than the actual one ({}) - updating metadata.",
+                                    this.traceObjectId, this.metadata.getStorageLength(), segmentInfo.getLength());
                         }
 
                         // It is very important to keep this value up-to-date and correct.
@@ -270,12 +271,13 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                     // Check if the Storage segment is sealed, but it's not in metadata (this is 100% indicative of some data corruption happening).
                     if (segmentInfo.isSealed()) {
                         if (!this.metadata.isSealed()) {
-                            throw new CompletionException(new DataCorruptionException(String.format("Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
+                            throw new CompletionException(new DataCorruptionException(String.format(
+                                    "Segment '%s' is sealed in Storage but not in the metadata.", this.metadata.getName())));
                         }
 
                         if (!this.metadata.isSealedInStorage()) {
                             this.metadata.markSealedInStorage();
-                            log.warn("{}: Segment is sealed in Storage but metadata does not reflect that - updating metadata.", this.traceObjectId);
+                            log.info("{}: Segment is sealed in Storage but metadata does not reflect that - updating metadata.", this.traceObjectId);
                         }
                     }
 
@@ -298,7 +300,8 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                             // * We processed a MergeSegmentOperation but did not have a chance to ack/truncate the DataSource
                             // Update metadata, just in case it is not already updated.
                             updateMetadataPostDeletion(this.metadata);
-                            log.warn("{}: Segment '{}' does not exist in Storage. Ignoring all further operations on it.", this.traceObjectId, this.metadata.getName());
+                            log.info("{}: Segment '{}' does not exist in Storage. Ignoring all further operations on it.",
+                                    this.traceObjectId, this.metadata.getName());
                         }
                         setState(AggregatorState.Writing);
                         LoggerHelpers.traceLeave(log, this.traceObjectId, "initialize", traceId);
@@ -1182,7 +1185,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                             // or because of a concurrent instance of the same container (with a lower epoch) is still
                             // running and was in the middle of executing the Merge/Delete operation while we were initializing.
                             updateMetadataPostDeletion(this.metadata);
-                            log.warn("{}: Segment '{}' does not exist in Storage (reconciliation). Ignoring all further operations on it.",
+                            log.info("{}: Segment '{}' does not exist in Storage (reconciliation). Ignoring all further operations on it.",
                                     this.traceObjectId, this.metadata.getName());
                             this.reconciliationState.set(null);
                             setState(AggregatorState.Reconciling);
