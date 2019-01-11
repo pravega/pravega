@@ -121,7 +121,7 @@ public class ByteStreamReaderImpl extends ByteStreamReader {
         long endOffset = fetchTailOffset();
         synchronized (input) {
             long offset = input.getOffset();
-            long newOffset = Math.min(offset+toSkip, endOffset);
+            long newOffset = Math.min(offset + toSkip, endOffset);
             input.setOffset(newOffset);
             return newOffset - offset;
         }

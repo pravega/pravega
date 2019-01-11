@@ -398,8 +398,18 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val getUnindexedKeysResult = getUnindexedKeys.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         checkKeyOffsets(hashes, keysWithOffsets, getBucketOffsetsResult);
         Assert.assertEquals("Unexpected result from unblocked getBackpointerOffset().", -1L, (long) getBackpointersResult);
-        Assert.assertEquals("Unexpected result from unblocked conditional update.", segmentLength + 1L, (long) conditionalUpdateResult.get(0));
-        Assert.assertEquals("Unexpected result size from unblocked getUnindexedKeyHashes().", 1, getUnindexedKeysResult.size());
+        Assert.assertEquals("Unexpected result from unblocked conditional update.",
+                segmentLength + 1L, (long) conditionalUpdateResult.get(0));
+
+        // Depending on the order in which the internal recovery tracker (implemented by CompletableFuture.thenCompose)
+        // executes its callbacks, the result of this call may be either 1 or 2 (it may unblock prior to the conditional
+        // update unblocking or the other way around).
+        Assert.assertTrue("Unexpected result size from unblocked getUnindexedKeyHashes().",
+                getUnindexedKeysResult.size() == 1 || getUnindexedKeysResult.size() == 2);
+
+        // However, verify that in the end, we have 2 unindexed keys.
+        val finalGetUnindexedKeysResult = context.index.getUnindexedKeyHashes(context.segment).get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected result size from final getUnindexedKeyHashes().", 2, finalGetUnindexedKeysResult.size());
 
         // 4. Verify no new requests are blocked now.
         getBucketOffsets.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // A timeout check will suffice
@@ -497,7 +507,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             Assert.assertEquals("Unexpected backpointer count for update " + updateId, expectedBackpointers.size(), actualBackpointers.size());
             for (val e : expectedBackpointers.entrySet()) {
                 val a = actualBackpointers.get(e.getKey());
-                Assert.assertNotNull("No backpointer for update "+updateId, a);
+                Assert.assertNotNull("No backpointer for update " + updateId, a);
                 Assert.assertEquals("Unexpected backpointer for update " + updateId, e.getValue(), a);
             }
 

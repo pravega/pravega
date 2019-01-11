@@ -53,7 +53,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
-        return streamMetadataStore.isSealed(scope, stream, context, executor)
+
+        return streamMetadataStore.getCreationTime(scope, stream, context, executor)
+            .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||
+                                          request.getCreationTime() == creationTime))
+            .thenCompose(v -> streamMetadataStore.isSealed(scope, stream, context, executor))
                 .thenComposeAsync(sealed -> {
                     if (!sealed) {
                         log.warn(requestId, "{}/{} stream not sealed", scope, stream);

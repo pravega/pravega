@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.server.SegmentMetadataComparer;
+import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,6 +20,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -157,19 +160,17 @@ public class StreamSegmentMetadataTests {
      */
     @Test
     public void testCopyFrom() {
-        // Transaction (IsMerged==true).
-        val txnMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-        txnMetadata.markSealed();
-        txnMetadata.setLength(3235342);
-        txnMetadata.markMerged();
-        testCopyFrom(txnMetadata);
-
-        // Non-Transaction (no ParentId, but has StartOffset).
-        val normalMetadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
-        normalMetadata.markSealed();
-        normalMetadata.setLength(3235342);
-        normalMetadata.setStartOffset(1200);
-        testCopyFrom(normalMetadata);
+        Stream.<Consumer<UpdateableSegmentMetadata>>of(
+                UpdateableSegmentMetadata::markMerged,
+                m -> m.setStartOffset(1200),
+                UpdateableSegmentMetadata::markSealedInStorage)
+                .forEach(c -> {
+                    val metadata = new StreamSegmentMetadata(SEGMENT_NAME, SEGMENT_ID, CONTAINER_ID);
+                    metadata.markSealed();
+                    metadata.setLength(3235342);
+                    c.accept(metadata);
+                    testCopyFrom(metadata);
+                });
     }
 
     private void testCopyFrom(StreamSegmentMetadata baseMetadata) {
@@ -177,6 +178,7 @@ public class StreamSegmentMetadataTests {
         baseMetadata.updateAttributes(generateAttributes(new Random(0)));
         baseMetadata.setLastModified(new ImmutableDate());
         baseMetadata.markDeleted();
+        baseMetadata.markDeletedInStorage();
         baseMetadata.markInactive();
         baseMetadata.setLastUsed(1545895);
 

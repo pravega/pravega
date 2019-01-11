@@ -82,7 +82,7 @@ public class LocalController implements Controller {
             case FAILURE:
                 throw new ControllerFailureException("Failed to delete scope: " + scopeName);
             case SCOPE_NOT_EMPTY:
-                throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
+                throw new IllegalStateException("Scope " + scopeName + " is not empty.");
             case SCOPE_NOT_FOUND:
                 return false;
             case SUCCESS:

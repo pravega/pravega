@@ -24,6 +24,7 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -53,7 +54,7 @@ public class EventStreamReaderTest {
     private final EventWriterConfig writerConfig = EventWriterConfig.builder().build();
 
     @Test(timeout = 10000)
-    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testEndOfSegmentWithoutSuccessors() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -161,7 +162,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testRead() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testRead() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -184,7 +185,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testReleaseSegment() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testReleaseSegment() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -230,7 +231,7 @@ public class EventStreamReaderTest {
 
     @SuppressWarnings("unused")
     @Test(timeout = 10000)
-    public void testAcquireSegment() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testAcquireSegment() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -265,7 +266,7 @@ public class EventStreamReaderTest {
     }
     
     @Test
-    public void testEventPointer() throws SegmentSealedException, NoSuchEventException, ReinitializationRequiredException {
+    public void testEventPointer() throws SegmentSealedException, NoSuchEventException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -294,7 +295,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testCheckpoint() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testCheckpoint() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -323,7 +324,7 @@ public class EventStreamReaderTest {
     }
     
     @Test(timeout = 10000)
-    public void testRestore() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testRestore() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
@@ -348,7 +349,7 @@ public class EventStreamReaderTest {
     }
 
     @Test(timeout = 10000)
-    public void testDataTruncated() throws SegmentSealedException, ReinitializationRequiredException {
+    public void testDataTruncated() throws SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();

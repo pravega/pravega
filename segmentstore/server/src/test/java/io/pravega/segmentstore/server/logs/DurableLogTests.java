@@ -66,6 +66,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -704,7 +705,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
 
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         AbstractMap<Long, Long> transactions;
         List<OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
@@ -722,8 +723,8 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
-            transactions = createTransactionsWithOperations(streamSegmentIds, transactionsPerStreamSegment, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
+            transactions = createTransactionsWithOperations(streamSegmentIds, transactionsPerStreamSegment, metadata, durableLog);
             List<Operation> operations = generateOperations(streamSegmentIds, transactions, appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, mergeTransactions, sealStreamSegments);
 
             // Process all generated operations and wait for them to complete
@@ -772,7 +773,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Storage storage = InMemoryStorageFactory.newStorage(executorService());
         storage.initialize(1);
 
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
 
         // First DurableLog. We use this for generating data.
@@ -787,7 +788,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
 
             // Process all generated operations and wait for them to complete
@@ -901,7 +902,7 @@ public class DurableLogTests extends OperationLogTestBase {
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
 
         // Write some data to the log. We'll read it later.
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         List<Operation> originalOperations;
         List<OperationWithCompletion> completionFutures;
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
@@ -911,7 +912,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // DurableLog should start properly.
             durableLog.startAsync().awaitRunning();
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> operations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(operations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
@@ -1025,7 +1026,7 @@ public class DurableLogTests extends OperationLogTestBase {
             durableLog.startAsync().awaitRunning();
 
             // Create the segment.
-            val segmentIds = createStreamSegmentsWithOperations(1, metadata1, durableLog, storage);
+            val segmentIds = createStreamSegmentsWithOperations(1, durableLog);
             segmentId = segmentIds.stream().findFirst().orElse(-1L);
 
             // Evict the segment.
@@ -1118,7 +1119,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            HashSet<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             queuedOperations.add(new MetadataCheckpointOperation()); // Add one of these at the end to ensure we can truncate everything.
 
@@ -1224,7 +1225,7 @@ public class DurableLogTests extends OperationLogTestBase {
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
         ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
 
@@ -1234,7 +1235,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
@@ -1310,7 +1311,7 @@ public class DurableLogTests extends OperationLogTestBase {
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
         val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
-        HashSet<Long> streamSegmentIds;
+        Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
 
         // First DurableLog. We use this for generating data.
@@ -1319,7 +1320,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             // Generate some test data (we need to do this after we started the DurableLog because in the process of
             // recovery, it wipes away all existing metadata).
-            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, metadata1, durableLog, storage);
+            streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
             completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
