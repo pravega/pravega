@@ -547,7 +547,9 @@ public class WireCommandsTest {
 
     @Test
     public void testNotEmptyTableSegment() throws IOException {
-        testCommand(new WireCommands.NotEmptyTableSegment(l, testString1, "SomeException"));
+        WireCommands.NotEmptyTableSegment cmd = new WireCommands.NotEmptyTableSegment(l, testString1, "SomeException");
+        testCommand(cmd);
+        assertTrue(cmd.isFailure());
     }
 
     @Test
@@ -608,7 +610,9 @@ public class WireCommandsTest {
 
     @Test
     public void testConditionalTableUpdateFailed() throws IOException {
-        testCommand(new WireCommands.ConditionalTableUpdateFailed(l, testString1, ""));
+        WireCommands.ConditionalTableUpdateFailed cmd = new WireCommands.ConditionalTableUpdateFailed(l, testString1, "");
+        testCommand(cmd);
+        assertTrue(cmd.isFailure());
     }
 
     private void testCommand(WireCommand command) throws IOException {
