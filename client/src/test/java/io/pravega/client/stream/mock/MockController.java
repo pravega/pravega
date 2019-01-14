@@ -467,7 +467,7 @@ public class MockController implements Controller {
             connection.close();
         });
 
-        connection.sendAsync(request, (cfe) -> {
+        connection.sendAsync(request, cfe -> {
             if (cfe != null) {
                 resultFuture.completeExceptionally(cfe);
             }
