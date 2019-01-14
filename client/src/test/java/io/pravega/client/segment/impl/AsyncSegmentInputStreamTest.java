@@ -79,14 +79,14 @@ public class AsyncSegmentInputStreamTest {
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture));
-        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        inOrder.verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, "")),
+                                    Mockito.any(ClientConnection.CompletedCallback.class));
         inOrder.verify(c).close();
-        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        inOrder.verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, "")),
+                                    Mockito.any(ClientConnection.CompletedCallback.class));
         inOrder.verify(c).close();
-        inOrder.verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,   5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        inOrder.verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234,   5678, "")),
+                                    Mockito.any(ClientConnection.CompletedCallback.class));
         verifyNoMoreInteractions(c);
     }
     
@@ -126,8 +126,8 @@ public class AsyncSegmentInputStreamTest {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
             processor.segmentRead(segmentRead);            
         });
-        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, "")),
+                            Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(Futures.isSuccessful(readFuture));
         assertEquals(segmentRead, readFuture.join());
         verifyNoMoreInteractions(c);
@@ -156,8 +156,8 @@ public class AsyncSegmentInputStreamTest {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
             processor.segmentIsTruncated(segmentIsTruncated);
         });
-        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, "")),
+                            Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(!Futures.isSuccessful(readFuture)); // verify read future completedExceptionally
         assertThrows(SegmentTruncatedException.class, () -> readFuture.get());
         verifyNoMoreInteractions(c);
@@ -169,8 +169,8 @@ public class AsyncSegmentInputStreamTest {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
             processor.segmentRead(segmentRead);
         });
-        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 5656,  5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 5656,  5678, "")),
+                            Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(Futures.isSuccessful(readFuture2));
         assertEquals(segmentRead, readFuture2.join());
         verifyNoMoreInteractions(c);
@@ -194,8 +194,8 @@ public class AsyncSegmentInputStreamTest {
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1235, false, false, ByteBuffer.wrap(bad)));            
             processor.segmentRead(new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.wrap(good)));         
         });
-        verify(c).sendAsync(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, ""),
-                                    any(ClientConnection.CompletedCallback.class));
+        verify(c).sendAsync(Mockito.eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234,  5678, "")),
+                            Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(Futures.isSuccessful(readFuture));
         assertEquals(ByteBuffer.wrap(good), readFuture.join().getData());
         verifyNoMoreInteractions(c);
