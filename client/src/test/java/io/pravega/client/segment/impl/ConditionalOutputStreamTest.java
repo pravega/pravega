@@ -61,7 +61,7 @@ public class ConditionalOutputStreamTest {
                 }
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         assertTrue(cOut.write(data, 0));
         assertFalse(cOut.write(data, 1));
         assertTrue(cOut.write(data, 2));
@@ -121,7 +121,7 @@ public class ConditionalOutputStreamTest {
                                                               argument.getWriterId(), 0));
                 return null;
             }
-        }).when(mock).send(any(SetupAppend.class));
+        }).when(mock).sendAsync(any(SetupAppend.class), any(ClientConnection.CompletedCallback.class));
     }
     
     @Test(timeout = 10000)
