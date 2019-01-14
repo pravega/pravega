@@ -121,7 +121,8 @@ public class BatchClientImplTest {
                                  .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -132,7 +133,8 @@ public class BatchClientImplTest {
                                          false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(GetStreamSegmentInfo.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                 connectionFactory);
@@ -177,7 +179,8 @@ public class BatchClientImplTest {
                                  .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -187,7 +190,8 @@ public class BatchClientImplTest {
                                                                 false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(GetStreamSegmentInfo.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         return connectionFactory;
     }

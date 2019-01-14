@@ -466,11 +466,12 @@ public class MockController implements Controller {
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });
-        try {
-            connection.send(request);
-        } catch (Exception e) {
-            resultFuture.completeExceptionally(e);
-        }
+
+        connection.sendAsync(request, (cfe) -> {
+            if (cfe != null) {
+                resultFuture.completeExceptionally(cfe);
+            }
+        });
     }
 
     @Override
