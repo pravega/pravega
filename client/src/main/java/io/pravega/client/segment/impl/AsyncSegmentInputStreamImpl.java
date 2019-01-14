@@ -179,18 +179,26 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     }).thenCompose(c -> sendRequestOverConnection(request, c));
         }, connectionFactory.getInternalExecutor());
     }
-    
-    @SneakyThrows(ConnectionFailedException.class)
+        
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {
         CompletableFuture<WireCommands.SegmentRead> result = new CompletableFuture<>();            
         synchronized (lock) {
             outstandingRequests.put(request.getOffset(), result);
         }
         if (closed.get()) {
-            throw new ConnectionClosedException();
+            result.completeExceptionally(new ConnectionClosedException());
+            return result;
         }
         log.trace("Sending read request {}", request);
-        c.sendAsync(request);
+        c.sendAsync(request, (cfe) -> {
+            if (cfe != null) {
+                log.error("Error while sending request {}", request, cfe);
+                synchronized (lock) {
+                    outstandingRequests.remove(request.getOffset());
+                }
+                result.completeExceptionally(cfe);                
+            }
+        });
         return result;
     }
 
