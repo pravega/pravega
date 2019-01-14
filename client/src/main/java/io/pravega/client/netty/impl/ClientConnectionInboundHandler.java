@@ -112,7 +112,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         recentMessage.set(true);
         Futures.getAndHandleExceptions(getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
-    
+
     @Override
     public void send(Append append) throws ConnectionFailedException {
         recentMessage.set(true);
@@ -121,16 +121,25 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     @Override
-    public void sendAsync(WireCommand cmd) throws ConnectionFailedException {
+    public void sendAsync(WireCommand cmd, CompletedCallback callback) {
         recentMessage.set(true);
-        Channel channel = getChannel();
         try {
-            channel.writeAndFlush(cmd, channel.voidPromise());
+            Channel channel = getChannel();
+            channel.writeAndFlush(cmd)
+                    .addListener((Future<? super Void> f) -> {
+                        if (f.isSuccess()) {
+                            callback.complete(null);
+                        } else {
+                            callback.complete(new ConnectionFailedException(f.cause()));
+                        }
+            });
+        } catch (ConnectionFailedException cfe) {
+            callback.complete(cfe);
         } catch (RuntimeException e) {
-            throw new ConnectionFailedException(e);
+            callback.complete(new ConnectionFailedException(e));
         }
     }
-    
+
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         recentMessage.set(true);
@@ -157,7 +166,7 @@ public class ClientConnectionInboundHandler extends ChannelInboundHandlerAdapter
         });
         combiner.finish(promise);
     }
-    
+
     @Override
     public void close() {
         Channel ch = channel.get();
