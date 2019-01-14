@@ -18,7 +18,7 @@ Data is sent over the wire in self-contained "messages" that are either "request
 All the requests and replies have 8 byte headers with two fields (all data is written in **BigEndian** format).
 
 - **Message Type**: An Integer (4 bytes) identifies the message type and determines the subsequent fields. (Note that the protocol can be extended by adding new types.)
-- **Length**:  An Integer (4 bytes) (Messages should be less than 2^<sup>24</sup>, but the upper bits remain zero). Payload size of the message (possibly zero, indicating there is no data). The remainder of the fields are specific to the type of the message. A few important messages are listed below.
+- **Length**:  An Integer (4 bytes) (Messages should be less than 2<sup>24</sup>, but the upper bits remain zero). Payload size of the message (possibly zero, indicating there is no data). The remainder of the fields are specific to the type of the message. A few important messages are listed below.
 
 # General
 
@@ -44,8 +44,6 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 
 The client requests to read from a particular Segment at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
 
-.
-
 # Appending
 
 ## Setup Append - Request
@@ -56,7 +54,7 @@ The client requests to read from a particular Segment at a particular Offset. It
 
 ## Append Setup - Reply
 
-1.  `RequestId`: 8 byte Long. (This field contains the client-generated ID that has been propagated to identify a client request).
+1.  `RequestId`: Long (8 bytes). (This field contains the client-generated ID that has been propagated to identify a client request).
 2.  Segment to append: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
 3.  `writerId`: UUID (16 bytes) identifies the requesting appender.
 4.  `lastEventNumber`: Long (8 bytes). Specifies the last event number in the Stream.
