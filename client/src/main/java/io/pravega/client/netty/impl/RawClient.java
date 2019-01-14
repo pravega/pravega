@@ -126,7 +126,7 @@ public class RawClient implements AutoCloseable {
                 requests.put(requestId, reply);
             }
             try {
-                c.send(request);
+                c.sendAsync(request);
             } catch (ConnectionFailedException e) {
                 closeConnection(e);
             }

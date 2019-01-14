@@ -613,7 +613,7 @@ public class SegmentHelper {
                         WireCommandFailedException.Reason.ConnectionFailed));
             } else {
                 try {
-                    connection.send(request);
+                    connection.sendAsync(request);
                 } catch (ConnectionFailedException cfe) {
                     throw new WireCommandFailedException(cfe,
                             request.getType(),
