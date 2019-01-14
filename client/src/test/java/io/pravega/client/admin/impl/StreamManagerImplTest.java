@@ -85,7 +85,8 @@ public class StreamManagerImplTest {
                                  .process(new WireCommands.SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.CreateSegment.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
 
         Mockito.doAnswer(new Answer<Void>() {
             @Override
@@ -96,7 +97,8 @@ public class StreamManagerImplTest {
                                                                              false, false, 0, 0, 0));
                 return null;
             }
-        }).when(connection).send(Mockito.any(WireCommands.GetStreamSegmentInfo.class));
+        }).when(connection).sendAsync(Mockito.any(WireCommands.GetStreamSegmentInfo.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
                                                            connectionFactory);
