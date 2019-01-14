@@ -125,7 +125,7 @@ public class RawClient implements AutoCloseable {
             synchronized (lock) {
                 requests.put(requestId, reply);
             }
-            c.sendAsync(request, (cfe) -> {
+            c.sendAsync(request, cfe -> {
                 if (cfe != null) {
                     synchronized (lock) {
                         requests.remove(requestId);

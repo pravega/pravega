@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -190,7 +189,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             return result;
         }
         log.trace("Sending read request {}", request);
-        c.sendAsync(request, (cfe) -> {
+        c.sendAsync(request, cfe -> {
             if (cfe != null) {
                 log.error("Error while sending request {}", request, cfe);
                 synchronized (lock) {
