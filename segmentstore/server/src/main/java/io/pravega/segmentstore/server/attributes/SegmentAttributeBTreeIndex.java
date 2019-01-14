@@ -159,9 +159,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                 .exceptionallyComposeExpecting(
                         this.storage.openWrite(attributeSegmentName).thenAccept(this.handle::set),
                         ex -> ex instanceof StreamSegmentNotExistsException,
-                        () -> this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining())
-                                          .thenComposeAsync(si -> this.storage.openWrite(attributeSegmentName)
-                                          .thenAccept(this.handle::set), this.executor))
+                        () -> this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining()).thenAccept(this.handle::set))
                 .thenComposeAsync(v -> this.index.initialize(timer.getRemaining()), this.executor)
                 .thenRun(() -> log.debug("{}: Initialized.", this.traceObjectId))
                 .exceptionally(this::handleIndexOperationException);

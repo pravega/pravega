@@ -30,7 +30,7 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -252,16 +252,18 @@ public class RollingStorage implements SyncStorage {
         // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
         // attempt); in that case we ignore it and let the creation proceed.
         SegmentHandle headerHandle = null;
+        RollingSegmentHandle retValue  = null;
         try {
             try {
-                this.baseStorage.create(headerName);
+                headerHandle = this.baseStorage.create(headerName);
             } catch (StreamSegmentExistsException ex) {
                 checkIfEmptyAndNotSealed(ex, headerName);
+                headerHandle = this.baseStorage.openWrite(headerName);
                 log.debug("Empty Segment Header found for '{}'; treating as inexistent.", segmentName);
             }
 
-            headerHandle = this.baseStorage.openWrite(headerName);
-            serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()));
+            retValue = new RollingSegmentHandle(headerHandle, rollingPolicy, new ArrayList<>());
+            serializeHandle(retValue);
         } catch (StreamSegmentExistsException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -279,9 +281,8 @@ public class RollingStorage implements SyncStorage {
             throw ex;
         }
 
-        val handle = openHandle(segmentName, false);
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
-        return handle;
+        return retValue;
     }
 
     @Override
