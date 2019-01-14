@@ -181,12 +181,12 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {
         CompletableFuture<WireCommands.SegmentRead> result = new CompletableFuture<>();            
-        synchronized (lock) {
-            outstandingRequests.put(request.getOffset(), result);
-        }
         if (closed.get()) {
             result.completeExceptionally(new ConnectionClosedException());
             return result;
+        }
+        synchronized (lock) {
+            outstandingRequests.put(request.getOffset(), result);
         }
         log.trace("Sending read request {}", request);
         c.sendAsync(request, cfe -> {
