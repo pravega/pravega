@@ -17,6 +17,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -72,9 +73,9 @@ public class StorageMetadataStore extends MetadataStore {
         // as inexistent.
         String stateSegment = StreamSegmentNameUtils.getStateSegmentName(segmentName);
         return Futures.exceptionallyCompose(
-                Futures.toVoid(this.storage.create(stateSegment, SegmentRollingPolicy.NO_ROLLING, timer.getRemaining())),
+                this.storage.create(stateSegment, SegmentRollingPolicy.NO_ROLLING, timer.getRemaining()),
                 ex -> handleCreateException(stateSegment, Exceptions.unwrap(ex), timer))
-                      .thenComposeAsync(v -> writeSegmentInfo(stateSegment, segmentInfo, timer.getRemaining()), this.executor);
+                .thenComposeAsync(handle -> this.storage.write(handle, 0, segmentInfo.getReader(), segmentInfo.getLength(), timer.getRemaining()), this.executor);
     }
 
     @Override
@@ -106,7 +107,7 @@ public class StorageMetadataStore extends MetadataStore {
         TimeoutTimer timer = new TimeoutTimer(timeout);
         return clearSegmentInfo(segmentName, timer.getRemaining())
                 .thenComposeAsync(v -> this.storage.create(stateSegment, SegmentRollingPolicy.NO_ROLLING, timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> writeSegmentInfo(stateSegment, segmentInfo, timer.getRemaining()), this.executor);
+                .thenComposeAsync(handle -> this.storage.write(handle, 0, segmentInfo.getReader(), segmentInfo.getLength(), timeout), this.executor);
     }
 
     /**
@@ -133,13 +134,6 @@ public class StorageMetadataStore extends MetadataStore {
                 }, this.executor);
     }
 
-    private CompletableFuture<Void> writeSegmentInfo(String stateSegment, ArrayView segmentInfo, Duration timeout) {
-        return this.storage
-                .openWrite(stateSegment)
-                .thenComposeAsync(handle -> this.storage.write(handle, 0, segmentInfo.getReader(), segmentInfo.getLength(), timeout),
-                        this.executor);
-    }
-
     /**
      * Exception handler in the case when a Segment fails to be created in Storage. This only handles
      * StreamSegmentExistsException; all other exceptions are "bubbled" up automatically.
@@ -151,10 +145,10 @@ public class StorageMetadataStore extends MetadataStore {
      * @param stateSegmentName  The name of the Segment involved.
      * @param originalException The exception that triggered this.
      * @param timer             A TimeoutTimer to determine how much time is left to complete the operation.
-     * @return A CompletableFuture that, when completed normally, will contain information about the Segment. If the Segment
+     * @return A CompletableFuture that, when completed normally, will contain read write segment handle. If the Segment
      * already exists or another error happened, this will be completed with the appropriate exception.
      */
-    private CompletableFuture<Void> handleCreateException(String stateSegmentName, Throwable originalException, TimeoutTimer timer) {
+    private CompletableFuture<SegmentHandle> handleCreateException(String stateSegmentName, Throwable originalException, TimeoutTimer timer) {
         if (!(originalException instanceof StreamSegmentExistsException)) {
             // Some other kind of exception that we can't handle here.
             return Futures.failedFuture(originalException);
@@ -173,11 +167,14 @@ public class StorageMetadataStore extends MetadataStore {
                     // All other exceptions need to be bubbled up.
                     throw new CompletionException(ex);
                 })
-                .thenAccept(si -> {
+                .thenCompose(si -> {
                     if (si.getLength() > 0) {
                         // State file already exists and has data; re-throw original exception.
                         throw new CompletionException(originalException);
                     }
+
+                    // Stream segment exists already, return writeable handle
+                    return this.storage.openWrite(stateSegmentName);
                 });
     }
 

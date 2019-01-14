@@ -1124,7 +1124,6 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                             this.storage.create(this.metadata.getName(), rollingPolicy, timeout),
                             ex -> ex instanceof StreamSegmentExistsException,
                             null)
-                    .thenCompose(v -> this.storage.openWrite(this.metadata.getName()))
                     .thenComposeAsync(handle -> {
                         this.handle.set(handle);
                         return toRun.get();
