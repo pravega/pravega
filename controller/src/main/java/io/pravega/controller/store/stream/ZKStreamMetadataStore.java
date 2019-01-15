@@ -472,14 +472,14 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     public void initializeMetadataStore() {
         List<CompletableFuture<Void>> initializationFutures = new ArrayList<>();
         Retry.RetryWithBackoff retryPolicy = Retry.withExpBackoff(100, 2, 10);
-        Predicate<Throwable> isDataStoreException = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataExistsException;
+        Predicate<Throwable> isDataExistsException = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataExistsException;
         for (int bucket = 0; bucket < bucketCount; bucket++) {
             final String bucketPath = String.format(BUCKET_PATH, bucket);
-            initializationFutures.add(retryPolicy.retryWhen(isDataStoreException.negate()).run(() ->
+            initializationFutures.add(retryPolicy.retryWhen(isDataExistsException.negate()).run(() ->
                     storeHelper.addNode(bucketPath).handle((v, ex) -> {
                         if (ex == null) {
                             log.debug("Stream bucket correctly initialized: {}.", bucketPath);
-                        } else if (isDataStoreException.test(ex)) {
+                        } else if (isDataExistsException.test(ex)) {
                             log.debug("Stream bucket already initialized: {}.", bucketPath);
                         } else {
                             throw new CompletionException("Unexpected exception initializing Stream bucket.", ex);
