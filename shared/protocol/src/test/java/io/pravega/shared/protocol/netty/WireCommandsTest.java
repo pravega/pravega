@@ -422,7 +422,7 @@ public class WireCommandsTest {
     
     @Test
     public void testSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.SegmentAttribute(l, l+1));
+        testCommand(new WireCommands.SegmentAttribute(l, l + 1));
     }
     
     @Test

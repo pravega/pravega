@@ -17,7 +17,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,7 +40,6 @@ class EntryIterator implements AsyncIterator<List<PageEntry>> {
     private final PageCollection pageCollection;
     private final AtomicReference<PageWrapper> lastPage;
     private final AtomicInteger processedPageCount;
-    private final AtomicBoolean inProgress;
 
     //endregion
 
@@ -81,52 +79,46 @@ class EntryIterator implements AsyncIterator<List<PageEntry>> {
         this.lastPage = new AtomicReference<>(null);
         this.finished = new AtomicBoolean();
         this.processedPageCount = new AtomicInteger();
-        this.inProgress = new AtomicBoolean(false);
     }
 
     //endregion
 
     //region AsyncIterator Implementation
 
+    /**
+     * Attempts to get the next element in the iteration. Please refer to {@link AsyncIterator#getNext()} for details.
+     *
+     * If this method is invoked concurrently (a second call is initiated prior to the previous call terminating) the
+     * state of the {@link EntryIterator} will be corrupted. Consider using {@link AsyncIterator#asSequential}.
+     *
+     * @return A CompletableFuture that, when completed, will contain a List of {@link PageEntry} instances that are
+     * next in the iteration, or null if no more items can be served.
+     */
     @Override
     public CompletableFuture<List<PageEntry>> getNext() {
         if (this.finished.get()) {
             return CompletableFuture.completedFuture(null);
         }
 
-        // Verify no other call to getNext() is currently executing.
-        Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
-        try {
-            TimeoutTimer timer = new TimeoutTimer(this.fetchTimeout);
-            return locateNextPage(timer)
-                    .thenApply(pageWrapper -> {
-                        // Remember this page (for next time).
-                        this.lastPage.set(pageWrapper);
-                        List<PageEntry> result = null;
-                        if (pageWrapper != null) {
-                            // Extract the intermediate results from the page.
-                            result = extractFromPage(pageWrapper);
-                            this.processedPageCount.incrementAndGet();
-                        }
+        TimeoutTimer timer = new TimeoutTimer(this.fetchTimeout);
+        return locateNextPage(timer)
+                .thenApply(pageWrapper -> {
+                    // Remember this page (for next time).
+                    this.lastPage.set(pageWrapper);
+                    List<PageEntry> result = null;
+                    if (pageWrapper != null) {
+                        // Extract the intermediate results from the page.
+                        result = extractFromPage(pageWrapper);
+                        this.processedPageCount.incrementAndGet();
+                    }
 
-                        // Check if we have reached the last page that could possibly contain some result.
-                        if (result == null) {
-                            this.finished.set(true);
-                        }
+                    // Check if we have reached the last page that could possibly contain some result.
+                    if (result == null) {
+                        this.finished.set(true);
+                    }
 
-                        this.inProgress.set(false);
-                        return result;
-                    })
-                    .exceptionally(ex -> {
-                        // Clear the inProgress flag before exiting.
-                        this.inProgress.set(false);
-                        throw new CompletionException(ex);
-                    });
-        } catch (Throwable ex) {
-            // Clear the inProgress flag if a sync exception occurred.
-            this.inProgress.set(false);
-            throw ex;
-        }
+                    return result;
+                });
     }
 
     //endregion

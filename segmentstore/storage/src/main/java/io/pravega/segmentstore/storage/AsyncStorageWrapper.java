@@ -12,7 +12,7 @@ package io.pravega.segmentstore.storage;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.ConcurrentDependentProcessor;
+import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.io.InputStream;
@@ -38,7 +38,7 @@ public class AsyncStorageWrapper implements Storage {
 
     private final SyncStorage syncStorage;
     private final Executor executor;
-    private final ConcurrentDependentProcessor<String> taskProcessor;
+    private final MultiKeySequentialProcessor<String> taskProcessor;
     private final AtomicBoolean closed;
 
     //endregion
@@ -54,7 +54,7 @@ public class AsyncStorageWrapper implements Storage {
     public AsyncStorageWrapper(SyncStorage syncStorage, Executor executor) {
         this.syncStorage = Preconditions.checkNotNull(syncStorage, "syncStorage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.taskProcessor = new ConcurrentDependentProcessor<>(this.executor);
+        this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.closed = new AtomicBoolean();
     }
 

@@ -175,6 +175,11 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<Long> getCreationTime() {
+        return CompletableFuture.completedFuture(creationTime.get());
+    }
+
+    @Override
     CompletableFuture<Void> createConfigurationIfAbsent(byte[] config) {
         Preconditions.checkNotNull(config);
 

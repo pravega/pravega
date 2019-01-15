@@ -68,9 +68,10 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
-    static final String IMAGE_PULL_POLICY = System.getProperty("ImagePullPolicy", "IfNotPresent");
-    private static final String DOCKER_REGISTRY =  System.getProperty("dockerImageRegistry", "");
+    static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "IfNotPresent");
+    private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
+    private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
     private static final String PRAVEGA_OPERATOR_VERSION = System.getProperty("pravegaOperatorVersion", "latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
 
@@ -110,7 +111,7 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         // use the latest version of bookkeeper.
         final Map<String, Object> bookeeperSpec = ImmutableMap.<String, Object>builder().put("image",
-                                                                                             getImageSpec(DOCKER_REGISTRY + PREFIX + "/bookkeeper", "latest"))
+                                                                                             getImageSpec(DOCKER_REGISTRY + PREFIX + "/bookkeeper", PRAVEGA_BOOKKEEPER_VERSION))
                                                                                         .put("replicas", bookieCount)
                                                                                         .put("storage", ImmutableMap.builder()
                                                                                                                     .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
@@ -139,8 +140,7 @@ public abstract class AbstractService implements Service {
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
                                                                                       .put("options", options)
                                                                                       .put("image",
-                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/pravega",
-                                                                                                        PRAVEGA_VERSION))
+                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/pravega", PRAVEGA_VERSION))
                                                                                       .put("tier2", tier2Spec("pravega-tier2"))
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
@@ -234,7 +234,7 @@ public abstract class AbstractService implements Service {
 
     private V1Deployment getPravegaOperatorDeployment() {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        .withImage(DOCKER_REGISTRY + PREFIX + "/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
+                                                        .withImage("pravega/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
                                                         .withImagePullPolicy(IMAGE_PULL_POLICY)

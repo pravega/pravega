@@ -143,6 +143,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Long> getCreationTime(final String scope,
+                                                   final String name,
+                                                   final OperationContext context,
+                                                   final Executor executor) {
+        return withCompletion(getStream(scope, name, context).getCreationTime(), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> setState(final String scope, final String name,
                                                final State state, final OperationContext context,
                                                final Executor executor) {

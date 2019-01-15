@@ -449,7 +449,9 @@ public class StreamMetadataTasks extends TaskBase {
                     if (!state.equals(State.SEALED)) {
                         return CompletableFuture.completedFuture(false);
                     } else {
-                        return writeEvent(new DeleteStreamEvent(scope, stream, requestId))
+                        return streamMetadataStore.getCreationTime(scope, stream, context, executor)
+                                                  .thenApply(time -> new DeleteStreamEvent(scope, stream, requestId, time))
+                                                  .thenCompose(event -> writeEvent(event))
                                 .thenApply(x -> true);
                     }
                 })
