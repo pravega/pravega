@@ -159,7 +159,9 @@ abstract class BucketService extends AbstractService {
                     }
                 }
             }
-        } finally {
+        } catch (Exception e) {
+            log.error("{}: Exception thrown from notification loop for bucket", serviceType, bucketId, e);
+        } finally{
             log.info("{}: Notification loop terminated for bucket {}", serviceType, bucketId);
             notificationLoop.complete(null);
         }
@@ -180,8 +182,10 @@ abstract class BucketService extends AbstractService {
                         delayInMillis = 100;
                     } else if (element.nextExecutionTimeInMillis <= time) {
                         // Note: we can poll on queue while holding the lock because we know the element exists.
+
                         element = workQueue.poll();
                         assert element != null;
+
                         if (!knownStreams.contains(element.getStream())) {
                             // the stream is removed from the known set. Ignore any queue entry for this stream. 
                             // let next cycle of process work happen immediately
@@ -211,6 +215,8 @@ abstract class BucketService extends AbstractService {
                 long sleepTime = delayInMillis;
                 Exceptions.handleInterrupted(() -> Thread.sleep(sleepTime));
             }
+        } catch (Exception e) {
+            log.error("{}: Exception thrown from worker loop for bucket", serviceType, bucketId, e);
         } finally {
             log.info("{}: Worker loop terminated for bucket {}", serviceType, bucketId);
             workerLoop.complete(null);
@@ -219,13 +225,13 @@ abstract class BucketService extends AbstractService {
     
     @Override
     protected void doStop() {
-        log.info("Stop request received for bucket {} for service {}", bucketId, serviceType);
+        log.info("{}: Stop request received for bucket {}", serviceType, bucketId);
         serviceStartFuture.thenRun(() -> {
-            CompletableFuture.allOf(notificationLoop, workerLoop).thenAccept(x -> {
-                stopBucketChangeListener();
-                notification.interrupt();
-                worker.interrupt();
-            }).whenComplete((r, e) -> {
+            notification.interrupt();
+            worker.interrupt();
+            stopBucketChangeListener();
+
+            CompletableFuture.allOf(notificationLoop, workerLoop).whenComplete((r, e) -> {
                 if (e != null) {
                     log.error("{}: Error while stopping bucket {}", serviceType, bucketId, e);
                     notifyFailed(e);
