@@ -130,6 +130,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
+            streamStore.initializeMetadataStore();
 
             log.info("Creating the task store");
             taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);

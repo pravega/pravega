@@ -357,6 +357,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         return CompletableFuture.completedFuture(null);
     }
 
+    @Override
+    public void initializeMetadataStore() {}
+
     private String scopedStreamName(final String scopeName, final String streamName) {
         return new StringBuilder(scopeName).append("/").append(streamName).toString();
     }
