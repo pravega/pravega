@@ -56,7 +56,8 @@ public class ByteStreamWriterTest {
                                  .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
                 return null;
             }
-        }).when(connection).send(Mockito.any(CreateSegment.class));
+        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
+                                      Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(endpoint, connection);
         controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         controller.createScope(SCOPE);
