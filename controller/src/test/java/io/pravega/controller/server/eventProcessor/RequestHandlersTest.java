@@ -504,7 +504,7 @@ public class RequestHandlersTest {
         createStreamInStore(stream);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
-        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, executor);
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
 
         // seal stream. 
         SealStreamEvent sealEvent = new SealStreamEvent(scope, stream, 0L);
