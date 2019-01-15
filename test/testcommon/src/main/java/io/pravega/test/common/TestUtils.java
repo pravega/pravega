@@ -10,6 +10,8 @@
 package io.pravega.test.common;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -86,4 +88,20 @@ public class TestUtils {
         String encoded = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
         return "Basic " + encoded;
     }
+
+    /**
+     * Replace final static field for unit testing purpose.
+     *
+     * @param field the final static field to be replaced
+     * @param newValue the object to replace the existing final static field
+     * @throws Exception when the operation cannot be completed
+     */
+    public static void setFinalStatic(Field field, Object newValue) throws Exception {
+        field.setAccessible(true);
+        Field modifiersField = Field.class.getDeclaredField("modifiers");
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+        field.set(null, newValue);
+    }
+
 }
