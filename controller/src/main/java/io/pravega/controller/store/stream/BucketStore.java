@@ -9,70 +9,33 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.controller.server.bucket.BucketChangeListener;
-import io.pravega.controller.server.bucket.BucketOwnershipListener;
+import io.pravega.controller.store.client.StoreType;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Stream Metadata.
+ * Bucket Store interface. 
  */
 public interface BucketStore {
+    /**
+     * Method to return store type that implements this interface. Currently we have zookeeper bucket store and
+     * in memory bucket store implementations. 
+     * 
+     * @return type of store. 
+     */
+    StoreType getStoreType();
+    
     /**
      * Method to get count of buckets in the store.
      *
      * @return number of buckets.
      */
     int getBucketCount();
-
-    /**
-     * Method to register listener for changes to bucket's ownership.
-     *
-     * @param serviceType service type
-     * @param listener    listener
-     */
-    void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener listener);
-
-    /**
-     * Unregister listeners for bucket ownership.
-     *
-     * @param serviceType service type
-     */
-    void unregisterBucketOwnershipListener(ServiceType serviceType);
-
-    /**
-     * Method to take ownership of a bucket.
-     *
-     * @param serviceType service type
-     * @param bucket      bucket id
-     * @param processId   process id
-     * @param executor    executor
-     * @return future, which when completed, will contain a boolean which tells if ownership attempt succeeded or failed.
-     */
-    CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor);
-
-    // region retention
-
-    /**
-     * Method to register listeners for changes to streams under the bucket.
-     *
-     * @param serviceType service type
-     * @param bucket      bucket
-     * @param listener    listener
-     */
-    void registerBucketChangeListener(ServiceType serviceType, int bucket, BucketChangeListener listener);
-
-    /**
-     * Method to unregister listeners for changes to streams under the bucket.
-     *
-     * @param serviceType service type
-     * @param bucket      bucket
-     */
-    void unregisterBucketChangeListener(ServiceType serviceType, int bucket);
-
+    
     /**
      * Return all streams in the bucket.
      *
@@ -81,10 +44,10 @@ public interface BucketStore {
      * @param executor    executor
      * @return Future, which when completed will have a list of scopedStreamName (scope/stream) of all streams under the bucket.
      */
-    CompletableFuture<List<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor);
+    CompletableFuture<Set<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor);
 
     /**
-     * Add the given stream to appropriate bucket for auto-retention.
+     * Add the given stream to appropriate bucket for given service type.
      *
      * @param serviceType service type
      * @param scope       scope
@@ -95,7 +58,7 @@ public interface BucketStore {
     CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
 
     /**
-     * Remove stream from auto retention bucket.
+     * Remove stream from service bucket.
      *
      * @param serviceType service type
      * @param scope       scope
@@ -104,7 +67,6 @@ public interface BucketStore {
      * @return future, which when completed will indicate that stream is removed from the store.
      */
     CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor);
-    // endregion
 
     enum ServiceType {
         // Naming the service id as "buckets" for backward compatibility
@@ -124,6 +86,6 @@ public interface BucketStore {
     }
 
     static String getScopedStreamName(String scope, String stream) {
-        return String.format("%s/%s", scope, stream);
+        return StreamSegmentNameUtils.getScopedStreamName(scope, stream);
     }
 }

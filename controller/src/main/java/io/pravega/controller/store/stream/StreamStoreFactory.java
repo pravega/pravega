@@ -41,10 +41,10 @@ public class StreamStoreFactory {
 
     public static BucketStore createBucketStore(final StoreClient storeClient, final Executor executor) {
         switch (storeClient.getType()) {
-            case InMemory:
-                return new InMemoryBucketStore(Config.BUCKET_COUNT);
-            case Zookeeper:
-                return new ZookeeperBucketStore(Config.BUCKET_COUNT, (CuratorFramework) storeClient.getClient(), executor);
+            case InMemory: 
+                return createInMemoryBucketStore();
+            case Zookeeper: 
+                return createZKBucketStore((CuratorFramework) storeClient.getClient(), executor);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }

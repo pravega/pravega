@@ -86,7 +86,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
         // verify that ownership is not taken up by another host
-        assertFalse(bucketStore.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 0, "", executor).join());
+        assertFalse(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 0, "", executor).join());
 
         // Introduce connection failure error
         zkClient.getZookeeperClient().close();
@@ -106,17 +106,17 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         Stream stream = new StreamImpl(scope, streamName);
 
         // verify that at least one of the buckets got the notification
-        Map<Integer, AbstractBucketService> bucketServices = service.getBucketServices();
+        Map<Integer, BucketService> bucketServices = service.getBucketServices();
 
         int bucketId = stream.getScopedName().hashCode() % 3;
-        RetentionBucketService bucketService = (RetentionBucketService) bucketServices.get(bucketId);
+        BucketService bucketService = bucketServices.get(bucketId);
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> added.set(bucketService.getWorkFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertTrue(bucketService.getWorkFutureMap().containsKey(stream));
+                .thenAccept(x -> added.set(bucketService.getWorkFutureSet().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getWorkFutureSet().contains(stream));
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 60000)
     public void testOwnershipOfExistingBucket() throws Exception {
         RequestTracker requestTracker = new RequestTracker(true);
         TestingServer zkServer2 = new TestingServerStarter().start();
@@ -138,8 +138,9 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, hostStore, taskMetadataStore,
-                segmentHelper, executor2, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
+                hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), 
+                requestTracker);
 
         String scope = "scope1";
         String streamName = "stream1";
@@ -149,13 +150,14 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         String streamName2 = "stream2";
         bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, streamMetadataStore2, streamMetadataTasks2, executor, requestTracker);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5, executor);
 
-        BucketManager service2 = bucketStoreFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
+        BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null));
         service2.startAsync();
         service2.awaitRunning();
 
-        assertTrue(service2.getBucketServices().values().stream().allMatch(x -> x.getWorkFutureMap().size() == 2));
+        Thread.sleep(10000);
+        assertTrue(service2.getBucketServices().values().stream().allMatch(x -> x.getWorkFutureSet().size() == 2));
 
         service2.stopAsync();
         service2.awaitTerminated();

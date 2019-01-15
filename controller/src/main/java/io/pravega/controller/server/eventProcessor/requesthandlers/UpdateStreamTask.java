@@ -38,7 +38,8 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     public UpdateStreamTask(final StreamMetadataTasks streamMetadataTasks,
                             final StreamMetadataStore streamMetadataStore,
-                            BucketStore bucketStore, final ScheduledExecutorService executor) {
+                            final BucketStore bucketStore, 
+                            final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(bucketStore);

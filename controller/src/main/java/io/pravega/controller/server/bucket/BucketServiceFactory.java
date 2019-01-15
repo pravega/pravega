@@ -9,12 +9,13 @@
  */
 package io.pravega.controller.server.bucket;
 
-import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.controller.store.stream.InMemoryBucketStore;
+import io.pravega.controller.store.stream.ZookeeperBucketStore;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 
@@ -22,36 +23,36 @@ import java.util.function.Function;
 public class BucketServiceFactory {
     private final String hostId;
     private final BucketStore bucketStore;
-    private final StreamMetadataStore streamStore;
-    private final StreamMetadataTasks streamMetadataTasks;
+    private final int maxConcurrentExecutions;
     private final ScheduledExecutorService executorService;
-    private final RequestTracker requestTracker;
 
-    public BucketServiceFactory(String hostId, BucketStore bucketStore, StreamMetadataStore streamStore, 
-                                StreamMetadataTasks streamMetadataTasks, ScheduledExecutorService executorService, 
-                                RequestTracker requestTracker) {
+    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions, 
+                                @NonNull ScheduledExecutorService executorService) {
         this.hostId = hostId;
         this.bucketStore = bucketStore;
-        this.streamStore = streamStore;
-        this.streamMetadataTasks = streamMetadataTasks;
+        this.maxConcurrentExecutions = maxConcurrentExecutions;
         this.executorService = executorService;
-        this.requestTracker = requestTracker;
     }
 
-    public BucketManager getBucketManagerService(BucketStore.ServiceType type) {
-        BucketManager manager;
-        switch (type) {
-            case RetentionService:
-                Function<Integer, AbstractBucketService> streamCutSupplier = bucket ->
-                        new RetentionBucketService(bucket, streamStore, bucketStore, streamMetadataTasks, executorService, requestTracker);
+    public BucketManager createRetentionService(Duration executionDuration, BucketWork work) {
+        switch (bucketStore.getStoreType()) {
+            case Zookeeper:
+                ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
+                Function<Integer, BucketService> zkSupplier = bucket ->
+                        new ZooKeeperBucketService(BucketStore.ServiceType.RetentionService, bucket, zkBucketStore, executorService,
+                                maxConcurrentExecutions, executionDuration, work);
 
-                manager = new BucketManager(hostId, bucketStore, BucketStore.ServiceType.RetentionService,
-                        executorService, streamCutSupplier);
-                break;
-                default:
-                    throw new IllegalArgumentException();
+                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.RetentionService, executorService, zkSupplier);
+            case InMemory:
+                InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
+                Function<Integer, BucketService> inMemorySupplier = bucket ->
+                        new InMemoryBucketService(BucketStore.ServiceType.RetentionService, bucket, inMemoryBucketStore, executorService,
+                                maxConcurrentExecutions, executionDuration, work);
+
+                return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.RetentionService, 
+                        executorService, inMemorySupplier);
+            default:
+                throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
-        
-        return manager;
     }
 }

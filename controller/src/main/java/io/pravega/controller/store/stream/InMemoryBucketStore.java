@@ -9,16 +9,11 @@
  */
 package io.pravega.controller.store.stream;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import io.pravega.controller.server.bucket.BucketChangeListener;
-import io.pravega.controller.server.bucket.BucketOwnershipListener;
+import io.netty.util.internal.ConcurrentSet;
+import io.pravega.controller.store.client.StoreType;
 import lombok.Getter;
-import lombok.Synchronized;
 
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,85 +24,57 @@ public class InMemoryBucketStore implements BucketStore {
     @Getter
     private final int bucketCount;
     
-    private final ConcurrentMap<String, Set<String>> bucketedStreams;
+    private final ConcurrentMap<String, ConcurrentSet<String>> bucketedStreams;
     
     private final ConcurrentMap<String, BucketChangeListener> listeners;
 
     InMemoryBucketStore(int bucketCount) {
         this.bucketCount = bucketCount;
-        listeners = new ConcurrentHashMap<>();
         bucketedStreams = new ConcurrentHashMap<>();
+        listeners = new ConcurrentHashMap<>();
     }
-
-
-    @Override
-    public void registerBucketChangeListener(ServiceType serviceType, int bucket, BucketChangeListener listener) {
-        listeners.put(getBucketName(serviceType, bucket), listener);
-    }
-
+    
     private String getBucketName(ServiceType serviceType, int bucket) {
         return serviceType.getName() + "/" + bucket;
     }
 
     @Override
-    public void unregisterBucketChangeListener(ServiceType serviceType, int bucket) {
-        listeners.remove(getBucketName(serviceType, bucket));
+    public StoreType getStoreType() {
+        return StoreType.InMemory;
     }
 
     @Override
-    public void registerBucketOwnershipListener(ServiceType serviceType, BucketOwnershipListener ownershipListener) {
-    }
-
-    @Override
-    public void unregisterBucketOwnershipListener(ServiceType serviceType) {
-    }
-
-    @Override
-    public CompletableFuture<Boolean> takeBucketOwnership(ServiceType serviceType, int bucket, String processId, Executor executor) {
-        Preconditions.checkArgument(bucket < bucketCount);
-        return CompletableFuture.completedFuture(true);
-    }
-
-    @Synchronized
-    @Override
-    public CompletableFuture<List<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor) {
+    public CompletableFuture<Set<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor) {
         String bucketName = getBucketName(serviceType, bucket);
         if (bucketedStreams.containsKey(bucketName)) {
-            return CompletableFuture.completedFuture(ImmutableList.copyOf(bucketedStreams.get(bucketName)));
+            return CompletableFuture.completedFuture(Collections.unmodifiableSet(bucketedStreams.get(bucketName)));
         } else {
-            return CompletableFuture.completedFuture(Collections.emptyList());
+            return CompletableFuture.completedFuture(Collections.emptySet());
         }
     }
 
-    @Synchronized
     @Override
     public CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketName = getBucketName(serviceType, bucket);
-        Set<String> set;
-        if (bucketedStreams.containsKey(bucketName)) {
-            set = bucketedStreams.get(bucketName);
-        } else {
-            set = new HashSet<>();
-        }
-        String scopedStreamName = BucketStore.getScopedStreamName(scope, stream);
-        boolean isUpdate = set.contains(bucketName);
-        set.add(scopedStreamName);
-        bucketedStreams.put(bucketName, set);
-        
-        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(bucketName, (b, listener) -> {
-            if (isUpdate) {
-                listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
-                        BucketChangeListener.StreamNotification.NotificationType.StreamUpdated));
+        ConcurrentSet<String> set = bucketedStreams.compute(bucketName, (x, y) -> {
+            if (y == null) {
+                return new ConcurrentSet<>();
             } else {
-                listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
-                        BucketChangeListener.StreamNotification.NotificationType.StreamAdded));
+                return y;
             }
+        });
+        
+        String scopedStreamName = BucketStore.getScopedStreamName(scope, stream);
+        set.add(scopedStreamName);
+        
+        listeners.computeIfPresent(bucketName, (b, listener) -> {
+            listener.notify(scope, stream, true);
             return listener;
-        }), executor);
+        });
+        return CompletableFuture.completedFuture(null);
     }
 
-    @Synchronized
     @Override
     public CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
@@ -120,10 +87,26 @@ public class InMemoryBucketStore implements BucketStore {
             return set;
         });
         
-        return CompletableFuture.runAsync(() -> listeners.computeIfPresent(getBucketName(serviceType, bucket), (b, listener) -> {
-            listener.notify(new BucketChangeListener.StreamNotification(scope, stream,
-                    BucketChangeListener.StreamNotification.NotificationType.StreamRemoved));
+        listeners.computeIfPresent(getBucketName(serviceType, bucket), (b, listener) -> {
+            listener.notify(scope, stream, false);
             return listener;
-        }), executor);
+        });
+        return CompletableFuture.completedFuture(null);
+    }
+
+    public void registerBucketChangeListener(ServiceType serviceType, int bucketId, BucketChangeListener listener) {
+        String bucketName = getBucketName(serviceType, bucketId);
+
+        listeners.putIfAbsent(bucketName, listener);
+    }
+    
+    public void unregisterBucketChangeListener(ServiceType serviceType, int bucketId) {
+        String bucketName = getBucketName(serviceType, bucketId);
+        listeners.remove(bucketName);
+    }
+
+    @FunctionalInterface
+    public interface BucketChangeListener {
+        void notify(String scope, String stream, boolean add); 
     }
 }

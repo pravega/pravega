@@ -23,6 +23,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -129,7 +130,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Data> getData(final String path) {
+    public CompletableFuture<Data> getData(final String path) {
         final CompletableFuture<Data> result = new CompletableFuture<>();
 
         try {
@@ -253,7 +254,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
+    public CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -320,4 +321,8 @@ public class ZKStoreHelper {
         };
     }
     // endregion
+    
+    public PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
+        return new PathChildrenCache(client, path, cacheData);
+    }
 }

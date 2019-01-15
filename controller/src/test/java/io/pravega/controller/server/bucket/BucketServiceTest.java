@@ -30,6 +30,7 @@ import io.pravega.controller.util.RetryHelper;
 import io.pravega.test.common.AssertExtensions;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -69,10 +70,11 @@ public abstract class BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, hostStore, taskMetadataStore, segmentHelper, executor, hostId, connectionFactory,
-               AuthHelper.getDisabledAuthHelper(), requestTracker);
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, streamMetadataStore, streamMetadataTasks, executor, requestTracker);
-        service = bucketStoreFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
+        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, hostStore, taskMetadataStore, 
+                segmentHelper, executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, executor);
+        PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
+        service = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention);
         service.startAsync();
         service.awaitRunning();
     }
@@ -92,16 +94,16 @@ public abstract class BucketServiceTest {
 
     @Test(timeout = 10000)
     public void testRetentionService() {
-        Map<Integer, AbstractBucketService> bucketServices = service.getBucketServices();
+        Map<Integer, BucketService> bucketServices = service.getBucketServices();
                                           
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
-        assertTrue(bucketStore.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 0, hostId, executor).join());
-        assertTrue(bucketStore.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 1, hostId, executor).join());
-        assertTrue(bucketStore.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 2, hostId, executor).join());
-        AssertExtensions.assertThrows("", () -> bucketStore.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 3, hostId, executor).join(),
+        assertTrue(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 0, hostId, executor).join());
+        assertTrue(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 1, hostId, executor).join());
+        assertTrue(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 2, hostId, executor).join());
+        AssertExtensions.assertThrows("", () -> service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 3, hostId, executor).join(),
                 e -> e instanceof IllegalArgumentException);
-        service.notify(new BucketOwnershipListener.BucketNotification(0, BucketOwnershipListener.BucketNotification.NotificationType.BucketAvailable));
+        service.notify(new BucketManager.BucketNotification(0, BucketManager.NotificationType.BucketAvailable));
 
         String scope = "scope";
         String streamName = "stream";
@@ -111,16 +113,18 @@ public abstract class BucketServiceTest {
 
         // verify that at least one of the buckets got the notification
         int bucketId = stream.getScopedName().hashCode() % 3;
-        RetentionBucketService bucketService = (RetentionBucketService) bucketServices.get(bucketId);
+        Set<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, bucketId, executor).join();
+        
+        BucketService bucketService = bucketServices.get(bucketId);
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> added.set(bucketService.getWorkFutureMap().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertTrue(bucketService.getWorkFutureMap().containsKey(stream));
+                .thenAccept(x -> added.set(bucketService.getWorkFutureSet().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getWorkFutureSet().contains(stream));
 
         bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
         AtomicBoolean removed = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> removed.set(bucketService.getWorkFutureMap().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertEquals(0, bucketService.getWorkFutureMap().size());
+                .thenAccept(x -> removed.set(bucketService.getWorkFutureSet().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertEquals(0, bucketService.getWorkFutureSet().size());
     }
 }

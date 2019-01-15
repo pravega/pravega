@@ -29,6 +29,7 @@ import io.pravega.controller.server.bucket.BucketManager;
 import io.pravega.controller.server.bucket.BucketServiceFactory;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.bucket.PeriodicRetention;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -181,9 +182,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
                     connectionFactory, authHelper);
             
-            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, streamStore, 
-                    streamMetadataTasks, retentionExecutor, requestTracker);
-            retentionService = bucketServiceFactory.getBucketManagerService(BucketStore.ServiceType.RetentionService);
+            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000, retentionExecutor);
+            Duration executionDuration = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+
+            PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
+            retentionService = bucketServiceFactory.createRetentionService(executionDuration, retentionWork::retention);
 
             log.info("starting background periodic service for retention");
             retentionService.startAsync();
