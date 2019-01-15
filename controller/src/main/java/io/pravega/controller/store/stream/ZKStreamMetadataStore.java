@@ -24,6 +24,7 @@ import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
+import java.util.function.Predicate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -470,18 +471,20 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @Override
     public void initializeMetadataStore() {
         List<CompletableFuture<Void>> initializationFutures = new ArrayList<>();
-        Retry.RetryWithBackoff retryPolicy = Retry.withExpBackoff(50, 2, 10);
+        Retry.RetryWithBackoff retryPolicy = Retry.withExpBackoff(100, 2, 10);
+        Predicate<Throwable> isDataStoreException = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataExistsException;
         for (int bucket = 0; bucket < bucketCount; bucket++) {
             final String bucketPath = String.format(BUCKET_PATH, bucket);
-            initializationFutures.add(retryPolicy.retryWhen(ex -> true).run(() ->
-                    storeHelper.addNode(bucketPath).whenComplete((v, ex) -> {
+            initializationFutures.add(retryPolicy.retryWhen(isDataStoreException.negate()).run(() ->
+                    storeHelper.addNode(bucketPath).handle((v, ex) -> {
                         if (ex == null) {
                             log.debug("Stream bucket correctly initialized: {}.", bucketPath);
-                        } else if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                        } else if (isDataStoreException.test(ex)) {
                             log.debug("Stream bucket already initialized: {}.", bucketPath);
                         } else {
                             throw new CompletionException("Unexpected exception initializing Stream bucket.", ex);
                         }
+                        return null;
                     })));
         }
 
