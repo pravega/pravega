@@ -161,7 +161,7 @@ abstract class BucketService extends AbstractService {
             }
         } catch (Exception e) {
             log.error("{}: Exception thrown from notification loop for bucket", serviceType, bucketId, e);
-        } finally{
+        } finally {
             log.info("{}: Notification loop terminated for bucket {}", serviceType, bucketId);
             notificationLoop.complete(null);
         }
