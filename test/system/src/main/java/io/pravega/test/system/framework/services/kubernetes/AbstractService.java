@@ -238,6 +238,8 @@ public abstract class AbstractService implements Service {
                                                         .withImage("pravega/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
+                                                        // start the pravega-operator in test mode to disable minimum replica count check.
+                                                        .withArgs("-test")
                                                         .withImagePullPolicy(IMAGE_PULL_POLICY)
                                                         .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
