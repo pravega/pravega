@@ -1513,7 +1513,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String delegationToken;
-        final TableEntries entries;
+        final TableEntries tableEntries;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -1525,7 +1525,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
-            entries.writeFields(out);
+            tableEntries.writeFields(out);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -1727,14 +1727,14 @@ public final class WireCommands {
     public static final class TableKey implements WireCommand {
         final WireCommandType type = WireCommandType.TABLE_KEY;
         final long keyVersion;
-        final ByteBuf data;
+        final ByteBuffer data;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
             out.writeLong(keyVersion);
-            out.writeInt(data.readableBytes());
-            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+            out.writeInt(data.remaining());
+            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1749,20 +1749,20 @@ public final class WireCommands {
             }
             byte[] msg = new byte[keyLength];
             in.readFully(msg);
-            return new TableKey(keyVersion, wrappedBuffer(msg));
+            return new TableKey(keyVersion, ByteBuffer.wrap(msg));
         }
     }
 
     @Data
     public static final class TableValue implements WireCommand {
         final WireCommandType type = WireCommandType.TABLE_VALUE;
-        final ByteBuf data;
+        final ByteBuffer data;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
-            out.writeInt(data.readableBytes());
-            data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
+            out.writeInt(data.remaining());
+            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1776,83 +1776,7 @@ public final class WireCommands {
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);
-            return new TableValue(wrappedBuffer(msg));
-        }
-    }
-
-    @Data
-    public static final class TableKeyTooLong implements Reply, WireCommand {
-        //TODO : remove it as it is not required as this can be checked on the client end.
-        final WireCommandType type = WireCommandType.TABLE_KEY_TOO_LONG;
-        final long requestId;
-        final String segment;
-        final String serverStackTrace;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.tableKeyTooLong(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeUTF(serverStackTrace);
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String serverStackTrace = in.readUTF();
-            return new TableKeyTooLong(requestId, segment, serverStackTrace);
-        }
-
-        @Override
-        public String toString() {
-            return "Table key too long for table segment : " + segment;
-        }
-
-        @Override
-        public boolean isFailure() {
-            return true;
-        }
-    }
-
-    @Data
-    public static final class TableValueTooLong implements Reply, WireCommand {
-        //TODO: remove it as it is not required as this can be checked on the client end.
-        final WireCommandType type = WireCommandType.TABLE_VALUE_TOO_LONG;
-        final long requestId;
-        final String segment;
-        final String serverStackTrace;
-
-        @Override
-        public void process(ReplyProcessor cp) {
-            cp.tableValueTooLong(this);
-        }
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
-            out.writeUTF(segment);
-            out.writeUTF(serverStackTrace);
-        }
-
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String segment = in.readUTF();
-            String serverStackTrace = in.readUTF();
-            return new TableValueTooLong(requestId, segment, serverStackTrace);
-        }
-
-        @Override
-        public String toString() {
-            return "Table value too long for table segment : " + segment;
-        }
-
-        @Override
-        public boolean isFailure() {
-            return true;
+            return new TableValue(ByteBuffer.wrap(msg));
         }
     }
 

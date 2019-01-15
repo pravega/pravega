@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -19,6 +20,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
@@ -34,6 +36,10 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Random;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +58,8 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -68,6 +76,11 @@ import static org.mockito.Mockito.when;
 
 @Slf4j
 public class PravegaRequestProcessorTest {
+
+    private static final int KEY_COUNT = 3;
+    private static final int MAX_KEY_LENGTH = 128;
+    private static final int MAX_VALUE_LENGTH = 32;
+
     static {
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
     }
@@ -510,6 +523,101 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
         processor.createTableSegment(new WireCommands.CreateTableSegment(2, streamSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentAlreadyExists(2, streamSegmentName, ""));
+    }
+
+    /**
+     * Verifies that the methods that are not yet implemented are not implemented by accident without unit tests.
+     * This test should be removed once every method tested in it is implemented.
+     */
+    @Test(timeout = 20000)
+    public void testUnimplementedMethods() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        String streamSegmentName = "test";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
+
+        assertThrows("merge() is implemented.",
+                     () -> processor.deleteTableSegment(new WireCommands.DeleteTableSegment(1, streamSegmentName, true, "")),
+                     ex -> ex instanceof UnsupportedOperationException);
+        assertThrows("seal() is implemented.",
+                     () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
+                     ex -> ex instanceof UnsupportedOperationException);
+
+    }
+
+    @Test//(timeout = 20000)
+    public void testUpdateEntries() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String streamSegmentName = "testUpdateEntries";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
+
+        ArrayList<HashedArray> keys = generateKeys(rnd);
+
+        TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
+
+
+
+        // Execute and Verify createSegment calling stack is executed as design.
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, streamSegmentName, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
+        List<TableEntry> updateData = Arrays.asList(e1);
+
+        WireCommands.TableEntries cmd = getTableEntries(updateData);
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, streamSegmentName, "", cmd));
+
+        order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, Arrays.asList(0L)));
+
+        // Test with key not present. The table store throws KeyNotExistsException.
+        TableEntry e2 = TableEntry.versioned(keys.get(1), generateValue(rnd), 0L);
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, streamSegmentName, "", getTableEntries(Arrays.asList(e2))));
+        order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(3, streamSegmentName, "" ));
+
+        // Test with invalid key version. The table store throws BadKeyVersionException.
+        TableEntry e3 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, streamSegmentName, "", getTableEntries(Arrays.asList(e3))));
+        order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(4, streamSegmentName, "" ));
+    }
+
+    private HashedArray generateData(int length, Random rnd) {
+        byte[] keyData = new byte[length];
+        rnd.nextBytes(keyData);
+        return new HashedArray(keyData);
+    }
+
+    private WireCommands.TableEntries getTableEntries(List<TableEntry> updateData) {
+
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = updateData.stream().map(te -> {
+            val tableKey = new WireCommands.TableKey(te.getKey().getVersion(), ByteBuffer.wrap(te.getKey().getKey().array()));
+            val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue().array()));
+            return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
+        }).collect(toList());
+
+        return new WireCommands.TableEntries(entries);
+    }
+    private HashedArray generateValue(Random rnd) {
+        return generateData(MAX_VALUE_LENGTH, rnd);
+    }
+
+    private ArrayList<HashedArray> generateKeys(Random rnd) {
+        val result = new ArrayList<HashedArray>(KEY_COUNT);
+        for (int i = 0; i < KEY_COUNT; i++) {
+            result.add(generateData(MAX_KEY_LENGTH, rnd));
+        }
+
+        return result;
     }
 
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {

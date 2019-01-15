@@ -18,6 +18,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -34,6 +35,9 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
+import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -49,10 +53,13 @@ import io.pravega.shared.protocol.netty.WireCommands.AuthTokenCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.CreateTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
+import io.pravega.shared.protocol.netty.WireCommands.DeleteTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
+import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.NotEmptyTableSegment;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
@@ -85,6 +92,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -100,6 +108,7 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
+import static io.pravega.segmentstore.contracts.tables.TableEntry.versioned;
 import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
@@ -556,7 +565,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 });
     }
 
-
     @Override
     public void createTableSegment(CreateTableSegment createTableSegment) {
         final String operation = "createTableSegment";
@@ -569,6 +577,73 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.createSegment(createTableSegment.getSegment(), TIMEOUT)
                   .thenAccept(v -> connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment())))
                   .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
+    }
+
+    @Override
+    public void deleteTableSegment(DeleteTableSegment deleteTableSegment) {
+        String segment = deleteTableSegment.getSegment();
+        final String operation = "deleteTableSegment";
+
+        if (!verifyToken(segment, deleteTableSegment.getRequestId(), deleteTableSegment.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(deleteTableSegment.getRequestId(), "Deleting table segment {}.", deleteTableSegment);
+        tableStore.deleteSegment(segment, deleteTableSegment.isMustBeEmpty(), TIMEOUT)
+                  .thenRun(() -> connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment)))
+                  .exceptionally(e -> handleException(deleteTableSegment.getRequestId(), segment, operation, e));
+    }
+
+    @Override
+    public void mergeTableSegments(MergeTableSegments mergeTableSegments) {
+        final String operation = "mergeTableSegments";
+
+        if (!verifyToken(mergeTableSegments.getSource(), mergeTableSegments.getRequestId(), mergeTableSegments.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(mergeTableSegments.getRequestId(), "Merging table segments {}.", mergeTableSegments);
+        tableStore.merge(mergeTableSegments.getTarget(), mergeTableSegments.getSource(), TIMEOUT)
+                  .thenRun(() -> connection.send(new WireCommands.SegmentsMerged(mergeTableSegments.getRequestId(),
+                                                                                 mergeTableSegments.getTarget(),
+                                                                                 mergeTableSegments.getSource())))
+                  .exceptionally(e -> handleException(mergeTableSegments.getRequestId(), mergeTableSegments.getSource(), operation, e));
+    }
+
+    @Override
+    public void sealTableSegment(WireCommands.SealTableSegment sealTableSegment) {
+        String segment = sealTableSegment.getSegment();
+        final String operation = "sealTableSegment";
+
+        if (!verifyToken(segment, sealTableSegment.getRequestId(), sealTableSegment.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(sealTableSegment.getRequestId(), "Sealing table segment {}.", sealTableSegment);
+        tableStore.seal(segment, TIMEOUT)
+                  .thenRun(() -> connection.send(new SegmentSealed(sealTableSegment.getRequestId(), segment)))
+                  .exceptionally(e -> handleException(sealTableSegment.getRequestId(), segment, operation, e));
+    }
+
+    @Override
+    public void updateTableEntries(WireCommands.UpdateTableEntries updateTableEntries) {
+        String segment = updateTableEntries.getSegment();
+        final String operation = "updateTableEntries";
+
+        if (!verifyToken(segment, updateTableEntries.getRequestId(), updateTableEntries.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
+        List<TableEntry> entries = updateTableEntries.getTableEntries().getEntries().stream()
+                                                     .map(e -> versioned(new ByteArraySegment(e.getKey().getData()),
+                                                                         new ByteArraySegment(e.getValue().getData()),
+                                                                         e.getKey().getKeyVersion()))
+                                                     .collect(Collectors.toList());
+        tableStore.put(segment, entries, TIMEOUT)
+                  .thenAccept(versions -> connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions)))
+                  .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
+
     }
 
     //endregion
@@ -623,6 +698,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
             invokeSafely(connection::send, new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(), clientReplyStackTrace), failureHandler);
+        } else if (u instanceof TableSegmentNotEmptyException) {
+            log.warn(requestId, "Table segment '{}' is not empty to perform '{}'.", segment, operation);
+            invokeSafely(connection::send, new NotEmptyTableSegment(requestId, segment, clientReplyStackTrace), failureHandler);
+        } else if (u instanceof ConditionalTableUpdateException) {
+            log.warn(requestId, "Conditional update on Table segment '{}' failed.", segment);
+            invokeSafely(connection::send, new WireCommands.ConditionalTableUpdateFailed(requestId, segment, clientReplyStackTrace), failureHandler);
         } else {
             log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
