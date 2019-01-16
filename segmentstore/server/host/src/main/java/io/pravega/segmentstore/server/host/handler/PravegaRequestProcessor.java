@@ -18,6 +18,7 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -37,6 +38,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -82,6 +84,7 @@ import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,6 +122,7 @@ import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.util.stream.Collectors.toList;
 
 /**
  * A Processor for all non-append operations on the Pravega SegmentStore Service.
@@ -644,6 +648,56 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                   .thenAccept(versions -> connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions)))
                   .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
 
+    }
+
+    @Override
+    public void removeTableKeys(WireCommands.RemoveTableKeys removeTableKeys) {
+        String segment = removeTableKeys.getSegment();
+        final String operation = "removeTableKeys";
+
+        if (!verifyToken(segment, removeTableKeys.getRequestId(), removeTableKeys.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
+
+        List<TableKey> keys = removeTableKeys.getKeys().stream()
+                                                .map(k -> TableKey.versioned(new ByteArraySegment(k.getData()), k.getKeyVersion()))
+                                                .collect(Collectors.toList());
+        tableStore.remove(segment, keys, TIMEOUT)
+                  .thenRun(() -> connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment)))
+                  .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
+
+    }
+
+
+    @Override
+    public void readTable(WireCommands.ReadTable readTable) {
+        final String segment = readTable.getSegment();
+        final String operation = "readTable";
+
+        if (!verifyToken(segment, readTable.getRequestId(), readTable.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(readTable.getRequestId(), "Reading from table {}.", readTable);
+        final List<ArrayView> keys = readTable.getKeys().stream()
+                                              .map(k -> new ByteArraySegment(k.getData()))
+                                              .collect(Collectors.toList());
+        tableStore.get(segment, keys, TIMEOUT)
+                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntries(values))))
+                  .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
+    }
+
+    private WireCommands.TableEntries getTableEntries(List<TableEntry> updateData) {
+
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = updateData.stream().map(te -> {
+            val tableKey = new WireCommands.TableKey(te.getKey().getVersion(), ByteBuffer.wrap(te.getKey().getKey().array()));
+            val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue().array()));
+            return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
+        }).collect(toList());
+
+        return new WireCommands.TableEntries(entries);
     }
 
     //endregion

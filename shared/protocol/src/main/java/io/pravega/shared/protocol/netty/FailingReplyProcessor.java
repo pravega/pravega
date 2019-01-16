@@ -180,6 +180,4 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void conditionalTableUpdateFailed(WireCommands.ConditionalTableUpdateFailed conditionalTableUpdateFailed) {
         throw new IllegalStateException("Unexpected operation: " + conditionalTableUpdateFailed);
     }
-
-
 }
