@@ -58,7 +58,7 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
+        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(this::initializeBucket).collect(Collectors.toList()))
                 .thenAccept(x -> startBucketOwnershipListener())
                 .whenComplete((r, e) -> {
                     if (e != null) {
@@ -72,7 +72,7 @@ public abstract class BucketManager extends AbstractService {
     protected abstract int getBucketCount();
 
     private CompletableFuture<Void> tryTakeOwnership(int bucket) {
-        return takeBucketOwnership(serviceType, bucket, processId, executor)
+        return takeBucketOwnership(bucket, processId, executor)
                          .thenCompose(isOwner -> {
                     if (isOwner) {
                         log.info("{}: Taken ownership for bucket {}", serviceType, bucket);
@@ -167,16 +167,17 @@ public abstract class BucketManager extends AbstractService {
 
     abstract void stopBucketOwnershipListener();
 
+    abstract CompletableFuture<Void> initializeBucket(int bucket);
+
     /**
      * Method to take ownership of a bucket.
      *
-     * @param serviceType service type
      * @param bucket      bucket id
      * @param processId   process id
      * @param executor    executor
      * @return future, which when completed, will contain a boolean which tells if ownership attempt succeeded or failed.
      */
-    abstract CompletableFuture<Boolean> takeBucketOwnership(BucketStore.ServiceType serviceType, int bucket, String processId, Executor executor);
+    abstract CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor);
 
     @VisibleForTesting
     Map<Integer, BucketService> getBucketServices() {

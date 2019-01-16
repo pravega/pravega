@@ -15,7 +15,9 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.client.StoreType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.Base64;
@@ -72,13 +74,32 @@ public class ZookeeperBucketStore implements BucketStore {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
     }
 
-    public String encodedScopedStreamName(String scope, String stream) {
-        String scopedStreamName = BucketStore.getScopedStreamName(scope, stream);
-        return Base64.getEncoder().encodeToString(scopedStreamName.getBytes());
+    public CompletableFuture<Void> initializeBuckets(final ServiceType serviceType, int bucketId) {
+        String bucketRootPath = getBucketRootPath(serviceType);
+        String bucketPath = getBucketPath(serviceType, bucketId);
+        return Futures.toVoid(storeHelper.createZNodeIfNotExist(bucketRootPath)
+                .thenCompose(x -> storeHelper.createZNodeIfNotExist(bucketPath)));
     }
 
-    public String decodedScopedStreamName(String encodedScopedStreamName) {
-        return new String(Base64.getDecoder().decode(encodedScopedStreamName));
+    public CompletableFuture<Boolean> takeBucketOwnership(final ServiceType serviceType, int bucketId, String processId) {
+        String bucketPath = getBucketPath(serviceType, bucketId);
+        return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
+                          .thenCompose(created -> {
+                              if (!created) {
+                                  return storeHelper.getData(bucketPath)
+                                                    .thenApply(data -> (SerializationUtils.deserialize(data.getData())).equals(processId));
+                              } else {
+                                  return CompletableFuture.completedFuture(true);
+                              }
+                          });
+    }
+
+    public PathChildrenCache getBucketPathChildrenCache(ServiceType serviceType, int bucketId) {
+        return storeHelper.getPathChildrenCache(getBucketPath(serviceType, bucketId), true);
+    }
+
+    public PathChildrenCache getServiceOwnershipPathChildrenCache(ServiceType serviceType) {
+        return storeHelper.getPathChildrenCache(getBucketOwnershipPath(serviceType), true);
     }
 
     public StreamImpl getStreamFromPath(String path) {
@@ -86,17 +107,26 @@ public class ZookeeperBucketStore implements BucketStore {
         String[] splits = scopedStream.split("/");
         return new StreamImpl(splits[0], splits[1]);
     }
+
+    private String encodedScopedStreamName(String scope, String stream) {
+        String scopedStreamName = BucketStore.getScopedStreamName(scope, stream);
+        return Base64.getEncoder().encodeToString(scopedStreamName.getBytes());
+    }
+
+    private String decodedScopedStreamName(String encodedScopedStreamName) {
+        return new String(Base64.getDecoder().decode(encodedScopedStreamName));
+    }
     
-    public String getBucketRootPath(final ServiceType serviceType) {
+    private String getBucketRootPath(final ServiceType serviceType) {
         return ZKPaths.makePath(ROOT_PATH, serviceType.getName());
     }
 
-    public String getBucketOwnershipPath(final ServiceType serviceType) {
+    private String getBucketOwnershipPath(final ServiceType serviceType) {
         String bucketRootPath = getBucketRootPath(serviceType);
         return ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
     }
 
-    public String getBucketPath(final ServiceType serviceType, final int bucket) {
+    private String getBucketPath(final ServiceType serviceType, final int bucket) {
         String bucketRootPath = ZKPaths.makePath(ROOT_PATH, serviceType.getName());
         return ZKPaths.makePath(bucketRootPath, "" + bucket);
     }

@@ -14,7 +14,6 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.ZKPaths;
@@ -63,10 +62,9 @@ public class ZooKeeperBucketManager extends BucketManager {
             }
         };
 
-        String bucketOwnershipPath = bucketStore.getBucketOwnershipPath(getServiceType());
         PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.computeIfAbsent(getServiceType(),
                 x -> {
-                    PathChildrenCache cache = bucketStore.getStoreHelper().getPathChildrenCache(bucketOwnershipPath, true);
+                    PathChildrenCache cache = bucketStore.getServiceOwnershipPathChildrenCache(getServiceType());
                     cache.getListenable().addListener(bucketListener);
                     log.info("bucket ownership listener registered on bucket root {}", getServiceType());
 
@@ -96,26 +94,15 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
-    public CompletableFuture<Boolean> takeBucketOwnership(BucketStore.ServiceType serviceType, int bucket, String processId, Executor executor) {
+    public CompletableFuture<Void> initializeBucket(int bucket) {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
-
-        String bucketRootPath = bucketStore.getBucketRootPath(serviceType);
-        String bucketOwnershipPath = bucketStore.getBucketOwnershipPath(serviceType);
-
-        // try creating an ephemeral node
-        String bucketPath = ZKPaths.makePath(bucketOwnershipPath, String.valueOf(bucket));
-
-        return bucketStore.getStoreHelper().createZNodeIfNotExist(bucketRootPath)
-                .thenCompose(x -> bucketStore.getStoreHelper().createZNodeIfNotExist(bucketOwnershipPath))
-                .thenCompose(x -> bucketStore.getStoreHelper().createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
-                          .thenCompose(created -> {
-                              if (!created) {
-                                  return bucketStore.getStoreHelper().getData(bucketPath)
-                                                    .thenApply(data -> (SerializationUtils.deserialize(data.getData())).equals(processId));
-                              } else {
-                                  return CompletableFuture.completedFuture(true);
-                              }
-                          }));
+        
+        return bucketStore.initializeBuckets(getServiceType(), bucket);
     }
 
+    @Override
+    public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
+        Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
+        return bucketStore.takeBucketOwnership(getServiceType(), bucket, processId);
+    }
 }

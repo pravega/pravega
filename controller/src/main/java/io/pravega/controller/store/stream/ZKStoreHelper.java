@@ -47,7 +47,7 @@ public class ZKStoreHelper {
         return getChildren("/store");
     }
 
-    public CompletableFuture<Void> addNode(final String path) {
+    CompletableFuture<Void> addNode(final String path) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.create().creatingParentsIfNeeded().inBackground(
@@ -58,7 +58,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Void> deleteNode(final String path) {
+    CompletableFuture<Void> deleteNode(final String path) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete().inBackground(
@@ -71,7 +71,7 @@ public class ZKStoreHelper {
 
     // region curator client store access
 
-    public CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
+    CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final CompletableFuture<Void> deleteNode = new CompletableFuture<>();
 
@@ -116,7 +116,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Void> deleteTree(final String path) {
+    CompletableFuture<Void> deleteTree(final String path) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete()
@@ -145,7 +145,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<List<String>> getChildren(final String path) {
+    CompletableFuture<List<String>> getChildren(final String path) {
         final CompletableFuture<List<String>> result = new CompletableFuture<>();
 
         try {
@@ -165,7 +165,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Integer> setData(final String path, final Data data) {
+    CompletableFuture<Integer> setData(final String path, final Data data) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             if (data.getVersion() == null) {
@@ -183,7 +183,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Integer> createZNode(final String path, final byte[] data) {
+    CompletableFuture<Integer> createZNode(final String path, final byte[] data) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
@@ -197,11 +197,11 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data) {
         return createZNodeIfNotExist(path, data, true);
     }
 
-    public CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
@@ -225,11 +225,11 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Integer> createZNodeIfNotExist(final String path) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path) {
         return createZNodeIfNotExist(path, true);
     }
 
-    public CompletableFuture<Integer> createZNodeIfNotExist(final String path, final boolean createParent) {
+    private CompletableFuture<Integer> createZNodeIfNotExist(final String path, final boolean createParent) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
 
         try {
@@ -254,7 +254,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
+    CompletableFuture<Boolean> createEphemeralZNode(final String path, byte[] data) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -322,7 +322,7 @@ public class ZKStoreHelper {
     }
     // endregion
     
-    public PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
+    PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
         return new PathChildrenCache(client, path, cacheData);
     }
 }

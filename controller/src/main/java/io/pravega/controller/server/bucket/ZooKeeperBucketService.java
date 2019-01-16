@@ -55,12 +55,11 @@ public class ZooKeeperBucketService extends BucketService {
                     log.warn("Received unknown event {} on bucket", event.getType(), getBucketId());
             }
         };
-
-        String bucketPath = bucketStore.getBucketPath(getServiceType(), getBucketId());
-
+        
         PathChildrenCache pathChildrenCache = cacheRef.updateAndGet(existing -> {
             if (existing == null) {
-                PathChildrenCache cache = bucketStore.getStoreHelper().getPathChildrenCache(bucketPath, true);
+                PathChildrenCache cache = bucketStore.getBucketPathChildrenCache(getServiceType(), getBucketId());
+
                 cache.getListenable().addListener(bucketListener);
                 log.info("bucket {} change notification listener registered", getBucketId());
                 return cache;

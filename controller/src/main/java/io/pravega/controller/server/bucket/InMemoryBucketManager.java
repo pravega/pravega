@@ -45,7 +45,12 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
-    CompletableFuture<Boolean> takeBucketOwnership(BucketStore.ServiceType serviceType, int bucket, String processId, Executor executor) {
+    CompletableFuture<Void> initializeBucket(int bucket) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < getBucketCount());
         return CompletableFuture.completedFuture(true);
     }
