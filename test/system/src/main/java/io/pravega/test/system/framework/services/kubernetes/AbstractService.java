@@ -129,6 +129,7 @@ public abstract class AbstractService implements Service {
                 .put("autoScale.cacheExpiryInSeconds", "120")
                 .put("autoScale.cacheCleanUpInSeconds", "120")
                 .put("curator-default-session-timeout", "10000")
+                .put("bookkeeper.bkAckQuorumSize", "3")
                 // Controller properties.
                 .put("MAX_LEASE_VALUE", "60000")
                 .put("RETENTION_FREQUENCY_MINUTES", "2")
@@ -237,6 +238,8 @@ public abstract class AbstractService implements Service {
                                                         .withImage("pravega/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
+                                                        // start the pravega-operator in test mode to disable minimum replica count check.
+                                                        .withArgs("-test")
                                                         .withImagePullPolicy(IMAGE_PULL_POLICY)
                                                         .withEnv(new V1EnvVarBuilder().withName("WATCH_NAMESPACE")
                                                                                       .withValueFrom(new V1EnvVarSourceBuilder()
