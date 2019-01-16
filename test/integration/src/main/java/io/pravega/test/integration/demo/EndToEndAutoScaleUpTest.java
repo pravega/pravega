@@ -22,6 +22,7 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
@@ -59,6 +60,7 @@ public class EndToEndAutoScaleUpTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            TableStore tableStore = serviceBuilder.createTableStoreService();
             @Cleanup
             SegmentStatsFactory segmentStatsFactory = new SegmentStatsFactory();
             SegmentStatsRecorder statsRecorder = segmentStatsFactory.createSegmentStatsRecorder(store,
@@ -67,8 +69,8 @@ public class EndToEndAutoScaleUpTest {
                             .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder, null, null, null, true);
+            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
+                                                                             statsRecorder, null, null, null, true);
             server.startListening();
 
             controllerWrapper.awaitRunning();
