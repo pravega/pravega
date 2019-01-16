@@ -1100,7 +1100,7 @@ public interface StreamMetadataStore {
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 
     /**
-     * This method initializes any piece of metadata that is necessary for the correct operation of the Controller.
+     * This method performs initialization tasks for the correct operation of services working on Stream buckets.
      */
-    void initializeMetadataStore();
+    CompletableFuture<Void> createBucketsRoot();
 }

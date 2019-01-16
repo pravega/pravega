@@ -18,13 +18,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
-import io.pravega.common.util.Retry;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
-import java.util.function.Predicate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -466,30 +464,33 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     /**
      * When managing the Controller's metadata in Zookeeper, we explicitly create parent bucket zNodes (so they are of
      * type "zNode"). Otherwise, they may be inadvertently created as Zookeeper "containers" by Curator. This would lead
-     * these zNodes to be candidates for automatic removal by Zookeeper if they become empty.
+     * these zNodes to be candidates for automatic removal by Zookeeper if they become empty. For more information on
+     * the use of Zookeeper containers in Curator recipes, visit: https://curator.apache.org/curator-recipes/index.html
      */
     @Override
-    public void initializeMetadataStore() {
+    public CompletableFuture<Void> createBucketsRoot() {
         List<CompletableFuture<Void>> initializationFutures = new ArrayList<>();
-        Retry.RetryWithBackoff retryPolicy = Retry.withExpBackoff(100, 2, 10);
-        Predicate<Throwable> isDataExistsException = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataExistsException;
+        initializationFutures.add(initializeZNode(BUCKET_OWNERSHIP_PATH)); // Also initialize ownership zNode.
         for (int bucket = 0; bucket < bucketCount; bucket++) {
             final String bucketPath = String.format(BUCKET_PATH, bucket);
-            initializationFutures.add(retryPolicy.retryWhen(isDataExistsException.negate()).run(() ->
-                    storeHelper.addNode(bucketPath).handle((v, ex) -> {
-                        if (ex == null) {
-                            log.debug("Stream bucket correctly initialized: {}.", bucketPath);
-                        } else if (isDataExistsException.test(ex)) {
-                            log.debug("Stream bucket already initialized: {}.", bucketPath);
-                        } else {
-                            throw new CompletionException("Unexpected exception initializing Stream bucket.", ex);
-                        }
-                        return null;
-                    })));
+            initializationFutures.add(initializeZNode(bucketPath));
         }
 
-        // Make sure that Stream buckets are created after leaving this method.
-        Futures.allOf(initializationFutures).join();
+        return Futures.allOf(initializationFutures);
+    }
+
+    private CompletableFuture<Void> initializeZNode(String zNodePath) {
+        return storeHelper.addNode(zNodePath).handle(
+                (v, ex) -> {
+                    if (ex == null) {
+                        log.debug("Stream bucket correctly initialized: {}.", zNodePath);
+                    } else if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                        log.debug("Stream bucket already initialized: {}.", zNodePath);
+                    } else {
+                        throw new CompletionException("Unexpected exception initializing Stream bucket.", ex);
+                    }
+                    return null;
+                });
     }
 
     private String encodedScopedStreamName(String scope, String stream) {
