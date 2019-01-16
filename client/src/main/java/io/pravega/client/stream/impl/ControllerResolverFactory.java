@@ -173,10 +173,10 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             this.resolverUpdater = listener;
             boolean scheduleDiscovery;
             // If the servers comprise only of IP addresses then we need to update the controller list only once.
+            List<EquivalentAddressGroup> servers = new ArrayList<>();
             if (!this.enableDiscovery) {
                 scheduleDiscovery = false;
                 // Use the bootstrapped server list as the final set of controllers.
-                List<EquivalentAddressGroup> servers = new ArrayList<>();
                 for (InetSocketAddress address : bootstrapServers) {
                     if (InetAddresses.isInetAddress(address.getHostString())) {
                         servers.add(new EquivalentAddressGroup(
@@ -185,14 +185,15 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                         scheduleDiscovery = true;
                     }
                 }
-                log.info("Updating client with controllers: {}", servers);
-                this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);
             } else {
                 scheduleDiscovery = true;
             }
             if (scheduleDiscovery) {
                 // Schedule the first discovery immediately.
                 this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
+            } else {
+                log.info("Updating client with controllers: {}", servers);
+                this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);  
             }
         }
 
