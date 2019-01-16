@@ -86,9 +86,13 @@ public class ZookeeperBucketStore implements BucketStore {
         String[] splits = scopedStream.split("/");
         return new StreamImpl(splits[0], splits[1]);
     }
+    
+    public String getBucketRootPath(final ServiceType serviceType) {
+        return ZKPaths.makePath(ROOT_PATH, serviceType.getName());
+    }
 
     public String getBucketOwnershipPath(final ServiceType serviceType) {
-        String bucketRootPath = ZKPaths.makePath(ROOT_PATH, serviceType.getName());
+        String bucketRootPath = getBucketRootPath(serviceType);
         return ZKPaths.makePath(bucketRootPath, OWNERSHIP_CHILD_PATH);
     }
 

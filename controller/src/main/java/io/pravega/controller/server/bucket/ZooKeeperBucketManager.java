@@ -99,12 +99,15 @@ public class ZooKeeperBucketManager extends BucketManager {
     public CompletableFuture<Boolean> takeBucketOwnership(BucketStore.ServiceType serviceType, int bucket, String processId, Executor executor) {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
 
+        String bucketRootPath = bucketStore.getBucketRootPath(serviceType);
         String bucketOwnershipPath = bucketStore.getBucketOwnershipPath(serviceType);
 
         // try creating an ephemeral node
         String bucketPath = ZKPaths.makePath(bucketOwnershipPath, String.valueOf(bucket));
 
-        return bucketStore.getStoreHelper().createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
+        return bucketStore.getStoreHelper().createZNodeIfNotExist(bucketRootPath)
+                .thenCompose(x -> bucketStore.getStoreHelper().createZNodeIfNotExist(bucketOwnershipPath))
+                .thenCompose(x -> bucketStore.getStoreHelper().createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
                           .thenCompose(created -> {
                               if (!created) {
                                   return bucketStore.getStoreHelper().getData(bucketPath)
@@ -112,7 +115,7 @@ public class ZooKeeperBucketManager extends BucketManager {
                               } else {
                                   return CompletableFuture.completedFuture(true);
                               }
-                          });
+                          }));
     }
 
 }
