@@ -58,7 +58,8 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(this::initializeBucket).collect(Collectors.toList()))
+        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(x -> initializeBucket(x)
+                .thenCompose(v -> tryTakeOwnership(x))).collect(Collectors.toList()))
                 .thenAccept(x -> startBucketOwnershipListener())
                 .whenComplete((r, e) -> {
                     if (e != null) {

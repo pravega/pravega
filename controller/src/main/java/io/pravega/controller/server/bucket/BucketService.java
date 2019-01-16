@@ -108,14 +108,17 @@ abstract class BucketService extends AbstractService {
     @Override
     public void doStart() {
         CompletableFuture.runAsync(() -> {
-            startBucketChangeListener();
-            
-            notifyStarted();
-            
-            notification.start();
-            worker.start();
+            try {
+                startBucketChangeListener();
 
-            serviceStartFuture.complete(null);
+                notifyStarted();
+
+                notification.start();
+                worker.start();
+            } finally {
+                log.info("{}: bucket {} service start completed", getServiceType(), getBucketId());
+                serviceStartFuture.complete(null);
+            }
         });
     }
 

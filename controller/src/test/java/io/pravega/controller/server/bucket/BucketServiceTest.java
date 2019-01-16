@@ -98,10 +98,10 @@ public abstract class BucketServiceTest {
                                           
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
-        assertTrue(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 0, hostId, executor).join());
-        assertTrue(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 1, hostId, executor).join());
-        assertTrue(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 2, hostId, executor).join());
-        AssertExtensions.assertThrows("", () -> service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 3, hostId, executor).join(),
+        assertTrue(service.takeBucketOwnership(0, hostId, executor).join());
+        assertTrue(service.takeBucketOwnership(1, hostId, executor).join());
+        assertTrue(service.takeBucketOwnership(2, hostId, executor).join());
+        AssertExtensions.assertThrows("", () -> service.takeBucketOwnership(3, hostId, executor).join(),
                 e -> e instanceof IllegalArgumentException);
         service.notify(new BucketManager.BucketNotification(0, BucketManager.NotificationType.BucketAvailable));
 

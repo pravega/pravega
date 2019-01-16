@@ -86,7 +86,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
         // verify that ownership is not taken up by another host
-        assertFalse(service.takeBucketOwnership(BucketStore.ServiceType.RetentionService, 0, "", executor).join());
+        assertFalse(service.takeBucketOwnership(0, "", executor).join());
 
         // Introduce connection failure error
         zkClient.getZookeeperClient().close();

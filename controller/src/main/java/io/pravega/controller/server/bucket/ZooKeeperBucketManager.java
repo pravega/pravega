@@ -97,7 +97,7 @@ public class ZooKeeperBucketManager extends BucketManager {
     public CompletableFuture<Void> initializeBucket(int bucket) {
         Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
         
-        return bucketStore.initializeBuckets(getServiceType(), bucket);
+        return bucketStore.initializeBucket(getServiceType(), bucket);
     }
 
     @Override
