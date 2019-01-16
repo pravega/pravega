@@ -125,7 +125,7 @@ public class ControllerImpl implements Controller {
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
-                                .nameResolverFactory(new ControllerResolverFactory())
+                                .nameResolverFactory(new ControllerResolverFactory(executor))
                                 .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);

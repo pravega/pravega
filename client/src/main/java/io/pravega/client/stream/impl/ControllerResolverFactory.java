@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @ThreadSafe
+@RequiredArgsConstructor
 public class ControllerResolverFactory extends NameResolver.Factory {
 
     // Use this scheme when client want to connect to a static set of controller servers.
@@ -58,6 +61,8 @@ public class ControllerResolverFactory extends NameResolver.Factory {
     private final static String SCHEME_DISCOVER = "pravega";
     //Secure version of discover scheme.
     private final static String SCHEME_DISCOVER_TLS = "pravegas";
+    @NonNull
+    private final ScheduledExecutorService executor;
 
     @Nullable
     @Override
@@ -75,7 +80,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             return InetSocketAddress.createUnresolved(strings[0], Integer.parseInt(strings[1]));
         }).collect(Collectors.toList());
 
-        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme));
+        return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme), executor);
     }
 
     @Override
@@ -128,9 +133,10 @@ public class ControllerResolverFactory extends NameResolver.Factory {
          * @param authority         The authority string used to create the URI.
          * @param bootstrapServers  The initial set of controller endpoints.
          * @param enableDiscovery   Whether to use the controller's discovery API.
+         * @param executor          The executor to run resolve tasks on.
          */
         ControllerNameResolver(final String authority, final List<InetSocketAddress> bootstrapServers,
-                               final boolean enableDiscovery) {
+                               final boolean enableDiscovery, ScheduledExecutorService executor) {
             this.authority = authority;
             this.bootstrapServers = ImmutableList.copyOf(bootstrapServers);
             this.enableDiscovery = enableDiscovery;
@@ -144,7 +150,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
                 this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
                         .forTarget(connectString)
-                        .nameResolverFactory(new ControllerResolverFactory())
+                        .nameResolverFactory(new ControllerResolverFactory(executor))
                         .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                         .usePlaintext(true)
                         .build());
