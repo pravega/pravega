@@ -470,6 +470,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @Override
     public CompletableFuture<Void> createBucketsRoot() {
         List<CompletableFuture<Void>> initializationFutures = new ArrayList<>();
+        initializationFutures.add(initializeZNode(BUCKET_ROOT_PATH)); // Initialize root buckets zNode.
         initializationFutures.add(initializeZNode(BUCKET_OWNERSHIP_PATH)); // Also initialize ownership zNode.
         for (int bucket = 0; bucket < bucketCount; bucket++) {
             final String bucketPath = String.format(BUCKET_PATH, bucket);
@@ -480,7 +481,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     }
 
     private CompletableFuture<Void> initializeZNode(String zNodePath) {
-        return storeHelper.addNode(zNodePath).handle(
+        return storeHelper.createZNodeIfNotExist(zNodePath).handle(
                 (v, ex) -> {
                     if (ex == null) {
                         log.debug("Stream bucket correctly initialized: {}.", zNodePath);
