@@ -28,65 +28,65 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 
 ## Read Segment - Request
 
-1. Segment to read: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
-2. Offset to read from: Long (8 bytes).
-3. Suggested Length of Reply: Integer (4 bytes). The clients can request for the required length to server (but the server may allot a different number of bytes).
-4. `delegationToken`: This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
+1. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8. This Segment indicates the Stream Segment that was read.
+2. `Offset`: Long (8 bytes). The offset in the Stream Segment to read from.
+3. `Reply`: Integer (4 bytes). The clients can request for the required length to the server (but the server may allot a different number of bytes).
+4. `delegationToken`: String (2 byte) followed by that many bytes of Java's Modified UTF-8. This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
 
 
 ## Segment Read - Reply
 
-1.  Segment that was read: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
-2.  Offset that was read from: Long (8 bytes).
-3.  Is at Tail: Boolean (1 bit).
-4.  Is at `EndOfSegment`: 1 bit.
-5.  `Data`: Binary (remaining length in the message).
+1. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8). This Segment indicates the Stream Segment that was read.
+2. `Offset`: Long (8 bytes). The offset in the Stream Segment to read from.
+3. `Tail`: Boolean (1 bit). If the read was performed at the tail of the Stream Segment.
+4. `EndOfSegment`: Boolean (1 bit). If the read was performed at the end of the Stream Segment.
+5. `Data`: Binary (remaining length in the message).
 
 The client requests to read from a particular Segment at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
 
 # Appending
 
 ## Setup Append - Request
-1.  `RequestId`: Long (8 bytes). (This field contains the client-generated ID that has been propagated to identify a client request).
-2.  `writerId`: UUID (16 bytes) identifies the requesting appender.
-3.  Segment to append: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
-4. `delegationToken`: This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
+1. `RequestId`: Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.
+2. `writerId`: UUID (16 bytes). It identifies the requesting appender.
+3. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8). This Segment indicates the Stream Segment that was read.
+4. `delegationToken`: String (2 byte) followed by that many bytes of Java's Modified UTF-8. This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
 
 ## Append Setup - Reply
 
-1.  `RequestId`: Long (8 bytes). (This field contains the client-generated ID that has been propagated to identify a client request).
-2.  Segment to append: String (2 byte length, followed by that many bytes of Java's Modified UTF-8).
-3.  `writerId`: UUID (16 bytes) identifies the requesting appender.
-4.  `lastEventNumber`: Long (8 bytes). Specifies the last event number in the Stream.
+1.  `RequestId`: Long (8 bytes). This field contains the client-generated ID that has been propagated to identify a client request.
+2.  `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8). This Segment indicates the Stream Segment to append.
+3.  `writerId`: UUID (16 bytes). It identifies the requesting appender.
+4.  `lastEventNumber`: Long (8 bytes). It specifies the last event number in the Stream.
 
 ## AppendBlock - Request
 
-1. `writerId`: UUID (16 bytes) identifies the requesting appender.
+1. `writerId`: UUID (16 bytes). It identifies the requesting appender.
 2. `Data`: This holds the contents of the block.
 
 ## AppendBlockEnd - Request
 
-1. `writerId`: UUID (16 bytes) identifies the requesting appender.
-2. `sizeOfWholeEvents`: Integer (4 bytes).
+1. `writerId`: UUID (16 bytes). It identifies the requesting appender.
+2. `sizeOfWholeEvents`: Integer (4 bytes). It is the total number of bytes in this block (starting from the beginning) that is composed of whole (meaning non-partial) events.
 3. `Data`: This holds the contents of the block.
-4. `numEvents`: Integer (4 bytes). Specifies the current number of events.
-5. `lastEventNumber`: Long (8 bytes). Specifies the value of last event number in the Stream.
+4. `numEvents`: Integer (4 bytes). It specifies the current number of events.
+5. `lastEventNumber`: Long (8 bytes). It specifies the value of last event number in the Stream.
 
 
 ## Partial Event - Request/Reply
 
--  **Data**: A partial message is the one that was broken up when the message was sent over the wire. It is essential that for any reason, the whole message is reconstructed by reading the partial message in sequence and reassembled as whole message. It is not valid to attempt to start a new partial message before completing the previous one.
-
+-  **Data**: A Partial Event is an Event at the end of an Append block that did not fully fit in the Append block. The remainder of the Event will be available in the `AppendBlockEnd`.
 
 ## Event - Request
 
 Only valid inside the block.
 
-1.  `Data`
+1.  `Data`: It contains the Event's data (not hold the contents of the block).
+
 
 ## Data Appended - Reply
 
-1. `writerId`: UUID (16 bytes) identifies the requesting appender.
+1. `writerId`: UUID (16 bytes).It identifies the requesting appender.
 2. `eventNumber`: Long (8 bytes). This matches the `lastEventNumber` in the append block.
 3. `previousEventNumber`: Long (8 bytes). This is the previous value of `eventNumber` that was returned in the last `DataAppeneded`.
 
