@@ -69,6 +69,8 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Getter
     private boolean deletedInStorage;
     @Getter
+    private boolean pinned;
+    @Getter
     private boolean deleted;
     @Getter
     private long lastUsed;
@@ -189,6 +191,12 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public void markMerged() {
         this.merged = true;
+        this.isChanged = true;
+    }
+
+    @Override
+    public void markPinned() {
+        this.pinned = true;
         this.isChanged = true;
     }
 
@@ -678,6 +686,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             if (this.deletedInStorage) {
                 target.markDeletedInStorage();
             }
+        }
+
+        if (this.pinned) {
+            target.markPinned();
         }
     }
 

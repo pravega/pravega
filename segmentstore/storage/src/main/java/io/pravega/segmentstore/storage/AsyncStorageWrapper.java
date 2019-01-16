@@ -84,7 +84,7 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
         return supplyAsync(() -> this.syncStorage.create(streamSegmentName, rollingPolicy), streamSegmentName);
     }
 

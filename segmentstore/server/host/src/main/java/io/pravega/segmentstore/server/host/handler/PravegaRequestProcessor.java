@@ -95,6 +95,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -105,6 +106,7 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
+import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
@@ -779,6 +781,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 if (statsRecorder != null) {
                     statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
                 }
+
+                // If source segment is a transaction, add its length and event count onto metrics of target segment
+                if (StreamSegmentNameUtils.isTransactionSegment(sourceInfo.getName())) {
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, targetSegmentName), sourceInfo.getLength());
+                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetSegmentName), sourceInfo.getAttributes().get(EVENT_COUNT));
+                }
+
             }
         } catch (Exception ex) {
             // gobble up any errors from stat recording so we do not affect rest of the flow.
