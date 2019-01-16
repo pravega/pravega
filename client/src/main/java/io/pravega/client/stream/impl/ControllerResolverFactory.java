@@ -20,7 +20,6 @@ import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
@@ -158,13 +157,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 this.client = null;
             }
 
-            // We enable the periodic refresh only if controller discovery is enabled or if DNS resolution is required.
-            if (this.enableDiscovery || this.bootstrapServers.stream().anyMatch(
-                    inetSocketAddress -> !InetAddresses.isInetAddress(inetSocketAddress.getHostString()))) {
-                this.scheduledExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "fetch-controllers");
-            } else {
-                this.scheduledExecutor = null;
-            }
+            this.scheduledExecutor = executor;
         }
 
         @Override
@@ -178,33 +171,36 @@ public class ControllerResolverFactory extends NameResolver.Factory {
             Preconditions.checkState(this.resolverUpdater == null, "ControllerNameResolver has already been started");
             Preconditions.checkState(!shutdown, "ControllerNameResolver is shutdown, restart is not supported");
             this.resolverUpdater = listener;
-
+            boolean scheduleDiscovery;
             // If the servers comprise only of IP addresses then we need to update the controller list only once.
-            if (this.scheduledExecutor == null) {
+            if (!this.enableDiscovery) {
+                scheduleDiscovery = false;
                 // Use the bootstrapped server list as the final set of controllers.
-                List<EquivalentAddressGroup> servers = this.bootstrapServers.stream()
-                        .map(address -> new EquivalentAddressGroup(
-                                new InetSocketAddress(address.getHostString(), address.getPort())))
-                        .collect(Collectors.toList());
+                List<EquivalentAddressGroup> servers = new ArrayList<>();
+                for (InetSocketAddress address : bootstrapServers) {
+                    if (InetAddresses.isInetAddress(address.getHostString())) {
+                        servers.add(new EquivalentAddressGroup(
+                                new InetSocketAddress(address.getHostString(), address.getPort())));
+                    } else {
+                        scheduleDiscovery = true;
+                    }
+                }
                 log.info("Updating client with controllers: {}", servers);
                 this.resolverUpdater.onAddresses(servers, Attributes.EMPTY);
-                return;
+            } else {
+                scheduleDiscovery = true;
             }
-
-            // Schedule the first discovery immediately.
-            this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
+            if (scheduleDiscovery) {
+                // Schedule the first discovery immediately.
+                this.scheduledFuture = this.scheduledExecutor.schedule(this::getControllers, 0L, TimeUnit.SECONDS);
+            }
         }
 
         @Override
         @Synchronized
         public void shutdown() {
-            if (!shutdown) {
-                log.info("Shutting down ControllerNameResolver");
-                if (this.scheduledExecutor != null) {
-                    ExecutorServiceHelpers.shutdown(this.scheduledExecutor);
-                }
-                shutdown = true;
-            }
+            shutdown = true;
+            scheduledFuture.cancel(false);
         }
 
         @Override
