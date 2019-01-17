@@ -23,6 +23,7 @@ buildscript {
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
         classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
+        classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
     }
 }
 
@@ -39,6 +40,17 @@ allprojects {
     apply plugin: 'eclipse'
     if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
+		apply plugin: 'io.franzbecker.gradle-lombok'
+   		lombok {
+			version = lombokVersion
+		}
+		dependencies {
+			//These are compile time only dependencies needed accross all targets. Lombok uses them and may generate strange errors if they are missing.
+			compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+        	testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+        	compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+        	testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+		}
     }
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
@@ -71,7 +83,7 @@ allprojects {
     }
     version = getProjectVersion()
     group = "io.pravega"
-
+    
     configurations.all {
         resolutionStrategy {
             //failOnVersionConflict()
@@ -95,10 +107,6 @@ project('common') {
         testCompile project(':test:testcommon')
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
-
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         //Do NOT add any additional dependencies here.
     }
 
@@ -132,10 +140,7 @@ project('shared:authplugin') {
 project ('shared') {
     dependencies {
         compile project(':common')
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -148,10 +153,6 @@ project ('shared') {
 
 project ('shared:metrics') {
     dependencies {
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
-
         compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
@@ -174,26 +175,19 @@ project ('shared:metrics') {
 project('shared:protocol') {
     dependencies {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
     }
 }
 
 project('client') {
     dependencies {
-        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-
         compile project(':common')
         compile project(':shared')
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
+        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -211,9 +205,6 @@ project('test:testcommon') {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
@@ -239,13 +230,11 @@ project('segmentstore:storage') {
 
 project('segmentstore:storage:impl') {
     dependencies {
-        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
-
-        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
-
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
+        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }
@@ -319,6 +308,7 @@ project('segmentstore:server:host') {
         compile project(':segmentstore:storage:impl')
         compile project(':bindings')
         compile project(':segmentstore:server')
+        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -327,7 +317,6 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -461,9 +450,6 @@ project('shared:controller-api') {
         compile project(':common')
 
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
@@ -473,7 +459,7 @@ project('shared:controller-api') {
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
          // Since Java 10 javax.annotation is no more bundled with the JRE
-        compile group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
+        compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
 
     javadoc {
@@ -529,8 +515,6 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
-        compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
         compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
@@ -590,6 +574,8 @@ project('standalone') {
     }
 
     dependencies {
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
         compile project(':common')
         compile project(':client')
         compile project(':segmentstore:server')
@@ -602,14 +588,12 @@ project('standalone') {
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
-
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
