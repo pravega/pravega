@@ -183,9 +183,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&
-                        ex.getCause() instanceof KeeperException.NoNodeException &&
-                        ex.getCause().getMessage().
-                                indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0
+                        ex.getCause() instanceof BKException.ZKException
         );
     }
 
