@@ -69,9 +69,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     static final int COUNTER_RANGE = 10000;
     static final String COUNTER_PATH = "/counter";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
-    private static final String BUCKET_ROOT_PATH = "/buckets";
-    private static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
-    private static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
+    static final String BUCKET_ROOT_PATH = "/buckets";
+    static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
+    static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
     private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
