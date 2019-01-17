@@ -129,7 +129,7 @@ project('shared:authplugin') {
     }
 }
 
-project ('shared') {
+project ('shared:cluster') {
     dependencies {
         compile project(':common')
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
@@ -173,11 +173,13 @@ project ('shared:metrics') {
 
 project('shared:protocol') {
     dependencies {
+        compile project(':common')
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
         compile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+        testCompile project(':test:testcommon')
     }
 }
 
@@ -190,7 +192,6 @@ project('client') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
         compile project(':common')
-        compile project(':shared')
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
@@ -230,9 +231,10 @@ project('segmentstore:contracts') {
 project('segmentstore:storage') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
+        compile project(':shared:protocol')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         testCompile project(':test:testcommon')
     }
 }
@@ -245,6 +247,7 @@ project('segmentstore:storage:impl') {
 
         compile project(':common')
         compile project(':segmentstore:storage')
+       // compile project(':shared')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
@@ -277,7 +280,7 @@ project ('bindings') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
+        //compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -313,6 +316,7 @@ project('segmentstore:server:host') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(':shared:cluster')
         compile project(':segmentstore:contracts')
         compile project(':client')
         compile project(':segmentstore:storage')
@@ -520,8 +524,9 @@ project('controller') {
 
     dependencies {
         compile project(':common')
-        compile project(":shared:controller-api")
         compile project(":shared:authplugin")
+        compile project(":shared:controller-api")
+        compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
