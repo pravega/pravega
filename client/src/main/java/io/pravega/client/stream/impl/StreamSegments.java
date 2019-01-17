@@ -137,7 +137,7 @@ public class StreamSegments {
     }
     
     /**
-     * Checks that replacementSegments provided are consistent with the segments that currently being used.
+     * Checks that replacementSegments provided are consistent with the segments that are currently being used.
      * @param replacedSegment The segment on which EOS was reached
      * @param replacementSegments The StreamSegmentsWithPredecessors to verify
      */
