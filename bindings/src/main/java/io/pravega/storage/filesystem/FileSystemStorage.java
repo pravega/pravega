@@ -48,7 +48,6 @@ import java.security.AccessControlException;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -426,7 +425,7 @@ public class FileSystemStorage implements SyncStorage {
             throw new StreamSegmentSealedException(segmentName, e);
         }
 
-        throw Lombok.sneakyThrow(e);
+        throw Exceptions.sneakyThrow(e);
     }
 
     //endregion

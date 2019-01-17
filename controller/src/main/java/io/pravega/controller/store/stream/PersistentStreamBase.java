@@ -35,10 +35,6 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import lombok.Lombok;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -61,6 +57,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
@@ -638,7 +636,7 @@ public abstract class PersistentStreamBase implements Stream {
                                   return false;
                               } else {
                                   log.warn("Exception while trying to validate a stream cut for stream {}/{}", scope, name);
-                                  throw Lombok.sneakyThrow(e);
+                                  throw Exceptions.sneakyThrow(e);
                               }
                           } else {
                               return true;

@@ -13,6 +13,7 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -31,7 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -118,11 +118,11 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof SegmentIsSealed) {
-            throw Lombok.sneakyThrow(new SegmentSealedException(reply.toString()));
+            throw Exceptions.sneakyThrow(new SegmentSealedException(reply.toString()));
         } else if (reply instanceof WrongHost) {
-            throw Lombok.sneakyThrow(new ConnectionFailedException(reply.toString()));
+            throw Exceptions.sneakyThrow(new ConnectionFailedException(reply.toString()));
         } else {
-            throw Lombok.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
+            throw Exceptions.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
         }
     }
     
