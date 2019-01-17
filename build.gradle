@@ -174,7 +174,8 @@ project ('shared:metrics') {
 project('shared:protocol') {
     dependencies {
         compile project(':common')
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
@@ -195,6 +196,8 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
+        compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -472,7 +475,7 @@ project('shared:controller-api') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
         compile "io.grpc:grpc-netty:" + grpcVersion
-        compile "io.grpc:grpc-all:" + grpcVersion
+        compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
