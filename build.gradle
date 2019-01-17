@@ -40,17 +40,17 @@ allprojects {
     apply plugin: 'eclipse'
     if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
-		apply plugin: 'io.franzbecker.gradle-lombok'
-   		lombok {
-			version = lombokVersion
-		}
-		dependencies {
-			//These are compile time only dependencies needed accross all targets. Lombok uses them and may generate strange errors if they are missing.
-			compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        	testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
-        	compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
-        	testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
-		}
+        apply plugin: 'io.franzbecker.gradle-lombok'
+        lombok {
+            version = lombokVersion
+        }
+        dependencies {
+            //These are compile time only dependencies needed accross all targets. Lombok uses them and may generate strange errors if they are missing.
+            compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+            testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+            compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+            testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+        }
     }
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
@@ -83,7 +83,7 @@ allprojects {
     }
     version = getProjectVersion()
     group = "io.pravega"
-    
+
     configurations.all {
         resolutionStrategy {
             //failOnVersionConflict()
