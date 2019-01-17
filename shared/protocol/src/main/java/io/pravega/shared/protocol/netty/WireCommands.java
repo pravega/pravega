@@ -306,7 +306,7 @@ public final class WireCommands {
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
-            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE; //TODO: this check is redundant.
+            String serverStackTrace = in.readUTF();
             return new NotEmptyTableSegment(requestId, segment, serverStackTrace);
         }
 
@@ -1047,7 +1047,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeUTF(delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1190,7 +1190,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(target);
             out.writeUTF(source);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeUTF(delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1245,7 +1245,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeUTF(delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1406,7 +1406,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeBoolean(mustBeEmpty);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeUTF(delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1524,7 +1524,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeUTF(delegationToken);
             tableEntries.writeFields(out);
         }
 
@@ -1612,7 +1612,6 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.TABLE_KEYS_REMOVED;
         final long requestId;
         final String segment;
-        // TODO: should all the keys be listed here?
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1650,7 +1649,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeUTF(delegationToken);
             out.writeInt(keys.size());
             for (TableKey key : keys) {
                 key.writeFields(out);

@@ -591,7 +591,7 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
 
-        // Execute and Verify createSegment calling stack is executed as design.
+        // Execute and Verify createTableSegment calling stack is executed as design.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, streamSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
         processor.createTableSegment(new WireCommands.CreateTableSegment(2, streamSegmentName, ""));

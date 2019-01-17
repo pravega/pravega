@@ -97,8 +97,9 @@ public enum WireCommandType {
     READ_TABLE(81, WireCommands.ReadTable::readFrom),
     TABLE_READ(82, WireCommands.TableRead::readFrom),
 
-    NOT_EMPTY_TABLE_SEGMENT(84,  WireCommands.NotEmptyTableSegment::readFrom),
-    CONDITIONAL_TABLE_UPDATE_FAILED(85, WireCommands.ConditionalTableUpdateFailed::readFrom),
+    NOT_EMPTY_TABLE_SEGMENT(83,  WireCommands.NotEmptyTableSegment::readFrom),
+    CONDITIONAL_TABLE_UPDATE_FAILED(84, WireCommands.ConditionalTableUpdateFailed::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;
