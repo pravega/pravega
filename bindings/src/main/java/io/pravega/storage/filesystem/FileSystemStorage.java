@@ -147,7 +147,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return execute(streamSegmentName, () -> doCreate(streamSegmentName));
     }
 
@@ -274,15 +274,18 @@ public class FileSystemStorage implements SyncStorage {
         return Files.exists(Paths.get(config.getRoot(), streamSegmentName));
     }
 
-    private SegmentProperties doCreate(String streamSegmentName) throws IOException {
+    private SegmentHandle doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
 
         Path path = Paths.get(config.getRoot(), streamSegmentName);
-        Files.createDirectories(path.getParent());
+        Path parent = path.getParent();
+        assert parent != null;
+        Files.createDirectories(parent);
         Files.createFile(path, fileAttributes);
         LoggerHelpers.traceLeave(log, "create", traceId);
-        return this.doGetStreamSegmentInfo(streamSegmentName);
+        FileSystemMetrics.CREATE_COUNT.inc();
+        return FileSystemSegmentHandle.writeHandle(streamSegmentName);
     }
 
     private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws Exception {

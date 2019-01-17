@@ -36,7 +36,7 @@ public class ByteSerializerTest {
         ByteBuffer serialized = serializer.serialize(buff);
         assertEquals(buff, serializer.deserialize(serialized));
 
-        serialized.position(serialized.position()+1);
+        serialized.position(serialized.position() + 1);
         assertEquals(2, serialized.remaining());
         assertEquals(3, buff.remaining());
 

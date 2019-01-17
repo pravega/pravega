@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.Exceptions;
@@ -60,7 +61,7 @@ public class StreamCutImpl extends StreamCutInternal {
     @Builder(builderClassName = "StreamCutBuilder")
     public StreamCutImpl(Stream stream, Map<Segment, Long> positions) {
         this.stream = stream;
-        this.positions = positions;
+        this.positions = ImmutableMap.copyOf(positions);
     }
 
     @Override

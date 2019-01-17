@@ -287,7 +287,7 @@ public class MetricsConfig extends ComponentConfig {
     public final static String COMPONENT_CODE = "metrics";
     public final static String ENABLE_STATISTICS = "enableStatistics"; //enable metric, or will report nothing, default = true,  
     public final static Property<Long> DYNAMIC_CACHE_SIZE = "dynamicCacheSize"; //dynamic cache size , default = 10000000L
-    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = "dynamicCacheEvictionDurationMs"; //dynamic cache evcition duration, default = 30
+    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = "dynamicCacheEvictionDurationMinutes"; //dynamic cache evcition duration, default = 30
     public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; //reporter output frequency, default = 60
     public final static String METRICS_PREFIX = "metricsPrefix"; //Metrics Prefix, default = "pravega"
     public final static String CSV_ENDPOINT = "csvEndpoint"; // CSV reporter output dir, default = "/tmp/csv"
@@ -350,47 +350,76 @@ public class AddMetrics {
 
 # 5. Available Metrics and their names
 
-- Metrics in Segment Store Service.
+## Metrics in Segment Store Service
+
+- Segment Store read/write latency of storage operations (histograms):
 ```
+segmentstore.segment.create_latency_ms
 segmentstore.segment.read_latency_ms
 segmentstore.segment.write_latency_ms 
-segmentstore.segment.create_latency_ms
+```
 
-//Dynamic Counter
-segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
+- Segment Store global and per-segment read/write metrics (counters):
+```
+// Global counters
+segmentstore.segment.read_bytes_global.Counter
+segmentstore.segment.write_bytes_global.Counter
+segmentstore.segment.write_events_global.Counter
+
+// Per segment counters
 segmentstore.segment.write_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
+segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
+segmentstore.segment.write_events.$scope.$stream.$segment.#epoch.$epoch.Counter
 ```
 
-- Tier-2 Storage Metrics: Read/Write Latency, Read/Write Rate.	
-```
-segmentstore.storage.read_latency_ms
-segmentstore.storage.write_latency_ms
-
-//Counter
-segmentstore.storage.read_bytes.Counter
-segmentstore.storage.write_bytes.Counter
-```
-
-- Cache Metrics
+- Segment Store cache read/write latency metrics (histogram):
 ```
 segmentstore.cache.insert_latency_ms
 segmentstore.cache.get_latency
 ```
 
-- Tier-1 DurableDataLog Metrics: Read/Write Latency, Read/Write Rate.	
+- Segment Store cache read/write metrics (counters):
+```
+segmentstore.cache.write_bytes.Counter
+segmentstore.cache.read_bytes.Counter
+```
+
+- Segment Store cache size (gauge) and generation spread (histogram) metrics:
+```
+segmentstore.cache.size_bytes.Gauge
+segmentstore.cache.gen
+```
+
+- Tier-1 DurableDataLog read/write latency and queueing metrics (histogram):	
 ```
 segmentstore.bookkeeper.total_write_latency_ms
 segmentstore.bookkeeper.write_latency_ms
-segmentstore.bookkeeper.write_bytes
 segmentstore.bookkeeper.write_queue_size
 segmentstore.bookkeeper.write_queue_fill
+```
 
-//Dynamic
+- Tier-1 DurableDataLog read/write (counter) and per-container ledger count metrics (gauge):	
+```
+segmentstore.bookkeeper.write_bytes.Counter
 segmentstore.bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
 ```
 
-- Container-specific metrics.
+- Tier-2 Storage read/write latency metrics (histogram):	
 ```
+segmentstore.storage.read_latency_ms
+segmentstore.storage.write_latency_ms
+```
+
+- Tier-2 Storage read/write data and file creation metrics (counters):
+```
+segmentstore.storage.read_bytes.Counter
+segmentstore.storage.write_bytes.Counter
+segmentstore.storage.create_count.Counter
+```
+
+- Segment Store container-specific operation metrics:
+```
+// Histograms
 segmentstore.container.process_operations.latency_ms.$containerId
 segmentstore.container.process_operations.batch_size.$containerId
 segmentstore.container.operation_queue.size.$containerId
@@ -401,9 +430,14 @@ segmentstore.container.operation_commit.latency_ms.$containerId
 segmentstore.container.operation.latency_ms.$containerId
 segmentstore.container.operation_commit.metadata_txn_count.$containerId
 segmentstore.container.operation_commit.memory_latency_ms.$containerId
-segmentstore.container.operation.log_size.$containerId
 
-//Dynamic
+// Gauge
+segmentstore.container.operation.log_size.$containerId.Gauge
+```
+
+- Segment Store operation processor (counter) metrics:
+```
+// Counters/Meters
 segmentstore.container.append_count.$containerId.Meter
 segmentstore.container.append_offset_count.$containerId.Meter
 segmentstore.container.update_attributes_count.$containerId.Meter
@@ -415,35 +449,105 @@ segmentstore.container.delete_segment_count.$containerId.Meter
 segmentstore.container.merge_segment_count.$containerId.Meter
 segmentstore.container.seal_count.$containerId.Meter
 segmentstore.container.truncate_count.$containerId.Meter
+
+```
+
+- Segment Store active Segments (gauge) and thread pool status (histogram) metrics:
+```
+// Gauge
 segmentstore.active_segments.$containerId.Gauge
-```
 
-- Metrics in Controller. 
-```
-controller.stream.created
-controller.stream.sealed
-controller.stream.deleted
-
-//Dynamic
-controller.transactions.created.$scope.$stream.Counter
-controller.transactions.committed.$scope.$stream.Counter
-controller.transactions.aborted.$scope.$stream.Counter
-controller.transactions.opened.$scope.$stream.Gauge
-controller.transactions.timedout.$scope.$stream.Counter
-controller.segments.count.$scope.$stream.Gauge
-controller.segments.splits.$scope.$stream.Counter
-controller.segments.merges.$scope.$stream.Counter
-controller.retention.frequency.$scope.$stream.Meter
-controller.retention.truncated_size.$scope.$stream.Gauge
-```
-
-- General Metrics.
-```
-segmentstore.cache.size_bytes
-segmentstore.cache.gen
+// Histograms
 segmentstore.thread_pool.queue_size
 segmentstore.thread_pool.active_threads
 ```
+
+## Metrics in Controller Service
+
+- Controller Stream operation latency metrics (histograms):
+```
+controller.stream.created_latency_ms
+controller.stream.sealed_latency_ms
+controller.stream.deleted_latency_ms
+controller.stream.updated_latency_ms
+controller.stream.truncated_latency_ms
+```
+
+- Controller global and per-Stream operation metrics (counters):
+```
+controller.stream.created.Counter
+controller.stream.create_failed_global.Counter
+controller.stream.create_failed.$scope.$stream.Counter
+controller.stream.sealed.Counter
+controller.stream.seal_failed_global.Counter
+controller.stream.seal_failed.$scope.$stream.Counter
+controller.stream.deleted.Counter
+controller.stream.delete_failed_global.Counter
+controller.stream.delete_failed.$scope.$stream.Counter
+controller.stream.updated_global.Counter
+controller.stream.updated.$scope.$stream.Counter
+controller.stream.update_failed_global.Counter
+controller.stream.update_failed.$scope.$stream.Counter
+controller.stream.truncated_global.Counter
+controller.stream.truncated.$scope.$stream.Counter
+controller.stream.truncate_failed_global.Counter
+controller.stream.truncate_failed.$scope.$stream.Counter
+```
+
+- Controller Stream retention frequency (counter) and truncated size (gauge) metrics:
+```
+controller.retention.frequency.$scope.$stream.Counter
+controller.retention.truncated_size.$scope.$stream.Gauge
+``` 
+
+- Controller Stream Segment operations (counters) and open/timed out Transactions on a Stream (gauge/counter) metrics:
+```
+controller.transactions.opened.$scope.$stream.Gauge
+controller.transactions.timedout.$scope.$stream.Counter
+controller.segments.count.$scope.$stream.Counter
+controller.segment.splits.$scope.$stream.Counter
+controller.segment.merges.$scope.$stream.Counter
+```
+
+- Controller Transaction operation latency metrics:
+```
+controller.transactions.created_latency_ms
+controller.transactions.committed_latency_ms
+controller.transactions.aborted_latency_ms
+```
+
+- Controller Transaction operation counter metrics:
+```
+controller.transactions.created_global.Counter
+controller.transactions.created.$scope.$stream.Counter
+controller.transactions.create_failed_global.Counter
+controller.transactions.create_failed.$scope.$stream.Counter
+controller.transactions.committed_global.Counter
+controller.transactions.committed.$scope.$stream.Counter
+controller.transactions.commit_failed_global.Counter
+controller.transactions.commit_failed.$scope.$stream.Counter
+controller.transactions.commit_failed.$scope.$stream.$txnId.Counter
+controller.transactions.aborted_global.Counter
+controller.transactions.aborted.$scope.$stream.Counter
+controller.transactions.abort_failed_global.Counter
+controller.transactions.abort_failed.$scope.$stream.Counter
+controller.transactions.abort_failed.$scope.$stream.$txnId.Counter
+```
+
+- Controller hosts available (gauge) and host failure (counter) metrics:
+```
+controller.hosts.count.Gauge
+controller.hosts.failures_global.Counter
+controller.hosts.failures.$host.Counter
+```
+
+- Controller Container count per host (gauge) and failover (counter) metrics:
+```
+controller.hosts.container_count.Gauge
+controller.container.failovers_global.Counter
+controller.container.failovers.$containerId.Counter
+```
+
 # 6. Useful links
 * [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)

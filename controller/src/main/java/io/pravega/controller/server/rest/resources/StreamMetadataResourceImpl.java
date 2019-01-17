@@ -512,12 +512,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                          .thenApply(scopesList -> {
                              ScopesList scopes = new ScopesList();
                              scopesList.forEach(scope -> {
-                                 try {
-                                     authorize(scope, principal, READ);
                                      scopes.addScopesItem(new ScopeProperty().scopeName(scope));
-                                 } catch (AuthException e) {
-                                     log.warn("Not adding {} to list because authentication exception.", scope, e);
-                                 }
                              });
                              return Response.status(Status.OK).entity(scopes).build(); })
                          .exceptionally(exception -> {

@@ -237,7 +237,7 @@ public class ControllerImpl implements Controller {
                     throw new ControllerFailureException("Failed to delete scope: " + scopeName);
                 case SCOPE_NOT_EMPTY:
                     log.warn(requestId, "Cannot delete non empty scope: {}", scopeName);
-                    throw new IllegalStateException("Scope "+ scopeName + " is not empty.");
+                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
                 case SCOPE_NOT_FOUND:
                     log.warn(requestId, "Scope not found: {}", scopeName);
                     return false;
@@ -976,7 +976,11 @@ public class ControllerImpl implements Controller {
         @Override
         public void onError(Throwable t) {
             log.warn("gRPC call for {} with trace id {} failed with server error.", method, traceId, t);
-            future.completeExceptionally(t);
+            if (t instanceof RuntimeException) {
+                future.completeExceptionally(t);
+            } else {
+                future.completeExceptionally(new RuntimeException(t));
+            }
         }
 
         @Override

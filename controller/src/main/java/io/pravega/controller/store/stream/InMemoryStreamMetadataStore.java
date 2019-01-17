@@ -333,7 +333,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenApply(streams -> {
                         HashMap<String, StreamConfiguration> result = new HashMap<>();
                         for (String stream : streams) {
-                            result.put(stream, this.getConfiguration(scopeName, stream, null, executor).join());
+                            StreamConfiguration configuration = Futures.exceptionallyExpecting(
+                                    getConfiguration(scopeName, stream, null, executor),
+                                    e -> e instanceof StoreException.DataNotFoundException, null).join();
+                            if (configuration != null) {
+                                result.put(stream, configuration);
+                            }
                         }
                         return result;
                     });
@@ -349,6 +354,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         Integer oldLastActiveSegment = deletedStreams.put(getScopedStreamName(scope, stream), lastActiveSegment);
         Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
         log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> createBucketsRoot() {
         return CompletableFuture.completedFuture(null);
     }
 

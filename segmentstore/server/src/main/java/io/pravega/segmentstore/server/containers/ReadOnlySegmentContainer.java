@@ -16,18 +16,16 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.util.AsyncMap;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
-import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.Collection;
@@ -55,9 +53,6 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
             .withExpBackoff(30, 10, 4)
             .retryingOn(StreamSegmentNotExistsException.class)
             .throwingOn(RuntimeException.class);
-
-    private final AsyncMap<String, SegmentState> stateStore;
-    private final SegmentStateMapper segmentStateMapper;
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean closed;
@@ -75,10 +70,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     ReadOnlySegmentContainer(StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        Storage writableStorage = storageFactory.createStorageAdapter();
-        this.storage = writableStorage;
-        this.stateStore = new SegmentStateStore(writableStorage, this.executor);
-        this.segmentStateMapper = new SegmentStateMapper(this.stateStore, writableStorage);
+        this.storage = storageFactory.createStorageAdapter();
         this.closed = new AtomicBoolean();
     }
 
@@ -141,7 +133,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return READ_RETRY.run(() -> this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout));
+        return READ_RETRY.run(() -> this.storage.getStreamSegmentInfo(streamSegmentName, timeout));
     }
 
     //endregion

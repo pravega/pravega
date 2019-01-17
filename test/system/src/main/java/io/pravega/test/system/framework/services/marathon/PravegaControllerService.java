@@ -34,8 +34,8 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9092;
-    private static final int REST_PORT = 10080;
+    public static final int CONTROLLER_PORT = 9092;
+    public static final int REST_PORT = 10080;
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.5;

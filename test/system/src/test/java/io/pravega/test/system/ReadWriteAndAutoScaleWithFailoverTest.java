@@ -50,9 +50,9 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     private static final int NUM_READERS = 2;
     private static final int TOTAL_NUM_WRITERS = INIT_NUM_WRITERS + ADD_NUM_WRITERS;
 
-    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
+    //The execution time for @Before + @After + @Test methods should be less than 30 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(25 * 60);
+    public Timeout globalTimeout = Timeout.seconds(30 * 60);
 
     private final String scope = "testReadWriteAndAutoScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -86,9 +86,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);

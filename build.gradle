@@ -63,7 +63,12 @@ allprojects {
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
-
+    tasks.withType(com.github.spotbugs.SpotBugsTask) {
+      reports {
+        xml.enabled = false
+        html.enabled = true
+      }
+    }
     version = getProjectVersion()
     group = "io.pravega"
 
@@ -635,6 +640,11 @@ project('test:system') {
     // Specifically publish this test project
     apply plugin: 'maven'
 
+    // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
+    compileJava {
+        options.compilerArgs.remove("-Werror")
+    }
+
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -648,6 +658,7 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
+        compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
     }
     //disable the default test task.
     test {
@@ -714,6 +725,40 @@ project('test:system') {
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
         onlyIf { dockerRegistryUrl && repoUrl }
+    }
+
+    task copyTestsToK8sCluster(type: Exec) {
+        description 'Used to copy test artifacts to the Kubernetes Cluster.'
+        dependsOn 'jar'
+        commandLine './kubernetes/setupTestPod.sh'
+    }
+
+    task startK8SystemTests(type: Test) {
+        dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
+
+        description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+
+        ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
+        systemProperty "execType", "KUBERNETES"
+        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest") // default value is "latest"
+        // The below properties are used to to specify the pravega docker image properties
+        // e.g: private-docker-repo/pravega-prefix/pravega:version
+        if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
+            systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
+        }
+        systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
+        systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
+        // bookkeeper version defaults to pravega version.
+        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+
+        maxParallelForks = 1
     }
 
     task execShellScript(type: Exec) {

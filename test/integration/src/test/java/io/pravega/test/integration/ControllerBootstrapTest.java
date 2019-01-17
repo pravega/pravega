@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.common.Exceptions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -102,7 +103,7 @@ public class ControllerBootstrapTest {
             txIdFuture.join();
             Assert.fail();
         } catch (CompletionException ce) {
-            Assert.assertEquals(IllegalStateException.class, ce.getCause().getClass());
+            Assert.assertEquals(IllegalStateException.class, Exceptions.unwrap(ce).getClass());
             Assert.assertTrue("Expected failure", true);
         }
 

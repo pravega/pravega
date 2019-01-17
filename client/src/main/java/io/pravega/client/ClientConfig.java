@@ -60,8 +60,11 @@ public class ClientConfig implements Serializable {
     private boolean validateHostName;
 
     public boolean isEnableTls() {
-        return this.controllerURI.getScheme().equals("tls") || this.controllerURI.getScheme().equals("ssl")
-                || this.controllerURI.getScheme().equals("pravegas");
+        String scheme = this.controllerURI.getScheme();
+        if (scheme == null) {
+            return false;
+        }
+        return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
     }
 
     /**

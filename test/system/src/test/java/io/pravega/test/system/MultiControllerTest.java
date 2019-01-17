@@ -39,6 +39,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
+import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -52,10 +53,17 @@ public class MultiControllerTest extends AbstractSystemTest {
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUris = startZookeeperInstance();
-        Service controllerService = Utils.createPravegaControllerService(zkUris, "multicontroller");
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
+        URI controllerUri = ensureControllerRunning(zkUris);
+        log.info("Controller is currently running at {}", controllerUri);
+        Service controllerService = Utils.createPravegaControllerService(zkUris);
+
+        // stop all instances of segment store
+        Service segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris, controllerUri);
+        if (segmentStoreService.isRunning()) {
+            Futures.getAndHandleExceptions(segmentStoreService.scaleService(0), ExecutionException::new);
         }
+
+        // scale to two controller instances.
         Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);
 
         List<URI> conUris = controllerService.getServiceDetails();
@@ -69,18 +77,15 @@ public class MultiControllerTest extends AbstractSystemTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService = Utils.createPravegaControllerService(zkUris.get(0), "multicontroller");
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0));
 
         List<URI> conUris = controllerService.getServiceDetails();
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> DOCKER_BASED ? uri.getPort() ==  Utils.ALTERNATIVE_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        assertEquals("2 controller instances should be running", 2, uris.size());
 
+        // use the last two uris
         controllerURIDirect.set(URI.create("tcp://" + String.join(",", uris)));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
@@ -90,10 +95,6 @@ public class MultiControllerTest extends AbstractSystemTest {
     @After
     public void tearDown() {
         ExecutorServiceHelpers.shutdown(executorService);
-        if (controllerService != null && controllerService.isRunning()) {
-            controllerService.stop();
-            controllerService.clean();
-        }
     }
 
     /**

@@ -66,6 +66,13 @@ interface Stream {
     CompletableFuture<Void> delete();
 
     /**
+     * Api to get creation time of the stream.
+     * 
+     * @return CompletableFuture which, upon completion, has the creation time of the stream. 
+     */
+    CompletableFuture<Long> getCreationTime();
+
+    /**
      * Starts updating the configuration of an existing stream.
      *
      * @param configuration new stream configuration.

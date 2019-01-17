@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.contracts.tables;
 
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.HashedArray;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
@@ -51,6 +52,15 @@ public class TableEntry {
     }
 
     /**
+     * Creates a new instance of the TableEntry class that indicates the Key must not previously exist.
+     *
+     * @param key   The Key.
+     */
+    public static TableEntry notExists(@NonNull ArrayView key) {
+        return new TableEntry(TableKey.notExists(key), null);
+    }
+
+    /**
      * Creates a new instance of the TableEntry class with a specified version.
      *
      * @param key   The Key.
@@ -66,4 +76,21 @@ public class TableEntry {
         return String.format("%s -> %s", this.key, this.value);
     }
 
+    @Override
+    public int hashCode() {
+        return this.key.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof TableEntry) {
+            TableEntry other = (TableEntry) obj;
+            return this.key.equals(other.key)
+                    && ((this.value == null && other.value == null)
+                    || (this.value != null && other.value != null && HashedArray.arrayEquals(this.value, other.getValue())));
+
+        }
+
+        return false;
+    }
 }
