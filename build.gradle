@@ -250,7 +250,6 @@ project('segmentstore:storage:impl') {
 
         compile project(':common')
         compile project(':segmentstore:storage')
-       // compile project(':shared')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
@@ -283,7 +282,6 @@ project ('bindings') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
-        //compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
