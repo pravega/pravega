@@ -572,7 +572,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void createTableSegment(CreateTableSegment createTableSegment) {
+    public void createTableSegment(final CreateTableSegment createTableSegment) {
         final String operation = "createTableSegment";
 
         if (!verifyToken(createTableSegment.getSegment(), createTableSegment.getRequestId(), createTableSegment.getDelegationToken(), operation)) {
@@ -586,7 +586,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void deleteTableSegment(DeleteTableSegment deleteTableSegment) {
+    public void deleteTableSegment(final DeleteTableSegment deleteTableSegment) {
         String segment = deleteTableSegment.getSegment();
         final String operation = "deleteTableSegment";
 
@@ -601,7 +601,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void mergeTableSegments(MergeTableSegments mergeTableSegments) {
+    public void mergeTableSegments(final MergeTableSegments mergeTableSegments) {
         final String operation = "mergeTableSegments";
 
         if (!verifyToken(mergeTableSegments.getSource(), mergeTableSegments.getRequestId(), mergeTableSegments.getDelegationToken(), operation)) {
@@ -617,7 +617,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void sealTableSegment(WireCommands.SealTableSegment sealTableSegment) {
+    public void sealTableSegment(final WireCommands.SealTableSegment sealTableSegment) {
         String segment = sealTableSegment.getSegment();
         final String operation = "sealTableSegment";
 
@@ -632,7 +632,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void updateTableEntries(WireCommands.UpdateTableEntries updateTableEntries) {
+    public void updateTableEntries(final WireCommands.UpdateTableEntries updateTableEntries) {
         String segment = updateTableEntries.getSegment();
         final String operation = "updateTableEntries";
 
@@ -649,11 +649,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.put(segment, entries, TIMEOUT)
                   .thenAccept(versions -> connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions)))
                   .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
-
     }
 
     @Override
-    public void removeTableKeys(WireCommands.RemoveTableKeys removeTableKeys) {
+    public void removeTableKeys(final WireCommands.RemoveTableKeys removeTableKeys) {
         String segment = removeTableKeys.getSegment();
         final String operation = "removeTableKeys";
 
@@ -669,12 +668,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.remove(segment, keys, TIMEOUT)
                   .thenRun(() -> connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment)))
                   .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
-
     }
 
 
     @Override
-    public void readTable(WireCommands.ReadTable readTable) {
+    public void readTable(final WireCommands.ReadTable readTable) {
         final String segment = readTable.getSegment();
         final String operation = "readTable";
 
@@ -683,20 +681,29 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(readTable.getRequestId(), "Reading from table {}.", readTable);
+
         final List<ArrayView> keys = readTable.getKeys().stream()
-                                              .map(k -> new ByteArraySegment(k.getData()))
+                                              .map(k -> new ByteArraySegment(k.getData().array()))
                                               .collect(Collectors.toList());
         tableStore.get(segment, keys, TIMEOUT)
                   .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntries(values))))
                   .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
     }
 
-    private WireCommands.TableEntries getTableEntries(List<TableEntry> updateData) {
+    private WireCommands.TableEntries getTableEntries(final List<TableEntry> updateData) {
 
-        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = updateData.stream().map(te -> {
-            val tableKey = new WireCommands.TableKey(te.getKey().getVersion(), ByteBuffer.wrap(te.getKey().getKey().array()));
-            val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue().array()));
-            return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
+        final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = updateData.stream().map(te -> {
+            if (te == null) {
+                // no entry for the corresponding key.
+                return new AbstractMap.SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY);
+            } else {
+                TableKey k = te.getKey();
+                val tableKey = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey().array(), k.getKey().arrayOffset(), k.getKey().getLength()),
+                                                         k.getVersion());
+                ArrayView v = te.getValue();
+                val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(v.array(), v.arrayOffset(), v.getLength()));
+                return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
+            }
         }).collect(toList());
 
         return new WireCommands.TableEntries(entries);

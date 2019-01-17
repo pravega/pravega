@@ -1725,16 +1725,19 @@ public final class WireCommands {
 
     @Data
     public static final class TableKey implements WireCommand {
+        public final static TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
         final WireCommandType type = WireCommandType.TABLE_KEY;
-        final long keyVersion;
         final ByteBuffer data;
+        final long keyVersion;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
-            out.writeLong(keyVersion);
             out.writeInt(data.remaining());
-            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            if (data.remaining() != 0) {
+                out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+                out.writeLong(keyVersion);
+            }
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1742,19 +1745,23 @@ public final class WireCommands {
             if (typeCode != WireCommandType.TABLE_KEY.getCode()) {
                 throw new InvalidMessageException("Was expecting Table Key but found: " + typeCode);
             }
-            long keyVersion = in.readLong();
             int keyLength = in.readInt();
+            if (keyLength == 0) {
+                return TableKey.EMPTY;
+            }
             if (length < keyLength) {
                 throw new InvalidMessageException("Was expecting length of atleast : " + keyLength + " but found: " + length);
             }
             byte[] msg = new byte[keyLength];
             in.readFully(msg);
-            return new TableKey(keyVersion, ByteBuffer.wrap(msg));
+            long keyVersion = in.readLong();
+            return new TableKey(ByteBuffer.wrap(msg), keyVersion);
         }
     }
 
     @Data
     public static final class TableValue implements WireCommand {
+        public final static TableValue EMPTY = new TableValue(ByteBuffer.wrap(new byte[0]));
         final WireCommandType type = WireCommandType.TABLE_VALUE;
         final ByteBuffer data;
 
@@ -1762,7 +1769,9 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(type.getCode());
             out.writeInt(data.remaining());
-            out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            if (data.remaining() != 0) {
+                out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            }
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1771,6 +1780,9 @@ public final class WireCommands {
                 throw new InvalidMessageException("Was expecting Table Value but found: " + typeCode);
             }
             int valueLength = in.readInt();
+            if (valueLength == 0) {
+                return TableValue.EMPTY;
+            }
             if ( length < valueLength) {
                 throw new InvalidMessageException("Was expecting length of atleast : " + valueLength + " but found: " + length);
             }

@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
@@ -74,11 +75,13 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -683,13 +686,13 @@ public class PravegaRequestProcessorTest {
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
 
         // Remove a Table Key
-        WireCommands.TableKey key = new WireCommands.TableKey(0L, ByteBuffer.wrap(e1.getKey().getKey().array()));
+        WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, streamSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, streamSegmentName));
 
         // Test with non-existent key.
         TableEntry e2 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
-        key = new WireCommands.TableKey(0L, ByteBuffer.wrap(e1.getKey().getKey().array()));
+        key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, streamSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(4, streamSegmentName, "" ));
     }
@@ -698,7 +701,7 @@ public class PravegaRequestProcessorTest {
     public void testReadTable() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
-        String streamSegmentName = "testRemoveEntries";
+        String streamSegmentName = "testReadTable";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
@@ -715,21 +718,23 @@ public class PravegaRequestProcessorTest {
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, streamSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
         TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, streamSegmentName, "", getTableEntries(singletonList(e1))));
-        order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
 
-        // Get a Table Key
-        WireCommands.TableKey key = new WireCommands.TableKey(0L, ByteBuffer.wrap(e1.getKey().getKey().array()));
-        processor.readTable( new WireCommands.ReadTable(3, streamSegmentName, "", singletonList(key)));
-        // TODO: this verification is not working.
-        //order.verify(connection).send(new WireCommands.TableRead(3, streamSegmentName, getTableEntries(singletonList(e1))));
+        // Read value of a non-existent key.
+        WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), TableKey.NO_VERSION);
+        processor.readTable(new WireCommands.ReadTable(2, streamSegmentName, "", singletonList(key)));
+        order.verify(connection, atLeastOnce()).send(new WireCommands.TableRead(2, streamSegmentName,
+                                                                                getTableEntries(singletonList(null))));
 
-        // Test with non-existent key.
-        TableEntry e2 = TableEntry.versioned(keys.get(1), generateValue(rnd), 10L);
-        WireCommands.TableKey key2 = new WireCommands.TableKey(e2.getKey().getVersion(), ByteBuffer.wrap(e2.getKey().getKey().array()));
+        // Update a value to a key.
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, streamSegmentName, "", getTableEntries(singletonList(e1))));
+        order.verify(connection).send(new WireCommands.TableEntriesUpdated(3, singletonList(0L)));
+
+        // Read the value of the key.
+        key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
+        TableEntry expectedEntry = TableEntry.versioned(e1.getKey().getKey(), e1.getValue(), 0L);
         processor.readTable(new WireCommands.ReadTable(4, streamSegmentName, "", singletonList(key)));
-        // TODO:this verification is not working...
-        //order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(4, streamSegmentName, "" ));
+        order.verify(connection).send(new WireCommands.TableRead(4, streamSegmentName,
+                                                                 getTableEntries(singletonList(expectedEntry))));
     }
 
     private HashedArray generateData(int length, Random rnd) {
@@ -741,9 +746,13 @@ public class PravegaRequestProcessorTest {
     private WireCommands.TableEntries getTableEntries(List<TableEntry> updateData) {
 
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = updateData.stream().map(te -> {
-            val tableKey = new WireCommands.TableKey(te.getKey().getVersion(), ByteBuffer.wrap(te.getKey().getKey().array()));
-            val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue().array()));
-            return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
+            if (te == null) {
+                return new AbstractMap.SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY);
+            } else {
+                val tableKey = new WireCommands.TableKey(ByteBuffer.wrap(te.getKey().getKey().array()), te.getKey().getVersion());
+                val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue().array()));
+                return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
+            }
         }).collect(toList());
 
         return new WireCommands.TableEntries(entries);
