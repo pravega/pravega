@@ -178,7 +178,7 @@ public class MultiKeySequentialProcessorTests extends ThreadPooledTestSuite {
      * Tests the processor using multiple dependency keys for each task and a key filter.
      */
     @Test
-    public void testAddRange() throws Exception {
+    public void testAddWithFilter() throws Exception {
         final int key1 = 1;
         final int key2 = 2;
         final int key3 = 3;
@@ -193,39 +193,39 @@ public class MultiKeySequentialProcessorTests extends ThreadPooledTestSuite {
         val result2 = proc.add(Collections.singleton(key2), () -> toRun2);
 
         val toRun3 = new CompletableFuture<Integer>();
-        val result3 = proc.add(Collections.singleton(key3), () -> toRun2);
+        val result3 = proc.add(Collections.singleton(key3), () -> toRun3);
 
-        // Range task depends on key 1 and key 2, but not on key 3.
-        val toRunRange = new CompletableFuture<Integer>();
-        val resultRange = proc.addRange(key -> key == key1 || key == key2, () -> {
-            Assert.assertTrue("Not expecting range task to execute yet.", result1.isDone() && result2.isDone());
-            return toRunRange;
+        // Filter task depends on key 1 and key 2, but not on key 3.
+        val toRunFilter = new CompletableFuture<Integer>();
+        val resultFilter = proc.addWithFilter(key -> key == key1 || key == key2, () -> {
+            Assert.assertTrue("Not expecting filter task to execute yet.", result1.isDone() && result2.isDone());
+            return toRunFilter;
         });
 
-        // Task 4 depends on the range task (since range task encompasses key 1).
+        // Task 4 depends on the filter task (since filter task encompasses key 1).
         val result4 = proc.add(Collections.singleton(key1), () -> {
-            Assert.assertTrue("Not expecting fourth task to execute yet.", resultRange.isDone());
+            Assert.assertTrue("Not expecting fourth task to execute yet.", resultFilter.isDone());
             return CompletableFuture.completedFuture(4);
         });
 
-        // Complete the first task. Verify range task did not complete.
+        // Complete the first task. Verify filter task did not complete.
         toRun1.complete(1);
         result1.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         AssertExtensions.assertThrows(
-                "Range task unexpectedly completed.",
-                () -> resultRange.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
+                "Filter task unexpectedly completed.",
+                () -> resultFilter.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
                 ex -> ex instanceof TimeoutException);
 
-        // Complete the second task. Verify the range task completed, as well as Task 4 (which depended on the range).
+        // Complete the second task. Verify the filter task completed, as well as Task 4 (which depended on the filter).
         toRun2.complete(2);
         result2.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
-        toRunRange.complete(-1);
-        resultRange.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        toRunFilter.complete(-1);
+        resultFilter.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
         result4.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
-        Assert.assertEquals("Unexpected result from range run.", (int) resultRange.join(), -1);
+        Assert.assertEquals("Unexpected result from filter run.", (int) resultFilter.join(), -1);
         Assert.assertEquals("Unexpected result from task 4.", (int) result4.join(), 4);
 
         // Complete 3. This task was independent of all others.
@@ -237,26 +237,26 @@ public class MultiKeySequentialProcessorTests extends ThreadPooledTestSuite {
      * Tests the processor with a key filter that doesn't match any keys currently executing.
      */
     @Test
-    public void testAddRangeEmpty() throws Exception {
+    public void testAddFilterEmpty() throws Exception {
         final int key1 = 1;
         @Cleanup
         val proc = new MultiKeySequentialProcessor<Integer>(executorService());
 
-        val toRunRange = new CompletableFuture<Integer>();
-        val resultRange = proc.addRange(key -> key == key1, () -> toRunRange);
+        val toRunFilter = new CompletableFuture<Integer>();
+        val resultFilter = proc.addWithFilter(key -> key == key1, () -> toRunFilter);
 
-        // We setup two individual tasks to begin with.
+        // We setup one task to begin with.
         val result1 = proc.add(Collections.singleton(key1), () -> {
-            Assert.assertTrue("Not expecting individual task to execute yet.", resultRange.isDone());
+            Assert.assertTrue("Not expecting individual task to execute yet.", resultFilter.isDone());
             return CompletableFuture.completedFuture(1);
         });
 
-        // Complete the first task. Verify range task did not complete.
-        toRunRange.complete(0);
-        toRunRange.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        // Complete the task. Verify filter task did not complete.
+        toRunFilter.complete(0);
+        toRunFilter.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         result1.get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
-        Assert.assertEquals("Unexpected result from range run.", (int) resultRange.join(), 0);
+        Assert.assertEquals("Unexpected result from filter run.", (int) resultFilter.join(), 0);
         Assert.assertEquals("Unexpected result from task 1.", (int) result1.join(), 1);
     }
 

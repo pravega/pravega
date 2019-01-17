@@ -39,7 +39,7 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
     @GuardedBy("queue")
     private final Map<KeyType, CompletableFuture<?>> queue = new HashMap<>();
     @GuardedBy("queue")
-    private final Map<Predicate<KeyType>, CompletableFuture<?>> rangeQueue = new HashMap<>();
+    private final Map<Predicate<KeyType>, CompletableFuture<?>> filterQueue = new HashMap<>();
     @GuardedBy("queue")
     private boolean closed = false;
 
@@ -49,9 +49,9 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
         synchronized (this.queue) {
             if (!this.closed) {
                 toCancel = new ArrayList<>(this.queue.values());
-                toCancel.addAll(this.rangeQueue.values());
+                toCancel.addAll(this.filterQueue.values());
                 this.queue.clear();
-                this.rangeQueue.clear();
+                this.filterQueue.clear();
                 this.closed = true;
             }
         }
@@ -67,11 +67,11 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
     @VisibleForTesting
     public int getCurrentTaskCount() {
         synchronized (this.queue) {
-            int size = this.queue.size() + this.rangeQueue.size();
+            int size = this.queue.size() + this.filterQueue.size();
             if (size > 0) {
                 // Some tasks may have completed, but we haven't yet been able to clean them up.
                 size -= this.queue.values().stream().filter(CompletableFuture::isDone).count();
-                size -= this.rangeQueue.values().stream().filter(CompletableFuture::isDone).count();
+                size -= this.filterQueue.values().stream().filter(CompletableFuture::isDone).count();
             }
 
             return size;
@@ -106,8 +106,8 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
                     existingTasks.add(existingTask);
                 }
 
-                // Also include any currently executing range tasks.
-                for (val e : this.rangeQueue.entrySet()) {
+                // Also include any currently executing filter tasks.
+                for (val e : this.filterQueue.entrySet()) {
                     if (e.getKey().test(key)) {
                         existingTasks.add(e.getValue());
                     }
@@ -141,7 +141,7 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
      * @return A CompletableFuture that will complete with the result from the CompletableFuture returned by toRun,
      * when toRun completes executing.
      */
-    public <ReturnType> CompletableFuture<ReturnType> addRange(Predicate<KeyType> keyFilter, Supplier<CompletableFuture<? extends ReturnType>> toRun) {
+    public <ReturnType> CompletableFuture<ReturnType> addWithFilter(Predicate<KeyType> keyFilter, Supplier<CompletableFuture<? extends ReturnType>> toRun) {
         CompletableFuture<ReturnType> result = new CompletableFuture<>();
         ArrayList<CompletableFuture<?>> existingTasks = new ArrayList<>();
         synchronized (this.queue) {
@@ -156,13 +156,13 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
             executeAfterIfNeeded(existingTasks, toRun, result);
 
             // Record the action.
-            this.rangeQueue.put(keyFilter, result);
+            this.filterQueue.put(keyFilter, result);
         }
 
         executeNowIfNeeded(existingTasks, toRun, result);
 
         // Cleanup: if this was the last task in the queue, then clean up the queue.
-        result.whenComplete((r, ex) -> cleanupRange(keyFilter));
+        result.whenComplete((r, ex) -> cleanupFilter(keyFilter));
         return result;
     }
 
@@ -185,9 +185,9 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
         }
     }
 
-    private void cleanupRange(Predicate<KeyType> keyFilter) {
+    private void cleanupFilter(Predicate<KeyType> keyFilter) {
         synchronized (this.queue) {
-            val r = this.rangeQueue.remove(keyFilter);
+            val r = this.filterQueue.remove(keyFilter);
             assert r != null : "nothing was removed";
         }
     }

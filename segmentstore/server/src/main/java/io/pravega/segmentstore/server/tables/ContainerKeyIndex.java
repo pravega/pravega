@@ -132,7 +132,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * </ul>
      */
     <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action) {
-        return this.recoveryTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addRange(
+        return this.recoveryTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addWithFilter(
                 conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
                 () -> {
                     SegmentProperties sp = segment.getInfo();
