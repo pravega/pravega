@@ -32,6 +32,8 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -61,6 +63,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
 
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     protected final int bucketCount;
 
     private final LoadingCache<String, Scope> scopeCache;

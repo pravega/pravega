@@ -500,6 +500,32 @@ public class StreamSegmentContainerMetadataTests {
         AssertExtensions.assertGreaterThan("At least one segment was expected to be evicted.", 0, evictedSegments.size());
     }
 
+    /**
+     * Tests the ability to pin Segments to the metadata, which should prevent them from being evicted.
+     */
+    @Test
+    public void testPinnedSegments() {
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
+        final String segmentName = "segment";
+        final String pinnedSegmentName = "segment_pinned";
+        final long segmentId = 1;
+        final long pinnedSegmentId = 2;
+
+        // Map the segments and pin only one of them.
+        val nonPinnedMetadata = m.mapStreamSegmentId(segmentName, segmentId);
+        val pinnedMetadata = m.mapStreamSegmentId(pinnedSegmentName, pinnedSegmentId);
+        pinnedMetadata.markPinned();
+
+        // Try to evict it.
+        nonPinnedMetadata.setLastUsed(1);
+        pinnedMetadata.setLastUsed(1);
+        m.removeTruncationMarkers(2);
+        val evictionCandidates = m.getEvictionCandidates(2, 10);
+        Assert.assertEquals("Not expecting pinned segment to be evicted.", 1, evictionCandidates.size());
+        val evicted = evictionCandidates.stream().findFirst().get();
+        Assert.assertEquals("Unexpected Segment got evicted.", nonPinnedMetadata, evicted);
+    }
+
     private void populateSegmentsForEviction(List<Long> segments, UpdateableContainerMetadata m) {
         for (int i = 0; i < SEGMENT_COUNT; i++) {
             long segmentId = segments.size();

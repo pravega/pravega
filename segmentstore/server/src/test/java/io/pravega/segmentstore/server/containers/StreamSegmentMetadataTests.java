@@ -181,6 +181,7 @@ public class StreamSegmentMetadataTests {
         baseMetadata.markDeletedInStorage();
         baseMetadata.markInactive();
         baseMetadata.setLastUsed(1545895);
+        baseMetadata.markPinned();
 
         // Normal metadata copy.
         StreamSegmentMetadata newMetadata = new StreamSegmentMetadata(baseMetadata.getName(), baseMetadata.getId(), baseMetadata.getContainerId());
