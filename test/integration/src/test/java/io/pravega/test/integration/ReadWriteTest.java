@@ -10,7 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -123,15 +123,15 @@ public class ReadWriteTest {
         String readerGroupName = "testMultiReaderWriterReaderGroup";
         //20  readers -> 20 stream segments ( to have max read parallelism)
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-                .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
         stopReadFlag = new AtomicBoolean(false);
 
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
             //create a scope
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
@@ -141,7 +141,7 @@ public class ReadWriteTest {
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
 
             //start writing events to the stream
@@ -203,7 +203,7 @@ public class ReadWriteTest {
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
-                                                   final ClientFactory clientFactory) {
+                                                   final EventStreamClientFactory clientFactory) {
         return CompletableFuture.runAsync(() -> {
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
@@ -225,7 +225,7 @@ public class ReadWriteTest {
         });
     }
 
-    private CompletableFuture<Void> startNewReader(final String id, final ClientFactory clientFactory, final String
+    private CompletableFuture<Void> startNewReader(final String id, final EventStreamClientFactory clientFactory, final String
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
                                                    AtomicLong readCount, final  AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {

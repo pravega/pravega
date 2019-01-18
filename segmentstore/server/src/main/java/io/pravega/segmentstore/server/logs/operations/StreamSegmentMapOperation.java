@@ -25,12 +25,12 @@ public class StreamSegmentMapOperation extends MetadataOperation {
     //region Members
 
     private long streamSegmentId;
-    private long parentStreamSegmentId;
     private String streamSegmentName;
     private long startOffset;
     private long length;
     private boolean sealed;
     private Map<UUID, Long> attributes;
+    private boolean pinned;
 
     //endregion
 
@@ -42,24 +42,13 @@ public class StreamSegmentMapOperation extends MetadataOperation {
      * @param streamSegmentProperties Information about the StreamSegment.
      */
     public StreamSegmentMapOperation(SegmentProperties streamSegmentProperties) {
-        this(ContainerMetadata.NO_STREAM_SEGMENT_ID, streamSegmentProperties);
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentMapOperation class.
-     *
-     * @param parentStreamSegmentId   The Id of the Parent StreamSegment. If this is not a transaction, this should be set
-     *                                to ContainerMetadata.NO_STREAM_SEGMENT_ID.
-     * @param streamSegmentProperties Information about the StreamSegment.
-     */
-    public StreamSegmentMapOperation(long parentStreamSegmentId, SegmentProperties streamSegmentProperties) {
         this.streamSegmentId = ContainerMetadata.NO_STREAM_SEGMENT_ID;
-        this.parentStreamSegmentId = parentStreamSegmentId;
         this.streamSegmentName = streamSegmentProperties.getName();
-        this.startOffset = isTransaction() ? 0 : streamSegmentProperties.getStartOffset();
+        this.startOffset = streamSegmentProperties.getStartOffset();
         this.length = streamSegmentProperties.getLength();
         this.sealed = streamSegmentProperties.isSealed();
         this.attributes = streamSegmentProperties.getAttributes();
+        this.pinned = false;
     }
 
     /**
@@ -71,13 +60,6 @@ public class StreamSegmentMapOperation extends MetadataOperation {
     //endregion
 
     //region MappingOperation implementation.
-
-    /**
-     * Gets a value indicating the Id of the Parent StreamSegment.
-     */
-    public long getParentStreamSegmentId() {
-        return this.parentStreamSegmentId;
-    }
 
     /**
      * Gets a value indicating the Name of the StreamSegment.
@@ -126,36 +108,45 @@ public class StreamSegmentMapOperation extends MetadataOperation {
     }
 
     /**
+     * Gets a value indicating whether this Segment's Metadata is to be pinned to memory.
+     *
+     * @return True if pinned, false otherwise.
+     */
+    public boolean isPinned() {
+        return this.pinned;
+    }
+
+    /**
+     * Indicates that this Segment's Metadata is to be pinned to memory.
+     */
+    public void markPinned() {
+        this.pinned = true;
+    }
+
+    /**
      * Gets the Attributes for the StreamSegment at the time of the mapping.
      */
     public Map<UUID, Long> getAttributes() {
         return this.attributes;
     }
 
-    /**
-     * Gets a value indicating whether this MappingOperation is for a Transaction StreamSegment.
-     */
-    public boolean isTransaction() {
-        return this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID;
-    }
-
     @Override
     public String toString() {
         return String.format(
-                "%s, Id = %s%s, Name = %s, Start = %d, Length = %d, Sealed = %s",
+                "%s, Id = %s, Name = %s, Start = %d, Length = %d, Sealed = %s, Pinned = %s",
                 super.toString(),
                 toString(getStreamSegmentId(), ContainerMetadata.NO_STREAM_SEGMENT_ID),
-                isTransaction() ? String.format(", ParentId = %s", getParentStreamSegmentId()) : "",
                 getStreamSegmentName(),
                 getStartOffset(),
                 getLength(),
-                isSealed());
+                isSealed(),
+                isPinned());
     }
 
     //endregion
 
     static class Serializer extends OperationSerializer<StreamSegmentMapOperation> {
-        private static final int STATIC_LENGTH = 5 * Long.BYTES + Byte.BYTES;
+        private static final int STATIC_LENGTH = 4 * Long.BYTES + 2 * Byte.BYTES;
 
         @Override
         protected OperationBuilder<StreamSegmentMapOperation> newBuilder() {
@@ -183,23 +174,23 @@ public class StreamSegmentMapOperation extends MetadataOperation {
                     + target.getMapLength(o.attributes.size(), RevisionDataOutput.UUID_BYTES, Long.BYTES));
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.streamSegmentId);
-            target.writeLong(o.parentStreamSegmentId);
             target.writeUTF(o.streamSegmentName);
             target.writeLong(o.startOffset);
             target.writeLong(o.length);
             target.writeBoolean(o.sealed);
             target.writeMap(o.attributes, RevisionDataOutput::writeUUID, RevisionDataOutput::writeLong);
+            target.writeBoolean(o.pinned);
         }
 
         private void read00(RevisionDataInput source, OperationBuilder<StreamSegmentMapOperation> b) throws IOException {
             b.instance.setSequenceNumber(source.readLong());
             b.instance.streamSegmentId = source.readLong();
-            b.instance.parentStreamSegmentId = source.readLong();
             b.instance.streamSegmentName = source.readUTF();
             b.instance.startOffset = source.readLong();
             b.instance.length = source.readLong();
             b.instance.sealed = source.readBoolean();
             b.instance.attributes = source.readMap(RevisionDataInput::readUUID, RevisionDataInput::readLong);
+            b.instance.pinned = source.readBoolean();
         }
     }
 }

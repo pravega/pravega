@@ -11,12 +11,17 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ControllerFailureException;
+import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -130,78 +135,78 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
 
     @Test
     public void testCreateStream() throws ExecutionException, InterruptedException {
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.createStream(StreamConfiguration.builder().build()).join());
+        Assert.assertTrue(this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.STREAM_EXISTS).build()));
-        Assert.assertFalse(this.testController.createStream(StreamConfiguration.builder().build()).join());
+        Assert.assertFalse(this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.INVALID_STREAM_NAME).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatus(Controller.CreateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.createStream(any(), anyLong())).thenReturn(
+        when(this.mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(
                 CompletableFuture.completedFuture(Controller.CreateStreamStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.createStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.createStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 
     @Test
     public void testUpdateStream() throws ExecutionException, InterruptedException {
-        when(this.mockControllerService.updateStream(any())).thenReturn(
+        when(this.mockControllerService.updateStream(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
-        Assert.assertTrue(this.testController.updateStream(StreamConfiguration.builder().build()).join());
+        Assert.assertTrue(this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join());
 
-        when(this.mockControllerService.updateStream(any())).thenReturn(
+        when(this.mockControllerService.updateStream(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.FAILURE).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.updateStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
 
-        when(this.mockControllerService.updateStream(any())).thenReturn(
+        when(this.mockControllerService.updateStream(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.STREAM_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.updateStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.updateStream(any())).thenReturn(
+        when(this.mockControllerService.updateStream(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatus(Controller.UpdateStreamStatus.Status.SCOPE_NOT_FOUND).build()));
         assertThrows("Expected IllegalArgumentException",
-                () -> this.testController.updateStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof IllegalArgumentException);
 
-        when(this.mockControllerService.updateStream(any())).thenReturn(
+        when(this.mockControllerService.updateStream(any(), any(), any())).thenReturn(
                 CompletableFuture.completedFuture(Controller.UpdateStreamStatus.newBuilder()
                         .setStatusValue(-1).build()));
         assertThrows("Expected ControllerFailureException",
-                () -> this.testController.updateStream(StreamConfiguration.builder().build()).join(),
+                () -> this.testController.updateStream("scope", "stream", StreamConfiguration.builder().build()).join(),
                 ex -> ex instanceof ControllerFailureException);
     }
 
@@ -307,5 +312,14 @@ public class LocalControllerTest extends ThreadPooledTestSuite {
                 () -> this.testController.startScale(new StreamImpl("scope", "stream"),
                         new ArrayList<>(), new HashMap<>()).join(),
                 ex -> ex instanceof ControllerFailureException);
+    }
+
+    @Test
+    public void testGetSegmentsBetween() throws ExecutionException, InterruptedException {
+        List<Segment> list = new ArrayList<>();
+        when(this.mockControllerService.getSegmentsBetweenStreamCuts(any())).thenReturn(
+                CompletableFuture.completedFuture(list));
+        Assert.assertTrue(Futures.await(this.testController.getSegments(new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()),
+                new StreamCutImpl(new StreamImpl("scope", "stream"), Collections.emptyMap()))));
     }
 }

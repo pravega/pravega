@@ -11,7 +11,13 @@ You may obtain a copy of the License at
 
 Connectors allow integrating Pravega with different data sources and sinks.  
 
+- [Flink Connector](https://github.com/pravega/flink-connectors)
+
 The initial connector supported is Flink which enables building end-to-end stream processing pipelines with Pravega.  This also allows reading and writing data to external data sources and sinks via Flink Streaming Connectors.
 
-- [Flink Connector](https://github.com/pravega/flink-connectors)
-- Logstash - comming soon
+#### In Experimental Stage
+
+- [Logstash](https://github.com/pravega/logstash-output-pravega) 
+- [Hadoop Connector](https://github.com/pravega/hadoop-connectors)
+
+

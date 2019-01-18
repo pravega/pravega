@@ -10,10 +10,11 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -30,79 +31,51 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
-import java.io.Serializable;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
+import java.io.Serializable;
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
+
+import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class PravegaTest {
+public class PravegaTest extends AbstractReadWriteTest {
 
     private final static String STREAM_NAME = "testStreamSampleY";
-    private final static String STREAM_SCOPE = "testScopeSampleY";
+    private final static String STREAM_SCOPE = "testScopeSampleY" + randomAlphanumeric(5);
     private final static String READER_GROUP = "ExampleReaderGroupY";
     private final static int NUM_EVENTS = 100;
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
+
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(4);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(STREAM_SCOPE).streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scalingPolicy(scalingPolicy)
+                                                                  .build();
 
     /**
      * This is used to setup the various services required by the system test framework.
-     *
-     * @throws InterruptedException If interrupted
-     * @throws MarathonException    when error in setup
-     * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws MarathonException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
+    public static void initialize() {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @BeforeClass
@@ -112,13 +85,9 @@ public class PravegaTest {
 
     /**
      * Invoke the createStream method, ensure we are able to create stream.
-     *
-     * @throws InterruptedException if interrupted
-     * @throws URISyntaxException   If URI is invalid
-     * @throws ExecutionException   if error in create stream
      */
     @Before
-    public void createStream() throws InterruptedException, ExecutionException {
+    public void createStream() {
 
         Service conService = Utils.createPravegaControllerService(null);
 
@@ -133,58 +102,60 @@ public class PravegaTest {
                                     .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
                                     .build(), connectionFactory.getInternalExecutor());
 
-        assertTrue(controller.createScope(STREAM_SCOPE).get());
-        assertTrue(controller.createStream(config).get());
+        assertTrue(controller.createScope(STREAM_SCOPE).join());
+        assertTrue(controller.createStream(STREAM_SCOPE, STREAM_NAME, config).join());
     }
 
     /**
      * Invoke the simpleTest, ensure we are able to produce  events.
      * The test fails incase of exceptions while writing to the stream.
      *
-     * @throws InterruptedException if interrupted
-     * @throws URISyntaxException   If URI is invalid
      */
-    @Test(timeout = 10 * 60 * 1000)
-    public void simpleTest() throws InterruptedException {
+    @Test
+    public void simpleTest() {
 
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
-                new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+                                                                                 new JavaSerializer<>(),
+                                                                                 EventWriterConfig.builder().build());
         for (int i = 0; i < NUM_EVENTS; i++) {
             String event = "Publish " + i + "\n";
             log.debug("Producing event: {} ", event);
+            // any exceptions while writing the event will fail the test.
             writer.writeEvent("", event);
             writer.flush();
-            Thread.sleep(500);
         }
         log.info("Invoking Reader test.");
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
+        @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
-                READER_GROUP,
-                new JavaSerializer<>(),
-                ReaderConfig.builder().build());
-        for (int i = 0; i < NUM_EVENTS; i++) {
+                                                                      READER_GROUP,
+                                                                      new JavaSerializer<>(),
+                                                                      ReaderConfig.builder().build());
+        int readCount = 0;
+
+        EventRead<String> event = null;
+        do {
             try {
-                String event = reader.readNextEvent(6000).getEvent();
-                if (event != null) {
-                    log.debug("Read event: {} ", event);
+                event = reader.readNextEvent(10_000);
+                log.debug("Read event: {}.", event.getEvent());
+                if (event.getEvent() != null) {
+                    readCount++;
                 }
             } catch (ReinitializationRequiredException e) {
-                log.error("Unexpected request to reinitialize {}", e);
-                System.exit(0);
+                log.error("Exception while reading event using readerId: {}", reader, e);
+                fail("Reinitialization Exception is not expected");
             }
-        }
-        reader.close();
-        groupManager.deleteReaderGroup(READER_GROUP);
+            // try reading until all the written events are read, else the test will timeout.
+        } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
+        assertEquals("Read count should be equal to write count", NUM_EVENTS, readCount);
     }
-
 }

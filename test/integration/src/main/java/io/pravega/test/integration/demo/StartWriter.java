@@ -12,6 +12,7 @@ package io.pravega.test.integration.demo;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
@@ -34,9 +35,14 @@ public class StartWriter {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(StartLocalService.STREAM_NAME, new JavaSerializer<>(),
                                                                            EventWriterConfig.builder()
                                                                                             .transactionTimeoutTime(60000)
-                                                                                            .transactionTimeoutScaleGracePeriod(60000)
                                                                                             .build());
-        Transaction<String> transaction = writer.beginTxn();
+        @Cleanup
+        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(StartLocalService.STREAM_NAME,
+                                                                                                        new JavaSerializer<>(),
+                                                                                                        EventWriterConfig.builder()
+                                                                                                                         .transactionTimeoutTime(60000)
+                                                                                                                         .build());
+        Transaction<String> transaction = txnWriter.beginTxn();
 
         for (int i = 0; i < 10; i++) {
             String event = "\n Transactional write \n";

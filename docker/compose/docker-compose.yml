@@ -10,12 +10,12 @@
 version: '2'
 services:
   zookeeper:
-    image: jplock/zookeeper:3.5.2-alpha
+    image: zookeeper:3.5.4-beta
     ports:
       - "2181:2181"
 
   hdfs:
-    image: dsrw/hdfs:2.7.3-1
+    image: pravega/hdfs:2.7.7
     ports:
       - "2222:2222"
       - "8020:8020"
@@ -87,6 +87,7 @@ services:
     command: segmentstore
     environment:
       WAIT_FOR: bookie1:3181,bookie2:3182,bookie3:3183,hdfs:8020
+      TIER2_STORAGE: "HDFS"
       HDFS_REPLICATION: 1
       HDFS_URL: ${HOST_IP}:8020
       ZK_URL: zookeeper:2181
@@ -94,6 +95,9 @@ services:
       JAVA_OPTS: |
         -Dmetrics.enableCSVReporter=false
         -Dpravegaservice.publishedIPAddress=${HOST_IP}
+        -Dbookkeeper.bkEnsembleSize=2
+        -Dbookkeeper.bkAckQuorumSize=2
+        -Dbookkeeper.bkWriteQuorumSize=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError

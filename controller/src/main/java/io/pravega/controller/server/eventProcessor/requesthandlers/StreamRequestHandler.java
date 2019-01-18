@@ -10,17 +10,11 @@
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
-import io.pravega.common.util.Retry;
-import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
-import io.pravega.controller.store.stream.ScaleOperationExceptions;
-import io.pravega.controller.store.stream.StoreException;
-import io.pravega.shared.controller.event.AbortEvent;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
+import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
-import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
@@ -30,13 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
-
-import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
 
 @Slf4j
-public class StreamRequestHandler extends SerializedRequestHandler<ControllerEvent> implements RequestProcessor {
-    private static final Predicate<Throwable> OPERATION_NOT_ALLOWED_PREDICATE = e -> e instanceof StoreException.OperationNotAllowedException;
+public class StreamRequestHandler extends AbstractRequestProcessor<ControllerEvent> {
     private final AutoScaleTask autoScaleTask;
     private final ScaleOperationTask scaleOperationTask;
     private final UpdateStreamTask updateStreamTask;
@@ -50,19 +40,15 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
                                 SealStreamTask sealStreamTask,
                                 DeleteStreamTask deleteStreamTask,
                                 TruncateStreamTask truncateStreamTask,
+                                StreamMetadataStore streamMetadataStore,
                                 ScheduledExecutorService executor) {
-        super(executor);
+        super(streamMetadataStore, executor);
         this.autoScaleTask = autoScaleTask;
         this.scaleOperationTask = scaleOperationTask;
         this.updateStreamTask = updateStreamTask;
         this.sealStreamTask = sealStreamTask;
         this.deleteStreamTask = deleteStreamTask;
         this.truncateStreamTask = truncateStreamTask;
-    }
-
-    @Override
-    public CompletableFuture<Void> processEvent(ControllerEvent controllerEvent) {
-        return controllerEvent.process(this);
     }
 
     @Override
@@ -73,68 +59,37 @@ public class StreamRequestHandler extends SerializedRequestHandler<ControllerEve
     }
 
     @Override
-    public CompletableFuture<Void> processAbortTxnRequest(AbortEvent abortEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "StreamRequestHandler: abort txn received on Stream Request Multiplexer"));
-    }
-
-    @Override
-    public CompletableFuture<Void> processCommitTxnRequest(CommitEvent commitEvent) {
-        return Futures.failedFuture(new RequestUnsupportedException(
-                "StreamRequestHandler: commit txn received on Stream Request Multiplexer"));
-    }
-
-    @Override
     public CompletableFuture<Void> processAutoScaleRequest(AutoScaleEvent autoScaleEvent) {
         return autoScaleTask.execute(autoScaleEvent);
     }
 
     @Override
     public CompletableFuture<Void> processScaleOpRequest(ScaleOpEvent scaleOpEvent) {
-        return withCompletion(scaleOperationTask, scaleOpEvent,
-                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof ScaleOperationExceptions.ScaleConflictException));
+        return withCompletion(scaleOperationTask, scaleOpEvent, scaleOpEvent.getScope(), scaleOpEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE.or(e -> e instanceof EpochTransitionOperationExceptions.ConflictException));
     }
 
     @Override
     public CompletableFuture<Void> processUpdateStream(UpdateStreamEvent updateStreamEvent) {
-        return withCompletion(updateStreamTask, updateStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
+        return withCompletion(updateStreamTask, updateStreamEvent, updateStreamEvent.getScope(), updateStreamEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE);
     }
 
     @Override
     public CompletableFuture<Void> processTruncateStream(TruncateStreamEvent truncateStreamEvent) {
-        return withCompletion(truncateStreamTask, truncateStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
+        return withCompletion(truncateStreamTask, truncateStreamEvent, truncateStreamEvent.getScope(), truncateStreamEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE);
     }
 
     @Override
     public CompletableFuture<Void> processSealStream(SealStreamEvent sealStreamEvent) {
-        return withCompletion(sealStreamTask, sealStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
+        return withCompletion(sealStreamTask, sealStreamEvent, sealStreamEvent.getScope(), sealStreamEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE);
     }
 
     @Override
     public CompletableFuture<Void> processDeleteStream(DeleteStreamEvent deleteStreamEvent) {
-        return withCompletion(deleteStreamTask, deleteStreamEvent, OPERATION_NOT_ALLOWED_PREDICATE);
-    }
-
-    private <T extends ControllerEvent> CompletableFuture<Void> withCompletion(StreamTask<T> task,
-                                                                               T event,
-                                                                               Predicate<Throwable> writeBackPredicate) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        withRetries(() -> task.execute(event), executor)
-                .whenCompleteAsync((r, e) -> {
-                    if (e != null) {
-                        Throwable cause = Exceptions.unwrap(e);
-                        if (writeBackPredicate.test(cause)) {
-                            Retry.indefinitelyWithExpBackoff("Error writing event back into requeststream")
-                                    .runAsync(() -> task.writeBack(event), executor)
-                                    .thenAccept(v -> result.completeExceptionally(cause));
-                        } else {
-                            result.completeExceptionally(cause);
-                        }
-                    } else {
-                        result.complete(r);
-                    }
-                }, executor);
-
-        return result;
+        return withCompletion(deleteStreamTask, deleteStreamEvent, deleteStreamEvent.getScope(), deleteStreamEvent.getStream(),
+                OPERATION_NOT_ALLOWED_PREDICATE);
     }
 }

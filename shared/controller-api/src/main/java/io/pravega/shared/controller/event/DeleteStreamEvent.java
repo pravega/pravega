@@ -18,6 +18,8 @@ public class DeleteStreamEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;
     private final String stream;
+    private final long requestId;
+    private final long creationTime;
 
     @Override
     public String getKey() {

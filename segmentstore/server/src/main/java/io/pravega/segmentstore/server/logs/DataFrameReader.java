@@ -77,7 +77,7 @@ class DataFrameReader<T extends SequencedItemList.Element> implements CloseableI
      * @return A DataFrameRecord with the requested operation. If no more Operations are available, null is returned.
      */
     @Override
-    public DataFrameRecord<T> getNext() throws DataCorruptionException {
+    public DataFrameRecord<T> getNext() throws DataCorruptionException, DurableDataLogException {
         Exceptions.checkNotClosed(this.closed, closed);
 
         try {

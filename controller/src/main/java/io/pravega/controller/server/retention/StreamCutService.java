@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.netty.util.internal.ConcurrentSet;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.util.RetryHelper;
@@ -33,20 +34,24 @@ public class StreamCutService extends AbstractService implements BucketOwnership
     private final StreamMetadataStore streamMetadataStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final ScheduledExecutorService executor;
+    private final RequestTracker requestTracker;
 
     public StreamCutService(final int bucketCount, String processId, final StreamMetadataStore streamMetadataStore,
-                            final StreamMetadataTasks streamMetadataTasks, final ScheduledExecutorService executor) {
+                            final StreamMetadataTasks streamMetadataTasks, final ScheduledExecutorService executor,
+                            final RequestTracker requestTracker) {
         this.bucketCount = bucketCount;
         this.processId = processId;
         this.streamMetadataStore = streamMetadataStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.executor = executor;
         this.buckets = new ConcurrentSet<>();
+        this.requestTracker = requestTracker;
     }
 
     @Override
     protected void doStart() {
-        Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
+        streamMetadataStore.createBucketsRoot()
+                .thenCompose(v -> Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList())))
                 .thenAccept(x -> streamMetadataStore.registerBucketOwnershipListener(this))
                 .whenComplete((r, e) -> {
                     if (e != null) {
@@ -64,7 +69,7 @@ public class StreamCutService extends AbstractService implements BucketOwnership
                     if (isOwner && buckets.stream().noneMatch(x -> x.getBucketId() == bucket)) {
                         log.info("Taken ownership for bucket {}", bucket);
                         StreamCutBucketService bucketService = new StreamCutBucketService(bucket, streamMetadataStore,
-                                streamMetadataTasks, executor);
+                                streamMetadataTasks, executor, requestTracker);
                         buckets.add(bucketService);
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
                         bucketService.addListener(new Listener() {

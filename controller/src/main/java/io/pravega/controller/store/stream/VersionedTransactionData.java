@@ -20,14 +20,13 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 public class VersionedTransactionData {
-    public static final VersionedTransactionData EMPTY = new VersionedTransactionData(Integer.MIN_VALUE, new UUID(0, 0),
-            Integer.MIN_VALUE, TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE, Long.MIN_VALUE);
+    public static final VersionedTransactionData EMPTY = new VersionedTransactionData(Integer.MIN_VALUE, new UUID(0, 0), null,
+            TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE);
 
     private final int epoch;
     private final UUID id;
-    private final int version;
+    private final Version version;
     private final TxnStatus status;
     private final long creationTime;
     private final long maxExecutionExpiryTime;
-    private final long scaleGracePeriod;
 }

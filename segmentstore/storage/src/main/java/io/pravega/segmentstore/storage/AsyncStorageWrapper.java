@@ -12,22 +12,18 @@ package io.pravega.segmentstore.storage;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.common.function.RunnableWithException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.RequiredArgsConstructor;
-import lombok.SneakyThrows;
-import lombok.val;
 
 /**
  * Wrapper for a SyncStorage implementation that executes all operations asynchronously in a Thread Pool.
@@ -42,10 +38,7 @@ public class AsyncStorageWrapper implements Storage {
 
     private final SyncStorage syncStorage;
     private final Executor executor;
-    @GuardedBy("lastTasks")
-    private final HashMap<String, RunningTask> lastTasks;
-    @GuardedBy("lastTasks")
-    private int currentTaskId;
+    private final MultiKeySequentialProcessor<String> taskProcessor;
     private final AtomicBoolean closed;
 
     //endregion
@@ -61,7 +54,7 @@ public class AsyncStorageWrapper implements Storage {
     public AsyncStorageWrapper(SyncStorage syncStorage, Executor executor) {
         this.syncStorage = Preconditions.checkNotNull(syncStorage, "syncStorage");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        this.lastTasks = new HashMap<>();
+        this.taskProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.closed = new AtomicBoolean();
     }
 
@@ -91,7 +84,7 @@ public class AsyncStorageWrapper implements Storage {
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
+    public CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
         return supplyAsync(() -> this.syncStorage.create(streamSegmentName, rollingPolicy), streamSegmentName);
     }
 
@@ -154,9 +147,7 @@ public class AsyncStorageWrapper implements Storage {
      */
     @VisibleForTesting
     int getSegmentWithOngoingOperationsCount() {
-        synchronized (this.lastTasks) {
-            return this.lastTasks.size();
-        }
+        return this.taskProcessor.getCurrentTaskCount();
     }
 
     /**
@@ -166,33 +157,7 @@ public class AsyncStorageWrapper implements Storage {
      */
     private <R> CompletableFuture<R> supplyAsync(Callable<R> operation, String... segmentNames) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        CompletableFuture<R> result;
-        synchronized (this.lastTasks) {
-            // Collect all futures this is dependent on.
-            val futures = Arrays.stream(segmentNames)
-                    .map(this.lastTasks::get)
-                    .filter(Objects::nonNull)
-                    .map(t -> t.task)
-                    .toArray(CompletableFuture[]::new);
-
-            int taskId = this.currentTaskId++;
-            if (futures.length == 0) {
-                // Nothing to depend on - free to execute now.
-                result = CompletableFuture.supplyAsync(() -> execute(operation, taskId, segmentNames), this.executor);
-            } else {
-                // We need to wait on these futures to complete before executing ours.
-                result = CompletableFuture.allOf(futures)
-                        .handleAsync((r, ex) -> execute(operation, taskId, segmentNames), this.executor);
-            }
-
-            // Update the last task for each involved segment to be this so that future tasks can be properly sequenced.
-            RunningTask t = new RunningTask(taskId, result);
-            for (String s : segmentNames) {
-                this.lastTasks.put(s, t);
-            }
-        }
-
-        return result;
+        return this.taskProcessor.add(Arrays.asList(segmentNames), () -> execute(operation));
     }
 
     /**
@@ -212,39 +177,15 @@ public class AsyncStorageWrapper implements Storage {
      * Executes the given Callable synchronously and invokes cleanup when done.
      *
      * @param operation    The Callable to execute.
-     * @param taskId       The id of the current task to be used for cleanup purposes.
-     * @param segmentNames The names of the Segments involved in this operation (for sequencing purposes).
      */
-    @SneakyThrows(Exception.class)
-    private <R> R execute(Callable<R> operation, int taskId, String[] segmentNames) {
-        try {
-            return operation.call();
-        } finally {
-            cleanupIfNeeded(taskId, segmentNames);
-        }
-    }
-
-    private void cleanupIfNeeded(int taskId, String[] segmentNames) {
-        synchronized (this.lastTasks) {
-            for (String s : segmentNames) {
-                // A segment entry can be safely cleaned up if the last registered task has the same id as the one
-                // we got in this method (that means no more tasks have been added).
-                val task = this.lastTasks.get(s);
-                if (task != null && task.taskId == taskId) {
-                    this.lastTasks.remove(s);
-                }
+    private <R> CompletableFuture<R> execute(Callable<R> operation) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return operation.call();
+            } catch (Exception ex) {
+                throw new CompletionException(ex);
             }
-        }
-    }
-
-    //endregion
-
-    //region RunningTask
-
-    @RequiredArgsConstructor
-    private static final class RunningTask {
-        private final int taskId;
-        private final CompletableFuture<?> task;
+        }, this.executor);
     }
 
     //endregion

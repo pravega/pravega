@@ -10,12 +10,15 @@
  */
 plugins.withId('java') {
     apply plugin: 'checkstyle'
-    apply plugin: 'findbugs'
+    apply plugin: 'com.github.spotbugs'
     apply plugin: 'jacoco'
     apply plugin: 'signing'
     apply plugin: 'maven'
 
     compileJava {
+        sourceCompatibility = "8"
+        targetCompatibility = "8"
+        
         options.compilerArgs.addAll([
                 "-Xlint:deprecation",
                 "-Xlint:divzero",
@@ -38,6 +41,7 @@ plugins.withId('java') {
 
     task generateJavadoc(type: Javadoc) {
         source = sourceSets.main.allJava
+        classpath = sourceSets.main.runtimeClasspath
         failOnError = false
     }
     task javadocJar(type: Jar) {

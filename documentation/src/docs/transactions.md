@@ -14,10 +14,10 @@ Pravega Transactions.
 
 Instructions for running the sample applications can be found in the[ Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/master/standalone-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
-Concepts](http://pravega.io/Pravega-Concepts/index.html)) before continuing reading this page.
+Concepts](pravega-concepts.md)) before continuing reading this page.
 
 ## Pravega Transactions and the Console Writer and Console Reader Apps
 
@@ -25,7 +25,7 @@ We have written a couple of applications, ConsoleReader and ConsoleWriter that
 help illustrate reading and writing data with Pravega and in particular to
 illustrate the Transaction facility in the Pravega programming model.  You can
 find those applications
-[here](https://github.com/pravega/pravega-samples/tree/master/standalone-examples/src/main/java/io/pravega/example/consolerw).
+[here](https://github.com/pravega/pravega-samples/tree/v0.4.0/pravega-client-examples/src/main/java/io/pravega/example/consolerw).
 
 ### ConsoleReader
 
@@ -49,10 +49,9 @@ If no command is entered, the line is treated as a parameter to the WRITE_EVENT 
 
 WRITE_EVENT {event} - write the {event} out to the Stream or the current Transaction.
 WRITE_EVENT_RK <<{routingKey}>> , {event} - write the {event} out to the Stream or the current Transaction using {routingKey}. Note << and >> around {routingKey}.
-BEGIN [{transactionTimeout}] [, {maxExecutionTime}] [, {scaleGracePeriod}] begin a Transaction. Only one Transaction at a time is supported by the CLI.
+BEGIN - begin a Transaction. Only one Transaction at a time is supported by the CLI.
 GET_TXN_ID - output the current Transaction's Id (if a Transaction is running)
 FLUSH - flush the current Transaction (if a Transaction is running)
-PING [{lease}] - refresh the time remaining on the Transaction (if a Transaction is running)
 COMMIT - commit the Transaction (if a Transaction is running)
 ABORT - abort the Transaction (if a Transaction is running)
 STATUS - check the status of the Transaction(if a Transaction is running)
@@ -174,4 +173,3 @@ optional): 
 | transactionTimeout | The amount of time a transaction should be allowed to run before it is automatically aborted by Pravega.              |
 |                    | This is also referred to as a "lease".                                                                                                                      |
 | maxExecutionTime   | The amount of time allowed between ping operations.                                                                   |
-| scaleGracePeriod   | An additional amount of time, after a Stream scaling operation has taken place, that the Transaction can remain alive |

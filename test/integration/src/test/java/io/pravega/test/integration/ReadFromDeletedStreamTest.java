@@ -30,8 +30,6 @@ import org.junit.Test;
 @Slf4j
 public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
-                                                                 .scope("test")
-                                                                 .streamName("test")
                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
                                                                  .build();
 
@@ -45,7 +43,7 @@ public class ReadFromDeletedStreamTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, null, null, null, null);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, null, null, null, null, true);
         server.startListening();
 
         streamManager.createScope("test");

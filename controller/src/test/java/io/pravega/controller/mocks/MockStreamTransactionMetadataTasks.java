@@ -11,12 +11,14 @@ package io.pravega.controller.mocks;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.TxnStatus;
+import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -46,7 +48,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                                               final ConnectionFactory connectionFactory,
                                               boolean authEnabled,
                                               String tokenSigningKey) {
-        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, authEnabled, tokenSigningKey);
+        super(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, connectionFactory, new AuthHelper(authEnabled, tokenSigningKey));
         this.streamMetadataStore = streamMetadataStore;
     }
 
@@ -54,12 +56,11 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     @Synchronized
     public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope, final String stream,
                                                                                       final long lease,
-                                                                                      final long scaleGracePeriod,
                                                                                       final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
-        final UUID txnId = UUID.randomUUID();
-        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, 10 * lease, scaleGracePeriod,
+        final UUID txnId = streamMetadataStore.generateTransactionId(scope, stream, null, executor).join();
+        return streamMetadataStore.createTransaction(scope, stream, txnId, lease, 10 * lease,
                 context, executor)
                 .thenCompose(txData -> {
                     log.info("Created transaction {} with version {}", txData.getId(), txData.getVersion());
@@ -71,7 +72,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
     @Override
     @Synchronized
     public CompletableFuture<TxnStatus> abortTxn(final String scope, final String stream, final UUID txId,
-                                                 final Integer version,
+                                                 final Version version,
                                                  final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
@@ -81,7 +82,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return pair;
                 })
-                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, x.getValue(), txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor));
     }
 
     @Override
@@ -107,12 +108,12 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.<Integer>empty(), context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return pair;
                 })
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, x.getValue(), txId, context, executor));
+                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
     }
 }
 

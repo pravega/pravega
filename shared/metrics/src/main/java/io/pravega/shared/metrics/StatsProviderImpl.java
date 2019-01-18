@@ -64,6 +64,7 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public void start() {
         init();
+        log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
         if (conf.isEnableCSVReporter()) {
             // NOTE:  metrics output files are exclusive to a given process
@@ -83,7 +84,8 @@ class StatsProviderImpl implements StatsProvider {
         if (conf.isEnableStatsdReporter()) {
             log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
             reporters.add(StatsDReporter.forRegistry(getMetrics())
-                          .build(conf.getStatsDHost(), conf.getStatsDPort()));
+                                        .prefixedWith(conf.getMetricsPrefix())
+                                        .build(conf.getStatsDHost(), conf.getStatsDPort()));
         }
         if (conf.isEnableGraphiteReporter()) {
             log.info("Configuring stats with graphite at {}:{}", conf.getGraphiteHost(), conf.getGraphitePort());
@@ -125,7 +127,7 @@ class StatsProviderImpl implements StatsProvider {
                 .build());
         }
         for (ScheduledReporter r : reporters) {
-            r.start(conf.getStatsOutputFrequencySeconds(), TimeUnit.SECONDS);
+            r.start(conf.getStatsOutputFrequencySeconds().getSeconds(), TimeUnit.SECONDS);
         }
     }
 

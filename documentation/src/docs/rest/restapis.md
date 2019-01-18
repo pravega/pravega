@@ -87,7 +87,7 @@ Create a new scope
 
 
 ##### Request body
-```
+```json
 json :
 {
   "scopeName" : "string"
@@ -98,7 +98,7 @@ json :
 #### Example HTTP response
 
 ##### Response 201
-```
+```json
 json :
 {
   "scopeName" : "string"
@@ -142,7 +142,7 @@ List all available scopes in pravega
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "scopes" : [ {
@@ -196,7 +196,7 @@ Retrieve details of an existing scope
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "scopeName" : "string"
@@ -285,7 +285,7 @@ List reader groups within the given scope
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "readerGroups" : [ "object" ]
@@ -338,7 +338,7 @@ Fetch the properties of an existing reader group
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "scopeName" : "string",
@@ -407,7 +407,7 @@ Create a new stream
 
 
 ##### Request body
-```
+```json
 json :
 {
   "streamName" : "string",
@@ -428,7 +428,7 @@ json :
 #### Example HTTP response
 
 ##### Response 201
-```
+```json
 json :
 {
   "scopeName" : "string",
@@ -490,7 +490,7 @@ List streams within the given scope
 
 
 ##### Request query
-```
+```json
 json :
 {
   "showInternalStreams" : "string"
@@ -501,7 +501,7 @@ json :
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "streams" : [ {
@@ -567,7 +567,7 @@ Fetch the properties of an existing stream
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "scopeName" : "string",
@@ -643,7 +643,7 @@ Update configuration of an existing stream
 
 
 ##### Request body
-```
+```json
 json :
 {
   "scalingPolicy" : {
@@ -663,7 +663,7 @@ json :
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "scopeName" : "string",
@@ -765,7 +765,7 @@ Get scaling events for a given datetime period.
 
 
 ##### Request query
-```
+```json
 json :
 {
   "from" : 0,
@@ -777,7 +777,7 @@ json :
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "scalingEvents" : [ {
@@ -842,7 +842,7 @@ Updates the current state of the stream
 
 
 ##### Request body
-```
+```json
 json :
 {
   "streamState" : "string"
@@ -853,7 +853,7 @@ json :
 #### Example HTTP response
 
 ##### Response 200
-```
+```json
 json :
 {
   "streamState" : "string"

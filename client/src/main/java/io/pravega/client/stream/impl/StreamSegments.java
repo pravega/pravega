@@ -14,6 +14,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.common.hash.HashHelper;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -21,11 +22,13 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The segments that within a stream at a particular point in time.
  */
 @EqualsAndHashCode
+@Slf4j
 public class StreamSegments {
     private static final HashHelper HASHER = HashHelper.seededWith("EventRouter");
     private final NavigableMap<Double, Segment> segments;
@@ -67,22 +70,59 @@ public class StreamSegments {
         return segments.values();
     }
     
-    public StreamSegments withReplacementRange(StreamSegmentsWithPredecessors replacementRanges) {
+    public StreamSegments withReplacementRange(Segment replacedSegment, StreamSegmentsWithPredecessors replacementRanges) {
+        Preconditions.checkState(segments.containsValue(replacedSegment), "Segment to be replaced should be present in the segment list");
+        verifyReplacementRange(replacementRanges);
         NavigableMap<Double, Segment> result = new TreeMap<>();
-        Map<Integer, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
-        for (Entry<Double, Segment> exitingSegment : segments.entrySet()) {
-            List<SegmentWithRange> replacements = replacedRanges.get(exitingSegment.getValue().getSegmentNumber());
-            if (replacements == null || replacements.isEmpty()) {
-                result.put(exitingSegment.getKey(), exitingSegment.getValue());
-            } else {
-                for (SegmentWithRange replacement : replacements) {
-                    result.put(replacement.getHigh(), replacement.getSegment());
-                }
+        Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
+        List<SegmentWithRange> replacements = replacedRanges.get(replacedSegment.getSegmentId());
+        Preconditions.checkNotNull(replacements, "Empty set of replacements for: {}", replacedSegment.getSegmentId());
+        replacements.sort(Comparator.comparingDouble(SegmentWithRange::getHigh).reversed());
+        Segment lastSegmentValue = null;
+        for (Entry<Double, Segment> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
+            final Segment existingSegment = existingEntry.getValue();
+            if (existingSegment.equals(lastSegmentValue)) {
+                // last value was the same segment, it can be consolidated.
+                continue;
             }
+            if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
+                // Invariant: The successor segment(s)'s range should be limited to the replaced segment's range, thereby
+                // ensuring that newer writes to the successor(s) happen only for the replaced segment's range.
+                for (SegmentWithRange segmentWithRange : replacements) {                        
+                    result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange.getSegment());
+                }
+            } else {
+                // update remaining values.
+                result.put(existingEntry.getKey(), existingEntry.getValue());
+            }
+            lastSegmentValue = existingSegment; // update lastSegmentValue to reduce number of entries in the map.
         }
         return new StreamSegments(result, delegationToken);
     }
     
+    /**
+     * Checks that replacementSegments provided are consistent with the segments that currently being used.
+     * @param replacementSegments The StreamSegmentsWithPredecessors to verify
+     */
+    private void verifyReplacementRange(StreamSegmentsWithPredecessors replacementSegments) {
+        log.debug("Verification of replacement segments {} with the current segments {}", replacementSegments, segments);
+        Map<Long, List<SegmentWithRange>> replacementRanges = replacementSegments.getReplacementRanges();
+        for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
+            double lowerReplacementRange = 1;
+            double upperReplacementRange = 0;
+            for (SegmentWithRange range : ranges.getValue()) {
+                upperReplacementRange = Math.max(upperReplacementRange, range.getHigh());
+                lowerReplacementRange = Math.min(lowerReplacementRange, range.getLow());
+            }
+            Entry<Double, Segment> upperReplacedSegment = segments.floorEntry(upperReplacementRange);
+            Entry<Double, Segment> lowerReplacedSegment =  segments.higherEntry(lowerReplacementRange);
+            Preconditions.checkArgument(upperReplacedSegment != null, "Missing replaced replacement segments %s",
+                                        replacementSegments);
+            Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
+                                        replacementSegments);
+         }
+    }
+
     @Override
     public String toString() {
         return "StreamSegments:" + segments.toString();

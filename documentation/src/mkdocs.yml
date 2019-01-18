@@ -7,13 +7,28 @@
 #    http://www.apache.org/licenses/LICENSE-2.0
 
 site_name: 'Exploring Pravega'
-site_url: 'http://pravega.io/docs'
+site_url: 'http://pravega.io/'
 site_description: 'Documentation to help you get familiar with Pravega'
 
 repo_url: 'https://github.com/pravega/pravega'
 edit_uri: 'tree/master/documentation/src/docs'
 
 theme: 'material'
+
+
+# Extensions
+markdown_extensions:
+  - admonition
+  - codehilite(guess_lang=false)
+  - footnotes
+  - meta
+  - toc(permalink=true)
+  - pymdownx.betterem(smart_enable=all)
+  - pymdownx.caret
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
 
 pages:
   - Overview: 'index.md'
@@ -24,6 +39,12 @@ pages:
       - 'Key Features': 'key-features.md'
       - 'Pravega FAQ': 'faq.md'
       - 'Segment Store Service': 'segment-store-service.md'
+      - 'Segment Containers': 'segment-containers.md'
+      - 'Controller Service': 'controller-service.md'
+      - 'Wire Protocol': 'wire-protocol.md'
+      - 'StateSynchronizer': 'state-synchronizer-design.md'
+      - 'Reader Groups': 'reader-group-design.md'
+
   - Developing Pravega Applications:
       - 'Java API Reference': 'javadoc.md'
       - 'REST API - Controller': 'rest/restapis.md'
@@ -40,6 +61,13 @@ pages:
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
+      - 'Pravega Metrics': 'metrics.md'
+  - Pravega Security:
+      - 'Pravega Authentication/Authorization Plugin': 'auth/auth-plugin.md'
+      - 'Client Auth Interface': 'auth/client-auth.md'
+      - 'Pravega Security Authorization/Authentication': 'security/pravega-security-authorization-authentication.md'
+      - 'Pravega Security Configurations': 'security/pravega-security-configurations.md'
+      - 'pravega Security Encryption': 'security/pravega-security-encryption.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'

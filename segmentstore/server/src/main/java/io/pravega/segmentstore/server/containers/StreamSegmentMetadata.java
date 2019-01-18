@@ -15,6 +15,8 @@ import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -42,7 +44,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final String traceObjectId;
     private final String name;
     private final long streamSegmentId;
-    private final long parentStreamSegmentId;
     private final int containerId;
     @GuardedBy("this")
     private final Map<UUID, Long> coreAttributes;
@@ -61,6 +62,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private boolean deleted;
     @GuardedBy("this")
+    private boolean deletedInStorage;
+    @GuardedBy("this")
     private boolean merged;
     @GuardedBy("this")
     private ImmutableDate lastModified;
@@ -68,13 +71,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long lastUsed;
     @GuardedBy("this")
     private boolean active;
+    @GuardedBy("this")
+    private boolean pinned;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the StreamSegmentMetadata class for a stand-alone StreamSegment.
+     * Creates a new instance of the StreamSegmentMetadata class for a StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment.
      * @param streamSegmentId   The Id of the StreamSegment.
@@ -82,19 +87,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
-        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, containerId);
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentMetadata class for a child (Transaction) StreamSegment.
-     *
-     * @param streamSegmentName     The name of the StreamSegment.
-     * @param streamSegmentId       The Id of the StreamSegment.
-     * @param parentStreamSegmentId The Id of the Parent StreamSegment.
-     * @param containerId           The Id of the Container this StreamSegment belongs to.
-     * @throws IllegalArgumentException If any of the arguments are invalid.
-     */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
@@ -102,11 +94,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
         this.name = streamSegmentName;
         this.streamSegmentId = streamSegmentId;
-        this.parentStreamSegmentId = parentStreamSegmentId;
         this.containerId = containerId;
         this.sealed = false;
         this.sealedInStorage = false;
         this.deleted = false;
+        this.deletedInStorage = false;
         this.merged = false;
         this.startOffset = 0;
         this.storageLength = -1;
@@ -152,11 +144,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public long getParentId() {
-        return this.parentStreamSegmentId;
-    }
-
-    @Override
     public int getContainerId() {
         return this.containerId;
     }
@@ -164,6 +151,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized boolean isMerged() {
         return this.merged;
+    }
+
+    @Override
+    public synchronized boolean isDeletedInStorage() {
+        return this.deletedInStorage;
     }
 
     @Override
@@ -225,7 +217,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             return;
         }
 
-        Preconditions.checkState(!isTransaction(), "Cannot set Start Offset for a Transaction.");
         Exceptions.checkArgument(value >= 0, "value", "StartOffset must be a non-negative number.");
         Exceptions.checkArgument(value >= this.startOffset, "value", "New StartOffset cannot be smaller than the previous one.");
         Exceptions.checkArgument(value <= this.length, "value", "New StartOffset cannot be larger than Length.");
@@ -250,9 +241,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void markSealedInStorage() {
-        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
+        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in Metadata.");
         log.debug("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
+    }
+
+    @Override
+    public synchronized void markMerged() {
+        log.debug("{}: Merged = true.", this.traceObjectId);
+        this.merged = true;
     }
 
     @Override
@@ -262,11 +259,16 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
+    public synchronized void markDeletedInStorage() {
+        Preconditions.checkState(this.deleted, "Cannot mark DeletedInStorage if not Deleted in Metadata.");
+        log.debug("{}: DeletedInStorage = true.", this.traceObjectId);
+        this.deletedInStorage = true;
+    }
 
-        log.debug("{}: Merged = true.", this.traceObjectId);
-        this.merged = true;
+    @Override
+    public synchronized void markPinned() {
+        log.debug("{}: Pinned = true.", this.traceObjectId);
+        this.pinned = true;
     }
 
     @Override
@@ -290,7 +292,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     public synchronized void copyFrom(SegmentMetadata base) {
         Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
         Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
-        Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
 
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
@@ -314,6 +315,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isDeleted()) {
             markDeleted();
+            if (base.isDeletedInStorage()) {
+                markDeletedInStorage();
+            }
+        }
+
+        if (base.isPinned()) {
+            markPinned();
         }
 
         setLastUsed(base.getLastUsed());
@@ -332,6 +340,16 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized boolean isActive() {
         return this.active;
+    }
+
+    @Override
+    public synchronized SegmentProperties getSnapshot() {
+        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
+    }
+
+    @Override
+    public synchronized boolean isPinned() {
+        return this.pinned;
     }
 
     /**

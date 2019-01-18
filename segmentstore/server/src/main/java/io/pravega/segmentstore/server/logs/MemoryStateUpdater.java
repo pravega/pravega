@@ -19,9 +19,9 @@ import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import java.util.HashSet;
@@ -177,12 +177,12 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
                 this.readIndex.append(appendOperation.getStreamSegmentId(),
                         appendOperation.getStreamSegmentOffset(),
                         appendOperation.getData());
-            } else if (operation instanceof MergeTransactionOperation) {
-                // Record a MergeTransactionOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
-                MergeTransactionOperation mergeOperation = (MergeTransactionOperation) operation;
+            } else if (operation instanceof MergeSegmentOperation) {
+                // Record a MergeSegmentOperation. We call beginMerge here, and the StorageWriter will call completeMerge.
+                MergeSegmentOperation mergeOperation = (MergeSegmentOperation) operation;
                 this.readIndex.beginMerge(mergeOperation.getStreamSegmentId(),
                         mergeOperation.getStreamSegmentOffset(),
-                        mergeOperation.getTransactionSegmentId());
+                        mergeOperation.getSourceSegmentId());
             } else {
                 assert !(operation instanceof CachedStreamSegmentAppendOperation)
                         : "attempted to add a CachedStreamSegmentAppendOperation to the ReadIndex";

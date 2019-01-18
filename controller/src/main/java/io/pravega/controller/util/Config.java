@@ -59,13 +59,15 @@ public final class Config {
     private static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
     private static final String TLS_TRUST_STORE = CONFIG.getString("config.controller.server.tlsTrustStore");
     private static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
+    private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR = CONFIG.getBoolean("config.controller.server.replyWithStackTraceOnError");
+    private static final boolean REQUEST_TRACING_ENABLED = CONFIG.getBoolean("config.controller.server.requestTracingEnabled");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
     public static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
     public static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
     public static final int ZK_SESSION_TIMEOUT_MS = CONFIG.getInt("config.controller.server.zk.sessionTimeoutMS");
-
+    public static final boolean SECURE_ZK = CONFIG.getBoolean("config.controller.server.zk.secureConnectionToZooKeeper");
     static {
         Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
         log.info("Controller configuration:");
@@ -79,7 +81,11 @@ public final class Config {
     //Transaction configuration
     public static final long MIN_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.minLeaseValue");
     public static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
-    public static final long MAX_SCALE_GRACE_PERIOD = CONFIG.getLong("config.controller.server.transaction.maxScaleGracePeriod");
+
+    // Completed Transaction TTL
+    public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS = CONFIG.getInt("config.controller.server.transaction.completed.ttlInHours");
+    public static final boolean DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY =
+            CONFIG.getBoolean("config.controller.server.transaction.completed.disableBackwardCompatiblity");
 
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");
@@ -113,7 +119,9 @@ public final class Config {
                 .tlsCertFile(Config.TLS_CERT_FILE)
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
-                                   .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
+                .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
+                .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
+                .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
                 .build();
     }
 

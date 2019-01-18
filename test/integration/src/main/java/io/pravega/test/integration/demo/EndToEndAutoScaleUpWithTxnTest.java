@@ -10,13 +10,11 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -24,10 +22,12 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
@@ -39,6 +39,7 @@ import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,9 +56,9 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Slf4j
 public class EndToEndAutoScaleUpWithTxnTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 1)).build();
+    static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                                 .build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -72,7 +73,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
             @Cleanup
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
@@ -86,22 +87,21 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             @Cleanup
             PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
-                    statsRecorder, null, null, null);
+                    statsRecorder, null, null, null, true);
             server.startListening();
 
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(CONFIG).get();
+            controller.createStream("test", "test", CONFIG).get();
             @Cleanup
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
             // Mocking pravega service by putting scale up and scale down requests for the stream
             EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                               .transactionTimeoutTime(30000)
-                                                              .transactionTimeoutScaleGracePeriod(30000)
                                                               .build();
-            EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(), writerConfig);
+            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(), writerConfig);
 
             // region Successful commit tests
             Transaction<String> txn1 = test.beginTxn();
@@ -115,8 +115,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            controller.scaleStream(stream, Collections.singletonList(0), map, executor).getFuture().get();
-
+            controller.startScale(stream, Collections.singletonList(0L), map).get();
             Transaction<String> txn2 = test.beginTxn();
 
             txn2.writeEvent("2");
@@ -128,7 +127,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             @Cleanup
             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test").build());
+            readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
 
             final EventStreamReader<String> reader = clientFactory.createReader("1",
                     "readergrp",
@@ -148,7 +147,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
                     .throwingOn(RuntimeException.class)
                     .runAsync(() -> controller.getCurrentSegments("test", "test")
                             .thenAccept(streamSegments -> {
-                                if (streamSegments.getSegments().size() > 3) {
+                                if (streamSegments.getSegments().stream().anyMatch(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()) > 5)) {
                                     System.err.println("Success");
                                     log.info("Success");
                                     System.exit(0);
@@ -171,7 +170,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         System.exit(0);
     }
 
-    private static void startWriter(EventStreamWriter<String> test, AtomicBoolean done) {
+    private static void startWriter(TransactionalEventStreamWriter<String> test, AtomicBoolean done) {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {

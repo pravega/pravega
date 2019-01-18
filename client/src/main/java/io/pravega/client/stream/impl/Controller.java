@@ -57,21 +57,24 @@ public interface Controller extends AutoCloseable {
      * exist when the controller executed the operation. In the case of a re-attempt to create
      * the same stream, the future completes with false to indicate that the stream existed when
      * the controller executed the operation.
-     *
+     * 
+     * @param scope Scope
+     * @param streamName Stream name
      * @param streamConfig Stream configuration
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the stream was added because it did not already exist.
      */
-    CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> createStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
      * API to update the configuration of a stream.
-     *
+     * @param scope Scope
+     * @param streamName Stream name
      * @param streamConfig Stream configuration to updated
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the stream was updated because the config is now different from before.
      */
-    CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
@@ -115,7 +118,7 @@ public interface Controller extends AutoCloseable {
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the scaling was started or not.
      */
-    CompletableFuture<Boolean> startScale(final Stream stream, final List<Integer> sealedSegments,
+    CompletableFuture<Boolean> startScale(final Stream stream, final List<Long> sealedSegments,
                                            final Map<Double, Double> newKeyRanges);
 
     /**
@@ -128,7 +131,7 @@ public interface Controller extends AutoCloseable {
      * @param executorService executor to be used for busy waiting.
      * @return A Cancellable request object which can be used to get the future for scale operation or cancel the scale operation.
      */
-    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Integer> sealedSegments,
+    CancellableRequest<Boolean> scaleStream(final Stream stream, final List<Long> sealedSegments,
                                            final Map<Double, Double> newKeyRanges,
                                            final ScheduledExecutorService executorService);
 
@@ -158,11 +161,9 @@ public interface Controller extends AutoCloseable {
      * 
      * @param stream           Stream name
      * @param lease            Time for which transaction shall remain open with sending any heartbeat.
-     * @param scaleGracePeriod Maximum time for which client may extend txn lease once
-     *                         the scaling operation is initiated on the txn stream.
      * @return                 Transaction id.
      */
-    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease, final long scaleGracePeriod);
+    CompletableFuture<TxnSegments> createTransaction(final Stream stream, final long lease);
 
     /**
      * API to send transaction heartbeat and increase the transaction timeout by lease amount of milliseconds.
@@ -223,12 +224,12 @@ public interface Controller extends AutoCloseable {
      * In the event of a scale up the newly created segments contain a subset of the keyspace of the original
      * segment and their only predecessor is the segment that was split. Example: If there are two segments A
      * and B. A scaling event split A into two new segments C and D. The successors of A are C and D. So
-     * calling this method with A would return {C -> A, D -> A}
+     * calling this method with A would return {C &rarr; A, D &rarr; A}
      * 
      * In the event of a scale down there would be one segment the succeeds multiple. So it would contain the
      * union of the keyspace of its predecessors. So calling with that segment would map to multiple segments.
      * Example: If there are two segments A and B. A and B are merged into a segment C. The successor of A is
-     * C. so calling this method with A would return {C -> {A, B}}
+     * C. so calling this method with A would return {C &rarr; {A, B}}
      * 
      * If a segment has not been sealed, it may not have successors now even though it might in the future.
      * The successors to a sealed segment are always known and returned. Example: If there is only one segment

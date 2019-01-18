@@ -11,10 +11,8 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -23,6 +21,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -32,9 +31,9 @@ import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.fault.FailoverSweeper;
-import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
@@ -43,7 +42,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -82,14 +80,14 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final CheckpointStore checkpointStore;
     private final EventProcessorSystem system;
     private final Controller controller;
-    private final ClientFactory clientFactory;
+    private final ClientFactoryImpl clientFactory;
     private final ScheduledExecutorService executor;
 
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
     private EventProcessorGroup<AbortEvent> abortEventProcessors;
     private EventProcessorGroup<ControllerEvent> requestEventProcessors;
     private final StreamRequestHandler streamRequestHandler;
-    private final CommitEventProcessor commitEventProcessor;
+    private final CommitRequestHandler commitRequestHandler;
     private final AbortRequestHandler abortRequestHandler;
 
     public ControllerEventProcessors(final String host,
@@ -97,13 +95,11 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
-                                     final HostControllerStore hostControllerStore,
-                                     final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final ScheduledExecutorService executor) {
-        this(host, config, controller, checkpointStore, streamMetadataStore, hostControllerStore, segmentHelper, connectionFactory,
+        this(host, config, controller, checkpointStore, streamMetadataStore, connectionFactory,
                 streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
     }
 
@@ -113,8 +109,6 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
-                                     final HostControllerStore hostControllerStore,
-                                     final SegmentHelper segmentHelper,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
@@ -133,11 +127,10 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
                 new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                streamMetadataStore,
                 executor);
-        this.commitEventProcessor = new CommitEventProcessor(streamMetadataStore, streamMetadataTasks, hostControllerStore,
-                executor, segmentHelper, connectionFactory);
-        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, hostControllerStore,
-                executor, segmentHelper, connectionFactory);
+        this.commitRequestHandler = new CommitRequestHandler(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        this.abortRequestHandler = new AbortRequestHandler(streamMetadataStore, streamMetadataTasks, executor);
         this.executor = executor;
     }
 
@@ -222,32 +215,26 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private CompletableFuture<Void> createStreams() {
-        StreamConfiguration commitStreamConfig =
-                StreamConfiguration.builder()
-                        .scope(config.getScopeName())
-                        .streamName(config.getCommitStreamName())
-                        .scalingPolicy(config.getCommitStreamScalingPolicy())
-                        .build();
+        StreamConfiguration commitStreamConfig = StreamConfiguration.builder()
+                                                                    .scalingPolicy(config.getCommitStreamScalingPolicy())
+                                                                    .build();
 
-        StreamConfiguration abortStreamConfig =
-                StreamConfiguration.builder()
-                        .scope(config.getScopeName())
-                        .streamName(config.getAbortStreamName())
-                        .scalingPolicy(config.getAbortStreamScalingPolicy())
-                        .build();
+        StreamConfiguration abortStreamConfig = StreamConfiguration.builder()
+                                                                   .scalingPolicy(config.getAbortStreamScalingPolicy())
+                                                                   .build();
 
-        StreamConfiguration requestStreamConfig =
-                StreamConfiguration.builder()
-                        .scope(config.getScopeName())
-                        .streamName(Config.SCALE_STREAM_NAME)
-                        .scalingPolicy(ScalingPolicy.fixed(1))
-                        .build();
+        StreamConfiguration requestStreamConfig = StreamConfiguration.builder()
+                                                                     .scalingPolicy(config.getRequestStreamScalingPolicy())
+                                                                     .build();
 
-        return createScope(config.getScopeName())
-                .thenCompose(ignore ->
-                        CompletableFuture.allOf(createStream(commitStreamConfig),
-                                createStream(abortStreamConfig),
-                                createStream(requestStreamConfig)));
+        String scope = config.getScopeName();
+        CompletableFuture<Void> future = createScope(scope);
+        return future.thenCompose(ignore -> CompletableFuture.allOf(createStream(scope, config.getCommitStreamName(),
+                                                                                 commitStreamConfig),
+                                                                    createStream(scope, config.getAbortStreamName(),
+                                                                                 abortStreamConfig),
+                                                                    createStream(scope, Config.SCALE_STREAM_NAME,
+                                                                                 requestStreamConfig)));
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
@@ -257,12 +244,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
     }
 
-    private CompletableFuture<Void> createStream(final StreamConfiguration streamConfig) {
+    private CompletableFuture<Void> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
-                                   .runAsync(() -> controller.createStream(streamConfig)
+                e -> log.warn("Error creating event processor stream " + streamName, e))
+                                   .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
-                                        log.info("Created stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName())),
+                                        log.info("Created stream {}/{}", scope, streamName)),
                         executor));
     }
 
@@ -332,7 +319,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .streamName(config.getCommitStreamName())
                         .readerGroupName(config.getCommitReaderGroupName())
                         .eventProcessorCount(config.getCommitReaderGroupSize())
-                        .checkpointConfig(config.getCommitCheckpointConfig())
+                        .checkpointConfig(CheckpointConfig.none())
                         .build();
 
         EventProcessorConfig<CommitEvent> commitConfig =
@@ -340,7 +327,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .config(commitReadersConfig)
                         .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
                         .serializer(COMMIT_EVENT_SERIALIZER)
-                        .supplier(() -> this.commitEventProcessor)
+                        .supplier(() -> new ConcurrentEventProcessor<>(commitRequestHandler, executor))
                         .build();
 
         log.info("Creating commit event processors");
@@ -360,7 +347,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .streamName(config.getAbortStreamName())
                         .readerGroupName(config.getAbortReaderGroupName())
                         .eventProcessorCount(config.getAbortReaderGroupSize())
-                        .checkpointConfig(config.getAbortCheckpointConfig())
+                        .checkpointConfig(CheckpointConfig.none())
                         .build();
 
         EventProcessorConfig<AbortEvent> abortConfig =
@@ -388,7 +375,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .streamName(config.getRequestStreamName())
                         .readerGroupName(config.getRequestReaderGroupName())
                         .eventProcessorCount(1)
-                        .checkpointConfig(config.getRequestStreamCheckpointConfig())
+                        .checkpointConfig(CheckpointConfig.none())
                         .build();
 
         EventProcessorConfig<ControllerEvent> requestConfig =

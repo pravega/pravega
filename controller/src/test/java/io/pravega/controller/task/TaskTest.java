@@ -15,16 +15,18 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
-import io.pravega.controller.store.stream.Segment;
-import io.pravega.controller.store.stream.StartScaleResponse;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.tables.State;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaggedResource;
@@ -42,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -77,7 +80,7 @@ public class TaskTest {
     private static final String SCOPE = "scope";
     private final String stream1 = "stream1";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+    private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private final StreamMetadataStore streamStore;
@@ -91,6 +94,8 @@ public class TaskTest {
     private final StreamMetadataTasks streamMetadataTasks;
     private final SegmentHelper segmentHelperMock;
     private final CuratorFramework cli;
+    private Map<Long, Map.Entry<Double, Double>> segmentsCreated;
+    private final RequestTracker requestTracker = new RequestTracker(true);
 
     public TaskTest() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -107,7 +112,7 @@ public class TaskTest {
                 executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
                                                                           .controllerURI(URI.create("tcp://localhost"))
                                                                           .build()),
-                false, "");
+                AuthHelper.getDisabledAuthHelper(), requestTracker);
     }
 
     @Before
@@ -115,8 +120,8 @@ public class TaskTest {
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
         // region createStream
         streamStore.createScope(SCOPE).join();
@@ -131,24 +136,33 @@ public class TaskTest {
 
         AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments = Collections.singletonList(1);
-        StartScaleResponse response = streamStore.startScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, false, null, executor).get();
-        List<Segment> segmentsCreated = response.getSegmentsCreated();
-        streamStore.setState(SCOPE, stream1, State.SCALING, null, executor).get();
-        streamStore.scaleCreateNewSegments(SCOPE, stream1, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream1, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), null, executor).get();
+        List<Long> sealedSegments = Collections.singletonList(1L);
+        VersionedMetadata<EpochTransitionRecord> versioned = streamStore.submitScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, null, executor).get();
+        EpochTransitionRecord response = versioned.getObject();
+        segmentsCreated = response.getNewSegmentsWithRange();
+        VersionedMetadata<State> state = streamStore.getVersionedState(SCOPE, stream1, null, executor).join();
+        state = streamStore.updateVersionedState(SCOPE, stream1, State.SCALING, state, null, executor).get();
+        versioned = streamStore.startScale(SCOPE, stream1, false, versioned, state, null, executor).join();
+        streamStore.scaleCreateNewEpochs(SCOPE, stream1, versioned, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream1, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned, null, executor).get();
+        streamStore.completeScale(SCOPE, stream1, versioned, null, executor).join();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
 
         AbstractMap.SimpleEntry<Double, Double> segment3 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
         AbstractMap.SimpleEntry<Double, Double> segment4 = new AbstractMap.SimpleEntry<>(0.5, 0.75);
         AbstractMap.SimpleEntry<Double, Double> segment5 = new AbstractMap.SimpleEntry<>(0.75, 1.0);
-        List<Integer> sealedSegments1 = Arrays.asList(0, 1, 2);
-        response = streamStore.startScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, false, null, executor).get();
-        segmentsCreated = response .getSegmentsCreated();
-        streamStore.setState(SCOPE, stream2, State.SCALING, null, executor).get();
-        streamStore.scaleNewSegmentsCreated(SCOPE, stream2, null, executor).get();
-        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)),
+        List<Long> sealedSegments1 = Arrays.asList(0L, 1L, 2L);
+        versioned = streamStore.submitScale(SCOPE, stream2, sealedSegments1, Arrays.asList(segment3, segment4, segment5), start + 20, null, null, executor).get();
+        response = versioned.getObject();
+        segmentsCreated = response.getNewSegmentsWithRange();
+        state = streamStore.getVersionedState(SCOPE, stream2, null, executor).join();
+        state = streamStore.updateVersionedState(SCOPE, stream2, State.SCALING, state, null, executor).get();
+        versioned = streamStore.startScale(SCOPE, stream2, false, versioned, state, null, executor).join();
+        streamStore.scaleCreateNewEpochs(SCOPE, stream2, versioned, null, executor).get();
+        streamStore.scaleSegmentsSealed(SCOPE, stream2, sealedSegments1.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).get();
+        streamStore.completeScale(SCOPE, stream2, versioned, null, executor).join();
+        streamStore.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
         // endregion
     }
 
@@ -164,7 +178,7 @@ public class TaskTest {
     @Test
     public void testMethods() throws InterruptedException, ExecutionException {
         CreateStreamStatus.Status status = streamMetadataTasks.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis()).join();
-        assertTrue(status.equals(CreateStreamStatus.Status.STREAM_EXISTS));
+        assertEquals(CreateStreamStatus.Status.STREAM_EXISTS, status);
         streamStore.createScope(SCOPE);
         CreateStreamStatus.Status result = streamMetadataTasks.createStream(SCOPE, "dummy", configuration1,
                 System.currentTimeMillis()).join();
@@ -177,7 +191,7 @@ public class TaskTest {
         final String deadThreadId = UUID.randomUUID().toString();
         final String scope = SCOPE;
         final String stream = "streamSweeper";
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         final Resource resource = new Resource(scope, stream);
         final long timestamp = System.currentTimeMillis();
@@ -203,8 +217,6 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream, null, executor).get();
-        assertTrue(config.getStreamName().equals(configuration.getStreamName()));
-        assertTrue(config.getScope().equals(configuration.getScope()));
         assertTrue(config.getScalingPolicy().equals(configuration.getScalingPolicy()));
     }
 
@@ -214,18 +226,17 @@ public class TaskTest {
         final String deadHost = "deadHost";
         final int initialSegments = 2;
         final ScalingPolicy policy1 = ScalingPolicy.fixed(initialSegments);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder()
-                .scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final ArrayList<Integer> sealSegments = new ArrayList<>();
-        sealSegments.add(0);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final ArrayList<Long> sealSegments = new ArrayList<>();
+        sealSegments.add(0L);
         final ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.25, 0.5));
 
         // Create objects.
         @Cleanup
-        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                segmentHelperMock, executor, deadHost, Mockito.mock(ConnectionFactory.class),  false, "");
+        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, deadHost, Mockito.mock(ConnectionFactory.class),  AuthHelper.getDisabledAuthHelper(), requestTracker);
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 
@@ -234,12 +245,13 @@ public class TaskTest {
                 deadHost, sweeper);
         Assert.assertEquals(initialSegments, streamStore.getActiveSegments(SCOPE, stream, null, executor).join().size());
 
-        List<StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
-        Assert.assertTrue(streams.stream().allMatch(x -> !x.getStreamName().equals(stream)));
+        Map<String, StreamConfiguration> streams = streamStore.listStreamsInScope(SCOPE).join();
+        assertEquals(3, streams.size());
+        assertEquals(configuration1, streams.get(stream));
     }
 
     private <T> void completePartialTask(CompletableFuture<T> task, String hostId, TaskSweeper sweeper) {
-        AssertExtensions.assertThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
+        AssertExtensions.assertFutureThrows("IllegalStateException expected", task, e -> e instanceof IllegalStateException);
         sweeper.handleFailedProcess(hostId).join();
         Optional<TaggedResource> child = taskMetadataStore.getRandomChild(hostId).join();
         assertFalse(child.isPresent());
@@ -255,8 +267,8 @@ public class TaskTest {
         final String stream1 = "parallelSweeper1";
         final String stream2 = "parallelSweeper2";
 
-        final StreamConfiguration config1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
-        final StreamConfiguration config2 = StreamConfiguration.builder().scope(SCOPE).streamName(stream2).scalingPolicy(policy1).build();
+        final StreamConfiguration config1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration config2 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         final Resource resource1 = new Resource(scope, stream1);
         final long timestamp1 = System.currentTimeMillis();
@@ -301,10 +313,10 @@ public class TaskTest {
 
         // ensure that the stream streamSweeper is created
         StreamConfiguration config = streamStore.getConfiguration(SCOPE, stream1, null, executor).get();
-        assertTrue(config.getStreamName().equals(stream1));
+        assertEquals(config1, config);
 
         config = streamStore.getConfiguration(SCOPE, stream2, null, executor).get();
-        assertTrue(config.getStreamName().equals(stream2));
+        assertEquals(config2, config);
     }
 
     @Test

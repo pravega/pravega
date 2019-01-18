@@ -9,8 +9,11 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -70,8 +73,6 @@ public class ControllerStreamMetadataTest {
             this.controllerWrapper.awaitRunning();
             this.controller = controllerWrapper.getController();
             this.streamConfiguration = StreamConfiguration.builder()
-                    .scope(SCOPE)
-                    .streamName(STREAM)
                     .scalingPolicy(ScalingPolicy.fixed(1))
                     .build();
         } catch (Exception e) {
@@ -109,13 +110,13 @@ public class ControllerStreamMetadataTest {
         assertTrue(controller.deleteScope(SCOPE).join());
 
         // Try creating a stream. It should fail, since the scope does not exist.
-        assertFalse(Futures.await(controller.createStream(streamConfiguration)));
+        assertFalse(Futures.await(controller.createStream(SCOPE, STREAM, streamConfiguration)));
 
         // Again create the scope.
         assertTrue(controller.createScope(SCOPE).join());
 
         // Try creating the stream again. It should succeed now, since the scope exists.
-        assertTrue(controller.createStream(streamConfiguration).join());
+        assertTrue(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
 
         // Delete test scope. This operation should fail, since it is not empty.
         assertFalse(Futures.await(controller.deleteScope(SCOPE)));
@@ -124,7 +125,7 @@ public class ControllerStreamMetadataTest {
         assertFalse(controller.createScope(SCOPE).join());
 
         // Try creating already existing stream.
-        assertFalse(controller.createStream(streamConfiguration).join());
+        assertFalse(controller.createStream(SCOPE, STREAM, streamConfiguration).join());
 
         // Delete test stream. This operation should fail, since it is not yet SEALED.
         assertFalse(Futures.await(controller.deleteStream(SCOPE, STREAM)));
@@ -148,9 +149,7 @@ public class ControllerStreamMetadataTest {
         assertFalse(Futures.await(controller.createScope("abc/def")));
 
         // Try creating stream with invalid characters. It should fail.
-        assertFalse(Futures.await(controller.createStream(StreamConfiguration.builder()
-                                                                             .scope(SCOPE)
-                                                                             .streamName("abc/def")
+        assertFalse(Futures.await(controller.createStream(SCOPE, "abc/def", StreamConfiguration.builder()
                                                                              .scalingPolicy(ScalingPolicy.fixed(1))
                                                                              .build())));
     }
@@ -158,7 +157,9 @@ public class ControllerStreamMetadataTest {
     @Test(timeout = 10000)
     public void streamManagerImpltest() {
         @Cleanup
-        StreamManager streamManager = new StreamManagerImpl(controller);
+        ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        StreamManager streamManager = new StreamManagerImpl(controller, cf);
 
         // Create and delete scope
         assertTrue(streamManager.createScope(SCOPE));

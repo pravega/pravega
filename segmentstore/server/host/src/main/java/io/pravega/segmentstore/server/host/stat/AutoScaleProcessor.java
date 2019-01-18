@@ -16,13 +16,14 @@ import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalListeners;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
@@ -33,16 +34,18 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.extern.slf4j.Slf4j;
+import java.util.function.Supplier;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
 
 /**
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
  * If a scale has to be triggered, then it puts a new scale request into the request stream.
  */
-@Slf4j
 public class AutoScaleProcessor {
+
+    private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleProcessor.class));
 
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
@@ -51,7 +54,7 @@ public class AutoScaleProcessor {
     private static final int MAX_CACHE_SIZE = 1000000;
     private static final int INITIAL_CAPACITY = 1000;
 
-    private final AtomicReference<ClientFactory> clientFactory = new AtomicReference<>();
+    private final AtomicReference<EventStreamClientFactory> clientFactory = new AtomicReference<>();
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final Cache<String, Pair<Long, Long>> cache;
     private final Serializer<AutoScaleEvent> serializer;
@@ -59,6 +62,8 @@ public class AutoScaleProcessor {
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
     private final ScheduledExecutorService maintenanceExecutor;
+    private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
+
 
     AutoScaleProcessor(AutoScalerConfig configuration,
                        ScheduledExecutorService maintenanceExecutor) {
@@ -92,7 +97,7 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(AutoScalerConfig configuration, ClientFactory cf,
+    AutoScaleProcessor(AutoScalerConfig configuration, EventStreamClientFactory cf,
                        ScheduledExecutorService maintenanceExecutor) {
         this(configuration, maintenanceExecutor);
         clientFactory.set(cf);
@@ -113,15 +118,15 @@ public class AutoScaleProcessor {
                 })
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
-                        ClientFactory factory = null;
+                        EventStreamClientFactory factory = null;
                         if (configuration.isAuthEnabled()) {
-                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                            factory = EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
-                                                .credentials(new DefaultCredentials(configuration.getAuthPassword(), configuration.getAuthUsername()))
                                                 .trustStore(configuration.getTlsCertFile())
+                                                .validateHostName(configuration.isValidateHostName())
                                                 .build());
                         } else {
-                            factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                            factory = EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
                         }
                         clientFactory.compareAndSet(null, factory);
@@ -151,12 +156,13 @@ public class AutoScaleProcessor {
             }
 
             long timestamp = System.currentTimeMillis();
-
+            long requestId = requestIdGenerator.get();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info("sending request for scale up for {}", streamSegmentName);
+                log.info(requestId, "sending request for scale up for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber(), AutoScaleEvent.UP, timestamp, numOfSplits, false);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
+                        AutoScaleEvent.UP, timestamp, numOfSplits, false, requestId);
                 // Mute scale for timestamp for both scale up and down
                 writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
@@ -173,12 +179,13 @@ public class AutoScaleProcessor {
             }
 
             long timestamp = System.currentTimeMillis();
+            long requestId = requestIdGenerator.get();
             if (timestamp - lastRequestTs > configuration.getMuteDuration().toMillis()) {
-                log.info("sending request for scale down for {}", streamSegmentName);
+                log.info(requestId, "sending request for scale down for {}", streamSegmentName);
 
                 Segment segment = Segment.fromScopedName(streamSegmentName);
-                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(),
-                        segment.getSegmentNumber(), AutoScaleEvent.DOWN, timestamp, 0, silent);
+                AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
+                        AutoScaleEvent.DOWN, timestamp, 0, silent, requestId);
                 writeRequest(event).thenAccept(x -> {
                     if (!silent) {
                         // mute only scale downs
@@ -192,9 +199,9 @@ public class AutoScaleProcessor {
     private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
         return writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
             if (e != null) {
-                log.error("error sending request to requeststream {}", e);
+                log.error(event.getTimestamp(), "error sending request to requeststream {}", e);
             } else {
-                log.debug("scale event posted successfully");
+                log.debug(event.getTimestamp(), "scale event posted successfully");
             }
         });
     }

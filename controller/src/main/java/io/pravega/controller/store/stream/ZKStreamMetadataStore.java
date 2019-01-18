@@ -9,15 +9,22 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.lang.AtomicInt96;
+import io.pravega.common.lang.Int96;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.retention.BucketChangeListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.server.retention.BucketOwnershipListener.BucketNotification;
 import io.pravega.controller.store.index.ZKHostIndex;
-import io.pravega.controller.store.stream.tables.Data;
 import io.pravega.controller.util.Config;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
@@ -26,9 +33,12 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.ZKPaths;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,30 +54,181 @@ import static io.pravega.controller.server.retention.BucketChangeListener.Stream
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    private final ZKStoreHelper storeHelper;
+class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
+    @VisibleForTesting
+    /**
+     * This constant defines the size of the block of counter values that will be used by this controller instance.
+     * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
+     * by incrementing it by COUNTER_RANGE. If it is able to update the new value successfully, then this controller
+     * can safely use the block `previous-value-in-store + 1` to `previous-value-in-store + COUNTER_RANGE` No other controller
+     * will use this range for transaction id generation as it will be unique assigned to current controller.
+     * If controller crashes, all unused values go to waste. In worst case we may lose COUNTER_RANGE worth of values everytime
+     * a controller crashes.
+     * Since we use a 96 bit number for our counter, so
+     */
+    static final int COUNTER_RANGE = 10000;
+    static final String COUNTER_PATH = "/counter";
+    static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
+    static final String BUCKET_ROOT_PATH = "/buckets";
+    static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
+    static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
+    private static final String RETENTION_PATH = BUCKET_PATH + "/%s";
+    private static final String TRANSACTION_ROOT_PATH = "/transactions";
+    private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
+    static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
+    static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
+    static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
+    static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private ZKStoreHelper storeHelper;
     private final ConcurrentMap<Integer, PathChildrenCache> bucketCacheMap;
     private final AtomicReference<PathChildrenCache> bucketOwnershipCacheRef;
+    private final Object lock;
+    @GuardedBy("lock")
+    private final AtomicInt96 limit;
+    @GuardedBy("lock")
+    private final AtomicInt96 counter;
+    @GuardedBy("lock")
+    private volatile CompletableFuture<Void> refreshFutureRef;
+
+    private final ZKGarbageCollector completedTxnGC;
 
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         this (client, Config.BUCKET_COUNT, executor);
     }
 
+    @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, int bucketCount, Executor executor) {
+        this(client, bucketCount, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
+    }
+
+    @VisibleForTesting
+    ZKStreamMetadataStore(CuratorFramework client, int bucketCount, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor), bucketCount);
-        initialize();
         storeHelper = new ZKStoreHelper(client, executor);
         bucketCacheMap = new ConcurrentHashMap<>();
         bucketOwnershipCacheRef = new AtomicReference<>();
+        this.lock = new Object();
+        this.counter = new AtomicInt96();
+        this.limit = new AtomicInt96();
+        this.refreshFutureRef = null;
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
+        this.completedTxnGC.startAsync();
+        this.completedTxnGC.awaitRunning();
     }
 
-    private void initialize() {
-        METRICS_PROVIDER.start();
+    private CompletableFuture<Void> gcCompletedTxn() {
+        return storeHelper.getChildren(COMPLETED_TX_BATCH_ROOT_PATH)
+                .thenApply(children -> {
+                            // retain latest two and delete remainder.
+                            List<Long> list = children.stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                            if (list.size() > 2) {
+                                return list.subList(0, list.size() - 2);
+                            } else {
+                                return new ArrayList<Long>();
+                            }
+                        }
+                )
+                .thenCompose(toDeleteList -> {
+                    log.debug("deleting batches {} on new scheme" + toDeleteList);
+
+                    // delete all those marked for toDelete.
+                    return Futures.allOf(toDeleteList.stream()
+                            .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
+                            .collect(Collectors.toList()));
+                });
     }
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper);
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
+    }
+
+    @Override
+    CompletableFuture<Int96> getNextCounter() {
+        CompletableFuture<Int96> future;
+        synchronized (lock) {
+            Int96 next = counter.incrementAndGet();
+            if (next.compareTo(limit.get()) > 0) {
+                // ignore the counter value and after refreshing call getNextCounter
+                future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter());
+            } else {
+                future = CompletableFuture.completedFuture(next);
+            }
+        }
+        return future;
+    }
+
+    @Override
+    Version getEmptyVersion() {
+        return Version.IntVersion.EMPTY;
+    }
+
+    @Override
+    Version parseVersionData(byte[] data) {
+        return Version.IntVersion.fromBytes(data);
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> refreshRangeIfNeeded() {
+        CompletableFuture<Void> refreshFuture;
+        synchronized (lock) {
+            // Ensure that only one background refresh is happening. For this we will reference the future in refreshFutureRef
+            // If reference future ref is not null, we will return the reference to that future.
+            // It is set to null when refresh completes.
+            refreshFuture = this.refreshFutureRef;
+            if (this.refreshFutureRef == null) {
+                // no ongoing refresh, check if refresh is still needed
+                if (counter.get().compareTo(limit.get()) >= 0) {
+                    log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+
+                    // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
+                    // concurrent thread can start the refresh future.
+                    refreshFutureRef = getRefreshFuture()
+                            .exceptionally(e -> {
+                                // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
+                                synchronized (lock) {
+                                    refreshFutureRef = null;
+                                }
+                                log.warn("Exception thrown while trying to refresh transaction counter range", e);
+                                throw new CompletionException(e);
+                            });
+                    // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
+                    // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
+                    // future from here.
+                    refreshFuture = refreshFutureRef;
+                } else {
+                    // nothing to do
+                    refreshFuture = CompletableFuture.completedFuture(null);
+                }
+            }
+        }
+        return refreshFuture;
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> getRefreshFuture() {
+        return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH)
+                        .thenCompose(data -> {
+                            Int96 previous = Int96.fromBytes(data.getData());
+                            Int96 nextLimit = previous.add(COUNTER_RANGE);
+                            return storeHelper.setData(COUNTER_PATH, new Data(nextLimit.toBytes(), data.getVersion()))
+                                    .thenAccept(x -> {
+                                        // Received new range, we should reset the counter and limit under the lock
+                                        // and then reset refreshfutureref to null
+                                        synchronized (lock) {
+                                            // Note: counter is set to previous range's highest value. Always get the
+                                            // next counter by calling counter.incrementAndGet otherwise there will
+                                            // be a collision with counter used by someone else.
+                                            counter.set(previous.getMsb(), previous.getLsb());
+                                            limit.set(nextLimit.getMsb(), nextLimit.getLsb());
+                                            refreshFutureRef = null;
+                                            log.info("Refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
+                                        }
+                                    });
+                        }));
     }
 
     @Override
@@ -100,6 +261,22 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
+        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
+                          .handleAsync((data, ex) -> {
+                              if (ex == null) {
+                                  return BitConverter.readInt(data.getData(), 0) + 1;
+                              } else if (ex instanceof StoreException.DataNotFoundException) {
+                                  return 0;
+                              } else {
+                                  log.error("Problem found while getting a safe starting segment number for {}.",
+                                          getScopedStreamName(scopeName, streamName), ex);
+                                  throw new CompletionException(ex);
+                              }
+                          });
+    }
+
+    @Override
     @SneakyThrows
     public void registerBucketOwnershipListener(BucketOwnershipListener listener) {
         Preconditions.checkNotNull(listener);
@@ -121,7 +298,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
         };
 
-        bucketOwnershipCacheRef.compareAndSet(null, new PathChildrenCache(storeHelper.getClient(), ZKStoreHelper.BUCKET_OWNERSHIP_PATH, true));
+        bucketOwnershipCacheRef.compareAndSet(null, new PathChildrenCache(storeHelper.getClient(), BUCKET_OWNERSHIP_PATH, true));
 
         bucketOwnershipCacheRef.get().getListenable().addListener(bucketListener);
         bucketOwnershipCacheRef.get().start(PathChildrenCache.StartMode.BUILD_INITIAL_CACHE);
@@ -168,7 +345,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
             }
         };
 
-        String bucketRoot = String.format(ZKStoreHelper.BUCKET_PATH, bucket);
+        String bucketRoot = String.format(BUCKET_PATH, bucket);
 
         bucketCacheMap.put(bucket, new PathChildrenCache(storeHelper.getClient(), bucketRoot, true));
         PathChildrenCache pathChildrenCache = bucketCacheMap.get(bucket);
@@ -195,7 +372,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         Preconditions.checkArgument(bucket < bucketCount);
 
         // try creating an ephemeral node
-        String bucketPath = ZKPaths.makePath(ZKStoreHelper.BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
+        String bucketPath = ZKPaths.makePath(BUCKET_OWNERSHIP_PATH, String.valueOf(bucket));
 
         return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
                 .thenCompose(created -> {
@@ -212,7 +389,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<List<String>> getStreamsForBucket(int bucket, Executor executor) {
-        return storeHelper.getChildren(String.format(ZKStoreHelper.BUCKET_PATH, bucket))
+        return storeHelper.getChildren(String.format(BUCKET_PATH, bucket))
                 .thenApply(list -> list.stream().map(this::decodedScopedStreamName).collect(Collectors.toList()));
     }
 
@@ -221,7 +398,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                                                                    final OperationContext context, final Executor executor) {
         Preconditions.checkNotNull(retentionPolicy);
         int bucket = getBucket(scope, stream);
-        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
+        String retentionPath = String.format(RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
         byte[] serialize = SerializationUtils.serialize(retentionPolicy);
 
         return storeHelper.getData(retentionPath)
@@ -233,9 +410,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     }
                 }).thenCompose(data -> {
                     if (data == null) {
-                        return storeHelper.createZNodeIfNotExist(retentionPath, serialize);
+                        return Futures.toVoid(storeHelper.createZNodeIfNotExist(retentionPath, serialize));
                     } else {
-                        return storeHelper.setData(retentionPath, new Data<>(serialize, data.getVersion()));
+                        return Futures.toVoid(storeHelper.setData(retentionPath, new Data(serialize, data.getVersion())));
                     }
                 });
     }
@@ -244,7 +421,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Void> removeStreamFromAutoStreamCut(final String scope, final String stream,
                                                                  final OperationContext context, final Executor executor) {
         int bucket = getBucket(scope, stream);
-        String retentionPath = String.format(ZKStoreHelper.RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
+        String retentionPath = String.format(RETENTION_PATH, bucket, encodedScopedStreamName(scope, stream));
 
         return storeHelper.deleteNode(retentionPath)
                 .exceptionally(e -> {
@@ -253,6 +430,68 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                     } else {
                         throw new CompletionException(e);
                     }
+                });
+    }
+
+    @Override
+    CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
+                                                    OperationContext context, final Executor executor) {
+        final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
+        byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
+        BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
+        return storeHelper.getData(deletePath)
+                          .exceptionally(e -> {
+                              if (e instanceof StoreException.DataNotFoundException) {
+                                  return null;
+                              } else {
+                                  throw new CompletionException(e);
+                              }
+                          })
+                          .thenCompose(data -> {
+                              log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+                              if (data == null) {
+                                  return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
+                              } else {
+                                  final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
+                                  Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
+                                          "Old last active segment ({}) for {}/{} is higher than current one {}.",
+                                          oldLastActiveSegment, scope, stream, lastActiveSegment);
+                                  return Futures.toVoid(storeHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
+                              }
+                          });
+    }
+
+    /**
+     * When managing the Controller's metadata in Zookeeper, we explicitly create parent bucket zNodes (so they are of
+     * type "zNode"). Otherwise, they may be inadvertently created as Zookeeper "containers" by Curator. This would lead
+     * these zNodes to be candidates for automatic removal by Zookeeper if they become empty. For more information on
+     * the use of Zookeeper containers in Curator recipes, visit: https://curator.apache.org/curator-recipes/index.html
+     */
+    @Override
+    public CompletableFuture<Void> createBucketsRoot() {
+        return initializeZNode(BUCKET_ROOT_PATH)
+                .thenCompose(v -> initializeZNode(BUCKET_OWNERSHIP_PATH))
+                .thenCompose(v -> {
+                    List<CompletableFuture<Void>> initializationFutures = new ArrayList<>();
+                    for (int bucket = 0; bucket < bucketCount; bucket++) {
+                        final String bucketPath = String.format(BUCKET_PATH, bucket);
+                        initializationFutures.add(initializeZNode(bucketPath));
+                    }
+                    return Futures.allOf(initializationFutures);
+                });
+    }
+
+    private CompletableFuture<Void> initializeZNode(String zNodePath) {
+        return storeHelper.createZNodeIfNotExist(zNodePath).handle(
+                (v, ex) -> {
+                    if (ex == null) {
+                        log.debug("Stream bucket correctly initialized: {}.", zNodePath);
+                    } else if (Exceptions.unwrap(ex) instanceof StoreException.DataExistsException) {
+                        log.debug("Stream bucket already initialized: {}.", zNodePath);
+                    } else {
+                        throw new CompletionException("Unexpected exception initializing Stream bucket.", ex);
+                    }
+                    return null;
                 });
     }
 
@@ -270,4 +509,39 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         String[] splits = scopedStream.split("/");
         return new StreamImpl(splits[0], splits[1]);
     }
+
+    // region getters and setters for testing
+    @VisibleForTesting
+    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
+        synchronized (lock) {
+            limit.set(limitMsb, limitLsb);
+            counter.set(counterMsb, counterLsb);
+        }
+    }
+
+    @VisibleForTesting
+    Int96 getLimitForTesting() {
+        synchronized (lock) {
+            return limit.get();
+        }
+    }
+
+    @VisibleForTesting
+    Int96 getCounterForTesting() {
+        synchronized (lock) {
+            return counter.get();
+        }
+    }
+
+    @VisibleForTesting
+    public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
+        this.storeHelper = storeHelper;
+    }
+
+    @Override
+    public void close() throws Exception {
+        completedTxnGC.stopAsync();
+        completedTxnGC.awaitTerminated();
+    }
+    // endregion
 }

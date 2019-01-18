@@ -12,7 +12,10 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
@@ -24,7 +27,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
@@ -36,12 +38,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Getter;
+import org.apache.commons.lang3.NotImplementedException;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 
 public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     private final String scope;
+    @Getter
     private final ConnectionFactoryImpl connectionFactory;
     private final MockController controller;
     @Getter
@@ -67,40 +71,30 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public StreamInfo getStreamInfo(String scopeName, String streamName) {
+        throw new NotImplementedException("getStreamInfo");
+    }
+
+    @Override
     public boolean createStream(String scopeName, String streamName, StreamConfiguration config) {
         NameUtils.validateUserStreamName(streamName);
         if (config == null) {
             config = StreamConfiguration.builder()
-                                        .scope(scopeName)
-                                        .streamName(streamName)
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
-
-        return Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .build()),
-                RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.createStream(scopeName, streamName, config), RuntimeException::new);
     }
 
     @Override
     public boolean updateStream(String scopeName, String streamName, StreamConfiguration config) {
         if (config == null) {
             config = StreamConfiguration.builder()
-                                        .scope(scopeName)
-                                        .streamName(streamName)
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build();
         }
 
-        return Futures.getAndHandleExceptions(controller.updateStream(StreamConfiguration.builder()
-                                                                                         .scope(scopeName)
-                                                                                         .streamName(streamName)
-                                                                                         .scalingPolicy(config.getScalingPolicy())
-                                                                                         .build()),
-                RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.updateStream(scopeName, streamName, config), RuntimeException::new);
     }
 
     @Override
@@ -112,11 +106,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     private Stream createStreamHelper(String streamName, StreamConfiguration config) {
-        Futures.getAndHandleExceptions(controller.createStream(StreamConfiguration.builder()
-                                                                                  .scope(scope)
-                                                                                  .streamName(streamName)
-                                                                                  .scalingPolicy(config.getScalingPolicy())
-                                                                                  .build()),
+        Futures.getAndHandleExceptions(controller.createStream(scope, streamName, config),
                 RuntimeException::new);
         return new StreamImpl(scope, streamName);
     }
@@ -137,12 +127,10 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
         NameUtils.validateReaderGroupName(groupName);
         createStreamHelper(NameUtils.getStreamForReaderGroup(groupName),
                 StreamConfiguration.builder()
-                                   .scope(scope)
-                                   .streamName(NameUtils.getStreamForReaderGroup(groupName))
                                    .scalingPolicy(ScalingPolicy.fixed(1)).build());
         @Cleanup
         StateSynchronizer<ReaderGroupState> synchronizer = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup(groupName),
-                                              new JavaSerializer<>(), new JavaSerializer<>(), SynchronizerConfig.builder().build());
+                                              new ReaderGroupStateUpdatesSerializer(), new ReaderGroupStateInitSerializer(), SynchronizerConfig.builder().build());
         Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
 
         synchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments, getEndSegmentsForStreams(config)));
@@ -157,8 +145,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public ReaderGroup getReaderGroup(String groupName) {
         SynchronizerConfig synchronizerConfig = SynchronizerConfig.builder().build();
-        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new JavaSerializer<>(),
-                new JavaSerializer<>(), clientFactory, controller, connectionFactory);
+        return new ReaderGroupImpl(scope, groupName, synchronizerConfig, new ReaderGroupStateInitSerializer(),
+                                   new ReaderGroupStateUpdatesSerializer(), clientFactory, controller,
+                                   connectionFactory);
     }
 
     @Override
@@ -168,8 +157,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public void deleteReaderGroup(String groupName) {
-        Futures.getAndHandleExceptions(controller.deleteStream(scope,
-                                                                     NameUtils.getStreamForReaderGroup(groupName)),
-                                             RuntimeException::new);
+        Futures.getAndHandleExceptions(controller.deleteStream(scope, NameUtils.getStreamForReaderGroup(groupName)),
+                                       RuntimeException::new);
     }
 }

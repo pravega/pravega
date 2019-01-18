@@ -16,9 +16,11 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -48,6 +50,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -68,6 +71,7 @@ public class IntermittentCnxnFailureTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private SegmentHelper segmentHelperMock;
+    private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
     public void setup() throws Exception {
@@ -88,12 +92,11 @@ public class IntermittentCnxnFailureTest {
                 anyString(), anyString(), anyInt(), any());
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore,
-                taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, false, "");
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, false, "");
+                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
@@ -113,11 +116,11 @@ public class IntermittentCnxnFailureTest {
     @Test
     public void createStreamTest() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // start stream creation in background/asynchronously.
         // the connection to server will fail and should be retried
-        controllerService.createStream(configuration1, System.currentTimeMillis());
+        controllerService.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
 
         // Stream should not have been created and while trying to access any stream metadata
         // we should get illegalStateException
@@ -137,7 +140,7 @@ public class IntermittentCnxnFailureTest {
 
         // Mock createSegment to return success.
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any());
+                anyString(), anyString(), anyInt(), any(), any(), any(), any(), anyLong());
 
         AtomicBoolean result = new AtomicBoolean(false);
         Retry.withExpBackoff(10, 10, 4)

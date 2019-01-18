@@ -16,6 +16,10 @@ import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.val;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -25,9 +29,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Map;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.val;
 
 /**
  * Custom serializer base class that supports backward and forward compatibility.
@@ -53,7 +54,7 @@ import lombok.val;
  * * Older code will read as many revisions as it knows about, so even if newer code encodes B revisions, older code that
  * only knows about A < B revisions will only read the first A revisions, ignoring the rest. Similarly, newer code that
  * knows about B revisions will be able to handle A < B revisions by reading as much as is available.
- * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions > A.
+ * ** It is the responsibility of the calling code to fill-in-the-blanks for newly added fields in revisions &gt; A.
  * * Once published, the format for a Version-Revision should never change, otherwise existing (older) code will not be
  * able to process that serialization.
  *
@@ -474,7 +475,7 @@ public abstract class VersionedSerializer<T> {
      *
      * Example:
      * <pre>
-     * {@code
+     *
      * class Attribute {
      *    private final Long value;
      *    private final Long lastUsed;
@@ -484,13 +485,13 @@ public abstract class VersionedSerializer<T> {
      * }
      *
      * class AttributeSerializer extends VersionedSerializer.WithBuilder<Attribute, Attribute.AttributeBuilder> {
-     *    @Override
+     *    {@literal @}Override
      *    protected byte getWriteVersion() { return 0; } // Version we're serializing at.
      *
-     *    @Override
+     *    {@literal @}Override
      *    protected Attribute.AttributeBuilder newBuilder() { return Attribute.builder(); }
      *
-     *    @Override
+     *    {@literal @}Override
      *    protected void declareVersions() {
      *        version(0).revision(0, this::write00, this::read00);
      *    }
@@ -499,7 +500,7 @@ public abstract class VersionedSerializer<T> {
      *
      *    private void read00(RevisionDataInput input, Attribute.AttributeBuilder target) throws IOException { ... }
      * }
-     * }
+     *
      * </pre>
      *
      * @param <TargetType> Type of the object to serialize from.
@@ -690,6 +691,17 @@ public abstract class VersionedSerializer<T> {
             return (BaseType) si.serializer.deserializeContents(stream);
         }
 
+        /**
+         * Deserializes data from the given ArrayView and creates a new object with the result.
+         *
+         * @param data The ArrayView to deserialize from.
+         * @return A new instance of TargetType with the deserialized data.
+         * @throws IOException If an IO Exception occurred.
+         */
+        public BaseType deserialize(ArrayView data) throws IOException {
+            return deserialize(data.getReader());
+        }
+        
         @RequiredArgsConstructor
         private static class SerializerInfo {
             final Class<?> type;

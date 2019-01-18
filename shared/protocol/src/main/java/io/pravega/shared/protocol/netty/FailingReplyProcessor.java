@@ -16,7 +16,6 @@ import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
-import io.pravega.shared.protocol.netty.WireCommands.NoSuchTransaction;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
@@ -27,10 +26,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionAborted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCommitted;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionCreated;
-import io.pravega.shared.protocol.netty.WireCommands.TransactionInfo;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentsMerged;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import lombok.extern.slf4j.Slf4j;
 
@@ -84,11 +80,6 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void noSuchTransaction(NoSuchTransaction noSuchTxn) {
-        throw new IllegalStateException("No such Transaction: " + noSuchTxn.txn);
-    }
-
-    @Override
     public void invalidEventNumber(InvalidEventNumber invalidEventNumber) {
         throw new IllegalStateException("Invalid event number: " + invalidEventNumber);
     }
@@ -129,31 +120,15 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void transactionInfo(TransactionInfo transactionInfo) {
-        throw new IllegalStateException("Unexpected operation: " + transactionInfo);
-    }
-
-    
-    @Override
     public void segmentCreated(SegmentCreated streamsSegmentCreated) {
         throw new IllegalStateException("Unexpected operation: " + streamsSegmentCreated);
     }
 
     @Override
-    public void transactionCreated(TransactionCreated transactionCreated) {
-        throw new IllegalStateException("Unexpected operation: " + transactionCreated);
+    public void segmentsMerged(SegmentsMerged segmentsMerged) {
+        throw new IllegalStateException("Unexpected operation: " + segmentsMerged);
     }
 
-    @Override
-    public void transactionCommitted(TransactionCommitted transactionCommitted) {
-        throw new IllegalStateException("Unexpected operation: " + transactionCommitted);
-    }
-
-    @Override
-    public void transactionAborted(TransactionAborted transactionAborted) {
-        throw new IllegalStateException("Unexpected operation: " + transactionAborted);
-    }
-    
     @Override
     public void segmentSealed(SegmentSealed segmentSealed) {
         throw new IllegalStateException("Unexpected operation: " + segmentSealed);

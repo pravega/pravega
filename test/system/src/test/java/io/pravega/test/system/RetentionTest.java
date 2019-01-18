@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -20,7 +19,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -43,18 +41,19 @@ import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class RetentionTest {
+public class RetentionTest extends AbstractSystemTest {
 
     private static final String STREAM = "testRetentionStream";
     private static final String SCOPE = "testRetentionScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -65,12 +64,9 @@ public class RetentionTest {
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(2);
     private final RetentionPolicy retentionPolicy = RetentionPolicy.byTime(Duration.ofMinutes(1));
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(STREAM).scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).retentionPolicy(retentionPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;
-
-
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -79,43 +75,10 @@ public class RetentionTest {
      */
     @Environment
     public static void initialize() throws MarathonException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega controller service details: {}", conUris);
-
-        //4.start segmentstore
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
@@ -128,19 +91,24 @@ public class RetentionTest {
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
 
+    @After
+    public void tearDown() {
+        streamManager.close();
+    }
+
     @Test
     public void retentionTest() throws Exception {
+        final ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURI).build();
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(
-                ClientConfig.builder().controllerURI(controllerURI).build())
-                .build(),
-                 connectionFactory.getInternalExecutor());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
+                                                       connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
         //create a writer
+        @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM,
                 new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -151,7 +119,7 @@ public class RetentionTest {
         writer.flush();
         log.debug("Writing event: {} ", writeEvent);
 
-        //sleep for 4 mins
+        //sleep for 5 mins
         Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         //create a reader
@@ -161,10 +129,6 @@ public class RetentionTest {
                 READER_GROUP,
                 new JavaSerializer<>(),
                 ReaderConfig.builder().build());
-
-        //try reading the event that was written earlier.
-        //expectation is it should have been truncated and we should find stream to be empty
-        assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(6000));
 
         //verify reader functionality is unaffected post truncation
         String event = "newEvent";

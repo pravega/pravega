@@ -10,7 +10,8 @@
 package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
@@ -118,7 +119,7 @@ public class BoundedStreamReaderTest {
         createStream(STREAM2);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
@@ -165,12 +166,47 @@ public class BoundedStreamReaderTest {
     }
 
     @Test(timeout = 60000)
+    public void testReaderGroupWithSameBounds() throws Exception {
+        createScope(SCOPE);
+        createStream(STREAM1);
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        @Cleanup
+        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
+                                                                            EventWriterConfig.builder().build());
+        // 1. Prep the stream with data.
+        // Write events with event size of 30
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(1)).get();
+        writer1.writeEvent(keyGenerator.get(), getEventData.apply(2)).get();
+
+        // 2. Create a StreamCut Pointing to offset 30L
+        StreamCut streamCut = getStreamCut(STREAM1, 30L, 0);
+
+        // 3. Create a ReaderGroup where the lower and upper bound are the same.
+        @Cleanup
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        groupManager.createReaderGroup("group", ReaderGroupConfig
+                .builder().disableAutomaticCheckpoints()
+                .stream(Stream.of(SCOPE, STREAM1), streamCut, streamCut)
+                .build());
+
+        // 4. Create a reader
+        @Cleanup
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "group", serializer,
+                                                                      ReaderConfig.builder().build());
+
+        // 5. Verify if configuration is enforced.
+        Assert.assertNull("Null is expected", reader.readNextEvent(1000).getEvent());
+    }
+
+    @Test(timeout = 60000)
     public void testBoundedStreamWithScaleTest() throws Exception {
         createScope(SCOPE);
         createStream(STREAM1);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
@@ -236,7 +272,7 @@ public class BoundedStreamReaderTest {
         createStream(STREAM3);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM3, serializer,
                 EventWriterConfig.builder().build());
@@ -325,17 +361,15 @@ public class BoundedStreamReaderTest {
     private void createStream(String streamName) throws Exception {
         Controller controller = controllerWrapper.getController();
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controller.createStream(config).get();
+        controller.createStream(SCOPE, streamName, config).get();
     }
 
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
         Stream stream = Stream.of(SCOPE, streamName);
         Controller controller = controllerWrapper.getController();
-        assertTrue(controller.scaleStream(stream, Collections.singletonList(0), keyRanges, executor).getFuture().get());
+        assertTrue(controller.scaleStream(stream, Collections.singletonList(0L), keyRanges, executor).getFuture().get());
     }
 
     private void truncateStream(final String streamName, final StreamCut streamCut) throws Exception {

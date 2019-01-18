@@ -10,7 +10,7 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
-import io.pravega.client.stream.impl.UnboundedStreamCut;
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
@@ -26,8 +26,34 @@ public interface StreamCut extends Serializable {
      * This is used represents an unbounded StreamCut. This is used when the user wants to refer to the current HEAD
      * of the stream or the current TAIL of the stream.
      */
-    StreamCut UNBOUNDED = new UnboundedStreamCut();
+    public static final StreamCut UNBOUNDED = new StreamCut() {
+        private static final long serialVersionUID = 1L;
 
+        @Override
+        public ByteBuffer toBytes() {
+            return ByteBuffer.allocate(0);
+        }
+
+        @Override
+        public String asText() {
+            return toString();
+        }
+
+        @Override
+        public StreamCutInternal asImpl() {
+            return null;
+        }
+
+        @Override
+        public String toString() {
+            return "UNBOUNDED";
+        }
+        
+        private Object readResolve() {
+            return UNBOUNDED;
+        }
+    };
+    
     /**
      * Used internally. Do not call.
      *
@@ -39,10 +65,30 @@ public interface StreamCut extends Serializable {
      * Serializes the cut to a compact byte array.
      */
     ByteBuffer toBytes();
-    
+
+    /**
+     * Obtains the compact base64 string representation of StreamCut.
+     *
+     * @return Base64 representation of the StreamCut.
+     */
+    String asText();
+
+    /**
+     * Obtains the a StreamCut object from its Base64 representation obtained via {@link StreamCut#asText()}.
+     *
+     * @param base64String Base64 representation of StreamCut obtained using {@link StreamCut#asText()}
+     * @return The StreamCut object
+     */
+    static StreamCut from(String base64String) {
+        if (base64String.equals(UNBOUNDED.asText())) {
+            return UNBOUNDED;
+        }
+        return StreamCutInternal.from(base64String);
+    }
+
     /**
      * Deserializes the cut from its serialized from obtained from calling {@link #toBytes()}.
-     * 
+     *
      * @param cut A serialized position.
      * @return The StreamCut object.
      */
@@ -52,4 +98,5 @@ public interface StreamCut extends Serializable {
         }
         return StreamCutInternal.fromBytes(cut);
     }
+
 }

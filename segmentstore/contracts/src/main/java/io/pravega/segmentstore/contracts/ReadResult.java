@@ -12,8 +12,11 @@ package io.pravega.segmentstore.contracts;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.io.StreamHelpers;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import lombok.SneakyThrows;
 
 /**
@@ -98,5 +101,29 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
         }
 
         return bytesRead;
+    }
+
+    /**
+     * Reads the remaining contents of the ReadResult and returns an ordered List of InputStreams that contain its contents.
+     * This will stop when either the given maximum length or the end of the ReadResult has been reached.
+     *
+     * @param maxLength    The maximum number of bytes to read.
+     * @param fetchTimeout A timeout to use when needing to fetch the contents of an entry that is not in the Cache.
+     * @return A List containing InputStreams with the data read.
+     */
+    default List<InputStream> readRemaining(int maxLength, Duration fetchTimeout) {
+        int bytesRead = 0;
+        ArrayList<InputStream> result = new ArrayList<>();
+        while (hasNext() && bytesRead < maxLength) {
+            ReadResultEntry entry = next();
+            if (entry.getType() == ReadResultEntryType.EndOfStreamSegment || entry.getType() == ReadResultEntryType.Future) {
+                // Reached the end.
+                break;
+            } else if (!entry.getContent().isDone()) {
+                entry.requestContent(fetchTimeout);
+            }
+            result.add(entry.getContent().join().getData());
+        }
+        return result;
     }
 }

@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.Map;
 import org.junit.Test;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -85,6 +86,35 @@ public class CheckpointStateTest {
         assertEquals("3", state.getCheckpointForReader("a"));
         assertEquals("3", state.getCheckpointForReader("b"));
         assertFalse(state.getPositionsForLatestCompletedCheckpoint().isPresent());
+    }
+
+    @Test
+    public void testOutstandingCheckpoint() {
+        CheckpointState state = new CheckpointState();
+        state.beginNewCheckpoint("1", ImmutableSet.of("a"), Collections.emptyMap());
+        state.beginNewCheckpoint("2", ImmutableSet.of("a"), Collections.emptyMap());
+        state.beginNewCheckpoint("3" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
+        state.beginNewCheckpoint("4", ImmutableSet.of("a"), Collections.emptyMap());
+        // Silent checkpoint should not be counted as part of CheckpointState#getOutstandingCheckpoints.
+        assertEquals(3, state.getOutstandingCheckpoints());
+
+        //Complete checkpoint "2"
+        state.readerCheckpointed("2", "a", ImmutableMap.of(getSegment("S1"), 1L));
+        assertTrue(state.isCheckpointComplete("2"));
+        assertEquals( ImmutableMap.of(getSegment("S1"), 1L), state.getPositionsForCompletedCheckpoint("2"));
+        state.clearCheckpointsBefore("2");
+        // All check points before checkpoint id "2" are completed.
+        assertTrue(state.isCheckpointComplete("1"));
+        // Only checkpoint "4" is outstanding as checkpoints "1" and "2" are complete and silent checkpoints are ignored.
+        assertEquals(1, state.getOutstandingCheckpoints());
+
+        state.readerCheckpointed("3" + SILENT, "a", Collections.emptyMap());
+        assertTrue(state.isCheckpointComplete("4" + SILENT));
+        assertEquals(1, state.getOutstandingCheckpoints()); // Checkpoint 4 is outstanding.
+
+        state.readerCheckpointed("4", "a", Collections.emptyMap());
+        assertTrue(state.isCheckpointComplete("4"));
+        assertEquals(0, state.getOutstandingCheckpoints());
     }
 
     private Segment getSegment(String name) {

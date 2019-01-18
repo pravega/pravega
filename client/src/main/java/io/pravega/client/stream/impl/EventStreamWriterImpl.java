@@ -20,6 +20,7 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.Transaction.Status;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -49,7 +50,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  */
 @Slf4j
 @ToString(of = { "stream", "closed" })
-public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
+public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, TransactionalEventStreamWriter<Type> {
 
     /**
      * These two locks are used to enforce the following behavior:
@@ -117,7 +118,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                     handleMissingLog();
                     segmentWriter = selector.getSegmentOutputStreamForKey(routingKey);
                 }
-                segmentWriter.write(new PendingEvent(routingKey, data, ackFuture));
+                segmentWriter.write(PendingEvent.withHeader(routingKey, data, ackFuture));
             }
         }
         return ackFuture;
@@ -150,6 +151,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                       */
                      synchronized (writeSealLock) {
                          Segment toSeal = sealedSegmentQueue.poll();
+                         log.info("Sealing segment {} ", toSeal);
                          while (toSeal != null) {
                              resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
                              /* In the case of segments merging Flush ensures there can't be anything left
@@ -158,6 +160,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
                               */
                              flushInternal();
                              toSeal = sealedSegmentQueue.poll();
+                             log.info("Sealing another segment {} ", toSeal);
                          }
                      }
                      return null;
@@ -292,16 +295,20 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
 
     }
 
+    /**
+     * Moved to {@link TransactionalEventStreamWriterImpl}.
+     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
+     */
     @Override
+    @Deprecated
     public Transaction<Type> beginTxn() {
-        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime(),
-                                                                                      config.getTransactionTimeoutScaleGracePeriod()),
-                                                         RuntimeException::new);
+        TxnSegments txnSegments = getAndHandleExceptions(controller.createTransaction(stream, config.getTransactionTimeoutTime()),
+                RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    segmentSealedCallBack, config, txnSegments.getSteamSegments().getDelegationToken());
+                    config, txnSegments.getSteamSegments().getDelegationToken());
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
@@ -309,7 +316,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         return new TransactionImpl<Type>(txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
     }
     
+    /**
+     * Moved to {@link TransactionalEventStreamWriterImpl}.
+     * @deprecated Moved to {@link TransactionalEventStreamWriterImpl}
+     */
     @Override
+    @Deprecated
     public Transaction<Type> getTxn(UUID txId) {
         StreamSegments segments = getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new);
@@ -320,7 +332,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type> {
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, segmentSealedCallBack, config, segments.getDelegationToken());
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

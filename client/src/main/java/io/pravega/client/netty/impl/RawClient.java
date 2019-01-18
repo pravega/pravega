@@ -9,10 +9,10 @@
  */
 package io.pravega.client.netty.impl;
 
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
@@ -35,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class RawClient implements AutoCloseable {
 
     private final CompletableFuture<ClientConnection> connection;
+    private final Segment segmentId;
     
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -76,8 +77,9 @@ public class RawClient implements AutoCloseable {
     }
     
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
-        connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                               .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+        this.segmentId = segmentId;
+        this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
+                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -92,7 +94,11 @@ public class RawClient implements AutoCloseable {
     }
     
     private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
+        if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
+            log.debug("Closing connection to segment {} with exception {}", this.segmentId, exceptionToInflightRequests);
+        } else {
+            log.warn("Closing connection to segment {} with exception: {}", this.segmentId, exceptionToInflightRequests);
+        }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
                 try {

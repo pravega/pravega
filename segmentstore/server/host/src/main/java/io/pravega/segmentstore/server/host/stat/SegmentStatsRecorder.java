@@ -48,7 +48,7 @@ public interface SegmentStatsRecorder {
     /**
      * Method to notify merge of transaction.
      *
-     * @param streamSegmentName parent segment.
+     * @param streamSegmentName target segment.
      * @param dataLength        data in transactional segment.
      * @param numOfEvents       events in transactional segment.
      * @param txnCreationTime   transaction creation time.

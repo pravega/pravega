@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Assert;
@@ -56,7 +55,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
 
         try {
-            final String dockerApiVersion = Exceptions.handleInterrupted(() -> client.version().apiVersion());
+            final String dockerApiVersion = Exceptions.handleInterruptedCall(() -> client.version().apiVersion());
             if (!(VersionCompare.compareVersion(dockerApiVersion, expectedDockerApiVersion) >= 0)) {
                 throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Docker API doesnt match." +
                         "Cannot Invoke Tests.Excepected = " + expectedDockerApiVersion + "Actual = " + dockerApiVersion);
@@ -77,7 +76,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
         }).thenCompose(v2 -> waitForJobCompletion())
                 .<Void>thenApply(v1 -> {
                     try {
-                        if (Exceptions.handleInterrupted(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {
+                        if (Exceptions.handleInterruptedCall(() -> client.inspectContainer(id.get()).state().exitCode() != 0)) {
                             throw new AssertionError("Test failed "
                                     + className + "#" + methodName);
                         }
@@ -92,8 +91,6 @@ public class DockerBasedTestExecutor implements TestExecutor {
                         log.error("Error while executing the test. ClassName: {}, MethodName: {}", className,
                                 methodName);
                     }
-                    //Wait for half a minute between test runs.
-                    Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(30));
                 });
     }
 
@@ -115,7 +112,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
     private boolean isTestRunning() {
         boolean value = false;
         try {
-            if (Exceptions.handleInterrupted(() -> client.inspectContainer(this.id.get()).state().running())) {
+            if (Exceptions.handleInterruptedCall(() -> client.inspectContainer(this.id.get()).state().running())) {
                 value = true;
             }
         } catch (DockerException e) {
@@ -129,7 +126,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
         try {
             Exceptions.handleInterrupted(() -> client.pull(IMAGE));
 
-            ContainerCreation containerCreation = Exceptions.handleInterrupted(() -> client.
+            ContainerCreation containerCreation = Exceptions.handleInterruptedCall(() -> client.
                     createContainer(setContainerConfig(methodName, className), containerName));
             assertFalse(containerCreation.id().toString().equals(null));
 
@@ -144,7 +141,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                         "to the container.Test failure", e);
             }
 
-            String networkId = Exceptions.handleInterrupted(() -> client.listNetworks(DockerClient.ListNetworksParam.
+            String networkId = Exceptions.handleInterruptedCall(() -> client.listNetworks(DockerClient.ListNetworksParam.
                     byNetworkName(DOCKER_NETWORK)).get(0).id());
             //Container should be connect to the user-defined overlay network to communicate with all the services deployed.
             Exceptions.handleInterrupted(() -> client.connectToNetwork(id.get(), networkId));

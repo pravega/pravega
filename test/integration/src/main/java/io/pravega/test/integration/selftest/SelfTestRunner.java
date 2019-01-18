@@ -130,6 +130,8 @@ public class SelfTestRunner {
                 .builder()
                 .include(ServiceConfig.builder()
                                       .with(ServiceConfig.THREAD_POOL_SIZE, 30)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 600)
+                                      .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
                                       .with(ServiceConfig.CERT_FILE, "../config/cert.pem")
                                       .with(ServiceConfig.KEY_FILE, "../config/key.pem"))
                 .include(DurableLogConfig.builder()
@@ -137,8 +139,6 @@ public class SelfTestRunner {
                                          .with(DurableLogConfig.CHECKPOINT_MIN_COMMIT_COUNT, 100)
                                          .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 100 * 1024 * 1024L))
                 .include(ReadIndexConfig.builder()
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_TIME, 600 * 1000)
-                                        .with(ReadIndexConfig.CACHE_POLICY_MAX_SIZE, 4 * 1024 * 1024 * 1024L)
                                         .with(ReadIndexConfig.MEMORY_READ_MIN_LENGTH, 128 * 1024))
                 .include(ContainerConfig.builder()
                                         .with(ContainerConfig.SEGMENT_METADATA_EXPIRATION_SECONDS,

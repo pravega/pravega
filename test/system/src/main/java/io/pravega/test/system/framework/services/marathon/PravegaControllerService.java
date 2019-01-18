@@ -34,8 +34,8 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9092;
-    private static final int REST_PORT = 10080;
+    public static final int CONTROLLER_PORT = 9092;
+    public static final int REST_PORT = 10080;
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.5;
@@ -130,7 +130,6 @@ public class PravegaControllerService extends MarathonBasedService {
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
                 setSystemProperty("MAX_LEASE_VALUE", String.valueOf(60 * 1000)) +
-                setSystemProperty("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000)) +
                 setSystemProperty("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);

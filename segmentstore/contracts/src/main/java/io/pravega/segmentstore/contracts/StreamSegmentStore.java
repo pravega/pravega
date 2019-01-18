@@ -111,7 +111,9 @@ public interface StreamSegmentStore {
      * @param maxLength         The maximum number of bytes to read.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain a ReadResult instance that can be used to
-     * consume the read data. If the operation failed, the future will be failed with the causing exception.
+     * consume the read data. If the operation failed, the future will be failed with the causing exception. The future
+     * will be failed with a {@link java.util.concurrent.CancellationException} if the segment container is shutting down
+     * or the segment is evicted from memory.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
@@ -150,29 +152,16 @@ public interface StreamSegmentStore {
     CompletableFuture<Void> createStreamSegment(String streamSegmentName, Collection<AttributeUpdate> attributes, Duration timeout);
 
     /**
-     * Creates a new Transaction and maps it to a Parent StreamSegment.
+     * Merges a StreamSegment into another. If the StreamSegment is not already sealed, it will seal it.
      *
-     * @param parentStreamSegmentName The name of the Parent StreamSegment to create a transaction for.
-     * @param transactionId           A unique identifier for the transaction to be created.
-     * @param attributes              A Collection of Attribute-Values to set on the newly created Transaction. May be null.
-     *                                See Notes about AttributeUpdates in the interface Javadoc.
-     * @param timeout                 Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will contain the name of the newly created transaction.
-     * If the operation failed, the future will be failed with the causing exception.
+     * @param targetSegmentName The name of the StreamSegment to merge into.
+     * @param sourceSegmentName The name of the StreamSegment to merge.
+     * @param timeout           Timeout for the operation.
+     * @return A CompletableFuture that, when completed normally, will contain a SegmentProperties instance with the last known
+     * state of the source Segment. If the operation failed, the future will be failed with the causing exception.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout);
-
-    /**
-     * Merges a Sealed Transaction into its parent StreamSegment.
-     *
-     * @param transactionName The name of the Transaction StreamSegment to merge.
-     * @param timeout         Timeout for the operation.
-     * @return A CompletableFuture that, when completed normally, will indicate the operation completed. If the operation
-     * failed, the future will be failed with the causing exception.
-     * @throws IllegalArgumentException If any of the arguments are invalid.
-     */
-    CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout);
+    CompletableFuture<SegmentProperties> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout);
 
     /**
      * Seals a StreamSegment for modifications.

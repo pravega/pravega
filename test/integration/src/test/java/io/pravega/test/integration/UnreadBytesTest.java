@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
@@ -98,17 +98,15 @@ public class UnreadBytesTest {
     @Test(timeout = 50000)
     public void testUnreadBytes() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("unreadbytes")
-                .streamName("unreadbytes")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
 
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream(config).get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -139,6 +137,10 @@ public class UnreadBytesTest {
         CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
+        
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        assertEquals(false, emptyEvent.isCheckpoint());
+        assertEquals(null, emptyEvent.getEvent());
         chkPointResult.join();
 
         unreadBytes = readerGroup.getMetrics().unreadBytes();
@@ -153,17 +155,15 @@ public class UnreadBytesTest {
     @Test(timeout = 50000)
     public void testUnreadBytesWithEndStreamCuts() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("unreadbytes")
-                                                        .streamName("unreadbytes")
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
 
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream(config).get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -194,6 +194,11 @@ public class UnreadBytesTest {
         CompletableFuture<Checkpoint> chkPointResult = readerGroup.initiateCheckpoint("test", executor);
         EventRead<String> chkpointEvent = reader.readNextEvent(15000);
         assertEquals("test", chkpointEvent.getCheckpointName());
+        
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        assertEquals(false, emptyEvent.isCheckpoint());
+        assertEquals(null, emptyEvent.getEvent());
+        
         chkPointResult.join();
 
         //Writer events, to ensure 120Bytes are written.

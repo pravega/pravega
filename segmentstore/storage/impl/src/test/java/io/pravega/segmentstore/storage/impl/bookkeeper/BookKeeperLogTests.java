@@ -95,6 +95,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .zkPort(BK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
                                             .secureBK(isSecure())
+                                            .secureZK(isSecure())
+                                            .tlsTrustStore("../../../config/bookie.truststore.jks")
                                             .tLSKeyStore("../../../config/bookie.keystore.jks")
                                             .tLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd")
                                             .bookiePorts(bookiePorts)
@@ -203,7 +205,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
                 // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
                 // WriteFailureException (general unable to write) should be thrown.
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "First write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
@@ -213,7 +215,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                 || ex instanceof CancellationException);
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Second write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof ObjectClosedException

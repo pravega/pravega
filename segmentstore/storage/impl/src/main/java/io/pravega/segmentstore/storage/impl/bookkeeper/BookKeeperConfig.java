@@ -32,7 +32,7 @@ public class BookKeeperConfig {
     public static final Property<Integer> ZK_HIERARCHY_DEPTH = Property.named("zkHierarchyDepth", 2);
     public static final Property<Integer> MAX_WRITE_ATTEMPTS = Property.named("maxWriteAttempts", 5);
     public static final Property<Integer> BK_ENSEMBLE_SIZE = Property.named("bkEnsembleSize", 3);
-    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 3);
+    public static final Property<Integer> BK_ACK_QUORUM_SIZE = Property.named("bkAckQuorumSize", 2);
     public static final Property<Integer> BK_WRITE_QUORUM_SIZE = Property.named("bkWriteQuorumSize", 3);
     public static final Property<Integer> BK_WRITE_TIMEOUT = Property.named("bkWriteTimeoutMillis", 5000);
     public static final Property<Integer> BK_READ_TIMEOUT = Property.named("readTimeoutMillis", 5000);
@@ -41,6 +41,7 @@ public class BookKeeperConfig {
     public static final Property<String> BK_LEDGER_PATH = Property.named("bkLedgerPath", "");
     public static final Property<Boolean> BK_TLS_ENABLED = Property.named("tlsEnabled", false);
     public static final Property<String> TLS_TRUST_STORE_PATH = Property.named("tlsTrustStorePath", "config/client.truststore.jks");
+    public static final Property<String> TLS_TRUST_STORE_PASSWORD_PATH = Property.named("tlsTrustStorePasswordPath", "");
 
     public static final String COMPONENT_CODE = "bookkeeper";
     /**
@@ -140,6 +141,9 @@ public class BookKeeperConfig {
     @Getter
     private final String tlsTrustStore;
 
+    @Getter
+    private final String tlsTrustStorePasswordPath;
+
     //endregion
 
     //region Constructor
@@ -175,7 +179,8 @@ public class BookKeeperConfig {
         this.bkLedgerMaxSize = properties.getInt(BK_LEDGER_MAX_SIZE);
         this.bkPassword = properties.get(BK_PASSWORD).getBytes(Charset.forName("UTF-8"));
         this.isTLSEnabled = properties.getBoolean(BK_TLS_ENABLED);
-        tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
+        this.tlsTrustStore = properties.get(TLS_TRUST_STORE_PATH);
+        this.tlsTrustStorePasswordPath = properties.get(TLS_TRUST_STORE_PASSWORD_PATH);
     }
 
     /**

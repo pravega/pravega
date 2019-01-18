@@ -60,6 +60,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
         String readerName = "reader";
@@ -84,7 +85,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
         producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.beginTxn();
@@ -129,6 +129,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -148,7 +149,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
         Transaction<String> transaction = producer.beginTxn();
         transaction.writeEvent(routingKey, event);
@@ -157,6 +157,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";
         String groupName = "group";
@@ -179,7 +180,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
 
         Transaction<String> transaction = producer.beginTxn();

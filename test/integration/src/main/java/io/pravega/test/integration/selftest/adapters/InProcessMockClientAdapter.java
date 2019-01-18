@@ -10,7 +10,7 @@
 
 package io.pravega.test.integration.selftest.adapters;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.Futures;
@@ -93,7 +93,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     }
 
     @Override
-    protected ClientFactory getClientFactory() {
+    protected EventStreamClientFactory getClientFactory() {
         return this.streamManager.getClientFactory();
     }
 
@@ -165,27 +165,22 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
 
         @Override
         public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("read");
         }
 
         @Override
-        public CompletableFuture<String> createTransaction(String parentStreamSegmentName, UUID transactionId, Collection<AttributeUpdate> attributes, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
-        }
-
-        @Override
-        public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+        public CompletableFuture<SegmentProperties> mergeStreamSegment(String target, String source, Duration timeout) {
+            throw new UnsupportedOperationException("mergeStreamSegment");
         }
 
         @Override
         public CompletableFuture<Long> sealStreamSegment(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("sealStreamSegment");
         }
 
         @Override
         public CompletableFuture<Void> deleteStreamSegment(String streamSegmentName, Duration timeout) {
-            throw new UnsupportedOperationException("updateAttributes");
+            throw new UnsupportedOperationException("deleteStreamSegment");
         }
 
         @Override

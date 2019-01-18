@@ -287,8 +287,8 @@ class DataFrameBuilder<T extends SequencedItemList.Element> implements AutoClose
 
         @Override
         public String toString() {
-            return String.format("LastFullySerializedSN = %d, LastStartedSN = %d, Address = %s, Length = %d",
-                    getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress, getDataFrameLength());
+            return String.format("TxnId = %d, LastFullySerializedSN = %d, LastStartedSN = %d, Address = %s, Length = %d",
+                    getMetadataTransactionId(), getLastFullySerializedSequenceNumber(), getLastStartedSequenceNumber(), this.logAddress, getDataFrameLength());
         }
     }
 

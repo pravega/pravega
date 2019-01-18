@@ -41,10 +41,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
-import lombok.Lombok;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -329,7 +328,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                     // But first, fail any Operations that we did not have a chance to process yet.
                     cancelIncompleteOperations(operations, ex);
-                    throw Lombok.sneakyThrow(ex);
+                    throw Exceptions.sneakyThrow(ex);
                 }
             }
         }
@@ -645,7 +644,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             }
 
-            assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
+            if (!checkpointExists) {
+                // Under normal circumstances, there should always be an UpdateTransaction that matches our argument;
+                // however if we had just processed a failure, collectFailureCandidates() may have cleared (and failed)
+                // all of them, so, only in that case, would it be OK not to find one.
+                log.warn("{}: No Metadata UpdateTransaction found for '{}' (Count={}). This is expected after a critical failure or when OperationProcessor is shutting down.",
+                        traceObjectId, this.metadataTransactions.size(), commitArgs);
+
+                // If a failure did happen, then there should be no other entries in metadataTransactions at this point.
+                assert this.metadataTransactions.isEmpty() : "No Metadata UpdateTransaction found for given CommitArgs, "
+                        + "but there are still entries in metadataTransaction.";
+            }
             return toAck;
         }
 

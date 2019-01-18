@@ -53,11 +53,11 @@ public class StorageWriterFactory implements WriterFactory {
 
     @Override
     public Writer createWriter(UpdateableContainerMetadata containerMetadata, OperationLog operationLog, ReadIndex readIndex,
-                               ContainerAttributeIndex attributeIndex, Storage storage) {
+                               ContainerAttributeIndex attributeIndex, Storage storage, CreateProcessors createProcessors) {
         Preconditions.checkArgument(containerMetadata.getContainerId() == operationLog.getId(),
                 "Given containerMetadata and operationLog have different Container Ids.");
         WriterDataSource dataSource = new StorageWriterDataSource(containerMetadata, operationLog, readIndex, attributeIndex);
-        return new StorageWriter(this.config, dataSource, storage, this.executor);
+        return new StorageWriter(this.config, dataSource, storage, createProcessors, this.executor);
     }
 
     //region StorageWriterDataSource
@@ -97,7 +97,7 @@ public class StorageWriterFactory implements WriterFactory {
             TimeoutTimer timer = new TimeoutTimer(timeout);
             return this.attributeIndex
                     .forSegment(streamSegmentId, timer.getRemaining())
-                    .thenCompose(ai -> ai.put(attributes, timer.getRemaining()));
+                    .thenCompose(ai -> ai.update(attributes, timer.getRemaining()));
         }
 
         @Override
@@ -110,7 +110,7 @@ public class StorageWriterFactory implements WriterFactory {
 
         @Override
         public CompletableFuture<Void> deleteAllAttributes(SegmentMetadata segmentMetadata, Duration timeout) {
-            return this.attributeIndex.delete(segmentMetadata, timeout);
+            return this.attributeIndex.delete(segmentMetadata.getName(), timeout);
         }
 
         @Override

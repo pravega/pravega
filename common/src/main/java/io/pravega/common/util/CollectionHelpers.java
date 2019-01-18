@@ -42,6 +42,10 @@ public final class CollectionHelpers {
      * @return The index of the sought item, or -1 if not found.
      */
     public static <T> int binarySearch(List<? extends T> list, Function<? super T, Integer> comparator) {
+        return binarySearch(list, comparator, false);
+    }
+
+    private static <T> int binarySearch(List<? extends T> list, Function<? super T, Integer> comparator, boolean findGreatestLowerBound) {
         int start = 0;
         int end = list.size() - 1;
 
@@ -52,6 +56,12 @@ public final class CollectionHelpers {
             if (compareResult < 0) {
                 end = midIndex - 1;
             } else if (compareResult > 0) {
+                if (findGreatestLowerBound) {
+                    T next = list.size() > midIndex + 1 ? list.get(midIndex + 1) : null;
+                    if (next == null || (comparator.apply(next) < 0)) {
+                        return midIndex;
+                    }
+                }
                 start = midIndex + 1;
             } else {
                 return midIndex;
@@ -59,6 +69,19 @@ public final class CollectionHelpers {
         }
 
         return -1;
+    }
+
+    /**
+     * Performs a binary search on the given sorted list to find the greatest lower bound for the supplied element.
+     * @param list list to search in
+     * @param comparator A bifunction comparator that compares elements in list of type T to value of type U
+     * @param <T> Type of elements in the list
+     * @return returns index of element in the list is greatest lower bound for the given value.
+     * If value is not found, this returns -1
+     */
+    public static <T> int findGreatestLowerBound(final List<? extends T> list, Function<? super T, Integer> comparator) {
+        Preconditions.checkArgument(!list.isEmpty(), "supplied list is empty");
+        return binarySearch(list, comparator, true);
     }
 
     /**

@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -51,16 +50,15 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     private static final int NUM_READERS = 2;
     private static final int TOTAL_NUM_WRITERS = INIT_NUM_WRITERS + ADD_NUM_WRITERS;
 
-    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
+    //The execution time for @Before + @After + @Test methods should be less than 30 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(25 * 60);
+    public Timeout globalTimeout = Timeout.seconds(30 * 60);
 
     private final String scope = "testReadWriteAndAutoScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
-    private ClientFactory clientFactory;
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private ClientFactoryImpl clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
 
@@ -68,8 +66,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 3);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 3);
     }
 
     @Before
@@ -88,9 +86,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
@@ -109,11 +105,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         controller = new ControllerImpl(ControllerImplConfig.builder()
                                                             .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
                                                             .maxBackoffMillis(5000).build(),
-
                                         controllerExecutorService);
         testState = new TestState(false);
-        testState.writersListComplete.add(0, testState.writersComplete);
-        testState.writersListComplete.add(1, testState.newWritersComplete);
         streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, AUTO_SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
@@ -127,7 +120,6 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -139,8 +131,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-
-    @Test(timeout = 25 * 60 * 1000)
+    @Test
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
         try {
             createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);

@@ -90,7 +90,12 @@ class RollingSegmentHandle implements SegmentHandle {
      */
     synchronized void refresh(RollingSegmentHandle source) {
         Preconditions.checkArgument(source.getSegmentName().equals(this.getSegmentName()), "SegmentName mismatch.");
-        this.headerHandle = source.headerHandle;
+        if (this.readOnly == source.readOnly) {
+            // Update the header handle, but only if both this handle and the source one have the same read-only flag.
+            // Otherwise we risk attaching a read-only header handle to a read-write handle or vice-versa.
+            this.headerHandle = source.headerHandle;
+        }
+
         this.segmentChunks = new ArrayList<>(source.chunks());
         setHeaderLength(source.getHeaderLength());
         if (source.isSealed()) {

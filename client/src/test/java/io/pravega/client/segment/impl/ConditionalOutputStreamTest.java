@@ -132,7 +132,8 @@ public class ConditionalOutputStreamTest {
         Segment segment = new Segment("scope", "testWrite", 1);       
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment, "token", EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
-        
+
+        String mockClientReplyStackTrace = "SomeException";
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         connectionFactory.provideConnection(location, mock);
@@ -142,7 +143,7 @@ public class ConditionalOutputStreamTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
-                processor.process(new WireCommands.SegmentIsSealed(argument.getEventNumber(), segment.getScopedName()));
+                processor.process(new WireCommands.SegmentIsSealed(argument.getEventNumber(), segment.getScopedName(), mockClientReplyStackTrace));
                 return null;
             }
         }).when(mock).send(any(ConditionalAppend.class));

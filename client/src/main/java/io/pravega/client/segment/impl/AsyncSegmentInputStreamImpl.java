@@ -10,12 +10,12 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -162,7 +162,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
-            log.warn("Exception while reading from Segment : {}", segmentId, ex);
+            if (closed.get()) {
+                log.debug("Exception while reading from Segment : {}", segmentId, ex);
+            } else {
+                log.warn("Exception while reading from Segment : {}", segmentId, ex);
+            }
             return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
         }).runAsync(() -> {
             return getConnection()

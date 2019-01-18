@@ -30,7 +30,7 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -232,12 +232,12 @@ public class RollingStorage implements SyncStorage {
     //region SyncStorage Implementation
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return create(streamSegmentName, this.defaultRollingPolicy);
     }
 
     @Override
-    public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
+    public SegmentHandle create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
@@ -252,16 +252,18 @@ public class RollingStorage implements SyncStorage {
         // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
         // attempt); in that case we ignore it and let the creation proceed.
         SegmentHandle headerHandle = null;
+        RollingSegmentHandle retValue  = null;
         try {
             try {
-                this.baseStorage.create(headerName);
+                headerHandle = this.baseStorage.create(headerName);
             } catch (StreamSegmentExistsException ex) {
                 checkIfEmptyAndNotSealed(ex, headerName);
+                headerHandle = this.baseStorage.openWrite(headerName);
                 log.debug("Empty Segment Header found for '{}'; treating as inexistent.", segmentName);
             }
 
-            headerHandle = this.baseStorage.openWrite(headerName);
-            serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()));
+            retValue = new RollingSegmentHandle(headerHandle, rollingPolicy, new ArrayList<>());
+            serializeHandle(retValue);
         } catch (StreamSegmentExistsException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -280,7 +282,7 @@ public class RollingStorage implements SyncStorage {
         }
 
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
-        return StreamSegmentInformation.builder().name(segmentName).build();
+        return retValue;
     }
 
     @Override
@@ -375,7 +377,7 @@ public class RollingStorage implements SyncStorage {
         if (shouldConcatNatively(source, target)) {
             // The Source either does not have a Header or is made up of a single SegmentChunk that can fit entirely into
             // the Target's Active SegmentChunk. Concat it directly without touching the header file; this helps prevent
-            // having a lot of very small SegmentChunks around if the application has a lot of small transactions.
+            // having a lot of very small SegmentChunks around if we end up doing a lot of concatenations.
             log.debug("Concat '{}' into '{}' using native method.", source, target);
             SegmentChunk lastTarget = target.lastChunk();
             if (lastTarget == null || lastTarget.isSealed()) {
@@ -788,9 +790,17 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
-    private void ensureOffset(RollingSegmentHandle handle, long offset) throws BadOffsetException {
+    private void ensureOffset(RollingSegmentHandle handle, long offset) throws StreamSegmentException {
         if (offset != handle.length()) {
-            throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
+            // Force-refresh the handle to make sure it is still in sync with reality. Make sure we open a read handle
+            // so that we don't force any sort of fencing during this process.
+            val refreshedHandle = openHandle(handle.getSegmentName(), true);
+            handle.refresh(refreshedHandle);
+            log.debug("Handle refreshed: {}.", handle);
+            if (offset != handle.length()) {
+                // Still in disagreement; throw exception.
+                throw new BadOffsetException(handle.getSegmentName(), handle.length(), offset);
+            }
         }
     }
 

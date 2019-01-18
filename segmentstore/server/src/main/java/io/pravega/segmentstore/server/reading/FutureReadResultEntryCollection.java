@@ -10,12 +10,11 @@
 package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.Exceptions;
-
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
-import java.util.concurrent.CancellationException;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -24,7 +23,7 @@ import javax.annotation.concurrent.ThreadSafe;
  * whose offsets are below certain values.
  */
 @ThreadSafe
-class FutureReadResultEntryCollection implements AutoCloseable {
+class FutureReadResultEntryCollection {
     //region Members
 
     @GuardedBy("reads")
@@ -45,24 +44,25 @@ class FutureReadResultEntryCollection implements AutoCloseable {
 
     //endregion
 
-    //region AutoCloseable Implementation
-
-    @Override
-    public void close() {
+    /**
+     * Closes this instance of the FutureReadResultEntryCollection class.
+     *
+     * @return A List containing all currently registered FutureReadResultEntries.
+     */
+    public List<FutureReadResultEntry> close() {
+        List<FutureReadResultEntry> result;
         synchronized (this.reads) {
             if (this.closed) {
-                return;
+                result = Collections.emptyList();
+            } else {
+                result = new ArrayList<>(this.reads);
+                this.reads.clear();
+                this.closed = true;
             }
-
-            this.closed = true;
         }
 
-        cancelAll();
+        return result;
     }
-
-    //endregion
-
-    //region Operations
 
     /**
      * Adds a new Result Entry.
@@ -102,20 +102,6 @@ class FutureReadResultEntryCollection implements AutoCloseable {
      */
     Collection<FutureReadResultEntry> pollAll() {
         return poll(Long.MAX_VALUE);
-    }
-
-    /**
-     * Cancels all Reads in this collection..
-     */
-    void cancelAll() {
-        List<FutureReadResultEntry> toCancel;
-        synchronized (this.reads) {
-            toCancel = new ArrayList<>(this.reads);
-            this.reads.clear();
-        }
-
-        CancellationException ce = new CancellationException();
-        toCancel.forEach(e -> e.fail(ce));
     }
 
     static int entryComparator(FutureReadResultEntry e1, FutureReadResultEntry e2) {

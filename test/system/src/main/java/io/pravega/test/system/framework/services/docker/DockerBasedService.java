@@ -46,6 +46,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
+    private static final String CMD_SHELL = "CMD-SHELL"; // Docker Instruction used to run a health check command.
     final DockerClient dockerClient;
     final String serviceName;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(3);
@@ -60,7 +61,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
         String serviceId = null;
         try {
-            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
+            List<Service> serviceList = Exceptions.handleInterruptedCall(
+                    () -> dockerClient.listServices(criteria));
             serviceId = serviceList.get(0).id();
         } catch (DockerException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to get service id", e);
@@ -75,10 +77,12 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         try {
             //list the service with filter 'serviceName'
             Service.Criteria servicecriteria = Service.Criteria.builder().serviceName(serviceName).build();
-            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(servicecriteria));
+            List<Service> serviceList = Exceptions.handleInterruptedCall(
+                    () -> dockerClient.listServices(servicecriteria));
             log.info("Service list size {}", serviceList.size());
             Task.Criteria taskCriteria = Task.Criteria.builder().serviceName(serviceName).build();
-            List<Task> taskList = Exceptions.handleInterrupted(() -> dockerClient.listTasks(taskCriteria));
+            List<Task> taskList = Exceptions.handleInterruptedCall(
+                    () -> dockerClient.listTasks(taskCriteria));
             log.info("Task list size {}", taskList.size());
             if (!taskList.isEmpty()) {
                 for (int j = 0; j < taskList.size(); j++) {
@@ -91,7 +95,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 }
             }
             if (!serviceList.isEmpty()) {
-                long replicas = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
+                long replicas = Exceptions.handleInterruptedCall(
+                        () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
                 log.info("Replicas {}", replicas);
                 log.info("Task running count {}", taskRunningCount);
                 if (((long) taskRunningCount) == replicas) {
@@ -117,18 +122,18 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         List<URI> uriList = new ArrayList<>();
         try {
             Task.Criteria taskCriteria = Task.Criteria.builder().taskName(serviceName).build();
-            List<Task> taskList = Exceptions.handleInterrupted(() -> dockerClient.listTasks(taskCriteria));
+            List<Task> taskList = Exceptions.handleInterruptedCall(() -> dockerClient.listTasks(taskCriteria));
             log.info("Task size {}", taskList.size());
 
             if (!taskList.isEmpty()) {
                 log.info("Network addresses {}", taskList.get(0).networkAttachments().get(0).addresses().get(0));
-                List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
+                List<Service> serviceList = Exceptions.handleInterruptedCall(() -> dockerClient.listServices(criteria));
                 log.info("Service list size {}", serviceList.size());
                 for (int i = 0; i < taskList.size(); i++) {
                     log.info("task {}", taskList.get(i).name());
                     if (taskList.get(i).status().state().equals(TaskStatus.TASK_STATE_RUNNING)) {
                         String[] uriArray = taskList.get(i).networkAttachments().get(0).addresses().get(0).split("/");
-                        ImmutableList<PortConfig> numPorts = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceList.get(0).id()).endpoint().spec().ports());
+                        ImmutableList<PortConfig> numPorts = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceList.get(0).id()).endpoint().spec().ports());
                         for (int k = 0; k < numPorts.size(); k++) {
                             int port = numPorts.get(k).publishedPort();
                             log.info("Port {}", port);
@@ -151,13 +156,13 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
 
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            TaskSpec taskSpec = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
-            String serviceId = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).id());
-            EndpointSpec endpointSpec = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
-            Service service = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId));
+            TaskSpec taskSpec = Exceptions.handleInterruptedCall(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
+            String serviceId = Exceptions.handleInterruptedCall(() -> dockerClient.listServices(criteria).get(0).id());
+            EndpointSpec endpointSpec = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
+            Service service = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId));
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
 
-            return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
+            return Exceptions.handleInterruptedCall(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Test failure: Unable to scale service to given instances=" + instanceCount, e);
         }
@@ -167,7 +172,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     public void stop() {
         try {
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
-            List<Service> serviceList = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria));
+            List<Service> serviceList = Exceptions.handleInterruptedCall(() -> dockerClient.listServices(criteria));
             for (int i = 0; i < serviceList.size(); i++) {
                 String serviceId = serviceList.get(i).id();
                 Exceptions.handleInterrupted(() -> dockerClient.removeService(serviceId));
@@ -179,7 +184,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     public void start(final boolean wait, final ServiceSpec serviceSpec) {
         try {
-            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterrupted(() -> dockerClient.createService(serviceSpec));
+            ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterruptedCall(() -> dockerClient.createService(serviceSpec));
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
             }
@@ -187,6 +192,19 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         } catch (Exception e) {
             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Unable to create service", e);
         }
+    }
+
+    // Default Health Check which uses netstat command to ensure the service is  up and running.
+    List<String> defaultHealthCheck(int port) {
+        return  customHealthCheck("netstat -plnt | grep " + port + " || exit 1");
+    }
+
+    //Custom Health check with the command provided by the service.
+    List<String> customHealthCheck(final String cmd) {
+        final List<String> commandList = new ArrayList<>(2);
+        commandList.add(CMD_SHELL);
+        commandList.add(cmd);
+        return commandList;
     }
 
     long setNanoCpus(final double cpu) {

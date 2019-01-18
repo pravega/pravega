@@ -32,8 +32,6 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction);
-    
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);
@@ -50,15 +48,9 @@ public interface ReplyProcessor {
     
     void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo);
     
-    void transactionInfo(WireCommands.TransactionInfo transactionInfo);
-
     void segmentCreated(WireCommands.SegmentCreated segmentCreated);
 
-    void transactionCreated(WireCommands.TransactionCreated transactionCreated);
-
-    void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted);
-    
-    void transactionAborted(WireCommands.TransactionAborted transactionAborted);
+    void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged);
 
     void segmentSealed(WireCommands.SegmentSealed segmentSealed);
 
