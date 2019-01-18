@@ -615,9 +615,7 @@ public class SegmentHelper {
                 connection.sendAsync(request, cfe -> {
                     if (cfe != null) {
                         Throwable cause = Exceptions.unwrap(cfe);
-                        if (cause instanceof WireCommandFailedException) {
-                            resultFuture.completeExceptionally(cause);
-                        } else if (cause instanceof ConnectionFailedException) {
+                        if (cause instanceof ConnectionFailedException) {
                             resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
                         } else {
                             resultFuture.completeExceptionally(new RuntimeException(cause));
