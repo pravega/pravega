@@ -59,7 +59,6 @@ import java.util.concurrent.CompletableFuture;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
-import static io.pravega.test.common.TestUtils.setFinalStatic;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -410,7 +409,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(PravegaRequestProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
+        processor.setDYNAMIC_LOGGER(mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -426,7 +425,7 @@ public class PravegaRequestProcessorTest {
         processor = new PravegaRequestProcessor(store, connection);
 
         mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(PravegaRequestProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
+        processor.setDYNAMIC_LOGGER(mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
