@@ -51,7 +51,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
-import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -543,7 +542,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          } catch (ConnectionFailedException e1) {
                              // This needs to be invoked here because call to failConnection from netty may occur before state.newConnection above.
                              state.failConnection(e1);
-                             throw Lombok.sneakyThrow(e1);
+                             throw Exceptions.sneakyThrow(e1);
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
@@ -555,7 +554,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                  log.info("Ending reconnect attempts on writer {} to {} because segment is truncated", writerId, segmentName);
                                  return null;
                              }
-                             throw Lombok.sneakyThrow(t);
+                             throw Exceptions.sneakyThrow(t);
                          });
                      }, connectionFactory.getInternalExecutor());
                  }, connectionFactory.getInternalExecutor());

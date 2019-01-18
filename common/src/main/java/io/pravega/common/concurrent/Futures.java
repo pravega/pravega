@@ -34,7 +34,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Data;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -153,9 +152,9 @@ public final class Futures {
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw Lombok.sneakyThrow(e);
+            throw Exceptions.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(Exceptions.unwrap(e));
+            throw Exceptions.sneakyThrow(Exceptions.unwrap(e));
         }
     }
 
