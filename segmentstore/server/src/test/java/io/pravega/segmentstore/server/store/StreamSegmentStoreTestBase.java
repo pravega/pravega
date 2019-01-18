@@ -261,9 +261,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val segmentNames = createSegments(context.getActiveStore());
             val segmentsAndTransactions = new ArrayList<String>(segmentNames);
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
-            val transactionsBySegment = createTransactions(segmentNames, context.getActiveStore());
-            transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
-            log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
 
             // Generate all the requests.
             HashMap<String, Long> lengths = new HashMap<>();
@@ -271,12 +268,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
             val appends = createAppendDataRequests(segmentsAndTransactions, segmentContents, lengths,
                     applyFencingMultiplier(ATTRIBUTE_UPDATES_PER_SEGMENT), applyFencingMultiplier(APPENDS_PER_SEGMENT));
-            val mergers = createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents);
-            val seals = createSealSegmentsRequests(segmentNames);
-            val requests = Iterators.concat(appends.iterator(), mergers.iterator(), seals.iterator());
+            val requests = appends.iterator();
 
             // Calculate how frequently to create a new instance of the Segment Store.
-            int newInstanceFrequency = (appends.size() + mergers.size() + seals.size()) / applyFencingMultiplier(MAX_INSTANCE_COUNT);
+            int newInstanceFrequency = appends.size() / applyFencingMultiplier(MAX_INSTANCE_COUNT);
             log.info("Creating a new Segment Store instance every {} operations.", newInstanceFrequency);
 
             // Execute all the requests.
