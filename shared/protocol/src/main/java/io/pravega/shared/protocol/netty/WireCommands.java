@@ -1727,7 +1727,8 @@ public final class WireCommands {
         final long keyVersion;
 
         public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(data.remaining());
+            out.writeInt(Integer.BYTES + data.remaining() + Long.BYTES); // total length of the TableKey.
+            out.writeInt(data.remaining()); // data length.
             if (data.remaining() != 0) {
                 out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
                 out.writeLong(keyVersion);
@@ -1735,14 +1736,15 @@ public final class WireCommands {
         }
 
         public static TableKey readFrom(DataInput in, int length) throws IOException {
-            int keyLength = in.readInt();
-            if (keyLength == 0) {
+            int payLoadSize = in.readInt();
+            int dataLength = in.readInt();
+            if (dataLength == 0) {
                 return TableKey.EMPTY;
             }
-            if (length < keyLength) {
-                throw new InvalidMessageException("Was expecting length of atleast : " + keyLength + " but found: " + length);
+            if (length < payLoadSize) {
+                throw new InvalidMessageException("Was expecting length of atleast : " + payLoadSize + " but found: " + length);
             }
-            byte[] msg = new byte[keyLength];
+            byte[] msg = new byte[dataLength];
             in.readFully(msg);
             long keyVersion = in.readLong();
             return new TableKey(ByteBuffer.wrap(msg), keyVersion);
@@ -1755,19 +1757,21 @@ public final class WireCommands {
         final ByteBuffer data;
 
         public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(data.remaining());
+            out.writeInt(Integer.BYTES + data.remaining()); // total length of of TableValue.
+            out.writeInt(data.remaining()); // data length.
             if (data.remaining() != 0) {
                 out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
             }
         }
 
         public static TableValue readFrom(DataInput in, int length) throws IOException {
+            int payloadSize = in.readInt();
             int valueLength = in.readInt();
             if (valueLength == 0) {
                 return TableValue.EMPTY;
             }
-            if ( length < valueLength) {
-                throw new InvalidMessageException("Was expecting length of atleast : " + valueLength + " but found: " + length);
+            if ( length < payloadSize) {
+                throw new InvalidMessageException("Was expecting length of atleast : " + payloadSize + " but found: " + length);
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);
