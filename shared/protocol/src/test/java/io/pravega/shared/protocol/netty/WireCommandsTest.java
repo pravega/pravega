@@ -547,7 +547,7 @@ public class WireCommandsTest {
 
     @Test
     public void testNotEmptyTableSegment() throws IOException {
-        WireCommands.NotEmptyTableSegment cmd = new WireCommands.NotEmptyTableSegment(l, testString1, "SomeException");
+        WireCommands.TableSegmentNotEmpty cmd = new WireCommands.TableSegmentNotEmpty(l, testString1, "SomeException");
         testCommand(cmd);
         assertTrue(cmd.isFailure());
     }
@@ -563,23 +563,12 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testTableKey() throws IOException {
-        testCommand(new WireCommands.TableKey(buffer, l));
-        testCommand(WireCommands.TableKey.EMPTY);
-    }
-
-    @Test
-    public void testTableValue() throws IOException {
-        testCommand(new WireCommands.TableValue(buffer));
-        testCommand(WireCommands.TableValue.EMPTY);
-    }
-
-    @Test
     public void testUpdateTableEntries() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
                 new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer))
-        );
+                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new AbstractMap.SimpleImmutableEntry(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
+                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), WireCommands.TableValue.EMPTY));
         testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
     }
 

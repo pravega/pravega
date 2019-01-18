@@ -61,7 +61,7 @@ import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
-import io.pravega.shared.protocol.netty.WireCommands.NotEmptyTableSegment;
+import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
@@ -763,7 +763,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(), clientReplyStackTrace), failureHandler);
         } else if (u instanceof TableSegmentNotEmptyException) {
             log.warn(requestId, "Table segment '{}' is not empty to perform '{}'.", segment, operation);
-            invokeSafely(connection::send, new NotEmptyTableSegment(requestId, segment, clientReplyStackTrace), failureHandler);
+            invokeSafely(connection::send, new TableSegmentNotEmpty(requestId, segment, clientReplyStackTrace), failureHandler);
         } else if (u instanceof ConditionalTableUpdateException) {
             log.warn(requestId, "Conditional update on Table segment '{}' failed.", segment);
             invokeSafely(connection::send, new WireCommands.ConditionalTableUpdateFailed(requestId, segment, clientReplyStackTrace), failureHandler);

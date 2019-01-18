@@ -32,7 +32,7 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void notEmptyTableSegment(WireCommands.NotEmptyTableSegment notEmptyTableSegment);
+    void notEmptyTableSegment(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
 
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 

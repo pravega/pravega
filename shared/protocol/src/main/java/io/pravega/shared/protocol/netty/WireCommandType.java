@@ -84,21 +84,17 @@ public enum WireCommandType {
     MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
     SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
 
-    TABLE_KEY(74, WireCommands.TableKey::readFrom),
-    TABLE_VALUE(75, WireCommands.TableValue::readFrom),
-    TABLE_ENTRIES(76, WireCommands.TableEntries::readFrom),
+    UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),
+    TABLE_ENTRIES_UPDATED(75, WireCommands.TableEntriesUpdated::readFrom),
 
-    UPDATE_TABLE_ENTRIES(77, WireCommands.UpdateTableEntries::readFrom),
-    TABLE_ENTRIES_UPDATED(78, WireCommands.TableEntriesUpdated::readFrom),
+    REMOVE_TABLE_KEYS(76, WireCommands.RemoveTableKeys::readFrom),
+    TABLE_KEYS_REMOVED(77, WireCommands.TableKeysRemoved::readFrom),
 
-    REMOVE_TABLE_KEYS(79, WireCommands.RemoveTableKeys::readFrom),
-    TABLE_KEYS_REMOVED(80, WireCommands.TableKeysRemoved::readFrom),
+    READ_TABLE(78, WireCommands.ReadTable::readFrom),
+    TABLE_READ(79, WireCommands.TableRead::readFrom),
 
-    READ_TABLE(81, WireCommands.ReadTable::readFrom),
-    TABLE_READ(82, WireCommands.TableRead::readFrom),
-
-    NOT_EMPTY_TABLE_SEGMENT(83,  WireCommands.NotEmptyTableSegment::readFrom),
-    CONDITIONAL_TABLE_UPDATE_FAILED(84, WireCommands.ConditionalTableUpdateFailed::readFrom),
+    TABLE_SEGMENT_NOT_EMPTY(80, WireCommands.TableSegmentNotEmpty::readFrom),
+    CONDITIONAL_TABLE_UPDATE_FAILED(81, WireCommands.ConditionalTableUpdateFailed::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 

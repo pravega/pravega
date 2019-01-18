@@ -614,13 +614,15 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
 
-        assertThrows("merge() is implemented.",
+        assertThrows("deleteTable() is implemented.",
                      () -> processor.deleteTableSegment(new WireCommands.DeleteTableSegment(1, streamSegmentName, true, "")),
                      ex -> ex instanceof UnsupportedOperationException);
         assertThrows("seal() is implemented.",
                      () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
                      ex -> ex instanceof UnsupportedOperationException);
-
+        assertThrows("merge() is implemented.",
+                     () -> processor.mergeTableSegments(new WireCommands.MergeTableSegments(1, streamSegmentName, streamSegmentName, "")),
+                     ex -> ex instanceof UnsupportedOperationException);
     }
 
     @Test(timeout = 20000)

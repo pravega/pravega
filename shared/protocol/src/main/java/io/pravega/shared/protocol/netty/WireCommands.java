@@ -285,8 +285,8 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class NotEmptyTableSegment implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.NOT_EMPTY_TABLE_SEGMENT;
+    public static final class TableSegmentNotEmpty implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_SEGMENT_NOT_EMPTY;
         final long requestId;
         final String segment;
         final String serverStackTrace;
@@ -307,7 +307,7 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
-            return new NotEmptyTableSegment(requestId, segment, serverStackTrace);
+            return new TableSegmentNotEmpty(requestId, segment, serverStackTrace);
         }
 
         @Override
@@ -1047,7 +1047,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1190,7 +1190,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(target);
             out.writeUTF(source);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1245,7 +1245,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1406,7 +1406,7 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeBoolean(mustBeEmpty);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
         }
 
         public static WireCommand readFrom(DataInput in, int length) throws IOException {
@@ -1524,7 +1524,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             tableEntries.writeFields(out);
         }
 
@@ -1649,7 +1649,7 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(segment);
-            out.writeUTF(delegationToken);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
             out.writeInt(keys.size());
             for (TableKey key : keys) {
                 key.writeFields(out);
@@ -1691,17 +1691,15 @@ public final class WireCommands {
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
-            TableEntries entries = (TableEntries) TableEntries.readFrom(in, in.available());
+            TableEntries entries = TableEntries.readFrom(in, in.available());
             return new TableRead(requestId, segment, entries);
         }
     }
 
     @Data
-    public static final class TableEntries implements WireCommand {
-        final WireCommandType type = WireCommandType.TABLE_ENTRIES;
+    public static final class TableEntries {
         final List<Map.Entry<TableKey, TableValue>> entries;
 
-        @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(entries.size());
             for (Map.Entry<TableKey, TableValue> ent :entries) {
@@ -1710,12 +1708,12 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+        public static TableEntries readFrom(ByteBufInputStream in, int length) throws IOException {
             int numberOfEntries = in.readInt();
             List<Map.Entry<TableKey, TableValue>> entries = new ArrayList<>();
             for (int i = 0; i < numberOfEntries; i++) {
-                entries.add(new AbstractMap.SimpleImmutableEntry<>((TableKey) TableKey.readFrom(in, in.available()),
-                                                                   (TableValue) TableValue.readFrom(in, in.available())));
+                entries.add(new AbstractMap.SimpleImmutableEntry<>(TableKey.readFrom(in, in.available()),
+                                                                   TableValue.readFrom(in, in.available())));
             }
 
             return new TableEntries(entries);
@@ -1723,15 +1721,12 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TableKey implements WireCommand {
+    public static final class TableKey {
         public final static TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
-        final WireCommandType type = WireCommandType.TABLE_KEY;
         final ByteBuffer data;
         final long keyVersion;
 
-        @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(type.getCode());
             out.writeInt(data.remaining());
             if (data.remaining() != 0) {
                 out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
@@ -1739,11 +1734,7 @@ public final class WireCommands {
             }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            int typeCode = in.readInt();
-            if (typeCode != WireCommandType.TABLE_KEY.getCode()) {
-                throw new InvalidMessageException("Was expecting Table Key but found: " + typeCode);
-            }
+        public static TableKey readFrom(DataInput in, int length) throws IOException {
             int keyLength = in.readInt();
             if (keyLength == 0) {
                 return TableKey.EMPTY;
@@ -1759,25 +1750,18 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TableValue implements WireCommand {
+    public static final class TableValue {
         public final static TableValue EMPTY = new TableValue(ByteBuffer.wrap(new byte[0]));
-        final WireCommandType type = WireCommandType.TABLE_VALUE;
         final ByteBuffer data;
 
-        @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(type.getCode());
             out.writeInt(data.remaining());
             if (data.remaining() != 0) {
                 out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
             }
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            int typeCode = in.readInt();
-            if (typeCode != WireCommandType.TABLE_VALUE.getCode()) {
-                throw new InvalidMessageException("Was expecting Table Value but found: " + typeCode);
-            }
+        public static TableValue readFrom(DataInput in, int length) throws IOException {
             int valueLength = in.readInt();
             if (valueLength == 0) {
                 return TableValue.EMPTY;

@@ -16,7 +16,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
-import io.pravega.shared.protocol.netty.WireCommands.NotEmptyTableSegment;
+import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
@@ -162,8 +162,8 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void notEmptyTableSegment(NotEmptyTableSegment notEmptyTableSegment) {
-        throw new IllegalStateException("Unexpected operation: " + notEmptyTableSegment);
+    public void notEmptyTableSegment(TableSegmentNotEmpty tableSegmentNotEmpty) {
+        throw new IllegalStateException("Unexpected operation: " + tableSegmentNotEmpty);
     }
 
     @Override
