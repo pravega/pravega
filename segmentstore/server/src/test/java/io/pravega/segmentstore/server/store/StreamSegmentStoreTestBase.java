@@ -83,7 +83,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
-    private static final int MAX_INSTANCE_COUNT = 5;
+    private static final int MAX_INSTANCE_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);

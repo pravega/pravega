@@ -148,8 +148,6 @@ public class RollingStorage implements SyncStorage {
             log.debug("Handle refreshed: {}.", h);
         }
 
-        Preconditions.checkArgument(offset < h.length(), "Offset %s is beyond the last offset %s of the segment.",
-                offset, h.length());
         Preconditions.checkArgument(offset + length <= h.length(), "Offset %s + length %s is beyond the last offset %s of the segment.",
                 offset, length, h.length());
 
@@ -510,7 +508,22 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
         log.debug("Rolling over '{}'.", handle);
         sealActiveChunk(handle);
-        createChunk(handle);
+        try {
+            createChunk(handle);
+        } catch (StreamSegmentExistsException ex) {
+            // It may be possible that a concurrent rollover request using a different handle (either from this instance
+            // or another) has already created the new chunk. Refresh the handle and try again. This is usually the case
+            // with concurrent Storage instances trying to modify the same segment at the same time.
+            int chunkCount = handle.chunks().size();
+            handle.refresh(openHandle(handle.getSegmentName(), false));
+            if (chunkCount == handle.chunks().size()) {
+                // Nothing changed; re-throw the exception.
+                throw ex;
+            } else {
+                // We've just refreshed the handle and picked up the latest chunk. Move on.
+                log.warn("Aborted rollover due to concurrent rollover detected ('{}').", handle);
+            }
+        }
     }
 
     private void sealActiveChunk(RollingSegmentHandle handle) throws StreamSegmentException {
