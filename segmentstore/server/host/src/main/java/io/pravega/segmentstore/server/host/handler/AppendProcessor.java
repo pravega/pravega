@@ -62,9 +62,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 
-import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -88,9 +86,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
     private static final String EMPTY_STACK_TRACE = "";
-    @VisibleForTesting
-    @Setter(AccessLevel.PACKAGE)
-    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+    private final DynamicLogger dynamicLogger;
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     @Getter
@@ -122,7 +118,22 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, null, verifier, false);
+        this(store, connection, next, null, verifier, MetricsProvider.getDynamicLogger(), false);
+    }
+
+    /**
+     * Creates a new instance of the AppendProcessor class with dynamic metric logger.
+     *
+     * @param store      The SegmentStore to send append requests to.
+     * @param connection The ServerConnection to send responses to.
+     * @param next       The RequestProcessor to invoke next.
+     * @param verifier    The token verifier.
+     * @param dynamicLogger  The dynamic metric logger to log metrics
+     */
+    @VisibleForTesting
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier,
+                           DynamicLogger dynamicLogger) {
+        this(store, connection, next, null, verifier, dynamicLogger, false);
     }
 
     /**
@@ -132,15 +143,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param next          The RequestProcessor to invoke next.
      * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
      * @param tokenVerifier Delegation token verifier.
+     * @param dynamicLogger  The DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
-                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+                    DelegationTokenVerifier tokenVerifier, DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
         this.statsRecorder = statsRecorder;
         this.tokenVerifier = tokenVerifier;
+        this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 

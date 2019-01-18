@@ -406,10 +406,8 @@ public class PravegaRequestProcessorTest {
         //test txn segment merge
         CompletableFuture<SegmentProperties> txnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, txnId));
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
-
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection, mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -422,10 +420,8 @@ public class PravegaRequestProcessorTest {
         //test non-txn segment merge
         CompletableFuture<SegmentProperties> nonTxnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, null));
         doReturn(nonTxnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        processor = new PravegaRequestProcessor(store, connection);
-
         mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        processor = new PravegaRequestProcessor(store, connection, mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));

@@ -268,7 +268,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 This is an example from io.pravega.segmentstore.server.SegmentStoreMetrics. In this class, we report a Dynamic Meter which represents the segments created.
 ```java
 public final class SegmentStoreMetrics {
-    private static final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+    private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
     
     public void createSegment() {
             dynamicLogger.recordMeterEvents(this.createSegmentCount, 1);  // Record event for meter metric createSegmentCount

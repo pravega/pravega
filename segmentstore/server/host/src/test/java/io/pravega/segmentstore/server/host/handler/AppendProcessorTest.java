@@ -65,9 +65,8 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -100,9 +99,8 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -175,9 +173,8 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -214,9 +211,8 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -340,9 +336,8 @@ public class AppendProcessorTest {
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDynamicLogger(mockedDynamicLogger);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = new CompletableFuture<>();

@@ -86,7 +86,6 @@ import java.util.function.Consumer;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
@@ -125,9 +124,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final String EMPTY_STACK_TRACE = "";
-    @VisibleForTesting
-    @Setter(AccessLevel.PACKAGE)
-    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+    private final DynamicLogger dynamicLogger;
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
@@ -150,7 +147,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection) {
-        this(segmentStore, connection, null, new PassingTokenVerifier(), false);
+        this(segmentStore, connection, null, new PassingTokenVerifier(), MetricsProvider.getDynamicLogger(), false);
+    }
+
+    /**
+     * Creates a new instance of the PravegaRequestProcessor class with metrics logger.
+     *
+     * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
+     * @param connection   The ServerConnection to attach to (and send responses to).
+     * @param dynamicLogger  The DynamicLogger to log metrics.
+     */
+    @VisibleForTesting
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, DynamicLogger dynamicLogger) {
+        this(segmentStore, connection, null, new PassingTokenVerifier(), dynamicLogger, false);
     }
 
     /**
@@ -160,14 +169,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param connection    The ServerConnection to attach to (and send responses to).
      * @param statsRecorder (Optional) A StatsRecorder for Metrics.
      * @param tokenVerifier  Verifier class that verifies delegation token.
+     * @param dynamicLogger  DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, ServerConnection connection, SegmentStatsRecorder statsRecorder,
-                            DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+                            DelegationTokenVerifier tokenVerifier, DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.tokenVerifier = Preconditions.checkNotNull(tokenVerifier, "tokenVerifier");
         this.statsRecorder = statsRecorder;
+        this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
