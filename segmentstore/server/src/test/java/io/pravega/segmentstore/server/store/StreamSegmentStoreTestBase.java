@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
