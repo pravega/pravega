@@ -61,6 +61,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -87,8 +89,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
     private static final String EMPTY_STACK_TRACE = "";
     @VisibleForTesting
-    @Setter
-    private DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    @Setter(AccessLevel.PACKAGE)
+    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     @Getter
@@ -302,13 +304,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
 
-                DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
-                DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
+                dynamicLogger.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
+                dynamicLogger.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
                 //Don't report segment specific metrics if segment is a transaction
                 //The parent segment metrics will be updated once the transaction is merged
                 if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
+                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
                 }
             }
 

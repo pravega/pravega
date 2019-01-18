@@ -409,7 +409,7 @@ public class PravegaRequestProcessorTest {
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
 
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDYNAMIC_LOGGER(mockedDynamicLogger);
+        processor.setDynamicLogger(mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -425,7 +425,7 @@ public class PravegaRequestProcessorTest {
         processor = new PravegaRequestProcessor(store, connection);
 
         mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor.setDYNAMIC_LOGGER(mockedDynamicLogger);
+        processor.setDynamicLogger(mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
