@@ -35,6 +35,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -157,9 +158,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier, replyWithStackTraceOnError),
+                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier, MetricsProvider.getDynamicLogger(), replyWithStackTraceOnError),
                          statsRecorder,
                          tokenVerifier,
+                         MetricsProvider.getDynamicLogger(),
                          replyWithStackTraceOnError));
              }
          });

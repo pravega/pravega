@@ -139,8 +139,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> deleteSegment(@NonNull String segmentName, boolean mustBeEmpty, Duration timeout) {
         if (mustBeEmpty) {
-            // TODO https://github.com/pravega/pravega/issues/2956
-            throw new UnsupportedOperationException("deleteSegment(mustBeEmpty==true)");
+            TimeoutTimer timer = new TimeoutTimer(timeout);
+            return this.segmentContainer
+                    .forSegment(segmentName, timer.getRemaining())
+                    .thenComposeAsync(segment -> this.keyIndex.executeIfEmpty(segment,
+                            () -> this.segmentContainer.deleteStreamSegment(segmentName, timer.getRemaining())),
+                            this.executor);
         }
 
         Exceptions.checkNotClosed(this.closed.get(), this);

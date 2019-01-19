@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -109,28 +110,29 @@ class IndexWriter extends IndexReader {
      */
     CompletableFuture<Integer> updateBuckets(DirectSegmentAccess segment, Collection<BucketUpdate> bucketUpdates,
                                              long firstIndexedOffset, long lastIndexedOffset, Duration timeout) {
-        List<AttributeUpdate> attributeUpdates = new ArrayList<>();
+        UpdateInstructions update = new UpdateInstructions();
 
         // Process each Key in the given Map.
         // Locate the Key's Bucket, then generate necessary Attribute Updates to integrate new Keys into it.
         for (BucketUpdate bucketUpdate : bucketUpdates) {
-            generateAttributeUpdates(bucketUpdate, attributeUpdates);
+            generateAttributeUpdates(bucketUpdate, update);
         }
 
         if (lastIndexedOffset > firstIndexedOffset) {
             // Atomically update the Table-related attributes in the Segment's metadata, once we apply these changes.
-            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, attributeUpdates);
+            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, update);
         }
 
-        if (attributeUpdates.isEmpty()) {
+        if (update.getAttributes().isEmpty()) {
             // We haven't made any updates.
             log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, No Changes.", segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset);
             return CompletableFuture.completedFuture(0);
         } else {
-            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, UpdateCount={}.",
-                    segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, attributeUpdates.size());
-            return segment.updateAttributes(attributeUpdates, timeout)
-                    .thenApply(v -> attributeUpdates.size());
+            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, Updates={}, Entries+={}, Buckets+={}.",
+                    segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, update.getAttributes().size(),
+                    update.getEntryCountDelta(), update.getBucketCountDelta());
+            return segment.updateAttributes(update.getAttributes(), timeout)
+                    .thenApply(v -> update.getAttributes().size());
         }
     }
 
@@ -149,10 +151,10 @@ class IndexWriter extends IndexReader {
      * - We need to have the {@link TableBucket} point to the last key in updatedKeys. Backpointers will complete
      * the data structure by providing collision resolution for those remaining cases.
      *
-     * @param bucketUpdate     The {@link BucketUpdate} to generate updates for.
-     * @param attributeUpdates A List of {@link AttributeUpdate}s to collect into.
+     * @param bucketUpdate The {@link BucketUpdate} to generate updates for.
+     * @param update       A {@link UpdateInstructions} object to collect updates into.
      */
-    private void generateAttributeUpdates(BucketUpdate bucketUpdate, List<AttributeUpdate> attributeUpdates) {
+    private void generateAttributeUpdates(BucketUpdate bucketUpdate, UpdateInstructions update) {
         if (!bucketUpdate.hasUpdates()) {
             // Nothing to do.
             return;
@@ -164,12 +166,9 @@ class IndexWriter extends IndexReader {
         Preconditions.checkArgument(bucket.exists() != bucketUpdate.getExistingKeys().isEmpty(),
                 "Non-existing buckets must have no existing keys, while non-index Buckets must have at least one.");
 
-        // Keep track whether the bucket was deleted (if we get at least one update, it was not).
-        boolean isDeleted = true;
-
         // All Keys in this bucket have the same hash. If there is more than one key per such hash, then we have
         // a collision, which must be resolved (this also handles removed keys).
-        generateBackpointerUpdates(bucketUpdate, attributeUpdates);
+        generateBackpointerUpdates(bucketUpdate, update);
 
         // Backpointers help us create a linked list (of keys) for those buckets which have collisions (in reverse
         // order, by offset). At this point, we only need to figure out the highest offset of a Key in each bucket,
@@ -177,10 +176,10 @@ class IndexWriter extends IndexReader {
         val bucketOffset = bucketUpdate.getBucketOffset();
         if (bucketOffset >= 0) {
             // We have an update.
-            generateBucketUpdate(bucket, bucketOffset, attributeUpdates);
+            generateBucketUpdate(bucket, bucketOffset, update);
         } else {
             // We have a deletion.
-            generateBucketDelete(bucket, attributeUpdates);
+            generateBucketDelete(bucket, update);
         }
     }
 
@@ -190,35 +189,50 @@ class IndexWriter extends IndexReader {
      *
      * @param bucket           The Bucket to create or update.
      * @param bucketOffset The Bucket's new offset.
-     * @param attributeUpdates A List of {@link AttributeUpdate}s to collect updates in.
+     * @param update       A {@link UpdateInstructions} object to collect updates into.
      */
-    private void generateBucketUpdate(TableBucket bucket, long bucketOffset, List<AttributeUpdate> attributeUpdates) {
+    private void generateBucketUpdate(TableBucket bucket, long bucketOffset, UpdateInstructions update) {
         assert bucketOffset >= 0;
-        attributeUpdates.add(new AttributeUpdate(bucket.getHash(), AttributeUpdateType.Replace, bucketOffset));
+        update.withAttribute(new AttributeUpdate(bucket.getHash(), AttributeUpdateType.Replace, bucketOffset));
+        if (!bucket.exists()) {
+            update.bucketAdded();
+        }
     }
 
     /**
      * Generates one or more {@link AttributeUpdate}s that will delete a {@link TableBucket}.
      *
      * @param bucket           The {@link TableBucket} to delete.
-     * @param attributeUpdates A List of AttributeUpdates to collect updates in.
+     * @param update A {@link UpdateInstructions} object to collect updates into.
      */
-    private void generateBucketDelete(TableBucket bucket, List<AttributeUpdate> attributeUpdates) {
-        attributeUpdates.add(new AttributeUpdate(bucket.getHash(), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE));
+    private void generateBucketDelete(TableBucket bucket, UpdateInstructions update) {
+        if (bucket.exists()) {
+            update.withAttribute(new AttributeUpdate(bucket.getHash(), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE));
+            update.bucketRemoved();
+        }
     }
 
     /**
      * Generates conditional {@link AttributeUpdate}s that update the values for Core Attributes representing the indexing
      * state of the Table Segment.
      *
-     * @param currentOffset      The offset from which this indexing batch began. This will be checked against {@link Attributes#TABLE_INDEX_OFFSET}.
-     * @param newOffset          The new offset to set for {@link Attributes#TABLE_INDEX_OFFSET}.
-     * @param attributeUpdates   A List of {@link AttributeUpdate} to add the updates to.
+     * @param currentOffset The offset from which this indexing batch began. This will be checked against {@link Attributes#TABLE_INDEX_OFFSET}.
+     * @param newOffset     The new offset to set for {@link Attributes#TABLE_INDEX_OFFSET}.
+     * @param update        A {@link UpdateInstructions} object to collect updates into.
      */
-    private void generateTableAttributeUpdates(long currentOffset, long newOffset, List<AttributeUpdate> attributeUpdates) {
+    private void generateTableAttributeUpdates(long currentOffset, long newOffset, UpdateInstructions update) {
         // Add an Update for the TABLE_INDEX_OFFSET to indicate we have indexed everything up to this offset.
         Preconditions.checkArgument(currentOffset <= newOffset, "newOffset must be larger than existingOffset");
-        attributeUpdates.add(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset));
+        update.withAttribute(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset));
+
+        // Update Bucket and Entry counts.
+        if (update.getEntryCountDelta() != 0) {
+            update.withAttribute(new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.Accumulate, update.getEntryCountDelta()));
+        }
+
+        if (update.getBucketCountDelta() != 0) {
+            update.withAttribute(new AttributeUpdate(Attributes.TABLE_BUCKET_COUNT, AttributeUpdateType.Accumulate, update.getBucketCountDelta()));
+        }
     }
 
     //endregion
@@ -228,10 +242,10 @@ class IndexWriter extends IndexReader {
     /**
      * Generates the necessary Backpointer updates for the given {@link BucketUpdate}.
      *
-     * @param update           The BucketUpdate to generate Backpointers for.
-     * @param attributeUpdates A List of {@link AttributeUpdate} where the updates will be collected.
+     * @param update             The BucketUpdate to generate Backpointers for.
+     * @param updateInstructions A {@link UpdateInstructions} object to collect updates into.
      */
-    private void generateBackpointerUpdates(BucketUpdate update, List<AttributeUpdate> attributeUpdates) {
+    private void generateBackpointerUpdates(BucketUpdate update, UpdateInstructions updateInstructions) {
         // Keep track of the previous, non-deleted Key's offset. The first one points to nothing.
         AtomicLong previousOffset = new AtomicLong(Attributes.NULL_ATTRIBUTE_VALUE);
 
@@ -248,15 +262,17 @@ class IndexWriter extends IndexReader {
                         // This one has been replaced or removed; delete any backpointer originating from it.
                         if (!first.get()) {
                             // ... except if this is the first one in the list, which means it doesn't have a backpointer.
-                            attributeUpdates.add(generateBackpointerRemoval(keyInfo.getOffset()));
+                            updateInstructions.withAttribute(generateBackpointerRemoval(keyInfo.getOffset()));
                         }
 
-                        previousReplaced.set(true); // Record that this has been replaced.
+                        // Record that this has been replaced.
+                        updateInstructions.entryRemoved();
+                        previousReplaced.set(true);
                     } else {
                         if (previousReplaced.get()) {
                             // This one hasn't been replaced or removed, however its previous one has been.
                             // Repoint it to whatever key is now ahead of it, or remove it (if previousOffset is nothing).
-                            attributeUpdates.add(generateBackpointerUpdate(keyInfo.getOffset(), previousOffset.get()));
+                            updateInstructions.withAttribute(generateBackpointerUpdate(keyInfo.getOffset(), previousOffset.get()));
                             previousReplaced.set(false);
                         }
 
@@ -274,9 +290,10 @@ class IndexWriter extends IndexReader {
               .forEach(keyUpdate -> {
                     if (previousOffset.get() != Attributes.NULL_ATTRIBUTE_VALUE) {
                         // Only add a backpointer if we have another Key ahead of it.
-                        attributeUpdates.add(generateBackpointerUpdate(keyUpdate.getOffset(), previousOffset.get()));
+                        updateInstructions.withAttribute(generateBackpointerUpdate(keyUpdate.getOffset(), previousOffset.get()));
                     }
 
+                  updateInstructions.entryAdded();
                     previousOffset.set(keyUpdate.getOffset());
                 });
     }
@@ -298,6 +315,39 @@ class IndexWriter extends IndexReader {
      */
     private AttributeUpdate generateBackpointerRemoval(long fromOffset) {
         return new AttributeUpdate(getBackpointerAttributeKey(fromOffset), AttributeUpdateType.Replace, Attributes.NULL_ATTRIBUTE_VALUE);
+    }
+
+    //endregion
+
+    //region Helper Classes
+
+    private static class UpdateInstructions {
+        @Getter
+        private final List<AttributeUpdate> attributes = new ArrayList<>();
+        @Getter
+        private int bucketCountDelta = 0;
+        @Getter
+        private int entryCountDelta = 0;
+
+        void withAttribute(AttributeUpdate au) {
+            this.attributes.add(au);
+        }
+
+        void bucketAdded() {
+            this.bucketCountDelta++;
+        }
+
+        void bucketRemoved() {
+            this.bucketCountDelta--;
+        }
+
+        void entryAdded() {
+            this.entryCountDelta++;
+        }
+
+        void entryRemoved() {
+            this.entryCountDelta--;
+        }
     }
 
     //endregion

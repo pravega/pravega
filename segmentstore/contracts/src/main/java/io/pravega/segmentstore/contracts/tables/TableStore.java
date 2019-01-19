@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -67,14 +68,20 @@ public interface TableStore {
 
     /**
      * Generates a set of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
+     * TODO cleanup as described in https://github.com/pravega/pravega/issues/3273.
      *
      * Attributes:
      * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
+     * * {@link Attributes#TABLE_ENTRY_COUNT} is initialized to 0.
+     * * {@link Attributes#TABLE_BUCKET_COUNT} is initialized to 0.
      *
      * @return A Collection of {@link AttributeUpdate}s.
      */
     static Collection<AttributeUpdate> getInitialTableAttributes() {
-        return Collections.singleton(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L));
+        return Arrays.asList(
+                new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L),
+                new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.None, 0L),
+                new AttributeUpdate(Attributes.TABLE_BUCKET_COUNT, AttributeUpdateType.None, 0L));
     }
 
     /**

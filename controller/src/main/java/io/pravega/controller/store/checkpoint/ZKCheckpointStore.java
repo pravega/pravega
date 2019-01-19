@@ -9,19 +9,11 @@
  */
 package io.pravega.controller.store.checkpoint;
 
-import io.pravega.common.util.Retry;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Lombok;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
-
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.Retry;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -32,6 +24,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
 
 /**
  * Zookeeper based checkpoint store.
@@ -157,12 +156,12 @@ class ZKCheckpointStore implements CheckpointStore {
 
             updateReaderGroupData(path, groupData -> {
                 if (groupData.getState() == ReaderGroupData.State.Sealed) {
-                    throw Lombok.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
+                    throw Exceptions.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.Sealed,
                             "ReaderGroup is sealed"));
                 }
                 List<String> list = groupData.getReaderIds();
                 if (list.contains(readerId)) {
-                    throw Lombok.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
+                    throw Exceptions.sneakyThrow(new CheckpointStoreException(CheckpointStoreException.Type.NodeExists,
                             "Duplicate readerId"));
                 }
 

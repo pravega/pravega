@@ -15,21 +15,19 @@ import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.util.RetryHelper;
-import lombok.Lombok;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.recipes.cache.NodeCache;
-import org.apache.curator.framework.recipes.cache.NodeCacheListener;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.recipes.cache.NodeCache;
+import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 
 /**
  * Garbage Collector class performs two functions periodically.
@@ -186,7 +184,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                 try {
                     x.close();
                 } catch (IOException e) {
-                    throw Lombok.sneakyThrow(e);
+                    throw Exceptions.sneakyThrow(e);
                 }
             }
             return x;

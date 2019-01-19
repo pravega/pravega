@@ -24,6 +24,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.DataCorruptionException;
@@ -110,8 +111,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         checkIterators(Collections.emptyMap(), context.ext);
 
-        context.ext.deleteSegment(SEGMENT_NAME, false, TIMEOUT).join();
+        context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Segment not deleted.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
     }
 
     /**
@@ -352,6 +357,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         checkIterators(expectedEntries, context.ext);
+        deleteSegment(expectedEntries.keySet(), context.ext);
     }
 
     private void testBatchUpdates(KeyHasher keyHasher, EntryGenerator generateToUpdate, KeyGenerator generateToRemove) {
@@ -429,6 +435,20 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         ext2.remove(SEGMENT_NAME, finalRemoval, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         removedKeys.addAll(last.expectedEntries.keySet());
         checkTable.accept(Collections.emptyMap(), removedKeys, ext2);
+        deleteSegment(Collections.emptyList(), ext2);
+    }
+
+    private void deleteSegment(Collection<HashedArray> remainingKeys, ContainerTableExtension ext) throws Exception {
+        if (remainingKeys.size() > 0) {
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "deleteIfEmpty worked on a non-empty segment.",
+                    () -> ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                    ex -> ex instanceof TableSegmentNotEmptyException);
+        }
+
+        val toRemove = remainingKeys.stream().map(TableKey::unversioned).collect(Collectors.toList());
+        ext.remove(SEGMENT_NAME, toRemove, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void check(Map<HashedArray, HashedArray> expectedEntries, Collection<ArrayView> nonExistentKeys, ContainerTableExtension ext) throws Exception {
