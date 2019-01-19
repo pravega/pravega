@@ -121,7 +121,7 @@ This is an example from io.pravega.segmentstore.server.host.handler.PravegaReque
 public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
     
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
     
     private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
     
@@ -139,7 +139,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 ByteBuffer data = copyData(cachedEntries);
                 SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
                 connection.send(reply);
-                DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
+                dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
             } else if (truncated) {
                 // We didn't collect any data, instead we determined that the current read offset was truncated.
                 // Determine the current Start Offset and send that back.
@@ -155,7 +155,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             ByteBuffer data = copyData(Collections.singletonList(contents));
                             SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
                             connection.send(reply);
-                            DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
+                            dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
                         })
                         .exceptionally(e -> {
                             if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
@@ -240,7 +240,7 @@ This is an example from io.pravega.controller.store.stream.AbstractStreamMetadat
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore  {
     ...
     private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM); // get stats logger from MetricsProvider
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger(); // get dynamic logger from MetricsProvider
+    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger(); // get dynamic logger from MetricsProvider
        
     ...
     @Override
@@ -254,7 +254,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                     .thenApply(result -> {
                         if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
                             CREATE_STREAM.reportSuccessValue(1); // Report success event for histogram metric CREATE_STREAM
-                            DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0); // Report gauge value for Dynamic Gauge metric OPEN_TRANSACTIONS 
+                            dynamicLogger.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0); // Report gauge value for Dynamic Gauge metric OPEN_TRANSACTIONS 
                         }
     
                         return result;
@@ -268,10 +268,10 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 This is an example from io.pravega.segmentstore.server.SegmentStoreMetrics. In this class, we report a Dynamic Meter which represents the segments created.
 ```java
 public final class SegmentStoreMetrics {
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
     
     public void createSegment() {
-            DYNAMIC_LOGGER.recordMeterEvents(this.createSegmentCount, 1);  // Record event for meter metric createSegmentCount
+            dynamicLogger.recordMeterEvents(this.createSegmentCount, 1);  // Record event for meter metric createSegmentCount
     } 
 }
 ```
@@ -317,7 +317,7 @@ public class AddMetrics {
     // Step 2. In the class that need Metrics: get StatsLogger through MetricsProvider; then get Metrics from StatsLogger; at last report it at the right place.
 
     static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); // <--- 1
-    static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
+    DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
     
      static class Metrics { // < --- 2
         //Using Stats Logger
@@ -335,16 +335,16 @@ public class AddMetrics {
     //to report success or increment
     Metrics.CREATE_STREAM.reportSuccessValue(1); // < --- 3
     Metrics.createStreamSegment.reportSuccessEvent(timer.getElapsed());
-    DYNAMIC_LOGGER.incCounterValue(Metrics.SEGMENT_READ_BYTES, 1);
-    DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0);
+    dynamicLogger.incCounterValue(Metrics.SEGMENT_READ_BYTES, 1);
+    dynamicLogger.reportGaugeValue(OPEN_TRANSACTIONS, 0);
     
     //in case of failure
     Metrics.CREATE_STREAM.reportFailValue(1);
     Metrics.createStreamSegment.reportFailEvent(timer.getElapsed());
     
     //to freeze
-    DYNAMIC_LOGGER.freezeCounter(Metrics.SEGMENT_READ_BYTES);
-    DYNAMIC_LOGGER.freezeGaugeValue(OPEN_TRANSACTIONS);
+    dynamicLogger.freezeCounter(Metrics.SEGMENT_READ_BYTES);
+    dynamicLogger.freezeGaugeValue(OPEN_TRANSACTIONS);
 }
 ```
 
