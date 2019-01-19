@@ -178,6 +178,7 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(':test:testcommon')
     }
 }
 
