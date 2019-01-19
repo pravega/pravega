@@ -19,7 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import lombok.AccessLevel;
 import lombok.Getter;
-import org.apache.hadoop.service.ServiceOperations;
 
 /**
  * Base class for any StreamSegmentStore Integration Test that uses BookKeeper and RocksDB.
