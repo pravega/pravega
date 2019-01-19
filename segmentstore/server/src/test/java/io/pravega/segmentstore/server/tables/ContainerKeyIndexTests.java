@@ -19,6 +19,7 @@ import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
@@ -208,7 +209,6 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 () -> context.index.update(context.segment, toUpdateBatch(TableKey.versioned(keyData, 123L)), noPersist, context.timer),
                 ex -> ex instanceof BadKeyVersionException && keyMatches(((BadKeyVersionException) ex).getExpectedVersions(), keyData));
     }
-
 
     /**
      * Tests the ability of the {@link ContainerKeyIndex} to reconcile conditional updates if the condition does not match
@@ -443,6 +443,60 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof ObjectClosedException);
     }
 
+    /**
+     * Checks the functionality of the {@link ContainerKeyIndex#executeIfEmpty} method.
+     */
+    @Test
+    public void testExecuteIfEmpty() throws Exception {
+        @Cleanup
+        val context = new TestContext();
+        val unversionedKeys = generateUnversionedKeys(BATCH_SIZE, context);
+
+        // 1. Verify executeIfEmpty works on an empty segment. Also verifies it blocks a conditional update.
+        val toRun1 = new CompletableFuture<Void>();
+        val persist1 = new CompletableFuture<Long>();
+        val empty1 = context.index.executeIfEmpty(context.segment, () -> toRun1);
+        val updateBatch = toUpdateBatch(unversionedKeys.stream().map(k -> TableKey.notExists(k.getKey())).collect(Collectors.toList()));
+        val update1 = empty1.thenCompose(v -> {
+            Assert.assertTrue("Conditional update not blocked by executeIfEmpty.", toRun1.isDone());
+            return context.index.update(context.segment, updateBatch, () -> persist1, context.timer);
+        });
+        Assert.assertFalse("Not expecting any task to be done yet.", empty1.isDone() || update1.isDone());
+
+        // Verify that conditional updates are properly blocked.
+        toRun1.complete(null);
+        empty1.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        Assert.assertFalse("Not expecting first update to complete.", update1.isDone());
+        persist1.complete(1L);
+        update1.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
+        // 2. After an update.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "executeIfEmpty should not run if table is not empty.",
+                () -> context.index.executeIfEmpty(context.segment, () -> Futures.failedFuture(new AssertionError("This should not run"))),
+                ex -> ex instanceof TableSegmentNotEmptyException);
+
+        // 3. After a removal.
+        val removeKeys = new ArrayList<TableKey>();
+        val removeVersions = update1.join();
+        for (int i = 0; i < unversionedKeys.size(); i++) {
+            removeKeys.add(TableKey.versioned(unversionedKeys.get(i).getKey(), removeVersions.get(i)));
+        }
+
+        val removeBatch = toRemoveBatch(removeKeys);
+        val persist2 = new CompletableFuture<Long>();
+        val update2 = context.index.update(context.segment, removeBatch, () -> persist2, context.timer);
+        val empty2 = update2.thenCompose(v -> context.index.executeIfEmpty(context.segment, () -> {
+            Assert.assertTrue("executeIfEmpty should not execute prior to call to update()..", persist2.isDone());
+            return CompletableFuture.completedFuture(null);
+        }));
+
+        // Verify that executeIfEmpty is blocked on a conditional update.
+        persist2.complete(2L);
+        update2.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        empty2.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+    }
+
     private void checkKeyOffsets(List<UUID> allHashes, Map<UUID, KeyWithOffset> offsets, Map<UUID, Long> bucketOffsets) {
         Assert.assertEquals("Unexpected number of results found.", allHashes.size(), bucketOffsets.size());
         for (int i = 0; i < allHashes.size(); i++) {
@@ -558,6 +612,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             for (val key : keyList) {
                 batch.add(key, hasher.hash(key.getKey()), key.getKey().getLength());
             }
+        }
+
+        return batch;
+    }
+
+    private TableKeyBatch toRemoveBatch(List<TableKey> keyList) {
+        val batch = TableKeyBatch.removal();
+        for (val key : keyList) {
+            batch.add(key, HASHER.hash(key.getKey()), key.getKey().getLength());
         }
 
         return batch;
