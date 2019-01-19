@@ -53,7 +53,7 @@ allprojects {
         }
         test {
           // From JDK11+ Java will try to use TLSv1.3, we don't need it in tests
-          // systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
+          systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
         }
     }
     // Plugin configurations
