@@ -50,6 +50,7 @@ allprojects {
             testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
             compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
             testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+        }
         test {
           // From JDK11+ Java will try to use TLSv1.3, we don't need it in tests
           // systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
