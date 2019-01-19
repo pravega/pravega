@@ -59,7 +59,6 @@ import java.util.concurrent.CompletableFuture;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
-import static io.pravega.test.common.TestUtils.setFinalStatic;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -407,10 +406,8 @@ public class PravegaRequestProcessorTest {
         //test txn segment merge
         CompletableFuture<SegmentProperties> txnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, txnId));
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection);
-
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(PravegaRequestProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, connection, mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -423,10 +420,8 @@ public class PravegaRequestProcessorTest {
         //test non-txn segment merge
         CompletableFuture<SegmentProperties> nonTxnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, null));
         doReturn(nonTxnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        processor = new PravegaRequestProcessor(store, connection);
-
         mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(PravegaRequestProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
+        processor = new PravegaRequestProcessor(store, connection, mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));

@@ -73,9 +73,19 @@ public final class Attributes {
     private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
-     * Defines an attribute that is used to store the first index of a (Table) Segment that has not yet been indexed.
+     * Defines an attribute that is used to store the first offset of a (Table) Segment that has not yet been indexed.
      */
     public static final UUID TABLE_INDEX_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 7);
+
+    /**
+     * Defines an attribute that is used to store the the number of indexed Table Entries in a (Table) Segment.
+     */
+    public static final UUID TABLE_ENTRY_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 8);
+
+    /**
+     * Defines an attribute that is used to store the the number of Table Buckets in a (Table) Segment.
+     */
+    public static final UUID TABLE_BUCKET_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
 
     /**
      * Determines whether the given Attribute Id refers to a Core Attribute.

@@ -42,7 +42,6 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
-import static io.pravega.test.common.TestUtils.setFinalStatic;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -67,8 +66,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(AppendProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -102,8 +100,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(AppendProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -177,8 +174,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(AppendProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -216,8 +212,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(AppendProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
@@ -342,8 +337,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         ServerConnection connection = mock(ServerConnection.class);
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(AppendProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
-        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null, mockedDynamicLogger);
 
         setupGetAttributes(streamSegmentName, clientId, store);
         CompletableFuture<Void> result = new CompletableFuture<>();
