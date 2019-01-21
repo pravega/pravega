@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.segmentstore.server.host.handler;
 
@@ -68,20 +68,17 @@ import static java.util.stream.Collectors.toList;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
-import static io.pravega.test.common.TestUtils.setFinalStatic;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -422,10 +419,8 @@ public class PravegaRequestProcessorTest {
         //test txn segment merge
         CompletableFuture<SegmentProperties> txnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, txnId));
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
-
         DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(PravegaRequestProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -438,10 +433,8 @@ public class PravegaRequestProcessorTest {
         //test non-txn segment merge
         CompletableFuture<SegmentProperties> nonTxnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, null));
         doReturn(nonTxnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection);
-
         mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        setFinalStatic(PravegaRequestProcessor.class.getDeclaredField("DYNAMIC_LOGGER"), mockedDynamicLogger);
+        processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, mockedDynamicLogger);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -614,9 +607,6 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
 
-        assertThrows("deleteTable() is implemented.",
-                     () -> processor.deleteTableSegment(new WireCommands.DeleteTableSegment(1, streamSegmentName, true, "")),
-                     ex -> ex instanceof UnsupportedOperationException);
         assertThrows("seal() is implemented.",
                      () -> processor.sealTableSegment(new WireCommands.SealTableSegment(1, streamSegmentName, "")),
                      ex -> ex instanceof UnsupportedOperationException);
@@ -700,6 +690,61 @@ public class PravegaRequestProcessorTest {
     }
 
     @Test(timeout = 30000)
+    public void testDeleteTableWithoutData() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String streamSegmentName = "testTable1";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
+
+        // Generate keys.
+        ArrayList<HashedArray> keys = generateKeys(2, rnd);
+
+        // Create a table segment.
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, streamSegmentName, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
+
+        processor.deleteTableSegment(new WireCommands.DeleteTableSegment(2, streamSegmentName,  true, ""));
+        order.verify(connection).send(new WireCommands.SegmentDeleted(2, streamSegmentName));
+    }
+
+    @Test(timeout = 30000)
+    public void testDeleteTableWithData() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String streamSegmentName = "testTable";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection);
+
+        // Generate keys.
+        ArrayList<HashedArray> keys = generateKeys(2, rnd);
+
+        // Create a table segment and add data.
+        processor.createTableSegment(new WireCommands.CreateTableSegment(3, streamSegmentName, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(3, streamSegmentName));
+        TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, streamSegmentName, "", getTableEntries(singletonList(e1))));
+        order.verify(connection).send(new WireCommands.TableEntriesUpdated(4, singletonList(0L)));
+
+        // Delete a table segment which has data.
+        processor.deleteTableSegment(new WireCommands.DeleteTableSegment(5, streamSegmentName,  true, ""));
+        order.verify(connection).send(new WireCommands.TableSegmentNotEmpty(5, streamSegmentName, ""));
+
+    }
+
+    @Test(timeout = 30000)
     public void testReadTable() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
         val rnd = new Random(0);
@@ -724,7 +769,7 @@ public class PravegaRequestProcessorTest {
         // Read value of a non-existent key.
         WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), TableKey.NO_VERSION);
         processor.readTable(new WireCommands.ReadTable(2, streamSegmentName, "", singletonList(key)));
-        order.verify(connection, atLeastOnce()).send(new WireCommands.TableRead(2, streamSegmentName,
+        order.verify(connection).send(new WireCommands.TableRead(2, streamSegmentName,
                                                                                 getTableEntries(singletonList(null))));
 
         // Update a value to a key.

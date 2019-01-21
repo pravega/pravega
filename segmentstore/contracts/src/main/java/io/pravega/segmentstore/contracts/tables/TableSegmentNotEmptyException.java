@@ -9,13 +9,11 @@
  */
 package io.pravega.segmentstore.contracts.tables;
 
-import io.pravega.segmentstore.contracts.StreamSegmentException;
-
 /**
  * Exception that is thrown whenever an operation is conditioned on its target Table Segment to be empty but the
  * Table Segment is not.
  */
-public class TableSegmentNotEmptyException extends StreamSegmentException {
+public class TableSegmentNotEmptyException extends ConditionalTableUpdateException {
     /**
      * Creates a new instance of the {@link TableSegmentNotEmptyException} class.
      *
