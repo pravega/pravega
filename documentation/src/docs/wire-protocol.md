@@ -20,42 +20,38 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 - **Message Type**: An Integer (4 bytes) identifies the message type and determines the subsequent fields. (Note that the protocol can be extended by adding new types.)
 - **Length**:  An Integer (4 bytes) (Messages should be less than 2<sup>24</sup>, but the upper bits remain zero). Payload size of the message (possibly zero, indicating there is no data). The remainder of the fields are specific to the type of the message. A few important messages are listed below.
 
-# General
-
-## KeepAlive - Request/Reply
-
 # Reading
 
 ## Read Segment - Request
 
 1. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8. This Segment indicates the Stream Segment that was read.
-2. `Offset`: Long (8 bytes). The offset in the Stream Segment to read from.
-3. `Reply`: Integer (4 bytes). The clients can request for the required length to the server (but the server may allot a different number of bytes).
+2. `Offset`: Long (8 bytes). The `Offset` in the Stream Segment to read from.
+3. `suggestedLength` of Reply: Integer (4 bytes). The clients can request for the required length to the server (but the server may allot a different number of bytes.
 4. `delegationToken`: String (2 byte) followed by that many bytes of Java's Modified UTF-8. This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
 
 
 ## Segment Read - Reply
 
-1. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8). This Segment indicates the Stream Segment that was read.
-2. `Offset`: Long (8 bytes). The offset in the Stream Segment to read from.
+1. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8. This Segment indicates the Stream Segment that was read.
+2. `Offset`: Long (8 bytes). The `Offset` in the Stream Segment to read from.
 3. `Tail`: Boolean (1 bit). If the read was performed at the tail of the Stream Segment.
 4. `EndOfSegment`: Boolean (1 bit). If the read was performed at the end of the Stream Segment.
 5. `Data`: Binary (remaining length in the message).
 
-The client requests to read from a particular Segment at a particular Offset. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
+The client requests to read from a particular Segment at a particular `Offset`. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
 
 # Appending
 
 ## Setup Append - Request
 1. `RequestId`: Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.
 2. `writerId`: UUID (16 bytes). It identifies the requesting appender.
-3. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8). This Segment indicates the Stream Segment that was read.
+3. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8. This Segment indicates the Stream Segment that was read.
 4. `delegationToken`: String (2 byte) followed by that many bytes of Java's Modified UTF-8. This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.
 
 ## Append Setup - Reply
 
 1.  `RequestId`: Long (8 bytes). This field contains the client-generated ID that has been propagated to identify a client request.
-2.  `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8). This Segment indicates the Stream Segment to append.
+2.  `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8. This Segment indicates the Stream Segment to append.
 3.  `writerId`: UUID (16 bytes). It identifies the requesting appender.
 4.  `lastEventNumber`: Long (8 bytes). It specifies the last event number in the Stream.
 
@@ -72,6 +68,7 @@ The client requests to read from a particular Segment at a particular Offset. It
 4. `numEvents`: Integer (4 bytes). It specifies the current number of events.
 5. `lastEventNumber`: Long (8 bytes). It specifies the value of last event number in the Stream.
 
+The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be less than full. This allows the client to begin writing a block before it has a large number of events. This avoids the need to buffer up events in the client and allows for lower latency.
 
 ## Partial Event - Request/Reply
 
@@ -79,9 +76,7 @@ The client requests to read from a particular Segment at a particular Offset. It
 
 ## Event - Request
 
-Only valid inside the block.
-
-1.  `Data`: It contains the Event's data (not hold the contents of the block).
+1.  `Data`: It contains the Event's data (only valid inside the block).
 
 
 ## Data Appended - Reply
@@ -105,5 +100,3 @@ After receiving the "Append Setup" reply, it performs the following:
 While this is happening, the server will be periodically sending it `DataAppended` replies acking messages. Note that there can be multiple "Appends Setup" for a given TCP connection. This allows a client to share a connection when producing to multiple Segments.
 
 A client can optimize its appending by specifying a large value in it's `AppendBlock` message, as the events inside of the block do not need to be processed individually.
-
-The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be less than full. This allows the client to begin writing a block before it has a large number of events. This avoids the need to buffer up events in the client and allows for lower latency.
