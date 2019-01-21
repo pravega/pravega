@@ -17,21 +17,21 @@ import java.util.List;
 import java.util.Map;
 
 public class PravegaCredentialsWrapper extends com.google.auth.Credentials {
-    private final Credentials creds;
+    private final Credentials credentials;
 
-    public PravegaCredentialsWrapper(Credentials creds) {
-        this.creds = creds;
+    public PravegaCredentialsWrapper(Credentials credentials) {
+        this.credentials = credentials;
     }
 
     @Override
     public String getAuthenticationType() {
-        return creds.getAuthenticationType();
+        return credentials.getAuthenticationType();
     }
 
     @Override
     public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
-        String token = creds.getAuthenticationToken();
-        String credential = creds.getAuthenticationType() + " " + token;
+        String token = credentials.getAuthenticationToken();
+        String credential = credentials.getAuthenticationType() + " " + token;
         return Collections.singletonMap(AuthConstants.AUTHORIZATION, Collections.singletonList(credential));
     }
 
