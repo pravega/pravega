@@ -645,12 +645,12 @@ public class PravegaRequestProcessorTest {
         // Test with key not present. The table store throws KeyNotExistsException.
         TableEntry e2 = TableEntry.versioned(keys.get(1), generateValue(rnd), 0L);
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, streamSegmentName, "", getTableEntries(singletonList(e2))));
-        order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(3, streamSegmentName, "" ));
+        order.verify(connection).send(new WireCommands.TableKeyDoesNotExist(3, streamSegmentName, "" ));
 
         // Test with invalid key version. The table store throws BadKeyVersionException.
         TableEntry e3 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(4, streamSegmentName, "", getTableEntries(singletonList(e3))));
-        order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(4, streamSegmentName, "" ));
+        order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, streamSegmentName, "" ));
     }
 
     @Test(timeout = 30000)
@@ -686,7 +686,7 @@ public class PravegaRequestProcessorTest {
         TableEntry e2 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
         key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, streamSegmentName, "", singletonList(key)));
-        order.verify(connection).send(new WireCommands.ConditionalTableUpdateFailed(4, streamSegmentName, "" ));
+        order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, streamSegmentName, "" ));
     }
 
     @Test(timeout = 30000)

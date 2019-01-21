@@ -78,5 +78,7 @@ public interface ReplyProcessor {
 
     void tableRead(WireCommands.TableRead tableRead);
 
-    void conditionalTableUpdateFailed(WireCommands.ConditionalTableUpdateFailed conditionalTableUpdateFailed);
+    void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist);
+
+    void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
 }

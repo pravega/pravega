@@ -605,8 +605,15 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testConditionalTableUpdateFailed() throws IOException {
-        WireCommands.ConditionalTableUpdateFailed cmd = new WireCommands.ConditionalTableUpdateFailed(l, testString1, "");
+    public void testKeyDoesNotExist() throws IOException {
+        WireCommands.TableKeyDoesNotExist cmd = new WireCommands.TableKeyDoesNotExist(l, testString1, "");
+        testCommand(cmd);
+        assertTrue(cmd.isFailure());
+    }
+
+    @Test
+    public void testKeyBadVersion() throws IOException {
+        WireCommands.TableKeyBadVersion cmd = new WireCommands.TableKeyBadVersion(l, testString1, "");
         testCommand(cmd);
         assertTrue(cmd.isFailure());
     }

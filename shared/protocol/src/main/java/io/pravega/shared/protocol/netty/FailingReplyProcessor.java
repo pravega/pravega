@@ -177,7 +177,12 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void conditionalTableUpdateFailed(WireCommands.ConditionalTableUpdateFailed conditionalTableUpdateFailed) {
-        throw new IllegalStateException("Unexpected operation: " + conditionalTableUpdateFailed);
+    public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyDoesNotExist);
+    }
+
+    @Override
+    public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyBadVersion);
     }
 }

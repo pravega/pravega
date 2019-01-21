@@ -36,7 +36,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
-import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
+import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
+import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
@@ -789,9 +790,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof TableSegmentNotEmptyException) {
             log.warn(requestId, "Table segment '{}' is not empty to perform '{}'.", segment, operation);
             invokeSafely(connection::send, new TableSegmentNotEmpty(requestId, segment, clientReplyStackTrace), failureHandler);
-        } else if (u instanceof ConditionalTableUpdateException) {
-            log.warn(requestId, "Conditional update on Table segment '{}' failed.", segment);
-            invokeSafely(connection::send, new WireCommands.ConditionalTableUpdateFailed(requestId, segment, clientReplyStackTrace), failureHandler);
+        } else if (u instanceof KeyNotExistsException) {
+            log.warn(requestId, "Conditional update on Table segment '{}' failed as the key does not exist.", segment);
+            invokeSafely(connection::send, new WireCommands.TableKeyDoesNotExist(requestId, segment, clientReplyStackTrace), failureHandler);
+        } else if (u instanceof BadKeyVersionException) {
+            log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
+            invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else {
             log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem

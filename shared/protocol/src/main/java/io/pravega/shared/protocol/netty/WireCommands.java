@@ -1780,15 +1780,15 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class ConditionalTableUpdateFailed implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.CONDITIONAL_TABLE_UPDATE_FAILED;
+    public static final class TableKeyDoesNotExist implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEY_DOES_NOT_EXIST;
         final long requestId;
         final String segment;
         final String serverStackTrace;
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.conditionalTableUpdateFailed(this);
+            cp.tableKeyDoesNotExist(this);
         }
 
         @Override
@@ -1802,12 +1802,49 @@ public final class WireCommands {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = in.readUTF();
-            return new ConditionalTableUpdateFailed(requestId, segment, serverStackTrace);
+            return new TableKeyDoesNotExist(requestId, segment, serverStackTrace);
         }
 
         @Override
         public String toString() {
-            return "Conditional table update failed for table segment : " + segment;
+            return "Conditional table update failed since the key does not exist : " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Data
+    public static final class TableKeyBadVersion implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEY_BAD_VERSION;
+        final long requestId;
+        final String segment;
+        final String serverStackTrace;
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableKeyBadVersion(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(serverStackTrace);
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String serverStackTrace = in.readUTF();
+            return new TableKeyBadVersion(requestId, segment, serverStackTrace);
+        }
+
+        @Override
+        public String toString() {
+            return "Conditional table update failed since the key version is incorrect : " + segment;
         }
 
         @Override
