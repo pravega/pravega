@@ -60,7 +60,7 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                                                                          .streamName(STREAM_NAME)
                                                                          .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
     private static final int SCALES_TO_PERFORM = 1010;
-    
+
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
 
@@ -117,12 +117,12 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         for (int i = 0; i < NUM_SEGMENTS; i++) {
             newRanges.put(delta * i, delta * (i + 1));
         }
-        
+
         // manually scale the stream SCALES_TO_PERFORM times
         Stream stream = new StreamImpl(SCOPE, STREAM_NAME);
         AtomicInteger counter = new AtomicInteger(0);
         List<List<Segment>> listOfEpochs = new LinkedList<>();
-        
+
         CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= SCALES_TO_PERFORM,
                 () -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
                                 .thenCompose(segments -> {
@@ -137,9 +137,9 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                                     return controller.scaleStream(stream, segmentsToSeal, newRanges, executorService)
                                                      .getFuture()
                                                      .thenAccept(scaleStatus -> {
-                                                log.info("scale stream for epoch {} completed with status {}", counter.get(), scaleStatus);
-                                                assert scaleStatus;
-                                            });
+                                                         log.info("scale stream for epoch {} completed with status {}", counter.get(), scaleStatus);
+                                                         assert scaleStatus;
+                                                     });
                                 }), executorService);
 
         CompletableFuture<Void> result = scaleFuture
@@ -171,13 +171,13 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                                     assert truncated;
                                     // we will just validate that a non empty value is returned. 
                                     return controller.getSuccessors(cut)
-                                            .thenAccept(successors -> {
-                                                log.info("Successors for streamcut {} are {}", cut, successors);
-                                            });
+                                                     .thenAccept(successors -> {
+                                                         log.info("Successors for streamcut {} are {}", cut, successors);
+                                                     });
                                 });
                     }, executorService);
                 });
-        
+
         Futures.await(result);
     }
 }

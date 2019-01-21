@@ -18,7 +18,6 @@ import mesosphere.marathon.client.MarathonException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -27,7 +26,6 @@ import java.net.URI;
 import static org.apache.curator.framework.imps.CuratorFrameworkState.STARTED;
 import static org.junit.Assert.assertEquals;
 
-@Ignore
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ZookeeperTest {
