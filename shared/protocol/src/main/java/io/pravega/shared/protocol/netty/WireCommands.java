@@ -1742,7 +1742,7 @@ public final class WireCommands {
                 return TableKey.EMPTY;
             }
             if (length < payLoadSize) {
-                throw new InvalidMessageException("Was expecting length of atleast : " + payLoadSize + " but found: " + length);
+                throw new InvalidMessageException("Was expecting length of at least : " + payLoadSize + " but found: " + length);
             }
             byte[] msg = new byte[dataLength];
             in.readFully(msg);
@@ -1771,7 +1771,7 @@ public final class WireCommands {
                 return TableValue.EMPTY;
             }
             if ( length < payloadSize) {
-                throw new InvalidMessageException("Was expecting length of atleast : " + payloadSize + " but found: " + length);
+                throw new InvalidMessageException("Was expecting length of at least : " + payloadSize + " but found: " + length);
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);
