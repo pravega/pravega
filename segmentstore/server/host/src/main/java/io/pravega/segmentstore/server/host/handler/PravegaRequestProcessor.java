@@ -97,6 +97,7 @@ import java.util.function.Consumer;
 
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -687,7 +688,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                   .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
     }
 
-
     @Override
     public void readTable(final WireCommands.ReadTable readTable) {
         final String segment = readTable.getSegment();
@@ -703,25 +703,33 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                               .map(k -> new ByteArraySegment(k.getData().array()))
                                               .collect(Collectors.toList());
         tableStore.get(segment, keys, TIMEOUT)
-                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntries(values))))
+                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntries(keys, values))))
                   .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
     }
 
-    private WireCommands.TableEntries getTableEntries(final List<TableEntry> updateData) {
+    private WireCommands.TableEntries getTableEntries(final List<ArrayView> inputKeys, final List<TableEntry> resultEntries) {
 
-        final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = updateData.stream().map(te -> {
-            if (te == null) {
-                // no entry for the corresponding key.
-                return new AbstractMap.SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY);
-            } else {
-                TableKey k = te.getKey();
-                val tableKey = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey().array(), k.getKey().arrayOffset(), k.getKey().getLength()),
-                                                         k.getVersion());
-                ArrayView v = te.getValue();
-                val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(v.array(), v.arrayOffset(), v.getLength()));
-                return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
-            }
-        }).collect(toList());
+        Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
+        final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
+                IntStream.range(0, resultEntries.size())
+                         .mapToObj(i -> {
+                             TableEntry resultTableEntry = resultEntries.get(i);
+                             if (resultTableEntry == null) { // no entry for key at index i.
+                                 ArrayView k = inputKeys.get(i); // key for which the read result was null.
+                                 val keyWireCommand = new WireCommands.TableKey(ByteBuffer.wrap(k.array(), k.arrayOffset(), k.getLength()),
+                                                                                TableKey.NO_VERSION);
+                                 return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
+                             } else {
+                                 TableEntry te = resultEntries.get(i);
+                                 TableKey k = te.getKey();
+                                 val keyWireCommand = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey().array(), k.getKey().arrayOffset(), k.getKey().getLength()),
+                                                                                k.getVersion());
+                                 ArrayView v = te.getValue();
+                                 val valueWireCommand = new WireCommands.TableValue(ByteBuffer.wrap(v.array(), v.arrayOffset(), v.getLength()));
+                                 return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
+
+                             }
+                         }).collect(toList());
 
         return new WireCommands.TableEntries(entries);
     }

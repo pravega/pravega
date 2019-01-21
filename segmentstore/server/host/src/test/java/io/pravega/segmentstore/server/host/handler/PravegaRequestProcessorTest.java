@@ -764,21 +764,24 @@ public class PravegaRequestProcessorTest {
         // Create a table segment and add data.
         processor.createTableSegment(new WireCommands.CreateTableSegment(1, streamSegmentName, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
-        TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
+        TableEntry entry = TableEntry.unversioned(keys.get(0), generateValue(rnd));
 
         // Read value of a non-existent key.
-        WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), TableKey.NO_VERSION);
+        WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(entry.getKey().getKey().array()), TableKey.NO_VERSION);
         processor.readTable(new WireCommands.ReadTable(2, streamSegmentName, "", singletonList(key)));
+
+        // expected result is Key with an empty TableValue.
         order.verify(connection).send(new WireCommands.TableRead(2, streamSegmentName,
-                                                                                getTableEntries(singletonList(null))));
+                                                                 new WireCommands.TableEntries(
+                                                                         singletonList(new AbstractMap.SimpleImmutableEntry<>(key, WireCommands.TableValue.EMPTY)))));
 
         // Update a value to a key.
-        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, streamSegmentName, "", getTableEntries(singletonList(e1))));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(3, streamSegmentName, "", getTableEntries(singletonList(entry))));
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(3, singletonList(0L)));
 
         // Read the value of the key.
-        key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
-        TableEntry expectedEntry = TableEntry.versioned(e1.getKey().getKey(), e1.getValue(), 0L);
+        key = new WireCommands.TableKey(ByteBuffer.wrap(entry.getKey().getKey().array()), 0L);
+        TableEntry expectedEntry = TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), 0L);
         processor.readTable(new WireCommands.ReadTable(4, streamSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableRead(4, streamSegmentName,
                                                                  getTableEntries(singletonList(expectedEntry))));
