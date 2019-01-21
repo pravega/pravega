@@ -173,7 +173,7 @@ public class ControllerImpl implements Controller {
         ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
         Credentials credentials = config.getClientConfig().getCredentials();
         if (credentials != null) {
-            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
+            PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;
