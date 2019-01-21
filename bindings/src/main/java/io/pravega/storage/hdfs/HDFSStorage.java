@@ -57,6 +57,7 @@ import org.apache.hadoop.io.IOUtils;
  * <ol>
  * <li> foo_<epoch>: Segment file, owned by a SegmentStore running under epoch "epoch".
  * <li> foo_sealed: A sealed segment.
+ * </ol>
  * <p>
  * When a container fails over and needs to reacquire ownership of a segment, it renames the segment file as foo_<current_epoch>.
  * After creation of the file, the filename is checked again. If there exists any file with higher epoch, the current file is deleted
@@ -67,7 +68,7 @@ import org.apache.hadoop.io.IOUtils;
  * <p>
  */
 @Slf4j
-class HDFSStorage implements SyncStorage {
+public class HDFSStorage implements SyncStorage {
     private static final String PART_SEPARATOR = "_";
     private static final String NAME_FORMAT = "%s" + PART_SEPARATOR + "%s";
     private static final String SEALED = "sealed";
@@ -99,7 +100,7 @@ class HDFSStorage implements SyncStorage {
      *
      * @param config   The configuration to use.
      */
-    HDFSStorage(HDFSStorageConfig config) {
+    public HDFSStorage(HDFSStorageConfig config) {
         Preconditions.checkNotNull(config, "config");
         this.config = config;
         this.closed = new AtomicBoolean(false);
