@@ -16,10 +16,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class PravegaCredsWrapper extends com.google.auth.Credentials {
+public class PravegaCredentialsWrapper extends com.google.auth.Credentials {
     private final Credentials creds;
 
-    public PravegaCredsWrapper(Credentials creds) {
+    public PravegaCredentialsWrapper(Credentials creds) {
         this.creds = creds;
     }
 
