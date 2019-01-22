@@ -71,7 +71,6 @@ public class ZooKeeperBucketManager extends BucketManager {
         pathChildrenCache.getListenable().addListener(bucketListener);
         log.info("bucket ownership listener registered on bucket root {}", getServiceType());
 
-
         try {
             pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
         } catch (Exception e) {
