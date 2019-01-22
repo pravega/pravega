@@ -12,23 +12,23 @@ You may obtain a copy of the License at
 ## Encryption of data in flight
 Pravega ensures that all the data in flight can be passed by applying encryption.
 The different [channels](https://github.com/pravega/pravega/wiki/PDP-23:-Pravega-security----encryption-and-Role-Based-Access-Control#b-encryption-of-data-in-flight-over-network-and-in-tier-1)
-can be configured with TLS and encryption can be enabled for them.
+can be configured with the TLS and encryption can be enabled for them.
 
 ### Certificate Management
-Pravega expects administrators and users to create and manage certificate creation, deployment and management.
+Pravega expects administrators and users to create and manage the certificate creation, deployment and management.
 Pravega provides various configuration parameters using which certificates for different communication channels can be specified.
 
 ### Encrypted data flow between Pravega client and Pravega controller and segment store
-Pravega uses same certificate to interact with the controller and segment store. The certificates needs to be mentioned specifically on the client and the server machine.
+Pravega uses same certificate to interact with the controller and Segment Store. The certificates needs to be mentioned specifically on the client and the server machine.
 
 **Note:** These certificates are not loaded from the truststore.
 
 ### Encrypted data flow between Pravega and Tier 1 (Apache Bookkeeper)
-Pravega segment store uses Apache Bookkeeper as Tier 1 storage. Apache Bookkeeper supports JKS based truststore. Segment store uses JKS based truststore to interact with it.
+Pravega Segment Store uses Apache Bookkeeper as Tier 1 Storage. Apache Bookkeeper supports JKS based truststore. Segment Store uses JKS based truststore to interact with it.
 The configurations can be found [here](pravega-security-configurations.md#pravega-segment-store).
 
 ### Encrypted access to Apache Zookeeper
-Pravega segment store and Pravega controller interact with Apache Zookeeper. These connections can be encrypted based on configuration.
+Pravega Segment Store and Pravega Controller interact with Apache Zookeeper. These connections can be encrypted based on configuration.
 The details about the configurations can be found at for [segmentstore](pravega-security-configurations.md#pravega-segment-store) and for [controller](pravega-security-configurations.md#pravega-controller).
 
 ## Encryption of data at rest
