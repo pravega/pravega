@@ -255,12 +255,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
         return CompletableFuture.completedFuture(null);
     }
-
-    @Override
-    public CompletableFuture<Void> createBucketsRoot() {
-        return CompletableFuture.completedFuture(null);
-    }
-
+    
     private String scopedStreamName(final String scopeName, final String streamName) {
         return new StringBuilder(scopeName).append("/").append(streamName).toString();
     }

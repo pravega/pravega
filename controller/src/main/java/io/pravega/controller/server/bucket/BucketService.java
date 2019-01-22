@@ -184,9 +184,15 @@ abstract class BucketService extends AbstractService {
                         avaiableSlots--;
                     }
                 } else { 
-                    // empty priority queue
+                    // empty priority queue or first element cannot be scheduled immediately
+                    if (element != null) {
+                        // instead of wasting compute cycles, let next run happen only when first element in the 
+                        // work queue is ready for execution. 
+                        delayInMillis = element.nextExecutionTimeInMillis - time;
+                    } else {
+                        delayInMillis = DELAY_IN_MILLIS;
+                    }
                     element = null;
-                    delayInMillis = DELAY_IN_MILLIS;
                 }
             } else {
                 // no slots available. 
