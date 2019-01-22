@@ -64,7 +64,6 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
 
         // Create a segment, add some data, set some attributes, "truncate" it and then seal it.
         val storageInfo = context.storage.create(SEGMENT_NAME, TIMEOUT)
-                .thenCompose(si -> context.storage.openWrite(si.getName()))
                 .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[10]), 10, TIMEOUT))
                 .thenCompose(v -> context.storage.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT)).join();
         val expectedInfo = StreamSegmentInformation.from(storageInfo)
@@ -133,7 +132,6 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         rnd.nextBytes(data);
 
         context.storage.create(SEGMENT_NAME, TIMEOUT)
-                       .thenCompose(si -> context.storage.openWrite(si.getName()))
                        .thenCompose(handle -> context.storage
                                .write(handle, 0, new ByteArrayInputStream(data), data.length, TIMEOUT)
                                .thenCompose(v -> context.storage.truncate(handle, truncationOffset, TIMEOUT))).join();

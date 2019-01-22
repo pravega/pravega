@@ -1025,4 +1025,9 @@ public interface StreamMetadataStore {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+
+    /**
+     * This method performs initialization tasks for the correct operation of services working on Stream buckets.
+     */
+    CompletableFuture<Void> createBucketsRoot();
 }

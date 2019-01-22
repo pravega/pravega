@@ -48,7 +48,6 @@ import java.security.AccessControlException;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -147,7 +146,7 @@ public class FileSystemStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return execute(streamSegmentName, () -> doCreate(streamSegmentName));
     }
 
@@ -274,7 +273,7 @@ public class FileSystemStorage implements SyncStorage {
         return Files.exists(Paths.get(config.getRoot(), streamSegmentName));
     }
 
-    private SegmentProperties doCreate(String streamSegmentName) throws IOException {
+    private SegmentHandle doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
         FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
 
@@ -285,7 +284,7 @@ public class FileSystemStorage implements SyncStorage {
         Files.createFile(path, fileAttributes);
         LoggerHelpers.traceLeave(log, "create", traceId);
         FileSystemMetrics.CREATE_COUNT.inc();
-        return this.doGetStreamSegmentInfo(streamSegmentName);
+        return FileSystemSegmentHandle.writeHandle(streamSegmentName);
     }
 
     private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws Exception {
@@ -426,7 +425,7 @@ public class FileSystemStorage implements SyncStorage {
             throw new StreamSegmentSealedException(segmentName, e);
         }
 
-        throw Lombok.sneakyThrow(e);
+        throw Exceptions.sneakyThrow(e);
     }
 
     //endregion

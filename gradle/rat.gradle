@@ -16,7 +16,7 @@ rat {
             '**/*.iml',
             '**/*.iws',
             '**/*.ipr',
-            '**/passwd',
+            '**/*passwd',
             '**/gradle/wrapper/**',
             '**/build/**',
             '**/out/**',

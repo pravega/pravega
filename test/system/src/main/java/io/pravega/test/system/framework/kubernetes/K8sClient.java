@@ -44,11 +44,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.TestFrameworkException;
-import lombok.Cleanup;
-import lombok.Lombok;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -63,6 +58,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
@@ -276,7 +274,7 @@ public class K8sClient {
                         api.patchNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, name, request, cb1);
                         return cb1.getFuture();
                     } catch (ApiException e) {
-                        throw Lombok.sneakyThrow(e);
+                        throw Exceptions.sneakyThrow(e);
                     }
                 }).exceptionally(t -> {
                     log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it.", name, customResourceGroup, t);
@@ -286,7 +284,7 @@ public class K8sClient {
                         api.createNamespacedCustomObjectAsync(customResourceGroup, version, namespace, plural, request, PRETTY_PRINT, cb);
                         return cb.getFuture();
                     } catch (ApiException e) {
-                        throw Lombok.sneakyThrow(e);
+                        throw Exceptions.sneakyThrow(e);
                     }
                 });
     }

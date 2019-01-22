@@ -15,6 +15,7 @@ import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -34,6 +35,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Controller stream metadata tests.
@@ -64,7 +66,7 @@ public class ControllerStreamMetadataTest {
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-            this.server = new PravegaConnectionListener(false, servicePort, store);
+            this.server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
             this.server.startListening();
 
             // 3. Start controller

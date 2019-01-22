@@ -41,10 +41,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
-import lombok.Lombok;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Single-thread Processor for Operations. Queues all incoming entries in a BlockingDrainingQueue, then picks them all
@@ -329,7 +328,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                     // But first, fail any Operations that we did not have a chance to process yet.
                     cancelIncompleteOperations(operations, ex);
-                    throw Lombok.sneakyThrow(ex);
+                    throw Exceptions.sneakyThrow(ex);
                 }
             }
         }

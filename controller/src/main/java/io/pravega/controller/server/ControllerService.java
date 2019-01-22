@@ -55,7 +55,6 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -104,7 +103,7 @@ public class ControllerService {
                         .collect(Collectors.toList());
             } catch (ClusterException e) {
                 // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
-                throw Lombok.sneakyThrow(e);
+                throw Exceptions.sneakyThrow(e);
             }
         }, executor);
     }

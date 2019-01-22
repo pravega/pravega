@@ -10,6 +10,7 @@
 package io.pravega.test.integration;
 
 import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -31,6 +32,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -112,7 +115,7 @@ public class ControllerBootstrapTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         // Ensure that create stream succeeds.
