@@ -19,6 +19,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -37,6 +38,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ControllerServiceTest {
@@ -58,7 +60,7 @@ public class ControllerServiceTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
         
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,

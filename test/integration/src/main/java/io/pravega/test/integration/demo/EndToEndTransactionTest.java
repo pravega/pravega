@@ -47,7 +47,7 @@ public class EndToEndTransactionTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int port = Config.SERVICE_PORT;
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, serviceBuilder.createTableStoreService());
         server.startListening();
 
         Thread.sleep(1000);

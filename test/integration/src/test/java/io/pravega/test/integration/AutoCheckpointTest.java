@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -31,6 +32,7 @@ import lombok.Cleanup;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 public class AutoCheckpointTest {
 
@@ -50,7 +52,7 @@ public class AutoCheckpointTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -101,7 +103,7 @@ public class AutoCheckpointTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

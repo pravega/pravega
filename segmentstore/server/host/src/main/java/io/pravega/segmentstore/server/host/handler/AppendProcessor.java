@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -83,9 +84,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
     private static final String EMPTY_STACK_TRACE = "";
+    private final DynamicLogger dynamicLogger;
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     @Getter
@@ -117,7 +118,22 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, null, verifier, false);
+        this(store, connection, next, null, verifier, MetricsProvider.getDynamicLogger(), false);
+    }
+
+    /**
+     * Creates a new instance of the AppendProcessor class with dynamic metric logger.
+     *
+     * @param store      The SegmentStore to send append requests to.
+     * @param connection The ServerConnection to send responses to.
+     * @param next       The RequestProcessor to invoke next.
+     * @param verifier    The token verifier.
+     * @param dynamicLogger  The dynamic metric logger to log metrics
+     */
+    @VisibleForTesting
+    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier,
+                           DynamicLogger dynamicLogger) {
+        this(store, connection, next, null, verifier, dynamicLogger, false);
     }
 
     /**
@@ -127,15 +143,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * @param next          The RequestProcessor to invoke next.
      * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
      * @param tokenVerifier Delegation token verifier.
+     * @param dynamicLogger  The DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
-                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+                    DelegationTokenVerifier tokenVerifier, DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
         this.statsRecorder = statsRecorder;
         this.tokenVerifier = tokenVerifier;
+        this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
@@ -299,13 +317,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
 
-                DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
-                DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
+                dynamicLogger.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
+                dynamicLogger.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
                 //Don't report segment specific metrics if segment is a transaction
                 //The parent segment metrics will be updated once the transaction is merged
                 if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
+                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
                 }
             }
 

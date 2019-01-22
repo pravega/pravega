@@ -32,6 +32,8 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
+    void notEmptyTableSegment(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
+
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);
@@ -69,4 +71,14 @@ public interface ReplyProcessor {
     void processingFailure(Exception error);
 
     void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
+
+    void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated);
+
+    void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved);
+
+    void tableRead(WireCommands.TableRead tableRead);
+
+    void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist);
+
+    void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
 }
