@@ -13,9 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.util.RetryHelper;
 import lombok.AccessLevel;
-import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -45,6 +43,7 @@ public abstract class BucketManager extends AbstractService {
     private final BucketStore.ServiceType serviceType;
     private final Function<Integer, BucketService> bucketServiceSupplier;
     private final ConcurrentMap<Integer, BucketService> buckets;
+    @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
 
     BucketManager(final String processId, final BucketStore.ServiceType serviceType, final ScheduledExecutorService executor,
@@ -72,7 +71,7 @@ public abstract class BucketManager extends AbstractService {
 
     protected abstract int getBucketCount();
 
-    private CompletableFuture<Void> tryTakeOwnership(int bucket) {
+    protected CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return takeBucketOwnership(bucket, processId, executor)
                          .thenCompose(isOwner -> {
                     if (isOwner) {
@@ -150,20 +149,7 @@ public abstract class BucketManager extends AbstractService {
                     }
                 });
     }
-
-    public void notify(BucketNotification notification) {
-        switch (notification.getType()) {
-            case BucketAvailable:
-                RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(notification.getBucketId()),
-                        e -> log.warn("{}: exception while attempting to take ownership for bucket {} ", serviceType,
-                                notification.getBucketId(), e.getMessage()), executor);
-                break;
-            case ConnectivityError:
-                log.warn("{}: Bucket notification for connectivity error", serviceType);
-                break;
-        }
-    }
-
+    
     abstract void startBucketOwnershipListener();
 
     abstract void stopBucketOwnershipListener();
@@ -183,16 +169,5 @@ public abstract class BucketManager extends AbstractService {
     @VisibleForTesting
     Map<Integer, BucketService> getBucketServices() {
         return Collections.unmodifiableMap(buckets);
-    }
-
-    @Data
-    static class BucketNotification {
-        private final int bucketId;
-        private final NotificationType type;
-    }
-
-    protected enum NotificationType {
-        BucketAvailable,
-        ConnectivityError
     }
 }

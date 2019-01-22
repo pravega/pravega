@@ -10,8 +10,10 @@
 package io.pravega.controller.server.bucket;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
+import io.pravega.controller.util.RetryHelper;
 import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
@@ -52,10 +54,12 @@ public class ZooKeeperBucketManager extends BucketManager {
                     break;
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
-                    notify(new BucketNotification(bucketId, NotificationType.BucketAvailable));
+                    RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
+                            e -> log.warn("{}: exception while attempting to take ownership for bucket {} ", getServiceType(),
+                                    bucketId, e.getMessage()), getExecutor());
                     break;
                 case CONNECTION_LOST:
-                    notify(new BucketNotification(Integer.MIN_VALUE, NotificationType.ConnectivityError));
+                    log.warn("{}: Received connectivity error", getServiceType());
                     break;
                 default:
                     log.warn("Received unknown event {} on bucket root {} ", event.getType(), getServiceType());
@@ -75,7 +79,7 @@ public class ZooKeeperBucketManager extends BucketManager {
             pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
         } catch (Exception e) {
             log.error("Starting ownership listener for service {} threw exception", getServiceType(), e);
-            throw Lombok.sneakyThrow(e);
+            throw new Exceptions();
         }
 
     }
