@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractService;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.controller.store.stream.BucketStore;
@@ -30,19 +30,22 @@ import java.util.HashSet;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class represents an instance of a background worker service that runs background work for all streams under a 
  * specific bucket for a specific service type. This means a separate instance of this class is instantiated for each 
  * bucket for each service type.   
- * Each object has two dedicated threads, notification loop and worker loop, that poll for any outstanding notifications and work. 
+ * Each object has two categories of work that it performs - process notification and execute the supplied worker funtion 
+ * on known sets of streams.
  * 
  * This is an abstract class and its implementations should monitor the underlying bucket store and call `notify` method 
- * whenever streams are added to or removed from the bucket. These notifications are added to the notification queue.
+ * whenever streams are added to or removed from the bucket. These stream change notifications are added to the notification queue.
+ * 
+ * The notification loop periodically dequeues at most `MAX_NOTIFICATIONS_TO_TAKE` notifications from the queue and asynchronously 
+ * process these notifications. Upon completion of notification, the loop continues with the next iteration. 
+ * The queue used for notification is `BlockingDrainingQueue` which exposes an asynchronous `take` method. 
  * 
  * Notification loop scans the notification queue and if a new stream has been added to the bucket, it
  * posts a new entry into work priority queue.  
@@ -53,15 +56,18 @@ import java.util.concurrent.TimeUnit;
  * Worker loop peeks at the first element from the priority queue. If the first element in the queue can be executed, 
  * it is taken from the queue else, the loop sleeps till it can dequeue a work. 
  * 
- * Worker loop also only dequeues `maxConcurrentExecutions` number of work items from the priority queue. 
- * This is managed via a semaphore. Whenever a new work is picked from the queue, a semaphore is acquired and the `work` 
- * is submitted for execution.   
+ * Worker loop runs as an infinite loop and, at the most, dequeues `avaiableSlots` number of work items from the priority queue. 
+ * During each loop iteration it first checks if there are slots available to pick a work. If not, it postpones itself with a delay. 
+ * Available slots is managed via a thread safe counter. Whenever a new work is picked from the queue, the counter is decremented 
+ * and work is started asynchronously. 
  * Whenever the work completes, we add the entry back into the work queue with next schedule for the stream after `execution duration` 
- * and releases the semaphore so that more outstanding work from the queue can be picked up. 
+ * and increment the available slots counter so that more outstanding work from the queue can be picked up. 
  * This ensures that we only have a limited number of outstanding work items irrespective of number of streams under the bucket. 
- * WIth exactly one entry per stream in the priority queue, we also ensure fairness. 
+ * With exactly one entry per stream in the priority queue, we also ensure fairness. 
  */
 abstract class BucketService extends AbstractService {
+    private static final int MAX_NOTIFICATIONS_TO_TAKE = 100;
+    private static final long DELAY_IN_MILLIS = 100L;
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(BucketService.class));
 
     protected final ScheduledExecutorService executor;
@@ -70,7 +76,7 @@ abstract class BucketService extends AbstractService {
     private final int bucketId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
-    private final Semaphore maxConcurrentExecutions;
+    private int avaiableSlots;
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final PriorityQueue<QueueElement> workQueue;
@@ -78,32 +84,25 @@ abstract class BucketService extends AbstractService {
     private final Set<Stream> knownStreams;
     private final BlockingDrainingQueue<StreamNotification> notifications;
     private final CompletableFuture<Void> serviceStartFuture;
-    private final CompletableFuture<Void> notificationLoop;
-    private final CompletableFuture<Void> workerLoop;
+    private final AtomicReference<CompletableFuture<Void>> notificationLoop;
+    private final AtomicReference<CompletableFuture<Void>> workerLoop;
     private final Duration executionPeriod;
     private final BucketWork bucketWork;
-    private final Thread notification;
-    private final Thread worker;
     
     BucketService(BucketStore.ServiceType serviceType, int bucketId, ScheduledExecutorService executor,
                   int maxConcurrentExecutions, Duration executionPeriod, BucketWork bucketWork) {
         this.serviceType = serviceType;
         this.bucketId = bucketId;
         this.executor = executor;
-        this.notifications = new LinkedBlockingQueue<>();
+        this.notifications = new BlockingDrainingQueue<>();
         this.serviceStartFuture = new CompletableFuture<>();
-        this.notificationLoop = new CompletableFuture<>();
-        this.workerLoop = new CompletableFuture<>();
-        this.maxConcurrentExecutions = new Semaphore(maxConcurrentExecutions);
+        this.notificationLoop = new AtomicReference<>(CompletableFuture.completedFuture(null));
+        this.workerLoop = new AtomicReference<>(CompletableFuture.completedFuture(null));
+        this.avaiableSlots = maxConcurrentExecutions;
         this.knownStreams = new HashSet<>();
         this.workQueue = new PriorityQueue<>(Comparator.comparingLong(x -> x.nextExecutionTimeInMillis));
         this.executionPeriod = executionPeriod;
         this.bucketWork = bucketWork;
-        String threadRoot = String.format("%s-%d-", serviceType.getName(), bucketId);
-        String notificationThreadName = String.format("%s-notification", threadRoot);
-        String workerThreadName = String.format("%s-worker", threadRoot);
-        this.notification = new Thread(this::notificationLoop, notificationThreadName);
-        this.worker = new Thread(this::workerLoop, workerThreadName);
     }
 
     @Override
@@ -114,8 +113,12 @@ abstract class BucketService extends AbstractService {
 
                 notifyStarted();
 
-                notification.start();
-                worker.start();
+                notificationLoop.set(Futures.loop(this::isRunning, this::processNotification, executor));
+                log.info("{}: Notification loop started for bucket {}", serviceType, bucketId);
+
+                workerLoop.set(Futures.loop(this::isRunning, this::work, executor));
+                log.info("{}: Notification loop started for bucket {}", serviceType, bucketId);
+
             } finally {
                 log.info("{}: bucket {} service start completed", getServiceType(), getBucketId());
                 serviceStartFuture.complete(null);
@@ -127,115 +130,101 @@ abstract class BucketService extends AbstractService {
 
     abstract void stopBucketChangeListener();
 
-    private void notificationLoop() {
-        log.info("{}: Notification loop terminated for bucket {}", serviceType, bucketId);
-
-        try {
-            long executionDuration = executionPeriod.toMillis();
-            while (isRunning()) {
-                StreamNotification notification =
-                        Exceptions.handleInterruptedCall(() -> notifications.poll(100, TimeUnit.MILLISECONDS));
-                if (notification != null) {
-                    final StreamImpl stream;
-                    switch (notification.getType()) {
-                        case StreamAdded:
-                            log.info("{}: New stream {}/{} added to bucket {} ", serviceType, notification.getScope(),
-                                    notification.getStream(), bucketId);
-                            stream = new StreamImpl(notification.getScope(), notification.getStream());
-                            synchronized (lock) {
-                                if (!knownStreams.contains(stream)) {
-                                    knownStreams.add(stream);
-                                    workQueue.add(new QueueElement(stream, executionDuration));
-                                }
-                            }
-                            break;
-                        case StreamRemoved:
-                            log.info("{}: Stream {}/{} removed from bucket {}", serviceType, notification.getScope(),
-                                    notification.getStream(), bucketId);
-                            stream = new StreamImpl(notification.getScope(), notification.getStream());
-                            synchronized (lock) {
-                                knownStreams.remove(stream);
-                            }
-                            break;
-                        case ConnectivityError:
-                            log.warn("{}: StreamNotification for connectivity error", serviceType);
-                            break;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("{}: Exception thrown from notification loop for bucket", serviceType, bucketId, e);
-        } finally {
-            log.info("{}: Notification loop terminated for bucket {}", serviceType, bucketId);
-            notificationLoop.complete(null);
-        }
-    }
-
-    private void workerLoop() {
-        try {
-            log.info("{}: Worker loop started for bucket {}", serviceType, bucketId);
-
-            while (isRunning()) {
-                long time = System.currentTimeMillis();
-                QueueElement element;
-                long delayInMillis = 0;
-
-                synchronized (lock) {
-                    element = workQueue.peek();
-                    if (element == null) {
-                        delayInMillis = 100;
-                    } else if (element.nextExecutionTimeInMillis <= time) {
-                        // Note: we can poll on queue while holding the lock because we know the element exists.
-
-                        element = workQueue.poll();
-                        assert element != null;
-
-                        if (!knownStreams.contains(element.getStream())) {
-                            // the stream is removed from the known set. Ignore any queue entry for this stream. 
-                            // let next cycle of process work happen immediately
-                            element = null;
-                        }
-                    } else {
-                        // no work to be started. 
-                        delayInMillis = element.nextExecutionTimeInMillis - time;
-                        element = null;
-                    }
-                }
-
-                if (element != null) {
-                    Stream stream = element.getStream();
-                    Exceptions.handleInterrupted(maxConcurrentExecutions::acquire);
-                    bucketWork.doWork(stream).whenComplete((r, e) -> {
+    private CompletableFuture<Void> processNotification() {
+        return notifications.take(MAX_NOTIFICATIONS_TO_TAKE).thenAccept(queue -> {
+            queue.forEach(notification -> {
+                final StreamImpl stream;
+                switch (notification.getType()) {
+                    case StreamAdded:
+                        log.info("{}: New stream {}/{} added to bucket {} ", serviceType, notification.getScope(),
+                                notification.getStream(), bucketId);
+                        stream = new StreamImpl(notification.getScope(), notification.getStream());
                         long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
+
                         synchronized (lock) {
-                            if (knownStreams.contains(stream)) {
+                            if (!knownStreams.contains(stream)) {
+                                knownStreams.add(stream);
                                 workQueue.add(new QueueElement(stream, nextRun));
                             }
                         }
-                        maxConcurrentExecutions.release();
-                    });
+                        break;
+                    case StreamRemoved:
+                        log.info("{}: Stream {}/{} removed from bucket {}", serviceType, notification.getScope(),
+                                notification.getStream(), bucketId);
+                        stream = new StreamImpl(notification.getScope(), notification.getStream());
+                        synchronized (lock) {
+                            knownStreams.remove(stream);
+                        }
+                        break;
+                    case ConnectivityError:
+                        log.warn("{}: StreamNotification for connectivity error", serviceType);
+                        break;
                 }
+            });
+        });
+    }
 
-                long sleepTime = delayInMillis;
-                Exceptions.handleInterrupted(() -> Thread.sleep(sleepTime));
+    private CompletableFuture<Void> work() {
+        long time = System.currentTimeMillis();
+        QueueElement element;
+        long delayInMillis = 0L;
+        synchronized (lock) {
+            if (avaiableSlots > 0) {
+                element = workQueue.peek();
+                if (element != null && element.nextExecutionTimeInMillis <= time) {
+                    // Note: we can poll on queue while holding the lock because we know the element exists.
+                    element = workQueue.poll();
+                    assert element != null;
+
+                    if (!knownStreams.contains(element.getStream())) {
+                        // the stream is removed from the known set. Ignore any queue entry for this stream. 
+                        // let next cycle of process work happen immediately
+                        element = null;
+                    } else {
+                        avaiableSlots--;
+                    }
+                } else { 
+                    // empty priority queue
+                    element = null;
+                    delayInMillis = DELAY_IN_MILLIS;
+                }
+            } else {
+                // no slots available. 
+                element = null;
+                delayInMillis = 100L;
             }
-        } catch (Exception e) {
-            log.error("{}: Exception thrown from worker loop for bucket", serviceType, bucketId, e);
-        } finally {
-            log.info("{}: Worker loop terminated for bucket {}", serviceType, bucketId);
-            workerLoop.complete(null);
         }
+
+        if (element != null) {
+            Stream stream = element.getStream();
+            
+            bucketWork.doWork(stream).handle((r, e) -> {
+                long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
+                synchronized (lock) {
+                    if (knownStreams.contains(stream)) {
+                        workQueue.add(new QueueElement(stream, nextRun));
+                    }
+                    // add the slot back
+                    avaiableSlots++;
+                    return null;
+                }
+            });
+        } 
+        
+        // return a delayed future after which this loop is executed again. 
+        // delay is typically `0` if we have found a slot to process and a non empty queue. 
+        return Futures.delayedFuture(Duration.ofMillis(delayInMillis), executor);
     }
     
     @Override
     protected void doStop() {
         log.info("{}: Stop request received for bucket {}", serviceType, bucketId);
         serviceStartFuture.thenRun(() -> {
-            notification.interrupt();
-            worker.interrupt();
+            notificationLoop.get().cancel(true);
+            workerLoop.get().cancel(true);
             stopBucketChangeListener();
 
-            CompletableFuture.allOf(notificationLoop, workerLoop).whenComplete((r, e) -> {
+            CompletableFuture.allOf(notificationLoop.get(), workerLoop.get()).whenComplete((r, e) -> {
                 if (e != null) {
                     log.error("{}: Error while stopping bucket {}", serviceType, bucketId, e);
                     notifyFailed(e);

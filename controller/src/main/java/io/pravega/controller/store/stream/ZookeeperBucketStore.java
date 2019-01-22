@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.netty.util.internal.ConcurrentSet;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -35,17 +34,28 @@ public class ZookeeperBucketStore implements BucketStore {
     private final int bucketCount;
     @Getter
     private final ZKStoreHelper storeHelper;
-    private final ConcurrentSet<Integer> initializedBuckets; 
 
     ZookeeperBucketStore(int bucketCount, CuratorFramework client, Executor executor) {
         this.bucketCount = bucketCount;
         storeHelper = new ZKStoreHelper(client, executor);
-        this.initializedBuckets = new ConcurrentSet<>(); 
     }
 
     @Override
     public StoreType getStoreType() {
         return StoreType.Zookeeper;
+    }
+
+    public CompletableFuture<Void> createBucketsRoot(ServiceType serviceType) {
+        String bucketRootPath = getBucketRootPath(serviceType);
+        String bucketOwnershipPath = getBucketOwnershipPath(serviceType);
+        return Futures.toVoid(storeHelper.createZNodeIfNotExist(bucketRootPath)
+                          .thenCompose(x -> storeHelper.createZNodeIfNotExist(bucketOwnershipPath)));
+    }
+
+    public CompletableFuture<Void> createBucket(ServiceType serviceType, int bucketId) {
+        String bucketPath = getBucketPath(serviceType, bucketId);
+        return Futures.toVoid(createBucketsRoot(serviceType)
+                          .thenCompose(x -> storeHelper.createZNodeIfNotExist(bucketPath)));
     }
 
     @Override
@@ -63,8 +73,7 @@ public class ZookeeperBucketStore implements BucketStore {
         String bucketPath = getBucketPath(serviceType, bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
 
-        return Futures.toVoid(initializeBucket(serviceType, bucket)
-                .thenCompose(x -> storeHelper.createZNodeIfNotExist(streamPath)));
+        return Futures.toVoid(storeHelper.createZNodeIfNotExist(streamPath));
     }
 
     @Override
@@ -77,21 +86,7 @@ public class ZookeeperBucketStore implements BucketStore {
         return Futures.exceptionallyExpecting(storeHelper.deleteNode(streamPath), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null);
     }
-
-    public CompletableFuture<Void> initializeBucket(final ServiceType serviceType, int bucketId) {
-        if (!initializedBuckets.contains(bucketId)) {
-            String bucketRootPath = getBucketRootPath(serviceType);
-            String bucketOwnershipPath = getBucketOwnershipPath(serviceType);
-            String bucketPath = getBucketPath(serviceType, bucketId);
-            return storeHelper.createZNodeIfNotExist(bucketRootPath)
-                              .thenCompose(x -> storeHelper.createZNodeIfNotExist(bucketOwnershipPath))
-                              .thenCompose(x -> storeHelper.createZNodeIfNotExist(bucketPath))
-                              .thenAccept(x -> initializedBuckets.add(bucketId));
-        } else {
-            return CompletableFuture.completedFuture(null);
-        }
-    }
-
+    
     public CompletableFuture<Boolean> takeBucketOwnership(final ServiceType serviceType, int bucketId, String processId) {
         String bucketPath = ZKPaths.makePath(getBucketOwnershipPath(serviceType), "" + bucketId);
         return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
