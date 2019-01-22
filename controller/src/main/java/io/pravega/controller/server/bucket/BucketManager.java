@@ -33,7 +33,7 @@ import java.util.stream.IntStream;
  * ownership of buckets for the given service and then starting one bucket service instance for each bucket it owns. 
  * It manages the lifecycle of bucket service.
  * The implementation of this class implements store specific monitoring for bucket ownership changes.
- * This service does not have any dedicated threads. Upon receiving any new notification, it submits a "tryTakeOwnership" 
+ * This service does not have any internally managed threads. Upon receiving any new notification, it submits a "tryTakeOwnership" 
  * work in the executor's queue. 
  */
 @Slf4j
@@ -79,35 +79,34 @@ public abstract class BucketManager extends AbstractService {
 
                         // Once we have taken ownership of the bucket, we will register listeners on the bucket. 
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
-                        
-                        buckets.compute(bucket, (x, y) -> {
+
+                        BucketService bucketService = buckets.compute(bucket, (x, y) -> {
                             if (y == null) {
-                                BucketService bucketService = bucketServiceSupplier.apply(bucket);
-
-                                bucketService.addListener(new Listener() {
-                                    @Override
-                                    public void running() {
-                                        super.running();
-                                        log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
-                                        bucketFuture.complete(null);
-                                    }
-
-                                    @Override
-                                    public void failed(State from, Throwable failure) {
-                                        super.failed(from, failure);
-                                        log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
-                                        buckets.remove(bucket);
-                                        bucketFuture.completeExceptionally(failure);
-                                    }
-                                }, executor);
-
-                                bucketService.startAsync();
-                                return bucketService;
+                                return bucketServiceSupplier.apply(bucket);
                             } else {
                                 bucketFuture.complete(null);
                                 return y;
                             }
                         });
+
+                        bucketService.addListener(new Listener() {
+                            @Override
+                            public void running() {
+                                super.running();
+                                log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
+                                bucketFuture.complete(null);
+                            }
+
+                            @Override
+                            public void failed(State from, Throwable failure) {
+                                super.failed(from, failure);
+                                log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
+                                buckets.remove(bucket);
+                                bucketFuture.completeExceptionally(failure);
+                            }
+                        }, executor);
+
+                        bucketService.startAsync();
 
                         return bucketFuture;
                     } else {

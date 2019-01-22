@@ -15,6 +15,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.controller.store.stream.BucketStore;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -69,13 +70,13 @@ abstract class BucketService extends AbstractService {
     private final int bucketId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
-    private final Semaphore semaphore;
+    private final Semaphore maxConcurrentExecutions;
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final PriorityQueue<QueueElement> workQueue;
     @GuardedBy("lock")
     private final Set<Stream> knownStreams;
-    private final LinkedBlockingQueue<StreamNotification> notifications;
+    private final BlockingDrainingQueue<StreamNotification> notifications;
     private final CompletableFuture<Void> serviceStartFuture;
     private final CompletableFuture<Void> notificationLoop;
     private final CompletableFuture<Void> workerLoop;
@@ -93,7 +94,7 @@ abstract class BucketService extends AbstractService {
         this.serviceStartFuture = new CompletableFuture<>();
         this.notificationLoop = new CompletableFuture<>();
         this.workerLoop = new CompletableFuture<>();
-        semaphore = new Semaphore(maxConcurrentExecutions);
+        this.maxConcurrentExecutions = new Semaphore(maxConcurrentExecutions);
         this.knownStreams = new HashSet<>();
         this.workQueue = new PriorityQueue<>(Comparator.comparingLong(x -> x.nextExecutionTimeInMillis));
         this.executionPeriod = executionPeriod;
@@ -203,7 +204,7 @@ abstract class BucketService extends AbstractService {
 
                 if (element != null) {
                     Stream stream = element.getStream();
-                    Exceptions.handleInterrupted(semaphore::acquire);
+                    Exceptions.handleInterrupted(maxConcurrentExecutions::acquire);
                     bucketWork.doWork(stream).whenComplete((r, e) -> {
                         long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
                         synchronized (lock) {
@@ -211,7 +212,7 @@ abstract class BucketService extends AbstractService {
                                 workQueue.add(new QueueElement(stream, nextRun));
                             }
                         }
-                        semaphore.release();
+                        maxConcurrentExecutions.release();
                     });
                 }
 

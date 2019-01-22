@@ -10,9 +10,9 @@
 package io.pravega.controller.server.bucket;
 
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
@@ -72,7 +72,7 @@ public class ZooKeeperBucketService extends BucketService {
             pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
         } catch (Exception e) {
             log.error("{}: Starting listener on bucket {} threw exception", getServiceType(), getBucketId(), e);
-            throw Lombok.sneakyThrow(e);
+            throw Exceptions.sneakyThrow(e);
         }
     }
 
@@ -85,7 +85,7 @@ public class ZooKeeperBucketService extends BucketService {
                     cache.close();
                 } catch (IOException e) {
                     log.warn("{}: unable to close watch on bucket {}. Exception thrown ", getServiceType(), getBucketId(), e);
-                    throw Lombok.sneakyThrow(e);
+                    throw Exceptions.sneakyThrow(e);
                 }
             }
             return null;

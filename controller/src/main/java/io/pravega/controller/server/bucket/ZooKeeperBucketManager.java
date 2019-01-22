@@ -14,7 +14,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.controller.util.RetryHelper;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
@@ -47,6 +46,9 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @Override
     public void startBucketOwnershipListener() {
+        PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.computeIfAbsent(getServiceType(),
+                x -> bucketStore.getServiceOwnershipPathChildrenCache(getServiceType()));
+
         PathChildrenCacheListener bucketListener = (client, event) -> {
             switch (event.getType()) {
                 case CHILD_ADDED:
@@ -66,20 +68,15 @@ public class ZooKeeperBucketManager extends BucketManager {
             }
         };
 
-        PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.computeIfAbsent(getServiceType(),
-                x -> {
-                    PathChildrenCache cache = bucketStore.getServiceOwnershipPathChildrenCache(getServiceType());
-                    cache.getListenable().addListener(bucketListener);
-                    log.info("bucket ownership listener registered on bucket root {}", getServiceType());
+        pathChildrenCache.getListenable().addListener(bucketListener);
+        log.info("bucket ownership listener registered on bucket root {}", getServiceType());
 
-                    return cache;
-                });
 
         try {
             pathChildrenCache.start(PathChildrenCache.StartMode.NORMAL);
         } catch (Exception e) {
             log.error("Starting ownership listener for service {} threw exception", getServiceType(), e);
-            throw new Exceptions();
+            throw Exceptions.sneakyThrow(e);
         }
 
     }
