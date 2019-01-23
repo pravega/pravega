@@ -45,6 +45,11 @@ public class InMemoryBucketManager extends BucketManager {
     }
 
     @Override
+    CompletableFuture<Void> initializeService() {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     CompletableFuture<Void> initializeBucket(int bucket) {
         return CompletableFuture.completedFuture(null);
     }

@@ -57,8 +57,10 @@ public abstract class BucketManager extends AbstractService {
 
     @Override
     protected void doStart() {
-        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(x -> initializeBucket(x)
-                .thenCompose(v -> tryTakeOwnership(x))).collect(Collectors.toList()))
+        initializeService()
+                .thenCompose(s ->
+                        Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(x -> initializeBucket(x)
+                                .thenCompose(v -> tryTakeOwnership(x))).collect(Collectors.toList())))
                 .thenAccept(x -> startBucketOwnershipListener())
                 .whenComplete((r, e) -> {
                     if (e != null) {
@@ -71,7 +73,7 @@ public abstract class BucketManager extends AbstractService {
 
     protected abstract int getBucketCount();
 
-    protected CompletableFuture<Void> tryTakeOwnership(int bucket) {
+    CompletableFuture<Void> tryTakeOwnership(int bucket) {
         return takeBucketOwnership(bucket, processId, executor)
                          .thenCompose(isOwner -> {
                     if (isOwner) {
@@ -89,6 +91,8 @@ public abstract class BucketManager extends AbstractService {
                             }
                         });
 
+                        assert bucketService != null;
+                        
                         bucketService.addListener(new Listener() {
                             @Override
                             public void running() {
@@ -153,6 +157,8 @@ public abstract class BucketManager extends AbstractService {
 
     abstract void stopBucketOwnershipListener();
 
+    abstract CompletableFuture<Void> initializeService();
+    
     abstract CompletableFuture<Void> initializeBucket(int bucket);
 
     /**

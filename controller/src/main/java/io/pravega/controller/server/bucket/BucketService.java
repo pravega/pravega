@@ -76,6 +76,7 @@ abstract class BucketService extends AbstractService {
     private final int bucketId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
+    @GuardedBy("lock")
     private int avaiableSlots;
     private final Object lock = new Object();
     @GuardedBy("lock")
