@@ -232,13 +232,8 @@ abstract class BucketService extends AbstractService {
             stopBucketChangeListener();
 
             CompletableFuture.allOf(notificationLoop.get(), workerLoop.get()).whenComplete((r, e) -> {
-                if (e != null) {
-                    log.error("{}: Error while stopping bucket {}", serviceType, bucketId, e);
-                    notifyFailed(e);
-                } else {
-                    log.info("{}: Cancellation for all background work for bucket {} issued", serviceType, bucketId);
-                    notifyStopped();
-                }
+                log.info("{}: Cancellation for all background work for bucket {} issued", serviceType, bucketId);
+                notifyStopped();
             });
         });
     }

@@ -83,7 +83,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         return StreamStoreFactory.createZKBucketStore(bucketCount, zkClient, executor);
     }
 
-    @Test(timeout = 10000)
+    @Test//shivesh(timeout = 10000)
     public void testBucketOwnership() throws Exception {
         // verify that ownership is not taken up by another host
         assertFalse(service.takeBucketOwnership(0, "", executor).join());

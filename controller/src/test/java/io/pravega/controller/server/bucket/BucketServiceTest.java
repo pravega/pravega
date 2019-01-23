@@ -103,7 +103,7 @@ public abstract class BucketServiceTest {
         assertTrue(service.takeBucketOwnership(2, hostId, executor).join());
         AssertExtensions.assertThrows("", () -> service.takeBucketOwnership(3, hostId, executor).join(),
                 e -> e instanceof IllegalArgumentException);
-        service.notify(new BucketManager.BucketNotification(0, BucketManager.NotificationType.BucketAvailable));
+        service.tryTakeOwnership(0).join();
 
         String scope = "scope";
         String streamName = "stream";

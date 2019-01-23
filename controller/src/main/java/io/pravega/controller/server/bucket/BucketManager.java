@@ -82,36 +82,33 @@ public abstract class BucketManager extends AbstractService {
                         // Once we have taken ownership of the bucket, we will register listeners on the bucket. 
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
 
-                        BucketService bucketService = buckets.compute(bucket, (x, y) -> {
+                        buckets.compute(bucket, (x, y) -> {
                             if (y == null) {
-                                return bucketServiceSupplier.apply(bucket);
+                                BucketService bucketService = bucketServiceSupplier.apply(bucket);
+                                bucketService.addListener(new Listener() {
+                                    @Override
+                                    public void running() {
+                                        super.running();
+                                        log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
+                                        bucketFuture.complete(null);
+                                    }
+
+                                    @Override
+                                    public void failed(State from, Throwable failure) {
+                                        super.failed(from, failure);
+                                        log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
+                                        buckets.remove(bucket);
+                                        bucketFuture.completeExceptionally(failure);
+                                    }
+                                }, executor);
+                                bucketService.startAsync();
+                                return bucketService;
                             } else {
                                 bucketFuture.complete(null);
                                 return y;
                             }
                         });
-
-                        assert bucketService != null;
                         
-                        bucketService.addListener(new Listener() {
-                            @Override
-                            public void running() {
-                                super.running();
-                                log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
-                                bucketFuture.complete(null);
-                            }
-
-                            @Override
-                            public void failed(State from, Throwable failure) {
-                                super.failed(from, failure);
-                                log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
-                                buckets.remove(bucket);
-                                bucketFuture.completeExceptionally(failure);
-                            }
-                        }, executor);
-
-                        bucketService.startAsync();
-
                         return bucketFuture;
                     } else {
                         return CompletableFuture.completedFuture(null);
