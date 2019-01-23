@@ -9,8 +9,6 @@
 #
 FROM openjdk:8-jre-alpine
 
-MAINTAINER Pravega Team
-
 RUN apk add --update \
     bash \
     wget \
