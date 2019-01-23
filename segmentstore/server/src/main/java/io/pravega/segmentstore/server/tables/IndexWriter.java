@@ -293,7 +293,7 @@ class IndexWriter extends IndexReader {
                         updateInstructions.withAttribute(generateBackpointerUpdate(keyUpdate.getOffset(), previousOffset.get()));
                     }
 
-                  updateInstructions.entryAdded();
+                    updateInstructions.entryAdded();
                     previousOffset.set(keyUpdate.getOffset());
                 });
     }
