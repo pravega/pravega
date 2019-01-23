@@ -56,8 +56,7 @@ import java.util.stream.Collectors;
 public class MetadataScalabilityTest extends AbstractScaleTests {
     private static final String STREAM_NAME = "metadataScalability";
     private static final int NUM_SEGMENTS = 50;
-    private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
-                                                                         .streamName(STREAM_NAME)
+    private static final StreamConfiguration CONFIG = StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
     private static final int SCALES_TO_PERFORM = 1010;
 
@@ -91,7 +90,7 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         log.debug("create scope status {}", createScopeStatus);
 
         //create a stream
-        Boolean createStreamStatus = controller.createStream(CONFIG).get();
+        Boolean createStreamStatus = controller.createStream(SCOPE, STREAM_NAME, CONFIG).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);
     }
 
