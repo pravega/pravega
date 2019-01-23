@@ -36,9 +36,9 @@ public class TableAttributes extends Attributes {
     public static final UUID BUCKET_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 2);
 
     /**
-     * Defines an attribute that is used to store the total size used by all active entries in a (Table) Segment.
+     * Defines an attribute that is used to store number of entries (active and overwritten) in a (Table) Segment.
      */
-    public static final UUID TOTAL_SIZE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 3);
+    public static final UUID TOTAL_ENTRY_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 3);
 
     /**
      * Defines a Map that contains all Table Attributes along with their default values.

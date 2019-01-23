@@ -73,6 +73,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                          .attributes(ImmutableMap.<UUID, Long>builder()
                                                  .put(TableAttributes.INDEX_OFFSET, 123456L)
                                                  .put(TableAttributes.ENTRY_COUNT, 2345L)
+                                                 .put(TableAttributes.TOTAL_ENTRY_COUNT, 4567L)
                                                  .put(TableAttributes.BUCKET_COUNT, 3456L)
                                                  .build())
                                          .build();
@@ -80,6 +81,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 123456, ir.getLastIndexedOffset(si));
         Assert.assertEquals("Unexpected value for ENTRY_COUNT when attribute present.",
                 2345, ir.getEntryCount(si));
+        Assert.assertEquals("Unexpected value for TOTAL_ENTRY_COUNT when attribute present.",
+                4567, ir.getTotalEntryCount(si));
         Assert.assertEquals("Unexpected value for BUCKET_COUNT when attribute present.",
                 3456, ir.getBucketCount(si));
     }
@@ -378,6 +381,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         // Fetch existing keys.
         val oldOffsets = new ArrayList<Long>();
         val entryCount = new AtomicLong(w.getEntryCount(segment.getInfo()));
+        long initialTotalEntryCount = w.getTotalEntryCount(segment.getInfo());
+        int totalEntryCountDelta = 0;
         for (val bu : bucketUpdates) {
             w.getBucketOffsets(segment, bu.getBucket(), timer).join()
              .forEach(offset -> {
@@ -396,12 +401,14 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             // and removals above, so adding just the updates and insertions will ensure the expected count is accurate.
             val deletedCount = bu.getKeyUpdates().stream().filter(BucketUpdate.KeyUpdate::isDeleted).count();
             entryCount.addAndGet(bu.getKeyUpdates().size() - deletedCount);
+            totalEntryCountDelta += bu.getKeyUpdates().size();
         }
 
         // Apply the updates.
-        val attrCount = w.updateBuckets(segment, bucketUpdates, firstKeyOffset, postIndexOffset, TIMEOUT).join();
+        val attrCount = w.updateBuckets(segment, bucketUpdates, firstKeyOffset, postIndexOffset, totalEntryCountDelta, TIMEOUT).join();
         AssertExtensions.assertGreaterThan("Expected at least one attribute to be modified.", 0, attrCount);
         checkEntryCount(entryCount.get(), segment, w);
+        checkTotalEntryCount(initialTotalEntryCount + totalEntryCountDelta, segment, w);
 
         // Record the key as being updated.
         oldOffsets.forEach(existingKeys::remove);
@@ -472,6 +479,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     private void checkEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
         Assert.assertEquals("Unexpected number of entries.", expectedCount, ir.getEntryCount(segment.getInfo()));
+    }
+
+    private void checkTotalEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
+        Assert.assertEquals("Unexpected total number of entries.", expectedCount, ir.getTotalEntryCount(segment.getInfo()));
     }
 
     private void checkBucketCount(long expectedCount, SegmentMock segment, IndexReader ir) {

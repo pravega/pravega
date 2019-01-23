@@ -232,7 +232,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                             logBucketUpdates(bucketUpdates);
                                             return this.indexWriter.updateBuckets(segment, bucketUpdates,
                                                     this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
-                                                    timer.getRemaining());
+                                                    keyUpdates.getTotalUpdateCount(), timer.getRemaining());
                                         },
                                         this.executor)
                                 .thenApply(ignored -> keyUpdates.getLastIndexedOffset()),
@@ -484,6 +484,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @NotThreadSafe
     private static class KeyUpdateCollection {
         private final HashMap<HashedArray, BucketUpdate.KeyUpdate> updates = new HashMap<>();
+        @Getter
+        private int totalUpdateCount;
 
         /**
          * The Segment offset before which every single byte has been indexed (i.e., the last offset of the last update).
@@ -493,6 +495,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
         void add(BucketUpdate.KeyUpdate update, int entryLength) {
             this.updates.put(update.getKey(), update);
+            this.totalUpdateCount++;
             long lastOffset = update.getOffset() + entryLength;
             if (lastOffset > this.lastIndexedOffset) {
                 this.lastIndexedOffset = lastOffset;

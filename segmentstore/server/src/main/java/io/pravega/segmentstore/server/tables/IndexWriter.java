@@ -63,8 +63,7 @@ class IndexWriter extends IndexReader {
     //region Updating Table Buckets
 
     /**
-     * Groups the given {@link BucketUpdate.KeyUpdate} instances by their associated buckets. These buckets may be partial
-     * (i.e., only part of the hash matched) or a full match.
+     * Groups the given {@link BucketUpdate.KeyUpdate} instances by their associated buckets.
      *
      * @param segment    The Segment to read from.
      * @param keyUpdates A Collection of {@link BucketUpdate.KeyUpdate} instances to index.
@@ -100,6 +99,8 @@ class IndexWriter extends IndexReader {
      *                           verify the update will not corrupt the data (i.e., we do not overlap with another update).
      * @param lastIndexedOffset  The last offset in the Segment that is indexed. The Segment's {@link TableAttributes#INDEX_OFFSET}
      *                           will be updated to this value (atomically) upon a successful completion of his call.
+     * @param processedCount     The total number of Table Entry updates processed. This includes entries that have been
+     *                           discarded because their keys appeared more than once in this batch.
      * @param timeout            Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the number attribute updates. If the
      * operation failed, it will be failed with the appropriate exception. Notable exceptions:
@@ -110,7 +111,7 @@ class IndexWriter extends IndexReader {
      * </ul>
      */
     CompletableFuture<Integer> updateBuckets(DirectSegmentAccess segment, Collection<BucketUpdate> bucketUpdates,
-                                             long firstIndexedOffset, long lastIndexedOffset, Duration timeout) {
+                                             long firstIndexedOffset, long lastIndexedOffset, int processedCount, Duration timeout) {
         UpdateInstructions update = new UpdateInstructions();
 
         // Process each Key in the given Map.
@@ -121,7 +122,7 @@ class IndexWriter extends IndexReader {
 
         if (lastIndexedOffset > firstIndexedOffset) {
             // Atomically update the Table-related attributes in the Segment's metadata, once we apply these changes.
-            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, update);
+            generateTableAttributeUpdates(firstIndexedOffset, lastIndexedOffset, processedCount, update);
         }
 
         if (update.getAttributes().isEmpty()) {
@@ -129,9 +130,9 @@ class IndexWriter extends IndexReader {
             log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, No Changes.", segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset);
             return CompletableFuture.completedFuture(0);
         } else {
-            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, Updates={}, Entries+={}, Buckets+={}.",
+            log.debug("IndexWriter[{}]: FirstIdxOffset={}, LastIdxOffset={}, AttrUpdates={}, Processed={}, Entries+={}, Buckets+={}.",
                     segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, update.getAttributes().size(),
-                    update.getEntryCountDelta(), update.getBucketCountDelta());
+                    processedCount, update.getEntryCountDelta(), update.getBucketCountDelta());
             return segment.updateAttributes(update.getAttributes(), timeout)
                           .thenApply(v -> update.getAttributes().size());
         }
@@ -217,12 +218,13 @@ class IndexWriter extends IndexReader {
      * Generates conditional {@link AttributeUpdate}s that update the values for Core Attributes representing the indexing
      * state of the Table Segment.
      *
-     * @param currentOffset The offset from which this indexing batch began. This will be checked against
-     *                      {@link TableAttributes#INDEX_OFFSET}.
-     * @param newOffset     The new offset to set for {@link TableAttributes#INDEX_OFFSET}.
-     * @param update        A {@link UpdateInstructions} object to collect updates into.
+     * @param currentOffset  The offset from which this indexing batch began. This will be checked against
+     *                       {@link TableAttributes#INDEX_OFFSET}.
+     * @param newOffset      The new offset to set for {@link TableAttributes#INDEX_OFFSET}.
+     * @param processedCount The total number of Table Entry updates processed (including overwritten ones).
+     * @param update         A {@link UpdateInstructions} object to collect updates into.
      */
-    private void generateTableAttributeUpdates(long currentOffset, long newOffset, UpdateInstructions update) {
+    private void generateTableAttributeUpdates(long currentOffset, long newOffset, int processedCount, UpdateInstructions update) {
         // Add an Update for the INDEX_OFFSET to indicate we have indexed everything up to this offset.
         Preconditions.checkArgument(currentOffset <= newOffset, "newOffset must be larger than existingOffset");
         update.withAttribute(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset));
@@ -234,6 +236,10 @@ class IndexWriter extends IndexReader {
 
         if (update.getBucketCountDelta() != 0) {
             update.withAttribute(new AttributeUpdate(TableAttributes.BUCKET_COUNT, AttributeUpdateType.Accumulate, update.getBucketCountDelta()));
+        }
+
+        if (processedCount > 0) {
+            update.withAttribute(new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, processedCount));
         }
     }
 

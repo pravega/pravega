@@ -84,6 +84,17 @@ class IndexReader {
     }
 
     /**
+     * Gets the total number of Table Entries in the Segment for the given {@link SegmentProperties}. This includes Entries
+     * that are no longer active (which have been replaced by other entries with the same Table Key).
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The count.
+     */
+    long getTotalEntryCount(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.TOTAL_ENTRY_COUNT, 0L);
+    }
+
+    /**
      * Gets the number of Table Buckets in the Segment for the given {@link SegmentProperties}.
      *
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
