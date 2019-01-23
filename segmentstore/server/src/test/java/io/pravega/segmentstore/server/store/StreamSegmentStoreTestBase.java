@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
@@ -25,6 +24,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -82,7 +82,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
-    private static final int MAX_INSTANCE_COUNT = 5;
+    private static final int MAX_INSTANCE_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
@@ -260,9 +260,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val segmentNames = createSegments(context.getActiveStore());
             val segmentsAndTransactions = new ArrayList<String>(segmentNames);
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
-            val transactionsBySegment = createTransactions(segmentNames, context.getActiveStore());
-            transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
-            log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
 
             // Generate all the requests.
             HashMap<String, Long> lengths = new HashMap<>();
@@ -270,12 +267,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
             val appends = createAppendDataRequests(segmentsAndTransactions, segmentContents, lengths,
                     applyFencingMultiplier(ATTRIBUTE_UPDATES_PER_SEGMENT), applyFencingMultiplier(APPENDS_PER_SEGMENT));
-            val mergers = createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents);
-            val seals = createSealSegmentsRequests(segmentNames);
-            val requests = Iterators.concat(appends.iterator(), mergers.iterator(), seals.iterator());
+            val requests = appends.iterator();
 
             // Calculate how frequently to create a new instance of the Segment Store.
-            int newInstanceFrequency = (appends.size() + mergers.size() + seals.size()) / applyFencingMultiplier(MAX_INSTANCE_COUNT);
+            int newInstanceFrequency = appends.size() / applyFencingMultiplier(MAX_INSTANCE_COUNT);
             log.info("Creating a new Segment Store instance every {} operations.", newInstanceFrequency);
 
             // Execute all the requests.
@@ -808,25 +803,33 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, StreamSegmentStore readOnlyStore) {
+        if (sp.getLength() == 0) {
+            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
+            return CompletableFuture.completedFuture(null);
+        }
+
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
-                () -> readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT)
-                                   .thenCompose(storageProps -> {
-                                       if (sp.isSealed()) {
-                                           tryAgain.set(!storageProps.isSealed());
-                                       } else {
-                                           tryAgain.set(sp.getLength() != storageProps.getLength());
-                                       }
+                () -> Futures
+                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT),
+                                ex -> ex instanceof StreamSegmentNotExistsException,
+                                StreamSegmentInformation.builder().name(sp.getName()).build())
+                        .thenCompose(storageProps -> {
+                            if (sp.isSealed()) {
+                                tryAgain.set(!storageProps.isSealed());
+                            } else {
+                                tryAgain.set(sp.getLength() != storageProps.getLength());
+                            }
 
-                                       if (tryAgain.get() && !timer.hasRemaining()) {
-                                           return Futures.<Void>failedFuture(new TimeoutException(
-                                                   String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                                       } else {
-                                           return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                                       }
-                                   }), executorService());
+                            if (tryAgain.get() && !timer.hasRemaining()) {
+                                return Futures.<Void>failedFuture(new TimeoutException(
+                                        String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                            } else {
+                                return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                            }
+                        }), executorService());
     }
 
     private int applyFencingMultiplier(int originalValue) {

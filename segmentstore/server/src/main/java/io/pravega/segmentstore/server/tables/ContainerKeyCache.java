@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.NonNull;
@@ -240,12 +241,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * @return The Last Indexed Offset for the Segment, or -1 if this segment is not registered.
      */
     long getSegmentIndexOffset(long segmentId) {
-        SegmentKeyCache cache;
-        synchronized (this.segmentCaches) {
-            cache = this.segmentCaches.get(segmentId);
-        }
-
-        return cache == null ? -1 : cache.getLastIndexedOffset();
+        return forSegmentCache(segmentId, SegmentKeyCache::getLastIndexedOffset, -1L);
     }
 
     /**
@@ -256,12 +252,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * @return The target of the Backpointer (from the given source), or -1 if no such Backpointer is registered.
      */
     long getBackpointer(long segmentId, long sourceOffset) {
-        SegmentKeyCache cache;
-        synchronized (this.segmentCaches) {
-            cache = this.segmentCaches.get(segmentId);
-        }
-
-        return cache == null ? -1 : cache.getBackpointerOffset(sourceOffset);
+        return forSegmentCache(segmentId, c -> c.getBackpointerOffset(sourceOffset), -1L);
     }
 
     /**
@@ -271,12 +262,27 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * @return The result.
      */
     Map<UUID, CacheBucketOffset> getTailHashes(long segmentId) {
+        return forSegmentCache(segmentId, SegmentKeyCache::getTailBucketOffsets, Collections.emptyMap());
+    }
+
+    /**
+     * Gets a value representing the difference between the number of Table Buckets updated (or inserted) and the ones
+     * that have been removed for the given Segment.
+     *
+     * @param segmentId The Id of the Segment to get the difference for.
+     * @return The result.
+     */
+    int getBucketCountDelta(long segmentId) {
+        return forSegmentCache(segmentId, SegmentKeyCache::getBucketCountDelta, 0);
+    }
+
+    private <T> T forSegmentCache(long segmentId, Function<SegmentKeyCache, T> ifExists, T ifNotExists) {
         SegmentKeyCache cache;
         synchronized (this.segmentCaches) {
             cache = this.segmentCaches.get(segmentId);
         }
 
-        return cache == null ? Collections.emptyMap() : cache.getTailBucketOffsets();
+        return cache == null ? ifNotExists : ifExists.apply(cache);
     }
 
     private long evict(SegmentKeyCache.EvictionResult eviction) {

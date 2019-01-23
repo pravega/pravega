@@ -33,6 +33,7 @@ import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -49,6 +50,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * End-to-end tests for event processor.
@@ -116,7 +119,7 @@ public class EventProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup

@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -649,6 +650,39 @@ public class ContainerMetadataUpdateTransactionTests {
 
     //endregion
 
+    //region DeleteSegmentOperation
+
+    /**
+     * Tests the preProcess and accept method with DeleteSegmentOperations.
+     */
+    @Test
+    public void testProcessDeleteSegmentOperation() throws Exception {
+        UpdateableContainerMetadata metadata = createMetadata();
+
+        // Get the metadata
+        UpdateableSegmentMetadata segmentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
+        val txn = createUpdateTransaction(metadata);
+
+        // Process the operation.
+        DeleteSegmentOperation deleteOp = createDelete();
+        txn.preProcessOperation(deleteOp);
+        txn.acceptOperation(deleteOp);
+
+        // Verify pre-commit.
+        Assert.assertTrue("acceptOperation did not update the transaction.", txn.getStreamSegmentMetadata(SEGMENT_ID).isDeleted());
+        Assert.assertFalse("acceptOperation updated the metadata.", segmentMetadata.isDeleted());
+        AssertExtensions.assertThrows("preProcess allowed the operation even though the Segment is deleted.",
+                () -> txn.preProcessOperation(deleteOp),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // Verify post-commit.
+        txn.commit(metadata);
+        Assert.assertTrue("commit did not update the metadata.", segmentMetadata.isDeleted());
+    }
+
+    //endregion
+
+
     //region MergeSegmentOperation
 
     /**
@@ -819,6 +853,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn2.commit(metadata);
 
         val segmentMetadata = metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId());
+        Assert.assertFalse("Not expecting segment to be pinned yet.", segmentMetadata.isPinned());
         AssertExtensions.assertMapEquals("Unexpected attributes in SegmentMetadata after call to commit().",
                 mapOp.getAttributes(), segmentMetadata.getAttributes());
 
@@ -854,6 +889,22 @@ public class ContainerMetadataUpdateTransactionTests {
                 length, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getLength());
         Assert.assertEquals("Unexpected StartOffset after call to acceptOperation with remap (post-commit).",
                 startOffset, metadata.getStreamSegmentMetadata(mapOp.getStreamSegmentId()).getStartOffset());
+
+        // Pinned segments.
+        val pinnedMap = new StreamSegmentMapOperation(StreamSegmentInformation
+                .builder()
+                .name(mapOp.getStreamSegmentName() + "_pinned")
+                .startOffset(startOffset)
+                .length(storageLength)
+                .sealed(true)
+                .attributes(createAttributes())
+                .build());
+        pinnedMap.markPinned();
+        txn2.preProcessOperation(pinnedMap);
+        txn2.acceptOperation(pinnedMap);
+        txn2.commit(metadata);
+        val pinnedMetadata = metadata.getStreamSegmentMetadata(metadata.getStreamSegmentId(pinnedMap.getStreamSegmentName(), false));
+        Assert.assertTrue("Unexpected isPinned for pinned map.", pinnedMetadata.isPinned());
     }
 
     /**
@@ -1386,6 +1437,10 @@ public class ContainerMetadataUpdateTransactionTests {
 
     private StreamSegmentTruncateOperation createTruncate(long offset) {
         return new StreamSegmentTruncateOperation(SEGMENT_ID, offset);
+    }
+
+    private DeleteSegmentOperation createDelete() {
+        return new DeleteSegmentOperation(SEGMENT_ID);
     }
 
     private MergeSegmentOperation createMerge() {

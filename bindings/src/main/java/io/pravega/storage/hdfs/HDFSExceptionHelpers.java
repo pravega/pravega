@@ -9,12 +9,12 @@
  */
 package io.pravega.storage.hdfs;
 
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import java.io.FileNotFoundException;
-import lombok.Lombok;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.PathNotFoundException;
 import org.apache.hadoop.hdfs.protocol.AclException;
@@ -45,7 +45,7 @@ final class HDFSExceptionHelpers {
         } else if (e instanceof AclException) {
             return new StreamSegmentSealedException(segmentName, e);
         } else {
-            throw Lombok.sneakyThrow(e);
+            throw Exceptions.sneakyThrow(e);
         }
     }
 

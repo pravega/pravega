@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
@@ -54,7 +53,6 @@ class TableIterator<T> implements AsyncIterator<T> {
     private final Executor executor;
     @GuardedBy("this")
     private Iterator<TableBucket> currentBatch = null;
-    private final AtomicBoolean inProgress = new AtomicBoolean(false);
 
     //endregion
 
@@ -63,10 +61,8 @@ class TableIterator<T> implements AsyncIterator<T> {
     @Override
     public CompletableFuture<T> getNext() {
         // Verify no other call to getNext() is currently executing.
-        Preconditions.checkState(this.inProgress.compareAndSet(false, true), "Another call to getNext() is in progress.");
         return getNextBucket()
                 .thenCompose(bucket -> {
-                    this.inProgress.set(false);
                     if (bucket == null) {
                         // We are done.
                         return CompletableFuture.completedFuture(null);
@@ -74,10 +70,6 @@ class TableIterator<T> implements AsyncIterator<T> {
                         // Convert the TableBucket into the desired result.
                         return this.resultConverter.apply(bucket);
                     }
-                })
-                .exceptionally(ex -> {
-                    this.inProgress.set(false);
-                    throw new CompletionException(ex);
                 });
     }
 
@@ -301,7 +293,8 @@ class TableIterator<T> implements AsyncIterator<T> {
             val cacheHashes = getCacheHashes(this.cacheHashes, this.firstHash);
             val aiFuture = this.segment.attributeIterator(this.firstHash, KeyHasher.MAX_HASH, this.fetchTimeout);
             return aiFuture.thenApply(attributeIterator ->
-                    new TableIterator<>(attributeIterator, this.resultConverter, cacheHashes, this.executor));
+                    new TableIterator<>(attributeIterator, this.resultConverter, cacheHashes, this.executor)
+                            .asSequential(this.executor));
         }
 
         private ArrayDeque<Map.Entry<UUID, Long>> getCacheHashes(Map<UUID, CacheBucketOffset> unindexedKeyHashes, UUID firstHash) {

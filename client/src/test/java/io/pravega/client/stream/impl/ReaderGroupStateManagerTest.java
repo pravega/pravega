@@ -20,7 +20,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -70,7 +70,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testCompaction() throws ReinitializationRequiredException {
+    public void testCompaction() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -133,7 +133,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 20000)
-    public void testSegmentSplit() throws ReinitializationRequiredException {
+    public void testSegmentSplit() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -174,7 +174,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 20000)
-    public void testSegmentMerge() throws ReinitializationRequiredException {
+    public void testSegmentMerge() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -217,7 +217,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testAddReader() throws ReinitializationRequiredException {
+    public void testAddReader() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -248,7 +248,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testRemoveReader() throws ReinitializationRequiredException {
+    public void testRemoveReader() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -291,7 +291,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
         
         ReaderGroupStateManager.readerShutdown("testReader2", null, stateSynchronizer);
-        AssertExtensions.assertThrows(ReinitializationRequiredException.class,
+        AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L));
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
@@ -299,12 +299,12 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
 
-        AssertExtensions.assertThrows(ReinitializationRequiredException.class,
+        AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                 () -> readerState2.acquireNewSegmentsIfNeeded(0L));
     }
 
     @Test(timeout = 10000)
-    public void testRemoveReaderWithNullPosition() throws ReinitializationRequiredException {
+    public void testRemoveReaderWithNullPosition() throws ReaderNotInReaderGroupException {
 
         String scope = "scope";
         String stream = "stream";
@@ -366,7 +366,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 5000)
-    public void testReleaseAndAcquireTimes() throws ReinitializationRequiredException {
+    public void testReleaseAndAcquireTimes() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -425,7 +425,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 5000)
-    public void testAcquireRace() throws ReinitializationRequiredException {
+    public void testAcquireRace() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -471,7 +471,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 10000)
-    public void testSegmentsAssigned() throws ReinitializationRequiredException {
+    public void testSegmentsAssigned() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -545,7 +545,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 20000)
-    public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
+    public void testReleaseWhenReadersAdded() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -634,7 +634,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 10000)
-    public void testCheckpoint() throws ReinitializationRequiredException {
+    public void testCheckpoint() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -678,7 +678,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testCheckpointContainsAllShards() throws ReinitializationRequiredException {
+    public void testCheckpointContainsAllShards() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -717,7 +717,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 10000)
-    public void testCheckpointUpdatesAssignedSegments() throws ReinitializationRequiredException {
+    public void testCheckpointUpdatesAssignedSegments() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         String checkpointId = "checkpoint";
@@ -776,7 +776,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testSegmentsCannotBeReleasedWithoutCheckpoint() throws ReinitializationRequiredException {
+    public void testSegmentsCannotBeReleasedWithoutCheckpoint() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);

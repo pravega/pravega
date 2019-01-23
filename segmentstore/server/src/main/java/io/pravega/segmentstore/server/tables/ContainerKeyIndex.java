@@ -13,14 +13,15 @@ import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
-import io.pravega.common.concurrent.ConcurrentDependentProcessor;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.storage.CacheFactory;
@@ -60,7 +61,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
-    private final ConcurrentDependentProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
+    private final MultiKeySequentialProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
     private final RecoveryTracker recoveryTracker;
     private final AtomicBoolean closed;
 
@@ -82,7 +83,7 @@ class ContainerKeyIndex implements AutoCloseable {
         this.cacheManager.register(this.cache);
         this.executor = executor;
         this.indexReader = new IndexReader(executor);
-        this.conditionalUpdateProcessor = new ConcurrentDependentProcessor<>(this.executor);
+        this.conditionalUpdateProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.recoveryTracker = new RecoveryTracker();
         this.closed = new AtomicBoolean();
     }
@@ -104,6 +105,48 @@ class ContainerKeyIndex implements AutoCloseable {
     //endregion
 
     //region Operations
+
+    /**
+     * Executes the given action only if the Segment is empty.
+     *
+     * This is a conditional operation that will execute serially after all currently executing conditional updates on
+     * the given Segment have completed. Any subsequent conditional updates on the given Segment will be blocked until
+     * this action completes executing. Unconditional updates will not block the execution of this action, nor will they
+     * be blocked by its execution.
+     *
+     * Similarly to conditional updates, this can be used to ensure consistency across the TableSegment, making sure that
+     * the action only executes if a specific condition is met, while making sure no other consistency-related operations
+     * may begin while it is running.
+     *
+     * A deadlock will occur if action is used to perform a conditional update on the same segment. If an update is
+     * required, then an unconditional update should be executed via action.
+     *
+     * @param segment The Segment to perform the action on.
+     * @param action  A Supplier that, when invoked, will begin executing the action. This returns a CompletableFuture
+     *                that will indicate when the action completed.
+     * @param <T>     Return type.
+     * @return A CompletableFuture that, when completed normally, will indicate that the action was executed. If it failed,
+     * or if the segment is not empty, it will be failed with the appropriate exception. Notable exceptions:
+     * <ul>
+     * <li>{@link TableSegmentNotEmptyException} If the Segment is not empty.
+     * </ul>
+     */
+    <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action) {
+        return this.recoveryTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addWithFilter(
+                conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
+                () -> {
+                    SegmentProperties sp = segment.getInfo();
+                    long entryCount = this.indexReader.getBucketCount(sp) + this.cache.getBucketCountDelta(segment.getSegmentId());
+                    if (entryCount <= 0) {
+                        // Segment is empty.
+                        return action.get();
+                    } else {
+                        // Segment is not empty.
+                        return Futures.failedFuture(new TableSegmentNotEmptyException(sp.getName()));
+                    }
+                }
+        ));
+    }
 
     /**
      * Find the Last Bucket Offsets for the given KeyHashes.
@@ -223,7 +266,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * Performs a Batch Update or Removal.
      *
      * If {@link TableKeyBatch#isConditional()} returns true, this will execute an atomic Conditional Update/Removal based
-     * on the condition items in the batch ({@link TableKeyBatch#versionedItems}. The entire TableKeyBatch will be
+     * on the condition items in the batch ({@link TableKeyBatch#getVersionedItems}. The entire TableKeyBatch will be
      * conditioned on those items, including those items that do not have a condition set. The entire TableKeyBatch will
      * either all be committed as one unit or not at all.
      *

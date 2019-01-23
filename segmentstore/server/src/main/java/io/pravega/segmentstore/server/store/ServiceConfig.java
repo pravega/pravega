@@ -29,7 +29,7 @@ public class ServiceConfig {
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
-    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 20);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 200);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
     public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
@@ -52,6 +52,7 @@ public class ServiceConfig {
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
+    public static final Property<String> INSTANCE_ID = Property.named("instanceId", "");
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -244,6 +245,14 @@ public class ServiceConfig {
     @Getter
     private final boolean replyWithStackTraceOnError;
 
+    /**
+     * Gets a value that uniquely identifies the Service. This is useful if multiple Service Instances share the same
+     * log files or during testing, when multiple Service Instances run in the same process. This value will be prefixed
+     * to the names of all Threads used by this Service Instance, which should make log parsing easier.
+     */
+    @Getter
+    private final String instanceId;
+
     //endregion
 
     //region Constructor
@@ -299,6 +308,7 @@ public class ServiceConfig {
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
         this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
         this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
+        this.instanceId = properties.get(INSTANCE_ID);
     }
 
     /**

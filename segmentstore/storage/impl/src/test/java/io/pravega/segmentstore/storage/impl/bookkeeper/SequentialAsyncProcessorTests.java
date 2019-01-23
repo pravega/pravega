@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.concurrent;
+package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;

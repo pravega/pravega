@@ -49,7 +49,8 @@ public class StreamCutService extends AbstractService implements BucketOwnership
 
     @Override
     protected void doStart() {
-        Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList()))
+        streamMetadataStore.createBucketsRoot()
+                .thenCompose(v -> Futures.allOf(IntStream.range(0, bucketCount).boxed().map(this::tryTakeOwnership).collect(Collectors.toList())))
                 .thenAccept(x -> streamMetadataStore.registerBucketOwnershipListener(this))
                 .whenComplete((r, e) -> {
                     if (e != null) {

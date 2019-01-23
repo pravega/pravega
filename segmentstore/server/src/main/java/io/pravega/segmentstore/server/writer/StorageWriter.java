@@ -334,7 +334,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
      * @return The same SegmentAggregator.
      */
     private ProcessorCollection closeIfNecessary(ProcessorCollection processorCollection) {
-        if (processorCollection.isDeleted() || !processorCollection.isActive()) {
+        if (processorCollection.shouldClose()) {
             processorCollection.close();
         }
 
@@ -572,17 +572,10 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         }
 
         /**
-         * Gets a value indicating whether the Segment is deleted.
+         * Gets a value indicating whether the SegmentAggregator can be closed.
          */
-        boolean isDeleted() {
-            return this.aggregator.getMetadata().isDeleted();
-        }
-
-        /**
-         * Gets a value indicating whether the Segment is active or not.
-         */
-        boolean isActive() {
-            return this.aggregator.getMetadata().isActive();
+        boolean shouldClose() {
+            return this.aggregator.getMetadata().isDeletedInStorage() || !this.aggregator.getMetadata().isActive();
         }
 
         //endregion

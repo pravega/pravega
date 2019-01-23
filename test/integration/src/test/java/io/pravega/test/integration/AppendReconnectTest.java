@@ -33,6 +33,7 @@ import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.AppendProcessor;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor;
@@ -61,6 +62,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class AppendReconnectTest {
     private Level originalLevel;
@@ -107,7 +109,7 @@ public class AppendReconnectTest {
                 new CommandDecoder(),
                 new AppendDecoder(),
                 lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, lsh), null));
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh), null));
         return channel;
     }
 
@@ -121,7 +123,7 @@ public class AppendReconnectTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
 
         @Cleanup
@@ -158,7 +160,7 @@ public class AppendReconnectTest {
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
 
         @Cleanup

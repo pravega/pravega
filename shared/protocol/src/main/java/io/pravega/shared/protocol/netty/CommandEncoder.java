@@ -135,7 +135,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             breakFromAppend(out);
             writeMessage((WireCommand) msg, out);
         } else {
-            throw new IllegalArgumentException("Expected a wire command and found: "+ msg);
+            throw new IllegalArgumentException("Expected a wire command and found: " + msg);
         }
     }
 

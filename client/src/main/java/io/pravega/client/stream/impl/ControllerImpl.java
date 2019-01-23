@@ -173,7 +173,7 @@ public class ControllerImpl implements Controller {
         ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
         Credentials credentials = config.getClientConfig().getCredentials();
         if (credentials != null) {
-            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
+            PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;
@@ -237,7 +237,7 @@ public class ControllerImpl implements Controller {
                     throw new ControllerFailureException("Failed to delete scope: " + scopeName);
                 case SCOPE_NOT_EMPTY:
                     log.warn(requestId, "Cannot delete non empty scope: {}", scopeName);
-                    throw new IllegalStateException("Scope "+ scopeName + " is not empty.");
+                    throw new IllegalStateException("Scope " + scopeName + " is not empty.");
                 case SCOPE_NOT_FOUND:
                     log.warn(requestId, "Scope not found: {}", scopeName);
                     return false;

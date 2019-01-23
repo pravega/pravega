@@ -17,5 +17,6 @@ init_segmentstore() {
     add_system_property "pravegaservice.zkURL" "${ZK_URL}"
     add_system_property "autoScale.controllerUri" "${CONTROLLER_URL}"
     add_system_property "bookkeeper.zkAddress" "${BK_ZK_URL:-${ZK_URL}}"
+    add_system_property "pravegaservice.storageThreadPoolSize" "${STORAGE_THREAD_POOL_SIZE}"
     echo "JAVA_OPTS=${JAVA_OPTS}"
 }

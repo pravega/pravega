@@ -33,6 +33,7 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.NameUtils;
 import java.io.IOException;
@@ -40,7 +41,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import lombok.Cleanup;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -109,7 +109,7 @@ public class ReaderGroupManagerImpl implements ReaderGroupManager {
                                              } else {
                                                  log.warn("Failed to delete stream", e);
                                              }
-                                             throw Lombok.sneakyThrow(e);
+                                             throw Exceptions.sneakyThrow(e);
                                          }),
                                RuntimeException::new);
         
