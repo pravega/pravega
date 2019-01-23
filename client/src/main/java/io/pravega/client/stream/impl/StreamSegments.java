@@ -93,6 +93,7 @@ public class StreamSegments {
         List<SegmentWithRange> replacements = replacedRanges.get(segment.getSegmentId());
         Preconditions.checkNotNull(replacements, "Empty set of replacements for: {}", segment.getSegmentId());
         replacements.sort(Comparator.comparingDouble(SegmentWithRange::getHigh).reversed());
+        verifyContinuous(replacements);
         for (Entry<Double, SegmentWithRange> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final SegmentWithRange existingSegment = existingEntry.getValue();
             if (existingSegment.equals(replacedSegment)) { // Segment needs to be replaced.
@@ -161,6 +162,14 @@ public class StreamSegments {
                                         replacementSegments);
             Preconditions.checkArgument(lowerReplacedSegment != null, "Missing replaced replacement segments %s",
                                         replacementSegments);
+        }
+    }
+    
+    private void verifyContinuous(List<SegmentWithRange> newSegments) {
+        double previous = newSegments.get(0).getHigh();
+        for (SegmentWithRange s : newSegments) {
+            Preconditions.checkArgument(previous == s.getHigh(), "Replacement segments were not continious: {}", newSegments);
+            previous = s.getLow();
         }
     }
 
