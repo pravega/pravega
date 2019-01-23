@@ -12,10 +12,10 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.HashedArray;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -65,41 +65,28 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     @Test
     public void testTableAttributes() {
         val ir = newReader();
-        Assert.assertEquals("Unexpected value for TABLE_INDEX_OFFSET when attribute is not present.",
+        Assert.assertEquals("Unexpected value for INDEX_OFFSET when attribute is not present.",
                 0, ir.getLastIndexedOffset(StreamSegmentInformation.builder().name("s").build()));
-        Assert.assertEquals("Unexpected value for TABLE_ENTRY_COUNT when attribute is not present.",
+        Assert.assertEquals("Unexpected value for ENTRY_COUNT when attribute is not present.",
                 0, ir.getEntryCount(StreamSegmentInformation.builder().name("s").build()));
         val si = StreamSegmentInformation.builder().name("s")
                                          .attributes(ImmutableMap.<UUID, Long>builder()
-                                                 .put(Attributes.TABLE_INDEX_OFFSET, 123456L)
-                                                 .put(Attributes.TABLE_ENTRY_COUNT, 2345L)
-                                                 .put(Attributes.TABLE_BUCKET_COUNT, 3456L)
+                                                 .put(TableAttributes.INDEX_OFFSET, 123456L)
+                                                 .put(TableAttributes.ENTRY_COUNT, 2345L)
+                                                 .put(TableAttributes.BUCKET_COUNT, 3456L)
                                                  .build())
                                          .build();
-        Assert.assertEquals("Unexpected value for TABLE_INDEX_OFFSET when attribute present.",
+        Assert.assertEquals("Unexpected value for INDEX_OFFSET when attribute present.",
                 123456, ir.getLastIndexedOffset(si));
-        Assert.assertEquals("Unexpected value for TABLE_ENTRY_COUNT when attribute present.",
+        Assert.assertEquals("Unexpected value for ENTRY_COUNT when attribute present.",
                 2345, ir.getEntryCount(si));
-        Assert.assertEquals("Unexpected value for TABLE_BUCKET_COUNT when attribute present.",
+        Assert.assertEquals("Unexpected value for BUCKET_COUNT when attribute present.",
                 3456, ir.getBucketCount(si));
     }
 
     //endregion
 
     //region IndexWriter specific tests
-
-    /**
-     * Tests the {@link IndexWriter#generateInitialTableAttributes()} method.
-     */
-    @Test
-    public void testGenerateInitialTableAttributes() {
-        val updates = IndexWriter.generateInitialTableAttributes();
-        val values = updates.stream().collect(Collectors.toMap(AttributeUpdate::getAttributeId, AttributeUpdate::getValue));
-        Assert.assertEquals("Unexpected number of updates generated.", 3, values.size());
-        Assert.assertEquals("Unexpected value for TableIndexOffset.", 0L, (long) values.get(Attributes.TABLE_INDEX_OFFSET));
-        Assert.assertEquals("Unexpected value for TableEntryCount.", 0L, (long) values.get(Attributes.TABLE_ENTRY_COUNT));
-        Assert.assertEquals("Unexpected value for TableBucketCount.", 0L, (long) values.get(Attributes.TABLE_BUCKET_COUNT));
-    }
 
     /**
      * Tests the {@link IndexWriter#groupByBucket} method.
@@ -314,7 +301,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         checkNoBackpointers(segment);
 
         // Verify that all surviving attributes are the core indexing attributes.
-        val initialAttributeCount = IndexWriter.generateInitialTableAttributes().size();
+        val initialAttributeCount = TableAttributes.DEFAULT_VALUES.size();
         int attributeCount = segment.getAttributeCount();
         Assert.assertEquals("Unexpected number of nodes left after complete removal.", initialAttributeCount, attributeCount);
     }
@@ -526,7 +513,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
 
     private SegmentMock newMock() {
         val mock = new SegmentMock(executorService());
-        mock.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
+        mock.updateAttributes(TableAttributes.DEFAULT_VALUES);
         return mock;
     }
 

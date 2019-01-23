@@ -15,10 +15,10 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -60,27 +60,6 @@ class IndexWriter extends IndexReader {
 
     //endregion
 
-    //region Initial Table Attributes
-
-    /**
-     * Generates a Collection of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
-     *
-     * Attributes:
-     * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
-     * * {@link Attributes#TABLE_ENTRY_COUNT} is initialized to 0.
-     * * {@link Attributes#TABLE_BUCKET_COUNT} is initialized to 0.
-     *
-     * @return A Collection of {@link AttributeUpdate}s.
-     */
-    static Collection<AttributeUpdate> generateInitialTableAttributes() {
-        return Arrays.asList(
-                new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L),
-                new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.None, 0L),
-                new AttributeUpdate(Attributes.TABLE_BUCKET_COUNT, AttributeUpdateType.None, 0L));
-    }
-
-    //endregion
-
     //region Updating Table Buckets
 
     /**
@@ -117,16 +96,16 @@ class IndexWriter extends IndexReader {
      * @param bucketUpdates      A Collection of {@link BucketUpdate} instances to apply. Each such instance refers to
      *                           a different {@link TableBucket} and contains the existing state and changes for it alone.
      * @param firstIndexedOffset The first offset in the Segment that is indexed. This will be used as a conditional update
-     *                           constraint (matched against the Segment's {@link Attributes#TABLE_INDEX_OFFSET}) to verify
-     *                           the update will not corrupt the data (i.e., we do not overlap with another update).
-     * @param lastIndexedOffset  The last offset in the Segment that is indexed. The Segment's {@link Attributes#TABLE_INDEX_OFFSET}
+     *                           constraint (matched against the Segment's {@link TableAttributes#INDEX_OFFSET}) to
+     *                           verify the update will not corrupt the data (i.e., we do not overlap with another update).
+     * @param lastIndexedOffset  The last offset in the Segment that is indexed. The Segment's {@link TableAttributes#INDEX_OFFSET}
      *                           will be updated to this value (atomically) upon a successful completion of his call.
      * @param timeout            Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the number attribute updates. If the
      * operation failed, it will be failed with the appropriate exception. Notable exceptions:
      * <ul>
      * <li>{@link BadAttributeUpdateException} if the update failed due to firstIndexOffset not matching the Segment's
-     * {@link Attributes#TABLE_INDEX_OFFSET}) attribute value. Such a case is retryable, but the entire bucketUpdates
+     * {@link TableAttributes#INDEX_OFFSET}) attribute value. Such a case is retryable, but the entire bucketUpdates
      * argument must be reconstructed with the reconciled value (to prevent index corruption).
      * </ul>
      */
@@ -238,22 +217,23 @@ class IndexWriter extends IndexReader {
      * Generates conditional {@link AttributeUpdate}s that update the values for Core Attributes representing the indexing
      * state of the Table Segment.
      *
-     * @param currentOffset The offset from which this indexing batch began. This will be checked against {@link Attributes#TABLE_INDEX_OFFSET}.
-     * @param newOffset     The new offset to set for {@link Attributes#TABLE_INDEX_OFFSET}.
+     * @param currentOffset The offset from which this indexing batch began. This will be checked against
+     *                      {@link TableAttributes#INDEX_OFFSET}.
+     * @param newOffset     The new offset to set for {@link TableAttributes#INDEX_OFFSET}.
      * @param update        A {@link UpdateInstructions} object to collect updates into.
      */
     private void generateTableAttributeUpdates(long currentOffset, long newOffset, UpdateInstructions update) {
-        // Add an Update for the TABLE_INDEX_OFFSET to indicate we have indexed everything up to this offset.
+        // Add an Update for the INDEX_OFFSET to indicate we have indexed everything up to this offset.
         Preconditions.checkArgument(currentOffset <= newOffset, "newOffset must be larger than existingOffset");
-        update.withAttribute(new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset));
+        update.withAttribute(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.ReplaceIfEquals, newOffset, currentOffset));
 
         // Update Bucket and Entry counts.
         if (update.getEntryCountDelta() != 0) {
-            update.withAttribute(new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.Accumulate, update.getEntryCountDelta()));
+            update.withAttribute(new AttributeUpdate(TableAttributes.ENTRY_COUNT, AttributeUpdateType.Accumulate, update.getEntryCountDelta()));
         }
 
         if (update.getBucketCountDelta() != 0) {
-            update.withAttribute(new AttributeUpdate(Attributes.TABLE_BUCKET_COUNT, AttributeUpdateType.Accumulate, update.getBucketCountDelta()));
+            update.withAttribute(new AttributeUpdate(TableAttributes.BUCKET_COUNT, AttributeUpdateType.Accumulate, update.getBucketCountDelta()));
         }
     }
 

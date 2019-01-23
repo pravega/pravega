@@ -17,6 +17,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
@@ -275,7 +276,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
-        context.segment.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
+        context.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
 
         // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
         val keys = generateUnversionedKeys(BATCH_SIZE, context);
@@ -330,7 +331,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
-        context.segment.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
+        context.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
 
         // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
         val keys = generateUnversionedKeys(BATCH_SIZE, context);

@@ -16,9 +16,9 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.HashedArray;
-import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentOperation;
@@ -182,9 +182,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     /**
      * Performs a flush attempt, and retries it in case it failed with {@link BadAttributeUpdateException} for the
-     * {@link Attributes#TABLE_INDEX_OFFSET} attribute.
+     * {@link TableAttributes#INDEX_OFFSET} attribute.
      *
-     * In case of a retry, it reconciles the cached value for the {@link Attributes#TABLE_INDEX_OFFSET} attribute and
+     * In case of a retry, it reconciles the cached value for the {@link TableAttributes#INDEX_OFFSET} attribute and
      * updates any internal state.
      *
      * @param segment A {@link DirectSegmentAccess} representing the Segment to flush on.
@@ -192,7 +192,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @return A CompletableFuture that, when completed, will indicate the flush has completed successfully. If the
      * operation failed, it will be failed with the appropriate exception. Notable exceptions:
      * <ul>
-     * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link Attributes#TABLE_INDEX_OFFSET} attribute
+     * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link TableAttributes#INDEX_OFFSET} attribute
      * failed (for the second attempt) or on any other attribute failed (for any attempt).
      * <li>{@link DataCorruptionException} If the reconciliation failed (in which case no flush is attempted.
      * </ul>
@@ -215,7 +215,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * @return A CompletableFuture that, when completed, will indicate the flush has completed successfully. If the
      * operation failed, it will be failed with the appropriate exception. Notable exceptions:
      * <ul>
-     * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link Attributes#TABLE_INDEX_OFFSET} attribute failed.
+     * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link TableAttributes#INDEX_OFFSET} attribute failed.
      * </ul>
      */
     private CompletableFuture<Long> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
@@ -244,13 +244,13 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         long tableIndexOffset = this.indexWriter.getLastIndexedOffset(this.connector.getMetadata());
         if (tableIndexOffset < this.aggregator.getLastIndexedOffset()) {
             // This should not happen, ever!
-            throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
+            throw new DataCorruptionException(String.format("Cannot reconcile INDEX_OFFSET attribute (%s) for Segment '%s'. "
                             + "It is lower than our known value (%s).",
                     tableIndexOffset, this.connector.getMetadata().getId(), this.aggregator.getLastIndexedOffset()));
         }
 
         if (!this.aggregator.setLastIndexedOffset(tableIndexOffset)) {
-            throw new DataCorruptionException(String.format("Cannot reconcile TABLE_INDEX_OFFSET attribute (%s) for Segment '%s'. "
+            throw new DataCorruptionException(String.format("Cannot reconcile INDEX_OFFSET attribute (%s) for Segment '%s'. "
                             + "Most likely it does not conform to an append boundary.  Existing value: %s.",
                     tableIndexOffset, this.connector.getMetadata().getId(), this.aggregator.getLastIndexedOffset()));
         }
@@ -261,7 +261,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private boolean canRetryFlushException(Throwable ex) {
         if (ex instanceof BadAttributeUpdateException) {
             val bau = (BadAttributeUpdateException) ex;
-            return bau.getAttributeId() != null && bau.getAttributeId().equals(Attributes.TABLE_INDEX_OFFSET);
+            return bau.getAttributeId() != null && bau.getAttributeId().equals(TableAttributes.INDEX_OFFSET);
         }
 
         return false;

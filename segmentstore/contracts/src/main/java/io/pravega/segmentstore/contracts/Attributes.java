@@ -23,8 +23,13 @@ import java.util.stream.Collectors;
  * MetadataCheckpoints or the Segment's State, thus its value will not be reloaded into memory upon a failover or
  * segment eviction + re-activation.
  */
-public final class Attributes {
+public class Attributes {
     /**
+     * The Attribute ID at which Table Attributes can begin at. Everything with an ID smaller than this is a general
+     * Attribute.
+     */
+    public static final long TABLE_ATTRIBUTES_START_OFFSET = 1024; // Powers of 2 make UUID.toString look readable.
+
     /**
      * Defines an attribute value that denotes a missing value.
      */
@@ -71,21 +76,6 @@ public final class Attributes {
      * Attribute Snapshot Length.
      */
     private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
-
-    /**
-     * Defines an attribute that is used to store the first offset of a (Table) Segment that has not yet been indexed.
-     */
-    public static final UUID TABLE_INDEX_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 7);
-
-    /**
-     * Defines an attribute that is used to store the the number of indexed Table Entries in a (Table) Segment.
-     */
-    public static final UUID TABLE_ENTRY_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 8);
-
-    /**
-     * Defines an attribute that is used to store the the number of Table Buckets in a (Table) Segment.
-     */
-    public static final UUID TABLE_BUCKET_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 9);
 
     /**
      * Determines whether the given Attribute Id refers to a Core Attribute.
