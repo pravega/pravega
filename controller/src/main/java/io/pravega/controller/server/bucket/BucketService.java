@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Worker loop peeks at the first element from the priority queue. If the first element in the queue can be executed, 
  * it is taken from the queue else, the loop sleeps till it can dequeue a work. 
  * 
- * Worker loop runs as an infinite loop and, at the most, dequeues `avaiableSlots` number of work items from the priority queue. 
+ * Worker loop runs as an infinite loop and, at the most, dequeues `availableSlots` number of work items from the priority queue. 
  * During each loop iteration it first checks if there are slots available to pick a work. If not, it postpones itself with a delay. 
  * Available slots is managed via a thread safe counter. Whenever a new work is picked from the queue, the counter is decremented 
  * and work is started asynchronously. 
@@ -78,7 +78,7 @@ abstract class BucketService extends AbstractService {
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
     @GuardedBy("lock")
-    private int avaiableSlots;
+    private int availableSlots;
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final PriorityQueue<QueueElement> workQueue;
@@ -100,7 +100,7 @@ abstract class BucketService extends AbstractService {
         this.serviceStartFuture = new CompletableFuture<>();
         this.notificationLoop = new AtomicReference<>(CompletableFuture.completedFuture(null));
         this.workerLoop = new AtomicReference<>(CompletableFuture.completedFuture(null));
-        this.avaiableSlots = maxConcurrentExecutions;
+        this.availableSlots = maxConcurrentExecutions;
         this.knownStreams = new HashSet<>();
         this.workQueue = new PriorityQueue<>(Comparator.comparingLong(x -> x.nextExecutionTimeInMillis));
         this.executionPeriod = executionPeriod;
@@ -171,7 +171,7 @@ abstract class BucketService extends AbstractService {
         QueueElement element;
         long delayInMillis = 0L;
         synchronized (lock) {
-            if (avaiableSlots > 0) {
+            if (availableSlots > 0) {
                 element = workQueue.peek();
                 if (element != null && element.nextExecutionTimeInMillis <= time) {
                     // Note: we can poll on queue while holding the lock because we know the element exists.
@@ -183,7 +183,7 @@ abstract class BucketService extends AbstractService {
                         // let next cycle of process work happen immediately
                         element = null;
                     } else {
-                        avaiableSlots--;
+                        availableSlots--;
                     }
                 } else { 
                     // empty priority queue or first element cannot be scheduled immediately
@@ -214,7 +214,7 @@ abstract class BucketService extends AbstractService {
                         workQueue.add(new QueueElement(stream, nextRun));
                     }
                     // add the slot back
-                    avaiableSlots++;
+                    availableSlots++;
                     return null;
                 }
             });

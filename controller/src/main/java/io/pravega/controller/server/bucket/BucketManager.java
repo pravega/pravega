@@ -17,11 +17,12 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.GuardedBy;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
@@ -42,7 +43,9 @@ public abstract class BucketManager extends AbstractService {
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
     private final Function<Integer, BucketService> bucketServiceSupplier;
-    private final ConcurrentMap<Integer, BucketService> buckets;
+    private final Object lock;
+    @GuardedBy("lock")
+    private final Map<Integer, BucketService> buckets;
     @Getter(AccessLevel.PROTECTED)
     private final ScheduledExecutorService executor;
 
@@ -51,7 +54,8 @@ public abstract class BucketManager extends AbstractService {
         this.processId = processId;
         this.serviceType = serviceType;
         this.executor = executor;
-        this.buckets = new ConcurrentHashMap<>();
+        this.lock = new Object();
+        this.buckets = new HashMap<>();
         this.bucketServiceSupplier = bucketServiceSupplier;
     }
 
@@ -82,32 +86,14 @@ public abstract class BucketManager extends AbstractService {
                         // Once we have taken ownership of the bucket, we will register listeners on the bucket. 
                         CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
 
-                        buckets.compute(bucket, (x, y) -> {
-                            if (y == null) {
-                                BucketService bucketService = bucketServiceSupplier.apply(bucket);
-                                bucketService.addListener(new Listener() {
-                                    @Override
-                                    public void running() {
-                                        super.running();
-                                        log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
-                                        bucketFuture.complete(null);
-                                    }
-
-                                    @Override
-                                    public void failed(State from, Throwable failure) {
-                                        super.failed(from, failure);
-                                        log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
-                                        buckets.remove(bucket);
-                                        bucketFuture.completeExceptionally(failure);
-                                    }
-                                }, executor);
-                                bucketService.startAsync();
-                                return bucketService;
-                            } else {
+                        synchronized (lock) {
+                            if (buckets.containsKey(bucket)) {
                                 bucketFuture.complete(null);
-                                return y;
+                            } else {
+                                BucketService bucketService = startNewBucketService(bucket, bucketFuture);
+                                buckets.put(bucket, bucketService);
                             }
-                        });
+                        }
                         
                         return bucketFuture;
                     } else {
@@ -116,10 +102,39 @@ public abstract class BucketManager extends AbstractService {
                 });
     }
 
+    private BucketService startNewBucketService(int bucket, CompletableFuture<Void> bucketFuture) {
+        BucketService bucketService = bucketServiceSupplier.apply(bucket);
+        bucketService.addListener(new Listener() {
+            @Override
+            public void running() {
+                super.running();
+                log.info("{}: successfully started bucket service bucket: {} ", BucketManager.this.serviceType, bucket);
+                bucketFuture.complete(null);
+            }
+
+            @Override
+            public void failed(State from, Throwable failure) {
+                super.failed(from, failure);
+                log.error("{}: Failed to start bucket: {} ", BucketManager.this.serviceType, bucket);
+                synchronized (lock) {
+                    buckets.remove(bucket);
+                }
+                bucketFuture.completeExceptionally(failure);
+            }
+        }, executor);
+        bucketService.startAsync();
+        return bucketService;
+    }
+
     @Override
     protected void doStop() {
         log.info("{}: Stop request received for bucket manager", serviceType);
-        Futures.allOf(buckets.values().stream().map(bucketService -> {
+        Collection<BucketService> tmp;
+        synchronized (lock) { 
+            tmp = buckets.values();
+        }
+        
+        Futures.allOf(tmp.stream().map(bucketService -> {
             CompletableFuture<Void> bucketFuture = new CompletableFuture<>();
             bucketService.addListener(new Listener() {
                 @Override
