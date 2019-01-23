@@ -9,20 +9,12 @@
  */
 package io.pravega.client.tables.impl;
 
-/**
- * A Table Entry with a Version.
- *
- * @param <KeyT>   Key Type.
- * @param <ValueT> Value Type
- */
-public interface TableEntry<KeyT, ValueT> {
-    /**
-     * The Key.
-     */
-    TableKey<KeyT> getKey();
+import lombok.Data;
 
-    /**
-     * The Value.
-     */
-    ValueT getValue();
+@Data
+public class TableKeyImpl<KeyT> implements TableKey<KeyT> {
+
+    private final KeyT key;
+    private final KeyVersion version;
+
 }

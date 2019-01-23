@@ -9,16 +9,45 @@
  */
 package io.pravega.client.tables.impl;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /**
  * Version of a Key in a Table.
  */
-interface KeyVersion {
+public interface KeyVersion extends Serializable {
+
     /**
      * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
      */
-    KeyVersion NOT_EXISTS = null; // TODO: replace with actual implementation instance once it exists.
+
+    KeyVersion NOT_EXISTS = new KeyVersion() {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public long getSegmentId() {
+            return -1L;
+        }
+
+        @Override
+        public long getSegmentVersion() {
+            return -1L;
+        }
+
+        @Override
+        public ByteBuffer toBytes() {
+            return ByteBuffer.allocate(0);
+        }
+
+        @Override
+        public String toString() {
+            return "NOT_EXISTS";
+        }
+
+        private Object readResolve() {
+            return NOT_EXISTS;
+        }
+    };
 
     /**
      * Gets a value representing the internal Table Segment Id where this Key Version refers to.
@@ -42,6 +71,9 @@ interface KeyVersion {
      * @return The KeyVersion object.
      */
     static KeyVersion fromBytes(ByteBuffer serializedKeyVersion) {
-        throw new UnsupportedOperationException("Not Implemented");
+        if (!serializedKeyVersion.hasRemaining()) {
+            return NOT_EXISTS;
+        }
+        return KeyVersionImpl.fromBytes(serializedKeyVersion);
     }
 }
