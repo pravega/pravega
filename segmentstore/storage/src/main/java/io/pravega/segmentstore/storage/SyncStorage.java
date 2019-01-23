@@ -94,20 +94,22 @@ public interface SyncStorage extends AutoCloseable {
      * Creates a new StreamSegment.
      *
      * @param streamSegmentName The full name of the StreamSegment.
-     * @return A SegmentProperties describing the newly created Segment.
+     * @return A read-write SegmentHandle that can be used to access the segment for read and write activities (ex: read,
+     * write, seal, concat).
      * @throws StreamSegmentException If an exception occurred.
      */
-    SegmentProperties create(String streamSegmentName) throws StreamSegmentException;
+    SegmentHandle create(String streamSegmentName) throws StreamSegmentException;
 
     /**
      * Creates a new StreamSegment with given SegmentRollingPolicy.
      *
      * @param streamSegmentName The full name of the StreamSegment.
      * @param rollingPolicy     The Rolling Policy to apply to this StreamSegment.
-     * @return A SegmentProperties describing the newly created Segment.
+     * @return A read-write SegmentHandle that can be used to access the segment for read and write activities (ex: read,
+     * write, seal, concat).
      * @throws StreamSegmentException If an exception occurred.
      */
-    default SegmentProperties create(String streamSegmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
+    default SegmentHandle create(String streamSegmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         // By default this creates a blank Segment. This is the default behavior for Storage implementations that do not
         // support Segment Rolling.
         return create(streamSegmentName);

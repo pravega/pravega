@@ -43,17 +43,15 @@ public final class SegmentStoreMetrics {
      * CacheManager metrics.
      */
     public final static class CacheManager implements AutoCloseable {
-        private final OpStatsLogger totalSize = STATS_LOGGER.createStats(MetricsNames.CACHE_TOTAL_SIZE_BYTES);
         private final OpStatsLogger generationSpread = STATS_LOGGER.createStats(MetricsNames.CACHE_GENERATION_SPREAD);
 
         public void report(long totalBytes, int generationSpread) {
-            this.totalSize.reportSuccessValue(totalBytes);
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.CACHE_TOTAL_SIZE_BYTES, totalBytes);
             this.generationSpread.reportSuccessValue(generationSpread);
         }
 
         @Override
         public void close()  {
-            this.totalSize.close();
             this.generationSpread.close();
         }
     }

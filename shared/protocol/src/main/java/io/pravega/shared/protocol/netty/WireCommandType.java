@@ -79,6 +79,24 @@ public enum WireCommandType {
 
     AUTH_TOKEN_CHECK_FAILED(60, WireCommands.AuthTokenCheckFailed::readFrom),
 
+    CREATE_TABLE_SEGMENT(70, WireCommands.CreateTableSegment::readFrom),
+    DELETE_TABLE_SEGMENT(71, WireCommands.DeleteTableSegment::readFrom),
+    MERGE_TABLE_SEGMENTS(72, WireCommands.MergeTableSegments::readFrom),
+    SEAL_TABLE_SEGMENT(73, WireCommands.SealTableSegment::readFrom),
+
+    UPDATE_TABLE_ENTRIES(74, WireCommands.UpdateTableEntries::readFrom),
+    TABLE_ENTRIES_UPDATED(75, WireCommands.TableEntriesUpdated::readFrom),
+
+    REMOVE_TABLE_KEYS(76, WireCommands.RemoveTableKeys::readFrom),
+    TABLE_KEYS_REMOVED(77, WireCommands.TableKeysRemoved::readFrom),
+
+    READ_TABLE(78, WireCommands.ReadTable::readFrom),
+    TABLE_READ(79, WireCommands.TableRead::readFrom),
+
+    TABLE_SEGMENT_NOT_EMPTY(80, WireCommands.TableSegmentNotEmpty::readFrom),
+    TABLE_KEY_DOES_NOT_EXIST(81, WireCommands.TableKeyDoesNotExist::readFrom),
+    TABLE_KEY_BAD_VERSION(82, WireCommands.TableKeyBadVersion::readFrom),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;

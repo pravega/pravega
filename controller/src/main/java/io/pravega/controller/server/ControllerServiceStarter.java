@@ -25,6 +25,8 @@ import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -92,6 +94,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private RESTServer restServer;
 
     private Cluster cluster = null;
+
+    private StreamMetrics streamMetrics;
+    private TransactionMetrics transactionMetrics;
 
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
         this.serviceConfig = serviceConfig;
@@ -192,8 +197,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
+                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -352,6 +359,15 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
+
+            // Close metrics.
+            if (streamMetrics != null) {
+                streamMetrics.close();
+            }
+
+            if (transactionMetrics != null) {
+                transactionMetrics.close();
+            }
 
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }

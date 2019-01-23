@@ -73,7 +73,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
+        log.debug("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
         RawClient c;
         synchronized (lock) {
             c = client;

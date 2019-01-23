@@ -43,7 +43,7 @@ public interface ZKClientConfig {
 
     /**
      * Fetches the session timeout in milli seconds.
-     * @return
+     * @return session timeout in milli seconds.
      */
     int getSessionTimeoutMs();
 

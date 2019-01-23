@@ -10,7 +10,6 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -178,14 +177,15 @@ public class ControllerRestApiTest {
         log.info("List streams successful");
 
         // Test getScope
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1).toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get scope status", OK.getStatusCode(), response.getStatus());
         assertEquals("Get scope scope1 response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
         log.info("Get scope successful");
 
         // Test updateStream
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
+                                                      .toString();
 
         UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
         ScalingConfig scalingConfig1 = new ScalingConfig();
@@ -204,8 +204,8 @@ public class ControllerRestApiTest {
         log.info("Update stream successful");
 
         // Test scaling event list GET /v1/scopes/scope1/streams/stream1
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1 + "/scaling-events")
-                .toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1
+                + "/scaling-events").toString();
         response = client.target(resourceURl).queryParam("from", 0L).
                 queryParam("to", System.currentTimeMillis()).request().get();
         List<ScaleMetadata> scaleMetadataListResponse = response.readEntity(
@@ -214,15 +214,16 @@ public class ControllerRestApiTest {
         assertEquals(2, scaleMetadataListResponse.get(0).getSegments().size());
 
         // Test getStream
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
+                                                      .toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get stream status", OK.getStatusCode(), response.getStatus());
         assertEquals("Get stream stream1 response", stream1, response.readEntity(StreamProperty.class).getStreamName());
         log.info("Get stream successful");
 
         // Test updateStreamState
-        resourceURl = new StringBuilder(restServerURI)
-                .append("/v1/scopes/"+ scope1 + "/streams/"+stream1+"/state").toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1 + "/state")
+                                                      .toString();
         StreamState streamState = new StreamState();
         streamState.setStreamState(StreamState.StreamStateEnum.SEALED);
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
@@ -233,13 +234,14 @@ public class ControllerRestApiTest {
         log.info("Update stream state successful");
 
         // Test deleteStream
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
+                                                      .toString();
         response = client.target(resourceURl).request().delete();
         assertEquals("DeleteStream status", NO_CONTENT.getStatusCode(), response.getStatus());
         log.info("Delete stream successful");
 
         // Test deleteScope
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1).toString();
         response = client.target(resourceURl).request().delete();
         assertEquals("Get scope status", NO_CONTENT.getStatusCode(), response.getStatus());
         log.info("Delete Scope successful");
@@ -258,13 +260,11 @@ public class ControllerRestApiTest {
             streamManager.createScope(testScope);
 
             log.info("Creating stream: {}", testStream1);
-            StreamConfiguration streamConf1 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream1).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf1 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream1, streamConf1);
 
             log.info("Creating stream: {}", testStream2);
-            StreamConfiguration streamConf2 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream2).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream2, streamConf2);
         }
 
@@ -272,7 +272,7 @@ public class ControllerRestApiTest {
         final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
+        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder()
@@ -290,7 +290,7 @@ public class ControllerRestApiTest {
         }
 
         // Test fetching readergroups.
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups").toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + testScope + "/readergroups").toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get readergroups status", OK.getStatusCode(), response.getStatus());
         ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
@@ -302,8 +302,8 @@ public class ControllerRestApiTest {
         log.info("Get readergroups successful");
 
         // Test fetching readergroup info.
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups/" +
-                readerGroupName1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + testScope + "/readergroups/"
+                + readerGroupName1).toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get readergroup properties status", OK.getStatusCode(), response.getStatus());
         ReaderGroupProperty readerGroupProperty = response.readEntity(ReaderGroupProperty.class);

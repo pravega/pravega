@@ -9,15 +9,10 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import com.google.common.base.Preconditions;
-import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.ContainerNotFoundException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.time.Duration;
@@ -25,20 +20,13 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * This is the Log/StreamSegment Service, that puts together everything and is what should be exposed to the outside.
  */
 @Slf4j
-public class StreamSegmentService implements StreamSegmentStore {
-    //region Members
-
-    private final SegmentContainerRegistry segmentContainerRegistry;
-    private final SegmentToContainerMapper segmentToContainerMapper;
-
-    //endregion
+public class StreamSegmentService extends SegmentContainerCollection implements StreamSegmentStore {
 
     //region Constructor
 
@@ -49,8 +37,7 @@ public class StreamSegmentService implements StreamSegmentStore {
      * @param segmentToContainerMapper The SegmentToContainerMapper to use to map StreamSegments to Containers.
      */
     public StreamSegmentService(SegmentContainerRegistry segmentContainerRegistry, SegmentToContainerMapper segmentToContainerMapper) {
-        this.segmentContainerRegistry = Preconditions.checkNotNull(segmentContainerRegistry, "segmentContainerRegistry");
-        this.segmentToContainerMapper = Preconditions.checkNotNull(segmentToContainerMapper, "segmentToContainerMapper");
+        super(segmentContainerRegistry, segmentToContainerMapper);
     }
 
     //endregion
@@ -143,40 +130,6 @@ public class StreamSegmentService implements StreamSegmentStore {
                 streamSegmentName,
                 container -> container.truncateStreamSegment(streamSegmentName, offset, timeout),
                 "truncateStreamSegment", streamSegmentName);
-    }
-
-    //endregion
-
-    //region Helpers
-
-    /**
-     * Executes the given Function on the SegmentContainer that the given Segment maps to.
-     *
-     * @param streamSegmentName The name of the StreamSegment to fetch the Container for.
-     * @param toInvoke          A Function that will be invoked on the Container.
-     * @param methodName        The name of the calling method (for logging purposes).
-     * @param logArgs           (Optional) A vararg array of items to be logged.
-     * @param <T>               Resulting type.
-     * @return Either the result of toInvoke or a CompletableFuture completed exceptionally with a ContainerNotFoundException
-     * in case the SegmentContainer that the Segment maps to does not exist in this StreamSegmentService.
-     */
-    private <T> CompletableFuture<T> invoke(String streamSegmentName, Function<SegmentContainer, CompletableFuture<T>> toInvoke,
-                                            String methodName, Object... logArgs) {
-        long traceId = LoggerHelpers.traceEnter(log, methodName, logArgs);
-        SegmentContainer container;
-        try {
-            int containerId = this.segmentToContainerMapper.getContainerId(streamSegmentName);
-            container = this.segmentContainerRegistry.getContainer(containerId);
-        } catch (ContainerNotFoundException ex) {
-            return Futures.failedFuture(ex);
-        }
-
-        CompletableFuture<T> resultFuture = toInvoke.apply(container);
-        if (log.isTraceEnabled()) {
-            resultFuture.thenAccept(r -> LoggerHelpers.traceLeave(log, methodName, traceId, r));
-        }
-
-        return resultFuture;
     }
 
     //endregion

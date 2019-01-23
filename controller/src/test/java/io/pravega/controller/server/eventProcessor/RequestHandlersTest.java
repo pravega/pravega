@@ -11,7 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -21,19 +21,21 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
@@ -43,19 +45,13 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.CommitEvent;
+import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
@@ -67,20 +63,29 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class RequestHandlersTest {
     private final String scope = "scope";
-    private final String stream = "stream";
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
-            ScalingPolicy.byEventRate(1, 2, 3)).build();
     private RequestTracker requestTracker = new RequestTracker(true);
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -93,7 +98,7 @@ public class RequestHandlersTest {
     private TestingServer zkServer;
 
     private CuratorFramework zkClient;
-    private ClientFactory clientFactory;
+    private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 
     @Before
@@ -123,7 +128,7 @@ public class RequestHandlersTest {
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        clientFactory = mock(ClientFactory.class);
+        clientFactory = mock(EventStreamClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
@@ -174,7 +179,7 @@ public class RequestHandlersTest {
                                      Map<String, Integer> invocationCount, int expectedVersion) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -217,7 +222,7 @@ public class RequestHandlersTest {
         wait.complete(null);
 
         if (expectFailureOnFirstJob) {
-            AssertExtensions.assertThrows("first commit should fail", () -> future1, firstExceptionPredicate);
+            AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                     .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
@@ -272,7 +277,7 @@ public class RequestHandlersTest {
                                             Map<String, Integer> invocationCount, int expectedVersion) {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -315,7 +320,7 @@ public class RequestHandlersTest {
         wait.complete(null);
 
         if (expectFailureOnFirstJob) {
-            AssertExtensions.assertThrows("first commit should fail", () -> future1Rolling, firstExceptionPredicate);
+            AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1Rolling, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
                     .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("startRollingTxn"))).startRollingTxn(anyString(), anyString(), anyInt(), any(), any(), any());
@@ -402,7 +407,7 @@ public class RequestHandlersTest {
         String stream = "update";
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -431,7 +436,7 @@ public class RequestHandlersTest {
         requestHandler2.execute(event).join();
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first update job should fail", () -> future1,
+        AssertExtensions.assertSuppliedFutureThrows("first update job should fail", () -> future1,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         // validate rolling txn done
@@ -448,7 +453,7 @@ public class RequestHandlersTest {
         String stream = "update";
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -480,7 +485,7 @@ public class RequestHandlersTest {
         requestHandler2.execute(event).join();
         wait.complete(null);
 
-        AssertExtensions.assertThrows("first truncate job should fail", () -> future1,
+        AssertExtensions.assertSuppliedFutureThrows("first truncate job should fail", () -> future1,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
         // validate rolling txn done
@@ -488,5 +493,55 @@ public class RequestHandlersTest {
         assertFalse(versioned.getObject().isUpdating());
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+    }
+    
+    @Test
+    public void testDeleteStreamReplay() {
+        String stream = "delete";
+        createStreamInStore(stream);
+
+        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, executor);
+
+        // seal stream. 
+        SealStreamEvent sealEvent = new SealStreamEvent(scope, stream, 0L);
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        sealStreamTask.execute(sealEvent).join();
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+
+        // delete the stream
+        long creationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+        DeleteStreamEvent firstDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, creationTime);
+        deleteStreamTask.execute(firstDeleteEvent).join();
+
+        // recreate stream with same name in the store
+        createStreamInStore(stream);
+
+        long newCreationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+
+        assertNotEquals(creationTime, newCreationTime);
+
+        // seal stream. 
+        sealEvent = new SealStreamEvent(scope, stream, 0L);
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        sealStreamTask.execute(sealEvent).join();
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+
+        // replay old event. it should not seal the stream
+        AssertExtensions.assertFutureThrows("Replaying older delete event should have no effect",
+                deleteStreamTask.execute(firstDeleteEvent), e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
+        DeleteStreamEvent secondDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, newCreationTime);
+        // now delete should succeed
+        deleteStreamTask.execute(secondDeleteEvent).join();
+    }
+
+    private void createStreamInStore(String stream) {
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
+                ScalingPolicy.byEventRate(1, 2, 1)).build();
+
+        streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+        streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 }

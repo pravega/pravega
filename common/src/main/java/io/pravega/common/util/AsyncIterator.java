@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.SequentialProcessor;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,8 +23,10 @@ public interface AsyncIterator<T> {
     /**
      * Attempts to get the next element in the iteration.
      *
-     * Note: since this is an async call, it is possible to invoke getNext() before the previous call completed; in this
-     * case the expected behavior is that the second call will be rejected with an {@link IllegalStateException}.
+     * Note: since this is an async call, it is possible to invoke this method before the previous call to it completed;
+     * in this case the behavior is undefined and, depending on the actual implementation, the internal state of the
+     * {@link AsyncIterator} may get corrupted. Consider invoking {@link #asSequential(Executor)} which will provide a
+     * thin wrapper on top of this instance that serializes calls to this method.
      *
      * @return A CompletableFuture that, when completed, will contain the next element in the iteration. If the iteration
      * has reached its end, this will complete with null. If an exception occurred, this will be completed exceptionally
@@ -51,5 +54,26 @@ public interface AsyncIterator<T> {
                         consumer.accept(e);
                     }
                 }, executor);
+    }
+
+    /**
+     * Returns a new {@link AsyncIterator} that wraps this instance which serializes the execution of all calls to
+     * {@link #getNext()} (no two executions of {@link #getNext()} will ever execute at the same time; they will be
+     * run in the order of invocation, but only after the previous one completes).
+     *
+     * @param executor An Executor to run async tasks on.
+     * @return A new {@link AsyncIterator}.
+     */
+    default AsyncIterator<T> asSequential(Executor executor) {
+        SequentialProcessor processor = new SequentialProcessor(executor);
+        return () -> {
+            CompletableFuture<T> result = processor.add(AsyncIterator.this::getNext);
+            result.thenAccept(r -> {
+                if (r == null) {
+                    processor.close();
+                }
+            });
+            return result;
+        };
     }
 }

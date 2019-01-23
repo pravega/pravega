@@ -68,7 +68,7 @@ public abstract class StreamTestBase {
         createScope("scope");
 
         PersistentStreamBase stream = getStream(scope, name, chunkSize, shardSize);
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(name)
+        StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(numOfSegments)).build();
         stream.create(config, time, startingSegmentNumber)
               .thenCompose(x -> stream.updateState(State.ACTIVE)).join();
@@ -132,7 +132,7 @@ public abstract class StreamTestBase {
 
         assertEquals(activeEpoch, stream.getEpochRecord(0).join());
 
-        AssertExtensions.assertThrows("", stream.getEpochRecord(1),
+        AssertExtensions.assertFutureThrows("", stream.getEpochRecord(1),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
@@ -168,7 +168,7 @@ public abstract class StreamTestBase {
         etr = stream.startScale(true, etr, state).join();
         List<Segment> newCurrentSegments = stream.getActiveSegments().join();
         assertEquals(originalSegments, newCurrentSegments);
-        AssertExtensions.assertThrows("", () -> stream.getSegment(segment9),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.getSegment(segment9),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
         Map<Segment, List<Long>> successorsWithPredecessors = stream.getSuccessorsWithPredecessors(0L).join();
@@ -436,12 +436,12 @@ public abstract class StreamTestBase {
         AtomicReference<VersionedMetadata<EpochTransitionRecord>> etrRef = new AtomicReference<>(etr);
 
         // 1. empty newRanges
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s0), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s0), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 2. simple mismatch
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, keyRangeChunk));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 3. simple valid match
@@ -491,7 +491,7 @@ public abstract class StreamTestBase {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.7, 0.8));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.8, 0.9));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.9, 0.99));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1, s3, s4), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1, s3, s4), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 8. valid unsorted segments to seal
@@ -524,7 +524,7 @@ public abstract class StreamTestBase {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 11. invalid input range low > high
@@ -533,7 +533,7 @@ public abstract class StreamTestBase {
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.2));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s0, s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 12. invalid overlapping key ranges
@@ -541,7 +541,7 @@ public abstract class StreamTestBase {
         newRangesRef.set(newRanges);
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 3 * keyRangeChunk));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s1, s2), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1, s2), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 13. invalid overlapping key ranges -- a contains b
@@ -549,7 +549,7 @@ public abstract class StreamTestBase {
         newRangesRef.set(newRanges);
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.33));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 14. invalid overlapping key ranges -- b contains a (with b.low == a.low)
@@ -557,7 +557,7 @@ public abstract class StreamTestBase {
         newRangesRef.set(newRanges);
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.33));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 15. invalid overlapping key ranges b.low < a.high
@@ -565,7 +565,7 @@ public abstract class StreamTestBase {
         newRangesRef.set(newRanges);
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.35));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // 16. invalid overlapping key ranges.. a.high < b.low
@@ -573,7 +573,7 @@ public abstract class StreamTestBase {
         newRangesRef.set(newRanges);
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.25));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.3, 0.4));
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.InputInvalidException);
 
         // scale the stream for inconsistent epoch transition 
@@ -586,7 +586,7 @@ public abstract class StreamTestBase {
         newRangesRef.set(newRanges);
         newRanges.add(new AbstractMap.SimpleEntry<>(0.2, 0.4));
         etrRef.set(stream.getEpochTransition().join());
-        AssertExtensions.assertThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
+        AssertExtensions.assertSuppliedFutureThrows("", () -> stream.submitScale(Lists.newArrayList(s1), newRangesRef.get(), timestamp, etrRef.get()),
                 e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
     }
 
@@ -820,7 +820,7 @@ public abstract class StreamTestBase {
         streamCut4.put(fiveSegmentId, 1L);
         streamCut4.put(eightSegmentId, 1L);
         streamCut4.put(nineSegmentId, 1L);
-        AssertExtensions.assertThrows("",
+        AssertExtensions.assertSuppliedFutureThrows("",
                 () -> stream.startTruncation(streamCut4), e -> e instanceof IllegalArgumentException);
 
         Map<Long, Long> streamCut5 = new HashMap<>();
@@ -828,7 +828,7 @@ public abstract class StreamTestBase {
         streamCut3.put(fourSegmentId, 10L);
         streamCut3.put(fiveSegmentId, 10L);
         streamCut3.put(startingSegmentNumber + 0L, 10L);
-        AssertExtensions.assertThrows("",
+        AssertExtensions.assertSuppliedFutureThrows("",
                 () -> stream.startTruncation(streamCut5), e -> e instanceof IllegalArgumentException);
     }
 
@@ -918,7 +918,7 @@ public abstract class StreamTestBase {
         assertEquals(stream.getEpochRecord(12).join(), epochs.get(0));
 
         // now try to fetch an epoch that will fall in a chunk that does not exist
-        AssertExtensions.assertThrows("", stream.fetchEpochs(12, 14, true), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        AssertExtensions.assertFutureThrows("", stream.fetchEpochs(12, 14, true), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
     /**
@@ -1318,7 +1318,7 @@ public abstract class StreamTestBase {
         toStreamCut.put(one.segmentId(), 0L);
         toStreamCut.put(two.segmentId(), 0L);
         Map<Long, Long> fromStreamCutCopy = fromStreamCut;
-        AssertExtensions.assertThrows("", 
+        AssertExtensions.assertSuppliedFutureThrows("", 
                 () -> stream.getSegmentsBetweenStreamCuts(fromStreamCutCopy, toStreamCut), 
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
@@ -1334,7 +1334,7 @@ public abstract class StreamTestBase {
         toStreamCutOverlap.put(five.segmentId(), 0L);
         toStreamCutOverlap.put(six.segmentId(), 0L);
         toStreamCutOverlap.put(two.segmentId(), 0L);
-        AssertExtensions.assertThrows("",
+        AssertExtensions.assertSuppliedFutureThrows("",
                 () -> stream.getSegmentsBetweenStreamCuts(fromStreamCutOverlap, toStreamCutOverlap),
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 
@@ -1350,7 +1350,7 @@ public abstract class StreamTestBase {
         toPartialOverlap.put(one.segmentId(), 0L);
         toPartialOverlap.put(three.segmentId(), 0L);
         toPartialOverlap.put(four.segmentId(), 0L);
-        AssertExtensions.assertThrows("",
+        AssertExtensions.assertSuppliedFutureThrows("",
                 () -> stream.getSegmentsBetweenStreamCuts(fromPartialOverlap, toPartialOverlap),
                 e -> Exceptions.unwrap(e) instanceof IllegalArgumentException);
 

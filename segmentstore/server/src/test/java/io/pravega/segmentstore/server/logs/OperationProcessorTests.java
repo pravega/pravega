@@ -514,7 +514,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Wait for the operation to complete. The operation should have been cancelled (due to the OperationProcessor
         // shutting down) - no other exception (or successful completion is accepted).
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Operation did not fail with the right exception.",
                 () -> completionFuture.completion,
                 ex -> ex instanceof CancellationException || ex instanceof ObjectClosedException);

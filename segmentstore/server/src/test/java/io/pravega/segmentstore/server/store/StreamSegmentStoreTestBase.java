@@ -25,6 +25,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -553,7 +554,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Segment '" + segmentName + "' was not deleted.",
                         () -> store.getStreamSegmentInfo(segmentName, false, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
@@ -673,7 +674,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                 startOffset, readEntry.getStreamSegmentOffset());
 
                         // Verify the ReadResultEntry cannot be used and throws an appropriate exception.
-                        AssertExtensions.assertThrows(
+                        AssertExtensions.assertSuppliedFutureThrows(
                                 "ReadEntry.getContent() did not throw for a Truncated entry.",
                                 readEntry::getContent,
                                 ex -> ex instanceof StreamSegmentTruncatedException);
@@ -746,7 +747,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             if (sp == null) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Segment is marked as deleted in SegmentStore but was not deleted in Storage " + segmentName,
                         () -> readOnlySegmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
@@ -808,25 +809,33 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, StreamSegmentStore readOnlyStore) {
+        if (sp.getLength() == 0) {
+            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
+            return CompletableFuture.completedFuture(null);
+        }
+
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
-                () -> readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT)
-                                   .thenCompose(storageProps -> {
-                                       if (sp.isSealed()) {
-                                           tryAgain.set(!storageProps.isSealed());
-                                       } else {
-                                           tryAgain.set(sp.getLength() != storageProps.getLength());
-                                       }
+                () -> Futures
+                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT),
+                                ex -> ex instanceof StreamSegmentNotExistsException,
+                                StreamSegmentInformation.builder().name(sp.getName()).build())
+                        .thenCompose(storageProps -> {
+                            if (sp.isSealed()) {
+                                tryAgain.set(!storageProps.isSealed());
+                            } else {
+                                tryAgain.set(sp.getLength() != storageProps.getLength());
+                            }
 
-                                       if (tryAgain.get() && !timer.hasRemaining()) {
-                                           return Futures.<Void>failedFuture(new TimeoutException(
-                                                   String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                                       } else {
-                                           return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                                       }
-                                   }), executorService());
+                            if (tryAgain.get() && !timer.hasRemaining()) {
+                                return Futures.<Void>failedFuture(new TimeoutException(
+                                        String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                            } else {
+                                return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                            }
+                        }), executorService());
     }
 
     private int applyFencingMultiplier(int originalValue) {

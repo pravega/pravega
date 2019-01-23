@@ -12,7 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -20,7 +20,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -70,7 +70,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testCompaction() throws ReinitializationRequiredException {
+    public void testCompaction() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -78,7 +78,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                                                             streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
@@ -126,14 +126,14 @@ public class ReaderGroupStateManagerTest {
         assertEquals(state3.getState().getPositions(), state2.getState().getPositions());
     }
 
-    private StateSynchronizer<ReaderGroupState> createState(String stream, ClientFactory clientFactory,
+    private StateSynchronizer<ReaderGroupState> createState(String stream, SynchronizerClientFactory clientFactory,
                                                             SynchronizerConfig config) {
         return clientFactory.createStateSynchronizer(stream, new ReaderGroupStateUpdatesSerializer(),
                                                      new ReaderGroupStateInitSerializer(), config);
     }
     
     @Test(timeout = 20000)
-    public void testSegmentSplit() throws ReinitializationRequiredException {
+    public void testSegmentSplit() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -148,7 +148,7 @@ public class ReaderGroupStateManagerTest {
                                         new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0L)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                 streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -174,7 +174,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 20000)
-    public void testSegmentMerge() throws ReinitializationRequiredException {
+    public void testSegmentMerge() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -187,7 +187,7 @@ public class ReaderGroupStateManagerTest {
                         Collections.singletonMap(new SegmentWithRange(successor, 0.0, 1.0), ImmutableList.of(0L, 1L)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
@@ -217,7 +217,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testAddReader() throws ReinitializationRequiredException {
+    public void testAddReader() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -225,7 +225,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -248,7 +248,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testRemoveReader() throws ReinitializationRequiredException {
+    public void testRemoveReader() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -256,7 +256,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -291,7 +291,7 @@ public class ReaderGroupStateManagerTest {
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
         
         ReaderGroupStateManager.readerShutdown("testReader2", null, stateSynchronizer);
-        AssertExtensions.assertThrows(ReinitializationRequiredException.class,
+        AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                 () -> readerState2.releaseSegment(new Segment(scope, stream, 0), 711L, 0L));
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
@@ -299,12 +299,12 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 0)));
 
-        AssertExtensions.assertThrows(ReinitializationRequiredException.class,
+        AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
                 () -> readerState2.acquireNewSegmentsIfNeeded(0L));
     }
 
     @Test(timeout = 10000)
-    public void testRemoveReaderWithNullPosition() throws ReinitializationRequiredException {
+    public void testRemoveReaderWithNullPosition() throws ReaderNotInReaderGroupException {
 
         String scope = "scope";
         String stream = "stream";
@@ -322,7 +322,7 @@ public class ReaderGroupStateManagerTest {
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
 
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
         // Create Reader Group State corresponding to testReader1.
         @Cleanup
@@ -366,7 +366,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 5000)
-    public void testReleaseAndAcquireTimes() throws ReinitializationRequiredException {
+    public void testReleaseAndAcquireTimes() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -374,7 +374,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -425,7 +425,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 5000)
-    public void testAcquireRace() throws ReinitializationRequiredException {
+    public void testAcquireRace() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -433,7 +433,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -471,7 +471,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 10000)
-    public void testSegmentsAssigned() throws ReinitializationRequiredException {
+    public void testSegmentsAssigned() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -479,7 +479,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
 
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -545,7 +545,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 20000)
-    public void testReleaseWhenReadersAdded() throws ReinitializationRequiredException {
+    public void testReleaseWhenReadersAdded() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -553,7 +553,7 @@ public class ReaderGroupStateManagerTest {
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
@@ -634,7 +634,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 10000)
-    public void testCheckpoint() throws ReinitializationRequiredException {
+    public void testCheckpoint() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -649,7 +649,7 @@ public class ReaderGroupStateManagerTest {
                                         new SegmentWithRange(successorB, 0.5, 1.0), singletonList(0L)), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                                                             streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -678,7 +678,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testCheckpointContainsAllShards() throws ReinitializationRequiredException {
+    public void testCheckpointContainsAllShards() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -690,7 +690,7 @@ public class ReaderGroupStateManagerTest {
                 connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of(), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                                                             streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -717,7 +717,7 @@ public class ReaderGroupStateManagerTest {
     }
 
     @Test(timeout = 10000)
-    public void testCheckpointUpdatesAssignedSegments() throws ReinitializationRequiredException {
+    public void testCheckpointUpdatesAssignedSegments() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         String checkpointId = "checkpoint";
@@ -732,7 +732,7 @@ public class ReaderGroupStateManagerTest {
                 connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of(), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                 streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup
@@ -776,7 +776,7 @@ public class ReaderGroupStateManagerTest {
     }
     
     @Test(timeout = 10000)
-    public void testSegmentsCannotBeReleasedWithoutCheckpoint() throws ReinitializationRequiredException {
+    public void testSegmentsCannotBeReleasedWithoutCheckpoint() throws ReaderNotInReaderGroupException {
         String scope = "scope";
         String stream = "stream";
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
@@ -788,7 +788,7 @@ public class ReaderGroupStateManagerTest {
                 connectionFactory, new StreamSegmentsWithPredecessors(ImmutableMap.of(), ""));
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory,
                                                             streamFactory, streamFactory, streamFactory);
         SynchronizerConfig config = SynchronizerConfig.builder().build();
         @Cleanup

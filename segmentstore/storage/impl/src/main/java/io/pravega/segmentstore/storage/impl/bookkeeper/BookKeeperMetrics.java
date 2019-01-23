@@ -33,7 +33,6 @@ final class BookKeeperMetrics {
         private final String ledgerCount;
         private final OpStatsLogger writeLatency;
         private final OpStatsLogger totalWriteLatency;
-        private final OpStatsLogger writeBytes;
 
         BookKeeperLog(int containerId) {
             this.ledgerCount = MetricsNames.nameFromContainer(MetricsNames.BK_LEDGER_COUNT, containerId);
@@ -41,7 +40,6 @@ final class BookKeeperMetrics {
             this.writeQueueFillRate = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, containerId));
             this.writeLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_LATENCY, containerId));
             this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_TOTAL_WRITE_LATENCY, containerId));
-            this.writeBytes = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_BYTES, containerId));
         }
 
         @Override
@@ -50,7 +48,6 @@ final class BookKeeperMetrics {
             this.writeQueueFillRate.close();
             this.writeLatency.close();
             this.totalWriteLatency.close();
-            this.writeBytes.close();
         }
 
         void ledgerCount(int count) {
@@ -68,7 +65,7 @@ final class BookKeeperMetrics {
 
         void bookKeeperWriteCompleted(int length, Duration elapsed) {
             this.writeLatency.reportSuccessEvent(elapsed);
-            this.writeBytes.reportSuccessValue(length);
+            DYNAMIC_LOGGER.incCounterValue(MetricsNames.BK_WRITE_BYTES, length);
         }
     }
 }

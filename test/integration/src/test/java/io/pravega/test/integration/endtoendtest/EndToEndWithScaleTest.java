@@ -10,7 +10,6 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -29,6 +28,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -75,8 +75,8 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-        server = new PravegaConnectionListener(false, servicePort, store);
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -101,8 +101,6 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         final String scope = "test";
         final String streamName = "test";
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(scope)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
 
@@ -111,13 +109,13 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             @Cleanup
             Controller controller = controllerWrapper.getController();
             controllerWrapper.getControllerService().createScope(scope).get();
-            controller.createStream(config).get();
+            controller.createStream(scope, streamName, config).get();
             @Cleanup
             ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
             @Cleanup
-            ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+            ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
             @Cleanup
             EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
@@ -146,8 +144,8 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             event = reader.readNextEvent(10000);
             assertNotNull(event);
             assertEquals("txntest2" + i, event.getEvent());
-            assertTrue(controller.sealStream(config.getScope(), config.getStreamName()).join());
-            assertTrue(controller.deleteStream(config.getScope(), config.getStreamName()).join());
+            assertTrue(controller.sealStream(scope, streamName).join());
+            assertTrue(controller.deleteStream(scope, streamName).join());
         }
     }
 }

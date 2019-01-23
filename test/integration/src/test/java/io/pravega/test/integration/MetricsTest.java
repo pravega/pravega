@@ -10,7 +10,6 @@
 package io.pravega.test.integration;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -32,6 +31,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -42,6 +42,7 @@ import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -59,6 +60,7 @@ import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 
 @Slf4j
@@ -69,8 +71,7 @@ public class MetricsTest {
     String scope = "testMetricsScope";
     String readerGroupName = "testMetricsReaderGroup";
     ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
-    StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
     String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
     ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
     private TestingServer zkTestServer = null;
@@ -94,7 +95,7 @@ public class MetricsTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store);
+        this.server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         this.server.startListening();
 
         // 3. Start Pravega Controller service
@@ -109,7 +110,7 @@ public class MetricsTest {
         MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
-        metricsConfig.setDynamicCacheEvictionDurationMs(5000);
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -151,7 +152,7 @@ public class MetricsTest {
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<String>(),

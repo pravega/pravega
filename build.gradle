@@ -21,7 +21,9 @@ buildscript {
         classpath "gradle.plugin.org.nosphere.apache:creadur-rat-gradle:0.3.0"
         classpath group: 'org.hidetake', name: 'gradle-ssh-plugin', version: gradleSshPluginVersion
         classpath group: 'ru.vyarus', name: 'gradle-mkdocs-plugin', version: gradleMkdocsPluginVersion
+        classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
+        classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
     }
 }
 
@@ -38,12 +40,23 @@ allprojects {
     apply plugin: 'eclipse'
     if (file("src/main/java").isDirectory()) {
         apply plugin: 'java'
+        apply plugin: 'io.franzbecker.gradle-lombok'
+        lombok {
+            version = lombokVersion
+        }
+        dependencies {
+            //These are compile time only dependencies needed accross all targets. Lombok uses them and may generate strange errors if they are missing.
+            compileOnly group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+            testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
+            compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+            testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+        }
     }
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
     apply from: "$rootDir/gradle/checkstyle.gradle"
     apply from: "$rootDir/gradle/eclipse.gradle"
-    apply from: "$rootDir/gradle/findbugs.gradle"
+    apply from: "$rootDir/gradle/spotbugs.gradle"
     apply from: "$rootDir/gradle/idea.gradle"
     apply from: "$rootDir/gradle/jacoco.gradle"
     apply from: "$rootDir/gradle/java.gradle"
@@ -62,7 +75,12 @@ allprojects {
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
-    
+    tasks.withType(com.github.spotbugs.SpotBugsTask) {
+      reports {
+        xml.enabled = false
+        html.enabled = true
+      }
+    }
     version = getProjectVersion()
     group = "io.pravega"
 
@@ -89,8 +107,6 @@ project('common') {
         testCompile project(':test:testcommon')
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
         //Do NOT add any additional dependencies here.
     }
 
@@ -121,11 +137,9 @@ project('shared:authplugin') {
     }
 }
 
-project ('shared') {
+project ('shared:cluster') {
     dependencies {
         compile project(':common')
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
@@ -139,8 +153,6 @@ project ('shared') {
 
 project ('shared:metrics') {
     dependencies {
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
@@ -162,25 +174,22 @@ project ('shared:metrics') {
 
 project('shared:protocol') {
     dependencies {
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
+        compile project(':common')
+        compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
+        testCompile project(':test:testcommon')
     }
 }
 
 project('client') {
     dependencies {
-        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-
         compile project(':common')
-        compile project(':shared')
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
+        compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion
+        compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -198,8 +207,6 @@ project('test:testcommon') {
         compile group: 'junit', name :'junit', version: junitVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
@@ -216,7 +223,7 @@ project('segmentstore:contracts') {
 project('segmentstore:storage') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
+        compile project(':shared:protocol')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
@@ -225,13 +232,12 @@ project('segmentstore:storage') {
 
 project('segmentstore:storage:impl') {
     dependencies {
-        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
-
-        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
-
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
+        compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
+        compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }
@@ -263,7 +269,6 @@ project ('bindings') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -282,7 +287,7 @@ project('segmentstore:server:host') {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
-            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
 
@@ -299,12 +304,14 @@ project('segmentstore:server:host') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(':shared:cluster')
         compile project(':segmentstore:contracts')
         compile project(':client')
         compile project(':segmentstore:storage')
         compile project(':segmentstore:storage:impl')
         compile project(':bindings')
         compile project(':segmentstore:server')
+        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -313,7 +320,6 @@ project('segmentstore:server:host') {
         testCompile project(path:':segmentstore:storage:impl', configuration:'testRuntime')
         testCompile project(path:':bindings', configuration:'testRuntime')
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -447,16 +453,16 @@ project('shared:controller-api') {
         compile project(':common')
 
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
-        compile group: 'org.projectlombok', name: 'lombok', version: lombokVersion
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
         compile "io.grpc:grpc-netty:" + grpcVersion
-        compile "io.grpc:grpc-all:" + grpcVersion
+        compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
+         // Since Java 10 javax.annotation is no more bundled with the JRE
+        compileOnly group: 'javax.annotation', name: 'javax.annotation-api', version: javaxAnnotationVersion
     }
 
     javadoc {
@@ -484,7 +490,7 @@ project('controller') {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
-            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
     applicationDistribution.from('src/conf') {
@@ -503,8 +509,9 @@ project('controller') {
 
     dependencies {
         compile project(':common')
-        compile project(":shared:controller-api")
         compile project(":shared:authplugin")
+        compile project(":shared:controller-api")
+        compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -512,7 +519,6 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
-        compile group: 'com.google.code.findbugs', name: 'annotations', version: findbugsVersion
         compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
@@ -525,7 +531,9 @@ project('controller') {
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
-
+        // since Java 10 JAXB is not more bundled with the JRE
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
     }
 
     task createAppWithGCLogging(type: CreateStartScripts) {
@@ -565,11 +573,13 @@ project('standalone') {
             def scriptFile = file getUnixScript()
             scriptFile.text = scriptFile.text.replace('$APP_HOME/lib/pluginlib', '$APP_HOME/pluginlib/*')
             def winScriptFile = file getWindowsScript()
-            winScriptFile.text = scriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
+            winScriptFile.text = winScriptFile.text.replace('%APP_HOME%\\lib\\pluginlib', '%APP_HOME%\\pluginlib\\*')
         }
     }
 
     dependencies {
+        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+
         compile project(':common')
         compile project(':client')
         compile project(':segmentstore:server')
@@ -582,14 +592,12 @@ project('standalone') {
 
         compile group: 'org.glassfish.jersey.containers', name: 'jersey-container-grizzly2-http', version: jerseyVersion
         compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: javaxwsrsApiVersion
-        runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
-
         testCompile project(':test:testcommon')
         testCompile project(path:':common', configuration:'testRuntime')
         testCompile project(path:':segmentstore:server', configuration:'testRuntime')
@@ -620,6 +628,11 @@ project('test:system') {
     // Specifically publish this test project
     apply plugin: 'maven'
 
+    // override the compile java options to disable -Werror this will remove once https://github.com/pravega/pravega/issues/3152 is resolved.
+    compileJava {
+        options.compilerArgs.remove("-Werror")
+    }
+
     dependencies {
         // https://mvnrepository.com/artifact/com.mesosphere/marathon-client
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
@@ -633,6 +646,7 @@ project('test:system') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         compile group: 'org.glassfish.jersey.connectors', name:'jersey-apache-connector', version:jerseyVersion
         compile group: 'com.spotify', name: 'docker-client', version: dockerClientVersion
+        compile group: 'io.kubernetes', name: 'client-java', version: k8ClientVersion
     }
     //disable the default test task.
     test {
@@ -699,6 +713,40 @@ project('test:system') {
                 pravegaVersion+"/pravega-test-system-"+ pravegaVersion + ".jar"
 
         onlyIf { dockerRegistryUrl && repoUrl }
+    }
+
+    task copyTestsToK8sCluster(type: Exec) {
+        description 'Used to copy test artifacts to the Kubernetes Cluster.'
+        dependsOn 'jar'
+        commandLine './kubernetes/setupTestPod.sh'
+    }
+
+    task startK8SystemTests(type: Test) {
+        dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
+
+        description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+
+        ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
+        systemProperty "execType", "KUBERNETES"
+        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest") // default value is "latest"
+        // The below properties are used to to specify the pravega docker image properties
+        // e.g: private-docker-repo/pravega-prefix/pravega:version
+        if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
+            systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
+        }
+        systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
+        systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
+        // bookkeeper version defaults to pravega version.
+        systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
+        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        if (System.getProperty("imageVersion") == null) {
+            systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
+        }
+
+        maxParallelForks = 1
     }
 
     task execShellScript(type: Exec) {

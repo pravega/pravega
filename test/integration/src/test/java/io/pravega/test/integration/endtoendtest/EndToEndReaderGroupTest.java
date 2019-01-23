@@ -11,7 +11,7 @@ package io.pravega.test.integration.endtoendtest;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -35,16 +35,15 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.test.common.InlineExecutor;
-import lombok.Cleanup;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Test;
-
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -61,16 +60,16 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
     @Test(timeout = 30000)
     public void testReaderOffline() throws Exception {
-        StreamConfiguration config = getStreamConfig("test", "test");
+        StreamConfiguration config = getStreamConfig();
         LocalController controller = (LocalController) controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
@@ -122,8 +121,8 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         controllerWrapper.getControllerService().createScope(scopeB).get();
 
         // Create Streams.
-        controller.createStream(getStreamConfig(scopeA, streamName)).get();
-        controller.createStream(getStreamConfig(scopeB, streamName)).get();
+        controller.createStream(scopeA, streamName, getStreamConfig()).get();
+        controller.createStream(scopeB, streamName, getStreamConfig()).get();
 
         // Create ReaderGroup and reader.
         @Cleanup
@@ -131,7 +130,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
                                                                                     .controllerURI(URI.create("tcp://" + serviceHost))
                                                                                     .build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(streamName, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(streamName, controller, connectionFactory);
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(defaultScope, controller, clientFactory,
@@ -176,7 +175,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                                                                            EventWriterConfig.builder().build());
@@ -230,7 +229,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(1));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                                                                            EventWriterConfig.builder().build());
@@ -298,7 +297,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         createStream(SCOPE, STREAM, ScalingPolicy.fixed(2));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
                                                                            EventWriterConfig.builder().build());
@@ -379,17 +378,15 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         assertEquals(new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
     }
 
-    private StreamConfiguration getStreamConfig(String scope, String streamName) {
+    private StreamConfiguration getStreamConfig() {
         return StreamConfiguration.builder()
-                                  .scope(scope)
-                                  .streamName(streamName)
                                   .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 2))
                                   .build();
     }
 
     private void writeTestEvent(String scope, String streamName, int eventId) {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
 

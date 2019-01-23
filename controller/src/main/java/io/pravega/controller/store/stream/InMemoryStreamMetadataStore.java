@@ -34,7 +34,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 /**
  * In-memory stream store.
@@ -327,12 +326,22 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
      */
     @Override
     @Synchronized
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName) {
         InMemoryScope inMemoryScope = scopes.get(scopeName);
         if (inMemoryScope != null) {
             return inMemoryScope.listStreamsInScope()
-                    .thenApply(streams -> streams.stream().map(
-                            stream -> this.getConfiguration(scopeName, stream, null, executor).join()).collect(Collectors.toList()));
+                    .thenApply(streams -> {
+                        HashMap<String, StreamConfiguration> result = new HashMap<>();
+                        for (String stream : streams) {
+                            StreamConfiguration configuration = Futures.exceptionallyExpecting(
+                                    getConfiguration(scopeName, stream, null, executor),
+                                    e -> e instanceof StoreException.DataNotFoundException, null).join();
+                            if (configuration != null) {
+                                result.put(stream, configuration);
+                            }
+                        }
+                        return result;
+                    });
         } else {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
@@ -345,6 +354,11 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         Integer oldLastActiveSegment = deletedStreams.put(getScopedStreamName(scope, stream), lastActiveSegment);
         Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
         log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> createBucketsRoot() {
         return CompletableFuture.completedFuture(null);
     }
 

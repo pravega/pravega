@@ -44,7 +44,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -138,7 +137,7 @@ public class ExtendedS3Storage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return execute(streamSegmentName, () -> doCreate(streamSegmentName));
     }
 
@@ -273,7 +272,7 @@ public class ExtendedS3Storage implements SyncStorage {
         }
     }
 
-    private SegmentProperties doCreate(String streamSegmentName) throws StreamSegmentExistsException {
+    private SegmentHandle doCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
         if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
@@ -311,7 +310,7 @@ public class ExtendedS3Storage implements SyncStorage {
         client.putObject(request);
 
         LoggerHelpers.traceLeave(log, "create", traceId);
-        return doGetStreamSegmentInfo(streamSegmentName);
+        return ExtendedS3SegmentHandle.getWriteHandle(streamSegmentName);
     }
 
     private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
@@ -453,7 +452,7 @@ public class ExtendedS3Storage implements SyncStorage {
             throw new ArrayIndexOutOfBoundsException(e.getMessage());
         }
 
-        throw Lombok.sneakyThrow(e);
+        throw Exceptions.sneakyThrow(e);
     }
 
     /**

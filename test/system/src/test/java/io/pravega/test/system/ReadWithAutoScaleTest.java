@@ -9,7 +9,7 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
@@ -43,6 +43,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static java.time.Duration.ofSeconds;
 
 @Slf4j
@@ -54,8 +55,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
     //Initial number of segments is 2.
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 2);
-    private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(12 * 60);
@@ -87,7 +87,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         log.debug("Create scope status {}", createScopeStatus);
 
         //create a stream
-        Boolean createStreamStatus = controller.createStream(CONFIG).get();
+        Boolean createStreamStatus = controller.createStream(SCOPE, STREAM_NAME, CONFIG).get();
         log.debug("Create stream status {}", createStreamStatus);
     }
 
@@ -109,11 +109,11 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         final AtomicBoolean stopReadFlag = new AtomicBoolean(false);
 
         @Cleanup
-        ClientFactory clientFactory = getClientFactory();
+        EventStreamClientFactory clientFactory = getClientFactory();
 
         //1. Start writing events to the Stream.
         List<CompletableFuture<Void>> writers = new ArrayList<>();
-        writers.add(startWritingIntoTxn(clientFactory.createEventWriter(STREAM_NAME, new JavaSerializer<>(),
+        writers.add(startWritingIntoTxn(clientFactory.createTransactionalEventWriter(STREAM_NAME, new JavaSerializer<>(),
                 EventWriterConfig.builder().transactionTimeoutTime(25000).build()), stopWriteFlag));
 
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
@@ -133,7 +133,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
         for (int i = 0; i < 5; i++) {
-            writers.add(startWritingIntoTxn(clientFactory.createEventWriter(STREAM_NAME, new JavaSerializer<>(),
+            writers.add(startWritingIntoTxn(clientFactory.createTransactionalEventWriter(STREAM_NAME, new JavaSerializer<>(),
                     EventWriterConfig.builder().transactionTimeoutTime(25000).build()), stopWriteFlag));
         }
 

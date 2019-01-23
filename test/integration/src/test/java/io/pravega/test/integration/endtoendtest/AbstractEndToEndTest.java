@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     protected static final String SCOPE = "testScope";
@@ -85,7 +87,7 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -107,19 +109,17 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
 
     protected void createScope(final String scopeName) {
         @Cleanup
-        Controller controller = Exceptions.handleInterrupted(controllerWrapper::getController);
+        Controller controller = Exceptions.handleInterruptedCall(controllerWrapper::getController);
         controller.createScope(scopeName).join();
     }
 
     protected void createStream(final String scopeName, final String streamName, final ScalingPolicy scalingPolicy) {
         @Cleanup
-        Controller controller = Exceptions.handleInterrupted(controllerWrapper::getController);
+        Controller controller = Exceptions.handleInterruptedCall(controllerWrapper::getController);
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(scopeName)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(scalingPolicy)
                                                         .build();
-        controller.createStream(config).join();
+        controller.createStream(scopeName, streamName, config).join();
     }
 
     protected void readAndVerify(final EventStreamReader<String> reader, int...eventIds) throws ReinitializationRequiredException {

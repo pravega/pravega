@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -25,6 +26,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -43,6 +45,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class StreamRecreationTest {
@@ -67,7 +70,7 @@ public class StreamRecreationTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -89,6 +92,7 @@ public class StreamRecreationTest {
     }
 
     @Test(timeout = 40000)
+    @SuppressWarnings("deprecation")
     public void testStreamRecreation() throws Exception {
         final String myScope = "myScope";
         final String myStream = "myStream";
@@ -109,15 +113,13 @@ public class StreamRecreationTest {
             log.info("Stream re-creation iteration {}.", i);
             final String eventContent = "myEvent" + String.valueOf(i);
             StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                         .scope(myScope)
-                                                                         .streamName(myStream)
                                                                          .scalingPolicy(ScalingPolicy.fixed(i + 1))
                                                                          .build();
             streamManager.createStream(myScope, myStream, streamConfiguration);
 
             // Write a single event.
             @Cleanup
-            ClientFactory clientFactory = ClientFactory.withScope(myScope, controllerURI);
+            ClientFactory clientFactory = ClientFactory.withScope(myScope, ClientConfig.builder().controllerURI(controllerURI).build());
             EventStreamWriter<String> writer = clientFactory.createEventWriter(myStream, new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
 

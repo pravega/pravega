@@ -13,6 +13,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.MaxNumberOfCheckpointsExceededException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -48,6 +49,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 public class CheckpointTest {
 
@@ -77,8 +79,9 @@ public class CheckpointTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -88,8 +91,6 @@ public class CheckpointTest {
                                                          .stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                         .scope(scope)
-                                                                         .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
@@ -167,8 +168,9 @@ public class CheckpointTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -176,8 +178,6 @@ public class CheckpointTest {
         ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                         .scope(scope)
-                                                                         .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
@@ -237,8 +237,9 @@ public class CheckpointTest {
         String testString = "Hello world\n";
         String scope = "Scope12";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -250,8 +251,6 @@ public class CheckpointTest {
                 .build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
@@ -327,7 +326,7 @@ public class CheckpointTest {
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -337,8 +336,6 @@ public class CheckpointTest {
                                                          .stream(Stream.of(scope, streamName)).build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                                                         .scope(scope)
-                                                                         .streamName(streamName)
                                                                          .scalingPolicy(ScalingPolicy.fixed(1))
                                                                          .build());
         streamManager.createReaderGroup(readerGroupName, groupConfig);
