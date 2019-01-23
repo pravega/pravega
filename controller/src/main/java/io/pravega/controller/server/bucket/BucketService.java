@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -208,6 +209,7 @@ abstract class BucketService extends AbstractService {
             bucketWork.doWork(stream).handle((r, e) -> {
                 long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
                 synchronized (lock) {
+                    // if known stream contains this stream, add the work back into the queue with next run time 
                     if (knownStreams.contains(stream)) {
                         workQueue.add(new QueueElement(stream, nextRun));
                     }
@@ -243,18 +245,23 @@ abstract class BucketService extends AbstractService {
     }
 
     @VisibleForTesting
-    Set<Stream> getWorkFutureSet() {
+    Set<Stream> getKnownStreams() {
         return Collections.unmodifiableSet(knownStreams);
     }
 
+    @VisibleForTesting
+    Collection<QueueElement> getWorkerQueue() {
+        return Collections.unmodifiableCollection(workQueue);
+    }
+    
     @Data
-    private static class QueueElement {
+    static class QueueElement {
         private final Stream stream;
         private final long nextExecutionTimeInMillis;
     }
 
     @Data
-    class StreamNotification {
+    static class StreamNotification {
         private final String scope;
         private final String stream;
         private final NotificationType type;

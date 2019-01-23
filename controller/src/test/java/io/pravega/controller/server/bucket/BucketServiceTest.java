@@ -118,13 +118,13 @@ public abstract class BucketServiceTest {
         BucketService bucketService = bucketServices.get(bucketId);
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> added.set(bucketService.getWorkFutureSet().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertTrue(bucketService.getWorkFutureSet().contains(stream));
+                .thenAccept(x -> added.set(bucketService.getKnownStreams().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getKnownStreams().contains(stream));
 
         bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
         AtomicBoolean removed = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
-                .thenAccept(x -> removed.set(bucketService.getWorkFutureSet().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
-        assertEquals(0, bucketService.getWorkFutureSet().size());
+                .thenAccept(x -> removed.set(bucketService.getKnownStreams().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertEquals(0, bucketService.getKnownStreams().size());
     }
 }

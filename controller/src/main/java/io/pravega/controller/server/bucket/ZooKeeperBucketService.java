@@ -28,8 +28,8 @@ public class ZooKeeperBucketService extends BucketService {
     private final AtomicReference<PathChildrenCache> cacheRef;
     
     ZooKeeperBucketService(BucketStore.ServiceType serviceType, int bucketId, ZookeeperBucketStore bucketStore,
-                           ScheduledExecutorService executor, int maxConcurrentExecutions, Duration executionDuration, BucketWork bucketWork) {
-        super(serviceType, bucketId, executor, maxConcurrentExecutions, executionDuration, bucketWork);
+                           ScheduledExecutorService executor, int maxConcurrentExecutions, Duration executionPeriod, BucketWork bucketWork) {
+        super(serviceType, bucketId, executor, maxConcurrentExecutions, executionPeriod, bucketWork);
         this.bucketStore = bucketStore;
         this.cacheRef = new AtomicReference<>();
     }
