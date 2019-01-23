@@ -34,13 +34,13 @@ public class UserPrincipal implements Principal, Serializable {
      *
      * @param name the user name
      */
-    public UserPrincipal (String name) {
+    public UserPrincipal(String name) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         this.name = name;
     }
 
     /**
-     * Returns the name of this {@code Principal}
+     * Returns the name of this {@code Principal}.
      *
      * @return the name of this {@code Principal}
      */
