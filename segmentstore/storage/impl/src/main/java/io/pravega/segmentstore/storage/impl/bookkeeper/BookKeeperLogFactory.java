@@ -147,7 +147,7 @@ public class BookKeeperLogFactory implements DurableDataLogFactory {
             config.setTLSTrustStorePasswordPath(this.config.getTlsTrustStorePasswordPath());
         }
 
-        String metadataServiceUri = "zk://" + this.config.getZkAddress();
+        String metadataServiceUri = "zk://" + this.config.getZkAddress().replace(",", ";");
         if (this.config.getBkLedgerPath().isEmpty()) {
             metadataServiceUri += "/" + this.namespace + "/bookkeeper/ledgers";
         } else {
