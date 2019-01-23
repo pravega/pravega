@@ -17,6 +17,7 @@ BK_HOME=/opt/bookkeeper
 PORT0=${PORT0:-$bookiePort}
 PORT0=${PORT0:-3181}
 ZK_URL=${ZK_URL:-127.0.0.1:2181}
+ZK_URL=$(echo "${ZK_URL}" | sed -r 's/,/;/g')
 USE_MOUNT=${USE_MOUNT:-0}
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
