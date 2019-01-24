@@ -46,7 +46,6 @@ public class KeyVersionImpl implements KeyVersion {
         return SERIALIZER.deserialize(new ByteArraySegment(buff));
     }
 
-
     private static class KeyVersionBuilder implements ObjectBuilder<KeyVersionImpl> {
     }
 

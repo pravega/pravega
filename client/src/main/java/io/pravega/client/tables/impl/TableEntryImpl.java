@@ -11,6 +11,11 @@ package io.pravega.client.tables.impl;
 
 import lombok.Data;
 
+/**
+ * Implementation of {@link TableEntry}.
+ * @param <KeyT> Key Type.
+ * @param <ValueT> Value Type.
+ */
 @Data
 public class TableEntryImpl<KeyT, ValueT> implements TableEntry<KeyT, ValueT> {
     private final TableKey<KeyT> key;
