@@ -30,7 +30,6 @@ public class KeyVersionImpl implements KeyVersion {
 
     private static final KeyVersionImplSerializer SERIALIZER = new KeyVersionImpl.KeyVersionImplSerializer();
 
-    private final long segmentId;
     private final long segmentVersion;
 
     @Override
@@ -66,12 +65,10 @@ public class KeyVersionImpl implements KeyVersion {
         }
 
         private void read00(RevisionDataInput revisionDataInput, KeyVersionBuilder builder) throws IOException {
-            builder.segmentId(revisionDataInput.readCompactLong());
             builder.segmentVersion(revisionDataInput.readCompactLong());
         }
 
         private void write00(KeyVersionImpl version, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeCompactLong(version.getSegmentId());
             revisionDataOutput.writeCompactLong(version.getSegmentVersion());
         }
     }

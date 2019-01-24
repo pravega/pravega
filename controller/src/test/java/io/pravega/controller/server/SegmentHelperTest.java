@@ -246,12 +246,12 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS), "v".getBytes()),
                                                                  new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), null), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k2".getBytes(), new KeyVersionImpl(-1L, 10L)),
+                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k2".getBytes(), new KeyVersionImpl(10L)),
                                                                                       "v".getBytes()));
 
-        List<KeyVersion> expectedVersions = Arrays.asList(new KeyVersionImpl(-1L, 0L),
-                                                          new KeyVersionImpl(-1L, 1L),
-                                                          new KeyVersionImpl(-1L, 11L));
+        List<KeyVersion> expectedVersions = Arrays.asList(new KeyVersionImpl(0L),
+                                                          new KeyVersionImpl(1L),
+                                                          new KeyVersionImpl(11L));
 
         // On receiving TableEntriesUpdated.
         CompletableFuture<List<KeyVersion>> result = helper.updateTableEntries("", "", 0L, entries, new MockHostControllerStore(), factory, "", System.nanoTime());
@@ -319,8 +319,8 @@ public class SegmentHelperTest {
         List<TableKey<byte[]>> keys = Arrays.asList(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS),
                                                     new TableKeyImpl<>("k1".getBytes(), KeyVersion.NOT_EXISTS));
 
-        List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(-1L, 10L)), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(-1L, 10L)), "v".getBytes()));
+        List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()),
+                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
 
         WireCommands.TableEntries resultData = new WireCommands.TableEntries(entries.stream().map(e -> {
             val k = new WireCommands.TableKey(ByteBuffer.wrap(e.getKey().getKey()), e.getKey().getVersion().getSegmentVersion());

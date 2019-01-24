@@ -818,7 +818,7 @@ public class SegmentHelper {
             @Override
             public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
                 log.info(requestId, "updateTableEntries request for {} tableSegment completed.", qualifiedName);
-                result.complete(tableEntriesUpdated.getUpdatedVersions().stream().map(v -> new KeyVersionImpl(-1L, v)).collect(Collectors.toList()));
+                result.complete(tableEntriesUpdated.getUpdatedVersions().stream().map(KeyVersionImpl::new).collect(Collectors.toList()));
             }
 
             @Override
@@ -1007,7 +1007,7 @@ public class SegmentHelper {
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> {
                                                                              WireCommands.TableKey k = e.getKey();
-                                                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(k.getData().array(), new KeyVersionImpl(-1L, k.getKeyVersion()));
+                                                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(k.getData().array(), new KeyVersionImpl(k.getKeyVersion()));
                                                                              return new TableEntryImpl<>(tableKey, e.getValue().getData().array());
                                                                          }).collect(Collectors.toList());
                 result.complete(tableEntries);

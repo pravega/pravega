@@ -25,11 +25,6 @@ public interface KeyVersion extends Serializable {
         private static final long serialVersionUID = 1L;
 
         @Override
-        public long getSegmentId() {
-            return -1L;
-        }
-
-        @Override
         public long getSegmentVersion() {
             return -1L;
         }
@@ -48,11 +43,6 @@ public interface KeyVersion extends Serializable {
             return NOT_EXISTS;
         }
     };
-
-    /**
-     * Gets a value representing the internal Table Segment Id where this Key Version refers to.
-     */
-    long getSegmentId();
 
     /**
      * Gets a value representing the internal version inside the Table Segment for this Key.
