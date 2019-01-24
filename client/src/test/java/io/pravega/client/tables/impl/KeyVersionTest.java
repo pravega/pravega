@@ -23,7 +23,7 @@ public class KeyVersionTest {
 
     @Test
     public void testKeyVersionSerialization() throws Exception {
-        KeyVersion kv = new KeyVersionImpl(123L, 5L);
+        KeyVersion kv = new KeyVersionImpl( 5L);
         assertEquals(kv, KeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));

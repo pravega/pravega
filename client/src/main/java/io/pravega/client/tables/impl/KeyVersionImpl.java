@@ -18,19 +18,21 @@ import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 
 @Data
-@Builder(builderClassName = "KeyVersionBuilder")
-@AllArgsConstructor
 public class KeyVersionImpl implements KeyVersion {
 
     private static final KeyVersionImplSerializer SERIALIZER = new KeyVersionImpl.KeyVersionImplSerializer();
 
     private final long segmentVersion;
+
+    @Builder(builderClassName = "KeyVersionBuilder")
+    public KeyVersionImpl(long segmentVersion) {
+        this.segmentVersion = segmentVersion;
+    }
 
     @Override
     @SneakyThrows(IOException.class)

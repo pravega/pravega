@@ -616,16 +616,16 @@ public class SegmentHelper {
     /**
      * This method sends a WireCommand to create a table segment.
      *
-     * @param scope Stream scope.
-     * @param stream Stream name.
-     * @param segmentId Id of the segment to be created.
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param segmentId           Id of the segment to be created.
      * @param hostControllerStore Host controller store.
-     * @param clientCF Client connection factory.
-     * @param delegationToken The token to be presented to the segmentstore.
-     * @param clientRequestId Request id.
-     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed successfully.
-     * If the operation failed, the future will be failed with the causing exception. If the exception is retryable then the future
-     * will be failed with {@link WireCommandFailedException}.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<Boolean> createTableSegment(final String scope,
                                                          final String stream,
@@ -688,26 +688,26 @@ public class SegmentHelper {
     /**
      * This method sends a WireCommand to delete a table segment.
      *
-     * @param scope Stream scope.
-     * @param stream Stream name.
-     * @param segmentId Id of the segment to be created.
-     * @param mustBeEmpty Flag to check if the table segment should be empty before deletion.
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param segmentId           Id of the segment to be created.
+     * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
      * @param hostControllerStore Host controller store.
-     * @param clientCF Client connection factory.
-     * @param delegationToken The token to be presented to the segmentstore.
-     * @param clientRequestId Request id.
-     * @return A CompletableFuture that, when completed normally, will indicate the table segment deletion completed successfully.
-     * If the operation failed, the future will be failed with the causing exception. If the exception is retryable then the future
-     * will be failed with {@link WireCommandFailedException}.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment deletion completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<Boolean> deleteTableSegment(final String scope,
-                                                    final String stream,
-                                                    final long segmentId,
-                                                    final boolean mustBeEmpty,
-                                                    final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF,
-                                                    String delegationToken,
-                                                    final long clientRequestId) {
+                                                         final String stream,
+                                                         final long segmentId,
+                                                         final boolean mustBeEmpty,
+                                                         final HostControllerStore hostControllerStore,
+                                                         final ConnectionFactory clientCF,
+                                                         String delegationToken,
+                                                         final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
@@ -778,8 +778,8 @@ public class SegmentHelper {
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will contain the current versions of each {@link TableEntry}
-     * If the operation failed, the future will be failed with the causing exception. If the exception is retryable then the future
-     * will be failed with {@link WireCommandFailedException}.
+     * If the operation failed, the future will be failed with the causing exception. If the exception can be retried
+     * then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
                                                                   final String stream,
@@ -873,8 +873,8 @@ public class SegmentHelper {
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that will complete normally when the provided keys are deleted.
-     * If the operation failed, the future will be failed with the causing exception. If the exception is retryable then the future
-     * will be failed with {@link WireCommandFailedException}.
+     * If the operation failed, the future will be failed with the causing exception. If the exception can be
+     * retried then the future will be failed with {@link WireCommandFailedException}.
      */
     public CompletableFuture<Void> removeTableKeys(final String scope,
                                                    final String stream,
@@ -956,15 +956,16 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param segmentId           Id of the segment to be created.
-     * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used during this operation and
-     *                            the latest version is read.
+     * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
+     *                            during this operation and the latest version is read.
      * @param hostControllerStore Host controller store.
      * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
-     * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with a value corresponding to
-     * the latest version. If the operation failed, the future will be failed with the causing exception. If the exception is retryable then the future
-     * will be failed with {@link WireCommandFailedException}.
+     * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with
+     * a value corresponding to the latest version. If the operation failed, the future will be failed with the
+     * causing exception. If the exception can be retried then the future will be failed with
+     * {@link WireCommandFailedException}.
      */
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
