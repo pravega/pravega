@@ -9,17 +9,25 @@
 #
 FROM openjdk:8-jre-alpine
 
+ARG BOOKKEEPER_VERSION=4.7.3
+ARG ZOOKEEPER_VERSION=3.5.4-beta
+ARG BOOKKEEPER_GPG_KEY=DA4DE82038672568BC834EE05B3FBDB4FD74402C
+ARG ZOOKEEPER_GPG_KEY=D0BC8D8A4E90A40AFDFC43B3E22A746A68E327C1
+
 RUN apk add --update \
     bash \
     wget \
     unzip \
     gnupg \
-    && rm -rf /var/cache/apk/*
-
-ARG BOOKKEEPER_VERSION=4.7.3
-ARG ZOOKEEPER_VERSION=3.5.4-beta
-ARG BOOKKEEPER_GPG_KEY=DA4DE82038672568BC834EE05B3FBDB4FD74402C
-ARG ZOOKEEPER_GPG_KEY=D0BC8D8A4E90A40AFDFC43B3E22A746A68E327C1
+    && rm -rf /var/cache/apk/* \
+    && for key in \
+        "$BOOKKEEPER_GPG_KEY" \
+        "$ZOOKEEPER_GPG_KEY" \
+    ; do \
+      gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "$key" || \
+      gpg --batch --keyserver hkp://ipv4.pool.sks-keyservers.net --recv-keys "$key" || \
+      gpg --batch --keyserver hkp://pgp.mit.edu:80 --recv-keys "$key" ; \
+    done
 
 ENV bookiePort=3181
 EXPOSE $bookiePort
@@ -30,7 +38,6 @@ RUN mkdir -p /opt \
     && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BOOKKEEPER_VERSION}/bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz.sha512" \
     && wget -q "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BOOKKEEPER_VERSION}/bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz.asc" \
     && sha512sum -c "bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz.sha512" \
-    && gpg --keyserver ha.pool.sks-keyservers.net --recv-key "${BOOKKEEPER_GPG_KEY}" \
     && gpg --batch --verify "bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz.asc" "bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz" \
     && tar xvzf "bookkeeper-server-${BOOKKEEPER_VERSION}-bin.tar.gz" \
     && mv "bookkeeper-server-${BOOKKEEPER_VERSION}" /opt/bookkeeper \
@@ -39,7 +46,6 @@ RUN mkdir -p /opt \
     && wget -q "https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz.sha1" \
     && wget -q "https://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz.asc" \
     && sha1sum -c "zookeeper-${ZOOKEEPER_VERSION}.tar.gz.sha1" \
-    && gpg --keyserver ha.pool.sks-keyservers.net --recv-key "${ZOOKEEPER_GPG_KEY}" \
     && gpg --batch --verify "zookeeper-${ZOOKEEPER_VERSION}.tar.gz.asc" "zookeeper-${ZOOKEEPER_VERSION}.tar.gz" \
     && tar xvf "zookeeper-${ZOOKEEPER_VERSION}.tar.gz" \
     && mv "zookeeper-${ZOOKEEPER_VERSION}" /opt/zookeeper \
