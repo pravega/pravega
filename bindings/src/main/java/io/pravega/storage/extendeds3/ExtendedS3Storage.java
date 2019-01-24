@@ -229,6 +229,14 @@ public class ExtendedS3Storage implements SyncStorage {
 
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
+        } catch (S3Exception e) {
+            // HTTP Code 416 "Range Not Satisfiable" means that the object exists, but the given
+            // offset and length values are out of range. Therefore, we rethrow the exception to
+            // maintain backward compatibility.
+            if (e.getHttpCode() == 416) {
+                throw new ArrayIndexOutOfBoundsException(e.toString());
+            }
+            throw e;
         }
     }
 
