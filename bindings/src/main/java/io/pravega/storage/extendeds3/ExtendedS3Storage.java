@@ -46,6 +46,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.HttpStatus;
 
 /**
  * Storage adapter for extended S3 based storage.
@@ -229,14 +230,6 @@ public class ExtendedS3Storage implements SyncStorage {
 
             LoggerHelpers.traceLeave(log, "read", traceId, bytesRead);
             return bytesRead;
-        } catch (S3Exception e) {
-            // HTTP Code 416 "Range Not Satisfiable" means that the object exists, but the given
-            // offset and length values are out of range. Therefore, we rethrow the exception to
-            // maintain backward compatibility.
-            if (e.getHttpCode() == 416) {
-                throw new ArrayIndexOutOfBoundsException(e.toString());
-            }
-            throw e;
         }
     }
 
@@ -434,8 +427,9 @@ public class ExtendedS3Storage implements SyncStorage {
     }
 
     private <T> T throwException(String segmentName, Exception e) throws StreamSegmentException {
-        if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
-            String errorCode = ((S3Exception) e).getErrorCode();
+        if (e instanceof S3Exception) {
+            S3Exception s3Exception = (S3Exception) e;
+            String errorCode = Strings.nullToEmpty(s3Exception.getErrorCode());
 
             if (errorCode.equals("NoSuchKey")) {
                 throw new StreamSegmentNotExistsException(segmentName);
@@ -447,13 +441,14 @@ public class ExtendedS3Storage implements SyncStorage {
 
             if (errorCode.equals("InvalidRange")
                     || errorCode.equals("InvalidArgument")
-                    || errorCode.equals("MethodNotAllowed")) {
+                    || errorCode.equals("MethodNotAllowed")
+                    || s3Exception.getHttpCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
                 throw new IllegalArgumentException(segmentName, e);
             }
+
             if (errorCode.equals("AccessDenied")) {
                 throw new StreamSegmentSealedException(segmentName, e);
             }
-
         }
 
         if (e instanceof IndexOutOfBoundsException) {
