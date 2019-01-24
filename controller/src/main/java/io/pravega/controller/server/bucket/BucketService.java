@@ -138,25 +138,10 @@ abstract class BucketService extends AbstractService {
                 final StreamImpl stream;
                 switch (notification.getType()) {
                     case StreamAdded:
-                        log.info("{}: New stream {}/{} added to bucket {} ", serviceType, notification.getScope(),
-                                notification.getStream(), bucketId);
-                        stream = new StreamImpl(notification.getScope(), notification.getStream());
-                        long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
-
-                        synchronized (lock) {
-                            if (!knownStreams.contains(stream)) {
-                                knownStreams.add(stream);
-                                workQueue.add(new QueueElement(stream, nextRun));
-                            }
-                        }
+                        handleStreamAdded(notification);
                         break;
                     case StreamRemoved:
-                        log.info("{}: Stream {}/{} removed from bucket {}", serviceType, notification.getScope(),
-                                notification.getStream(), bucketId);
-                        stream = new StreamImpl(notification.getScope(), notification.getStream());
-                        synchronized (lock) {
-                            knownStreams.remove(stream);
-                        }
+                        handleStreamRemoved(notification);
                         break;
                     case ConnectivityError:
                         log.warn("{}: StreamNotification for connectivity error", serviceType);
@@ -166,40 +151,63 @@ abstract class BucketService extends AbstractService {
         });
     }
 
+    private void handleStreamRemoved(StreamNotification notification) {
+        StreamImpl stream;
+        log.info("{}: Stream {}/{} removed from bucket {}", serviceType, notification.getScope(),
+                notification.getStream(), bucketId);
+        stream = new StreamImpl(notification.getScope(), notification.getStream());
+        synchronized (lock) {
+            knownStreams.remove(stream);
+        }
+    }
+
+    private void handleStreamAdded(StreamNotification notification) {
+        StreamImpl stream;
+        log.info("{}: New stream {}/{} added to bucket {} ", serviceType, notification.getScope(),
+                notification.getStream(), bucketId);
+        stream = new StreamImpl(notification.getScope(), notification.getStream());
+        long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
+
+        synchronized (lock) {
+            if (!knownStreams.contains(stream)) {
+                knownStreams.add(stream);
+                workQueue.add(new QueueElement(stream, nextRun));
+            }
+        }
+    }
+
+    /**
+     * This method indicates Each workloop iteration.
+     * In each iteration, it checks the count for all submitted ongoing `bucketWork` for streams (via availableSlots).
+     * If there are available slots, it checks the work queue to see if the first element can be taken from the queue yet. 
+     * If not, it returns a delayed future with fixed delay for the next iteration to be tried. 
+     * If the queue is empty, it completes this iteration with a delayed future with a fixed constant delay to poll the queue later. 
+     * If the queue has an element which can be taken for processing, then the element is removed from the queue and one of available 
+     * slots is aquired. the "bucketWork" corresponding to queue element is submitted with a callback registered on completion 
+     * to release the available slot. It returns a future with 0 delay so that next iteration can be scheduled immediately.  
+     * @return CompletableFuture which when completed indicates that the current iteration is complete and next iteration 
+     * can be initiated.
+     */
     private CompletableFuture<Void> work() {
         long time = System.currentTimeMillis();
         QueueElement element;
         long delayInMillis = 0L;
         synchronized (lock) {
-            if (availableSlots > 0) {
-                element = workQueue.peek();
-                if (element != null && element.nextExecutionTimeInMillis <= time) {
-                    // Note: we can poll on queue while holding the lock because we know the element exists.
-                    element = workQueue.poll();
-                    assert element != null;
+            element = workQueue.peek();
+            if (availableSlots > 0 && element != null && element.nextExecutionTimeInMillis <= time) {
+                element = workQueue.poll();
 
-                    if (!knownStreams.contains(element.getStream())) {
-                        // the stream is removed from the known set. Ignore any queue entry for this stream. 
-                        // let next cycle of process work happen immediately
-                        element = null;
-                    } else {
-                        availableSlots--;
-                    }
-                } else { 
-                    // empty priority queue or first element cannot be scheduled immediately
-                    if (element != null) {
-                        // instead of wasting compute cycles, let next run happen only when first element in the 
-                        // work queue is ready for execution. 
-                        delayInMillis = element.nextExecutionTimeInMillis - time;
-                    } else {
-                        delayInMillis = DELAY_IN_MILLIS;
-                    }
+                if (!knownStreams.contains(element.getStream())) {
+                    // the stream is removed from the known set. Ignore any queue entry for this stream. 
+                    // let next cycle of process work happen immediately
                     element = null;
+                } else {
+                    availableSlots--;
                 }
             } else {
-                // no slots available. 
+                // cant do any work. set element to null and add fixed delay.
+                delayInMillis = DELAY_IN_MILLIS;
                 element = null;
-                delayInMillis = 100L;
             }
         }
 
