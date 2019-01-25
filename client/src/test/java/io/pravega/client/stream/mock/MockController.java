@@ -83,6 +83,12 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
+    public CompletableFuture<Map<Stream, StreamConfiguration>> listStreamsInScope(String scopeName) {
+        return CompletableFuture.completedFuture(createdScopes.get(scopeName).stream().collect(Collectors.toMap(x -> x, createdStreams::get)));
+    }
+
+    @Override
+    @Synchronized
     public CompletableFuture<Boolean> deleteScope(String scopeName) {
         if (createdScopes.get(scopeName) == null) {
             return CompletableFuture.completedFuture(false);

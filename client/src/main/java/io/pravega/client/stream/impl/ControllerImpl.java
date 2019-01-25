@@ -87,6 +87,8 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import org.slf4j.LoggerFactory;
 
+import static io.pravega.controller.stream.api.grpc.v1.Controller.*;
+
 /**
  * RPC based client implementation of Stream Controller V1 API.
  */
@@ -216,6 +218,31 @@ public class ControllerImpl implements Controller {
                 }
                 LoggerHelpers.traceLeave(log, "createScope", traceId, scopeName, requestId);
             });
+    }
+
+    @Override
+    public CompletableFuture<Map<Stream, StreamConfiguration>> listStreamsInScope(String scopeName) {
+
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "streamsInScope", scopeName);
+
+        final CompletableFuture<StreamsInScopeResponse> resultFuture = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "streamsInScope");
+            new ControllerClientTagger(client).withTag(traceId, "streamsInScope", scopeName)
+                                              .listStreamsInScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return resultFuture.thenApply(streamsInScope -> {
+            log.debug("Received the following data from the controller {}", streamsInScope.getStreamsList());
+            return streamsInScope.getStreamsList().stream()
+                                 .collect(Collectors.toMap(x -> (Stream) new StreamImpl(x.getStreamInfo().getScope(), x.getStreamInfo().getStream()), 
+                                         ModelHelper::encode));
+        }).whenComplete((x, e) -> {
+            if (e != null) {
+                log.warn("getSuccessors failed: ", e);
+            }
+            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+        });
     }
 
     @Override
@@ -1028,6 +1055,10 @@ public class ControllerImpl implements Controller {
 
         public void createScope(ScopeInfo scopeInfo, RPCAsyncCallback<CreateScopeStatus> callback) {
             clientStub.createScope(scopeInfo, callback);
+        }
+
+        public void listStreamsInScope(ScopeInfo scopeInfo, RPCAsyncCallback<StreamsInScopeResponse> callback) {
+            clientStub.listStreamsInScope(scopeInfo, callback);
         }
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {

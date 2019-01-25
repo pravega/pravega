@@ -65,6 +65,11 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
+    public Map<Stream, StreamConfiguration> streamsInScope(String scopeName) {
+        return Futures.getAndHandleExceptions(controller.listStreamsInScope(scope), RuntimeException::new);
+    }
+
+    @Override
     public boolean deleteScope(String scopeName) {
         return Futures.getAndHandleExceptions(controller.deleteScope(scope),
                 RuntimeException::new);

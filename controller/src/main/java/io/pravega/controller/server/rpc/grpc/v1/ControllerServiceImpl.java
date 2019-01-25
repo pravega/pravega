@@ -357,6 +357,19 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
+    public void listStreamsInScope(ScopeInfo request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "streamsInScope", request.getScope());
+        log.info(requestTag.getRequestId(), "streamsInScope called for scope {}.", request.getScope());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.listStreamsInScope(request.getScope())
+                                                    .thenApply(x -> 
+                                                            Controller.StreamsInScopeResponse.newBuilder().addAllStreams(
+                                                            x.entrySet().stream().map(m -> ModelHelper.decode(request.getScope(), m.getKey(), m.getValue()))
+                                                                 .collect(Collectors.toList())).build()),
+                responseObserver, requestTag);
+    }
+
+    @Override
     public void deleteScope(ScopeInfo request, StreamObserver<DeleteScopeStatus> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteScope", request.getScope());
         log.info(requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());

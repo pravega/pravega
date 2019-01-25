@@ -37,6 +37,7 @@ service ControllerService {
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
+    rpc listStreamsInScope(ScopeInfo) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
 }
@@ -136,7 +137,11 @@ message ScopeInfo {
     string scope = 1;
 }
 
-message StreamInfo {
+message StreamsInScopeResponse {
+    repeated StreamConfig streams = 1;
+}
+
+ message StreamInfo {
     string scope = 1;
     string stream = 2;
 }

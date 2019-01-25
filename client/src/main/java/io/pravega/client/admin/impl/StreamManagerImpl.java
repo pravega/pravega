@@ -27,6 +27,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -108,6 +109,13 @@ public class StreamManagerImpl implements StreamManager {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Creating scope: {}", scopeName);
         return  Futures.getThrowingException(controller.createScope(scopeName));
+    }
+
+    @Override
+    public Map<Stream, StreamConfiguration> streamsInScope(String scopeName) {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Creating scope: {}", scopeName);
+        return  Futures.getThrowingException(controller.listStreamsInScope(scopeName));
     }
 
     @Override

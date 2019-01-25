@@ -21,6 +21,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
@@ -73,6 +74,12 @@ public class LocalController implements Controller {
                         + x.getStatus());
             }
         });
+    }
+
+    @Override
+    public CompletableFuture<Map<Stream, StreamConfiguration>> listStreamsInScope(String scopeName) {
+        return controller.listStreamsInScope(scopeName)
+                .thenApply(map -> map.entrySet().stream().collect(Collectors.toMap(x -> new StreamImpl(scopeName, x.getKey()), Map.Entry::getValue)));
     }
 
     @Override
