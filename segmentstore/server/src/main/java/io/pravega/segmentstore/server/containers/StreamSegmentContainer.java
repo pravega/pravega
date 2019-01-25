@@ -59,6 +59,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
+import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
@@ -103,6 +104,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.Container metrics;
     private final Map<Class<? extends SegmentContainerExtension>, ? extends SegmentContainerExtension> extensions;
+    private final ContainerConfig config;
 
     //endregion
 
@@ -137,18 +139,27 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         this.metadata = new StreamSegmentContainerMetadata(streamSegmentContainerId, config.getMaxActiveSegmentCount());
         this.readIndex = readIndexFactory.createReadIndex(this.metadata, this.storage);
         this.executor = executor;
+        this.config = config;
         this.durableLog = durableLogFactory.createDurableLog(this.metadata, this.readIndex);
         shutdownWhenStopped(this.durableLog, "DurableLog");
         this.attributeIndex = attributeIndexFactory.createContainerAttributeIndex(this.metadata, this.storage);
         this.writer = writerFactory.createWriter(this.metadata, this.durableLog, this.readIndex, this.attributeIndex, this.storage, this::createWriterProcessors);
         shutdownWhenStopped(this.writer, "Writer");
-        this.metadataStore = new StorageMetadataStore(getMetadataStoreConnector(), this.storage, this.executor);
+        this.extensions = Collections.unmodifiableMap(createExtensions.apply(this, this.executor));
+        this.metadataStore = createMetadataStore();
         this.metadataCleaner = new MetadataCleaner(config, this.metadata, this.metadataStore, this::notifyMetadataRemoved,
                 this.executor, this.traceObjectId);
         shutdownWhenStopped(this.metadataCleaner, "MetadataCleaner");
         this.metrics = new SegmentStoreMetrics.Container(streamSegmentContainerId);
         this.closed = new AtomicBoolean();
-        this.extensions = Collections.unmodifiableMap(createExtensions.apply(this, this.executor));
+    }
+
+    private MetadataStore createMetadataStore() {
+        MetadataStore.Connector connector = new MetadataStore.Connector(this.metadata, this::mapSegmentId,
+                this::deleteSegmentImmediate, this::deleteSegmentDelayed, this::runMetadataCleanup);
+        ContainerTableExtension tableExtension = getExtension(ContainerTableExtension.class);
+        Preconditions.checkArgument(tableExtension != null, "ContainerTableExtension required for initialization.");
+        return new TableMetadataStore(connector, tableExtension, this.executor);
     }
 
     /**
@@ -190,7 +201,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         log.info("{}: Starting.", this.traceObjectId);
 
         Services.startAsync(this.durableLog, this.executor)
-                .thenRunAsync(this::startWhenDurableLogOnline, this.executor)
+                .thenComposeAsync(v -> startWhenDurableLogOnline(), this.executor)
                 .whenComplete((v, ex) -> {
                     if (ex == null) {
                         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
@@ -203,42 +214,48 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                 });
     }
 
-    private void startWhenDurableLogOnline() {
+    private CompletableFuture<Void> startWhenDurableLogOnline() {
+        CompletableFuture<Void> isReady;
         CompletableFuture<Void> delayedStart;
         if (this.durableLog.isOffline()) {
             // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
             // completes successfully.
+            isReady = CompletableFuture.completedFuture(null);
             delayedStart = this.durableLog.awaitOnline()
-                                          .thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor);
+                    .thenComposeAsync(v -> initializeSecondaryServices(), this.executor);
         } else {
-            // DurableLog is already online. Immediately start secondary services. In this particular case, it needs to
-            // be done synchronously since we need to initialize Storage before notifying that we are fully started.
-            delayedStart = startSecondaryServicesAsync();
+            // DurableLog is already online. Immediately initialize secondary services. In this particular case, it needs
+            // to be done synchronously since we need to initialize Storage before notifying that we are fully started.
+            isReady = initializeSecondaryServices();
+            delayedStart = isReady;
         }
 
-        // If the delayed start fails, immediately shut down the Segment Container with the appropriate exception.
-        delayedStart.whenComplete((v, ex) -> {
-            if (ex == null) {
-                // Successful start.
-                log.info("{}: Started.", this.traceObjectId);
-            } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
-                // Some failure along the way. We should ignore ObjectClosedExceptions or other exceptions during
-                // a shutdown phase since that's most likely due to us shutting down.
-                doStop(ex);
-            }
-        });
+        // Delayed start. Secondary services need not be started in order for us to accept requests.
+        delayedStart.thenComposeAsync(v -> startSecondaryServicesAsync(), this.executor)
+                .whenComplete((v, ex) -> {
+                    if (ex == null) {
+                        // Successful start.
+                        log.info("{}: Started.", this.traceObjectId);
+                    } else if (!(Exceptions.unwrap(ex) instanceof ObjectClosedException) || !Services.isTerminating(state())) {
+                        // If the delayed start fails, immediately shut down the Segment Container with the appropriate
+                        // exception. We should ignore ObjectClosedExceptions or other exceptions during a shutdown phase
+                        // since that's most likely due to us shutting down.
+                        doStop(ex);
+                    }
+                });
+
+        return isReady;
+    }
+
+    private CompletableFuture<Void> initializeSecondaryServices() {
+        this.storage.initialize(this.metadata.getContainerEpoch());
+        return this.metadataStore.initialize(this.config.getMetadataStoreInitTimeout());
     }
 
     private CompletableFuture<Void> startSecondaryServicesAsync() {
-        this.storage.initialize(this.metadata.getContainerEpoch());
         return CompletableFuture.allOf(
                 Services.startAsync(this.metadataCleaner, this.executor),
-                Services.startAsync(this.writer, this.executor),
-                initializeExtensions());
-    }
-
-    private CompletableFuture<Void> initializeExtensions() {
-        return Futures.allOf(this.extensions.values().stream().map(SegmentContainerExtension::initialize).collect(Collectors.toList()));
+                Services.startAsync(this.writer, this.executor));
     }
 
     @Override
@@ -793,19 +810,18 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         Services.onStop(component, stoppedHandler, failedHandler, this.executor);
     }
 
-    private MetadataStore.Connector getMetadataStoreConnector() {
-        return new MetadataStore.Connector(this.metadata, this::mapSegmentId, this::deleteSegmentImmediate, this::deleteSegmentDelayed,
-                this::runMetadataCleanup);
-    }
-
     private CompletableFuture<Void> runMetadataCleanup() {
         return this.metadataCleaner.runOnce();
     }
 
-    private CompletableFuture<Long> mapSegmentId(long segmentId, SegmentProperties segmentProperties, Duration timeout) {
+    private CompletableFuture<Long> mapSegmentId(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout) {
         StreamSegmentMapOperation op = new StreamSegmentMapOperation(segmentProperties);
         if (segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID) {
             op.setStreamSegmentId(segmentId);
+        }
+
+        if (pin) {
+            op.markPinned();
         }
 
         return this.durableLog.add(op, timeout).thenApply(ignored -> op.getStreamSegmentId());

@@ -134,7 +134,7 @@ class IndexWriter extends IndexReader {
                     segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, update.getAttributes().size(),
                     processedCount, update.getEntryCountDelta(), update.getBucketCountDelta());
             return segment.updateAttributes(update.getAttributes(), timeout)
-                          .thenApply(v -> update.getAttributes().size());
+                    .thenApply(v -> update.getAttributes().size());
         }
     }
 

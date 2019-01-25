@@ -117,12 +117,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region ContainerTableExtension Implementation
 
     @Override
-    public CompletableFuture<Void> initialize() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
     public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (!metadata.getAttributes().containsKey(TableAttributes.INDEX_OFFSET)) {
