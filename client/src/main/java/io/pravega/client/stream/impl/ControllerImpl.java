@@ -220,7 +220,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Stream, StreamConfiguration>> listStreamsInScope(String scopeName) {
+    public CompletableFuture<Map<Stream, StreamConfiguration>> streamsInScope(String scopeName) {
 
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "streamsInScope", scopeName);
@@ -238,9 +238,9 @@ public class ControllerImpl implements Controller {
                                          ModelHelper::encode));
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getSuccessors failed: ", e);
+                log.warn("streamsInScope failed: ", e);
             }
-            LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
+            LoggerHelpers.traceLeave(log, "streamsInScope", traceId);
         });
     }
 

@@ -66,7 +66,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
 
     @Override
     public Map<Stream, StreamConfiguration> streamsInScope(String scopeName) {
-        return Futures.getAndHandleExceptions(controller.listStreamsInScope(scope), RuntimeException::new);
+        return Futures.getAndHandleExceptions(controller.streamsInScope(scope), RuntimeException::new);
     }
 
     @Override

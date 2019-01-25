@@ -77,7 +77,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Stream, StreamConfiguration>> listStreamsInScope(String scopeName) {
+    public CompletableFuture<Map<Stream, StreamConfiguration>> streamsInScope(String scopeName) {
         return controller.listStreamsInScope(scopeName)
                 .thenApply(map -> map.entrySet().stream().collect(Collectors.toMap(x -> new StreamImpl(scopeName, x.getKey()), Map.Entry::getValue)));
     }

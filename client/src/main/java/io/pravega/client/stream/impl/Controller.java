@@ -48,7 +48,7 @@ public interface Controller extends AutoCloseable {
      * @param scopeName The name of the scope for which to list streams in.
      * @return A future which when completed will contain a map of Stream to Configuration for all streams in the scope. 
      */
-    CompletableFuture<Map<Stream, StreamConfiguration>> listStreamsInScope(final String scopeName);
+    CompletableFuture<Map<Stream, StreamConfiguration>> streamsInScope(final String scopeName);
 
     /**
      * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If

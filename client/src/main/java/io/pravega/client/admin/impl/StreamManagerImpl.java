@@ -115,7 +115,7 @@ public class StreamManagerImpl implements StreamManager {
     public Map<Stream, StreamConfiguration> streamsInScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Creating scope: {}", scopeName);
-        return  Futures.getThrowingException(controller.listStreamsInScope(scopeName));
+        return  Futures.getThrowingException(controller.streamsInScope(scopeName));
     }
 
     @Override
