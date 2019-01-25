@@ -67,6 +67,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -86,8 +87,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
 import org.slf4j.LoggerFactory;
-
-import static io.pravega.controller.stream.api.grpc.v1.Controller.*;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
