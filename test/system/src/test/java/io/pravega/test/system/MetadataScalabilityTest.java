@@ -33,7 +33,6 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
