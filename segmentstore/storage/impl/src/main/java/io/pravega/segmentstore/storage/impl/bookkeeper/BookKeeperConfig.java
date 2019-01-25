@@ -154,7 +154,7 @@ public class BookKeeperConfig {
      * @param properties The TypedProperties object to read Properties from.
      */
     private BookKeeperConfig(TypedProperties properties) throws ConfigurationException {
-        this.zkAddress = properties.get(ZK_ADDRESS);
+        this.zkAddress = properties.get(ZK_ADDRESS).replace(",", ";");
         this.zkSessionTimeout = Duration.ofMillis(properties.getInt(ZK_SESSION_TIMEOUT));
         this.zkConnectionTimeout = Duration.ofMillis(properties.getInt(ZK_CONNECTION_TIMEOUT));
         this.zkMetadataPath = properties.get(ZK_METADATA_PATH);
