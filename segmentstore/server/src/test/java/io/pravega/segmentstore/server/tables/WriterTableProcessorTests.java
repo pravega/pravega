@@ -18,6 +18,7 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
@@ -416,7 +417,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
 
         private void initializeSegment() {
             // Populate table-related attributes.
-            this.segmentMock.updateAttributes(IndexWriter.generateInitialTableAttributes(), TIMEOUT).join();
+            this.segmentMock.updateAttributes(TableStore.getInitialTableAttributes(), TIMEOUT).join();
 
             // Pre-populate the TABLE_INDEX_OFFSET.
             this.segmentMock.updateAttributes(

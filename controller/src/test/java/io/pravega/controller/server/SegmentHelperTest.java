@@ -234,7 +234,7 @@ public class SegmentHelperTest {
         }
 
         @Override
-        public void sendAsync(WireCommand cmd) throws ConnectionFailedException {
+        public void sendAsync(WireCommand cmd, CompletedCallback callback) {
 
         }
 

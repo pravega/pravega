@@ -22,6 +22,7 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -115,12 +116,6 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region ContainerTableExtension Implementation
 
     @Override
-    public CompletableFuture<Void> initialize() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    @Override
     public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (!metadata.getAttributes().containsKey(Attributes.TABLE_INDEX_OFFSET)) {
@@ -138,7 +133,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentContainer.createStreamSegment(segmentName, IndexWriter.generateInitialTableAttributes(), timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, TableStore.getInitialTableAttributes(), timeout);
     }
 
     @Override

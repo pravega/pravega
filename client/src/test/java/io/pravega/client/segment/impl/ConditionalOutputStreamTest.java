@@ -61,7 +61,7 @@ public class ConditionalOutputStreamTest {
                 }
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         assertTrue(cOut.write(data, 0));
         assertFalse(cOut.write(data, 1));
         assertTrue(cOut.write(data, 2));
@@ -105,7 +105,7 @@ public class ConditionalOutputStreamTest {
                 }                
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         assertTrue(cOut.write(data, 0));
         assertEquals(3, count.get());
     }
@@ -121,7 +121,7 @@ public class ConditionalOutputStreamTest {
                                                               argument.getWriterId(), 0));
                 return null;
             }
-        }).when(mock).send(any(SetupAppend.class));
+        }).when(mock).sendAsync(any(SetupAppend.class), any(ClientConnection.CompletedCallback.class));
     }
     
     @Test(timeout = 10000)
@@ -146,7 +146,7 @@ public class ConditionalOutputStreamTest {
                 processor.process(new WireCommands.SegmentIsSealed(argument.getEventNumber(), segment.getScopedName(), mockClientReplyStackTrace));
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> cOut.write(data, 0));
     }
     
@@ -178,7 +178,7 @@ public class ConditionalOutputStreamTest {
                 }
                 return null;
             }
-        }).when(mock).send(any(ConditionalAppend.class));
+        }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
         replies.add(true);
         replies.add(false);
         assertTrue(cOut.write(data, 0));
