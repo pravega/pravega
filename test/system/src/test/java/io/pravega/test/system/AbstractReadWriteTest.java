@@ -29,11 +29,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -97,6 +97,9 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
 
         final AtomicLong writtenEvents = new AtomicLong();
         final AtomicLong readEvents = new AtomicLong();
+        // Due to segment rebalances across readers, any reader may read arbitrary sub-sequences of events for various
+        // routing keys. This calls for a global state across readers to check the correctness of event sequences.
+        final Map<String, Long> routingKeySeqNumber = new ConcurrentHashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
@@ -264,7 +267,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
                     testState.getEventReadCount(), testState.getEventWrittenCount());
-            final Map<String, Long> routingKeySeqNumber = new HashMap<>();
             while (!(stopFlag.get() && testState.getEventReadCount() == testState.getEventWrittenCount())) {
                 log.info("Entering read loop");
                 // Exit only if exitFlag is true  and read Count equals write count.
@@ -277,7 +279,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                         // produced them and that there are no duplicate or missing events.
                         final String[] keyAndSeqNum = event.split(RK_VALUE_SEPARATOR);
                         final long seqNumber = Long.valueOf(keyAndSeqNum[1]);
-                        routingKeySeqNumber.compute(keyAndSeqNum[0], (rk, currentSeqNum) -> {
+                        testState.routingKeySeqNumber.compute(keyAndSeqNum[0], (rk, currentSeqNum) -> {
                             if (currentSeqNum != null && currentSeqNum + 1 != seqNumber) {
                                 throw new AssertionError("Event order violated at " + currentSeqNum + " by " + seqNumber);
                             }
