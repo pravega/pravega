@@ -52,6 +52,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -300,7 +301,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.any(), Mockito.any());
+        }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
@@ -763,7 +764,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 }
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.any(), Mockito.any());
+        }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
         
         doAnswer(new Answer<Void>() {
             @Override

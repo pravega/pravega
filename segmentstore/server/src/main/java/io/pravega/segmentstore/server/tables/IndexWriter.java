@@ -18,7 +18,6 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -56,27 +55,6 @@ class IndexWriter extends IndexReader {
     IndexWriter(@NonNull KeyHasher keyHasher, ScheduledExecutorService executor) {
         super(executor);
         this.hasher = keyHasher;
-    }
-
-    //endregion
-
-    //region Initial Table Attributes
-
-    /**
-     * Generates a Collection of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
-     *
-     * Attributes:
-     * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
-     * * {@link Attributes#TABLE_ENTRY_COUNT} is initialized to 0.
-     * * {@link Attributes#TABLE_BUCKET_COUNT} is initialized to 0.
-     *
-     * @return A Collection of {@link AttributeUpdate}s.
-     */
-    static Collection<AttributeUpdate> generateInitialTableAttributes() {
-        return Arrays.asList(
-                new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L),
-                new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.None, 0L),
-                new AttributeUpdate(Attributes.TABLE_BUCKET_COUNT, AttributeUpdateType.None, 0L));
     }
 
     //endregion
@@ -154,7 +132,7 @@ class IndexWriter extends IndexReader {
                     segment.getSegmentId(), firstIndexedOffset, lastIndexedOffset, update.getAttributes().size(),
                     update.getEntryCountDelta(), update.getBucketCountDelta());
             return segment.updateAttributes(update.getAttributes(), timeout)
-                          .thenApply(v -> update.getAttributes().size());
+                    .thenApply(v -> update.getAttributes().size());
         }
     }
 

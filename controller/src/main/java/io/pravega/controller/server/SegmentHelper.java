@@ -611,27 +611,18 @@ public class SegmentHelper {
                 resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
                         request.getType(),
                         WireCommandFailedException.Reason.ConnectionFailed));
-            } else {
-                try {
-                    connection.send(request);
-                } catch (ConnectionFailedException cfe) {
-                    throw new WireCommandFailedException(cfe,
-                            request.getType(),
-                            WireCommandFailedException.Reason.ConnectionFailed);
-                } catch (Exception e2) {
-                    throw new RuntimeException(e2);
-                }
+            } else {                
+                connection.sendAsync(request, cfe -> {
+                    if (cfe != null) {
+                        Throwable cause = Exceptions.unwrap(cfe);
+                        if (cause instanceof ConnectionFailedException) {
+                            resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
+                        } else {
+                            resultFuture.completeExceptionally(new RuntimeException(cause));
+                        }                        
+                    }
+                });                
             }
-        }).exceptionally(e -> {
-            Throwable cause = Exceptions.unwrap(e);
-            if (cause instanceof WireCommandFailedException) {
-                resultFuture.completeExceptionally(cause);
-            } else if (cause instanceof ConnectionFailedException) {
-                resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
-            } else {
-                resultFuture.completeExceptionally(new RuntimeException(cause));
-            }
-            return null;
         });
         resultFuture.whenComplete((result, e) -> {
             connectionFuture.thenAccept(ClientConnection::close);
