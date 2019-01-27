@@ -192,17 +192,17 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Boolean> result = helper.createTableSegment("", "", 0, new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+        CompletableFuture<Boolean> result = helper.createTableSegment("", "", new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
         factory.rp.segmentAlreadyExists(new WireCommands.SegmentAlreadyExists(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(result.join());
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", 0, new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+        result = helper.createTableSegment("", "", new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
         factory.rp.segmentCreated(new WireCommands.SegmentCreated(0, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0, new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", new MockHostControllerStore(), factory, "", Long.MIN_VALUE);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -214,26 +214,26 @@ public class SegmentHelperTest {
     public void testDeleteTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         // On receiving NoSuchSegment true should be returned.
-        CompletableFuture<Boolean> result = helper.deleteTableSegment("", "", 0L, true, new MockHostControllerStore(),
+        CompletableFuture<Boolean> result = helper.deleteTableSegment("", "", true, new MockHostControllerStore(),
                                                                       factory, "", System.nanoTime());
         factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(result.join());
 
         // On receiving SegmentDeleted true should be returned.
-        result = helper.deleteTableSegment("", "", 0L, true, new MockHostControllerStore(),
+        result = helper.deleteTableSegment("", "", true, new MockHostControllerStore(),
                                                                       factory, "", System.nanoTime());
         factory.rp.segmentDeleted(new WireCommands.SegmentDeleted(0, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
         // On receiving TableSegmentNotEmpty WireCommandFailedException is thrown.
-        result = helper.deleteTableSegment("", "", 0L, true, new MockHostControllerStore(),
+        result = helper.deleteTableSegment("", "", true, new MockHostControllerStore(),
                                            factory, "", System.nanoTime());
         factory.rp.tableSegmentNotEmpty(new WireCommands.TableSegmentNotEmpty(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableSegmentNotEmpty));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", "", 0L, true, new MockHostControllerStore(), factory, "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", "", true, new MockHostControllerStore(), factory, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -254,25 +254,25 @@ public class SegmentHelperTest {
                                                           new KeyVersionImpl(11L));
 
         // On receiving TableEntriesUpdated.
-        CompletableFuture<List<KeyVersion>> result = helper.updateTableEntries("", "", 0L, entries, new MockHostControllerStore(), factory, "", System.nanoTime());
+        CompletableFuture<List<KeyVersion>> result = helper.updateTableEntries("", "", entries, new MockHostControllerStore(), factory, "", System.nanoTime());
         factory.rp.tableEntriesUpdated(new WireCommands.TableEntriesUpdated(0, Arrays.asList(0L, 1L, 11L)));
         assertEquals(expectedVersions, result.join());
 
         // On receiving TableKeyDoesNotExist.
-        result = helper.updateTableEntries("", "", 0L, entries, new MockHostControllerStore(), factory, "", System.nanoTime());
+        result = helper.updateTableEntries("", "", entries, new MockHostControllerStore(), factory, "", System.nanoTime());
         factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyDoesNotExist));
 
         // On receiving TableKeyBadVersion.
-        result = helper.updateTableEntries("", "", 0L, entries, new MockHostControllerStore(), factory, "", System.nanoTime());
+        result = helper.updateTableEntries("", "", entries, new MockHostControllerStore(), factory, "", System.nanoTime());
         factory.rp.tableKeyBadVersion(new WireCommands.TableKeyBadVersion(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyBadVersion));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.updateTableEntries("", "", 0L, entries, new MockHostControllerStore(), factory, "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.updateTableEntries("", "", entries, new MockHostControllerStore(), factory, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -287,24 +287,24 @@ public class SegmentHelperTest {
                                                     new TableKeyImpl<>("k1".getBytes(), KeyVersion.NOT_EXISTS));
 
         // On receiving TableKeysRemoved.
-        CompletableFuture<Void> result = helper.removeTableKeys("", "", 0L, keys, new MockHostControllerStore(), factory, "",
+        CompletableFuture<Void> result = helper.removeTableKeys("", "", keys, new MockHostControllerStore(), factory, "",
                                                                             System.nanoTime());
         factory.rp.tableKeysRemoved(new WireCommands.TableKeysRemoved(0, getQualifiedStreamSegmentName("", "", 0L) ));
         assertTrue(Futures.await(result));
 
         // On receiving TableKeyDoesNotExist.
-        result = helper.removeTableKeys("", "", 0L, keys, new MockHostControllerStore(), factory, "", System.nanoTime());
+        result = helper.removeTableKeys("", "", keys, new MockHostControllerStore(), factory, "", System.nanoTime());
         factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(Futures.await(result));
 
         // On receiving TableKeyBadVersion.
-        result = helper.removeTableKeys("", "", 0L, keys, new MockHostControllerStore(), factory, "", System.nanoTime());
+        result = helper.removeTableKeys("", "", keys, new MockHostControllerStore(), factory, "", System.nanoTime());
         factory.rp.tableKeyBadVersion(new WireCommands.TableKeyBadVersion(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyBadVersion));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.removeTableKeys("", "", 0L, keys, new MockHostControllerStore(),
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.removeTableKeys("", "", keys, new MockHostControllerStore(),
                                                                                         factory, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
@@ -329,19 +329,19 @@ public class SegmentHelperTest {
         }).collect(Collectors.toList()));
 
         // On receiving TableKeysRemoved.
-        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", 0L, keys, new MockHostControllerStore(),
+        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keys, new MockHostControllerStore(),
                                                                                       factory, "", System.nanoTime());
         factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), resultData));
         assertEquals(entries, result.join());
 
         // On receiving TableKeyDoesNotExist.
-        result = helper.readTable("", "", 0L, keys, new MockHostControllerStore(), factory, "", System.nanoTime());
+        result = helper.readTable("", "", keys, new MockHostControllerStore(), factory, "", System.nanoTime());
         factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyDoesNotExist));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", 0L, keys, new MockHostControllerStore(),
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", keys, new MockHostControllerStore(),
                                                                                factory, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);

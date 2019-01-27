@@ -22,6 +22,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
 
+/**
+ * Implementation of {@link KeyVersion}.
+ */
 @Data
 public class KeyVersionImpl implements KeyVersion {
 
@@ -74,6 +77,9 @@ public class KeyVersionImpl implements KeyVersion {
         }
     }
 
+    /*
+     * The object returned by this method is serialized to the object stream.
+     */
     @SneakyThrows(IOException.class)
     private Object writeReplace() throws ObjectStreamException {
         return new KeyVersionImpl.SerializedForm(SERIALIZER.serialize(this).getCopy());

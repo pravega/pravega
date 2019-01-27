@@ -50,6 +50,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
@@ -618,7 +619,6 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
-     * @param segmentId           Id of the segment to be created.
      * @param hostControllerStore Host controller store.
      * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
@@ -629,14 +629,13 @@ public class SegmentHelper {
      */
     public CompletableFuture<Boolean> createTableSegment(final String scope,
                                                          final String stream,
-                                                         final long segmentId,
                                                          final HostControllerStore hostControllerStore,
                                                          final ConnectionFactory clientCF,
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final String qualifiedStreamSegmentName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -690,7 +689,6 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
-     * @param segmentId           Id of the segment to be created.
      * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
      * @param hostControllerStore Host controller store.
      * @param clientCF            Client connection factory.
@@ -702,15 +700,14 @@ public class SegmentHelper {
      */
     public CompletableFuture<Boolean> deleteTableSegment(final String scope,
                                                          final String stream,
-                                                         final long segmentId,
                                                          final boolean mustBeEmpty,
                                                          final HostControllerStore hostControllerStore,
                                                          final ConnectionFactory clientCF,
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -771,7 +768,6 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
-     * @param segmentId           Id of the segment to be created.
      * @param entries             List of {@link TableEntry}s to be updated.
      * @param hostControllerStore Host controller store.
      * @param clientCF            Client connection factory.
@@ -783,15 +779,14 @@ public class SegmentHelper {
      */
     public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
                                                                   final String stream,
-                                                                  final long segmentId,
                                                                   final List<TableEntry<byte[], byte[]>> entries,
                                                                   final HostControllerStore hostControllerStore,
                                                                   final ConnectionFactory clientCF,
                                                                   String delegationToken,
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -864,7 +859,6 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
-     * @param segmentId           Id of the segment to be created.
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
      *                            {@link KeyVersion#NOT_EXISTS} then an unconditional update/removal is performed. Else an atomic conditional
      *                            update (removal) is performed.
@@ -878,15 +872,14 @@ public class SegmentHelper {
      */
     public CompletableFuture<Void> removeTableKeys(final String scope,
                                                    final String stream,
-                                                   final long segmentId,
                                                    final List<TableKey<byte[]>> keys,
                                                    final HostControllerStore hostControllerStore,
                                                    final ConnectionFactory clientCF,
                                                    String delegationToken,
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -955,7 +948,6 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
-     * @param segmentId           Id of the segment to be created.
      * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
      *                            during this operation and the latest version is read.
      * @param hostControllerStore Host controller store.
@@ -969,15 +961,14 @@ public class SegmentHelper {
      */
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
-                                                                         final long segmentId,
                                                                          final List<TableKey<byte[]>> keys,
                                                                          final HostControllerStore hostControllerStore,
                                                                          final ConnectionFactory clientCF,
                                                                          String delegationToken,
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
-        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
