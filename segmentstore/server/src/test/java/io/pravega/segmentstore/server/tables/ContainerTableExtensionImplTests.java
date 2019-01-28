@@ -741,7 +741,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void awaitRunning(long timeout, TimeUnit unit) throws TimeoutException {
+        public void awaitRunning(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
@@ -751,7 +751,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void awaitTerminated(long timeout, TimeUnit unit) throws TimeoutException {
+        public void awaitTerminated(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
@@ -791,7 +791,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
