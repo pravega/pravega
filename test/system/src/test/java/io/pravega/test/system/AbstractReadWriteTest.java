@@ -212,7 +212,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return CompletableFuture.runAsync(() -> {
             while (!stopFlag.get()) {
                 Transaction<String> transaction = null;
-                AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
                     transaction = writer.beginTxn();
@@ -235,7 +234,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                     }
                     //commit Txn
                     transaction.commit();
-                    txnIsDone.set(true);
 
                     //wait for transaction to get committed
                     testState.txnStatusFutureList.add(checkTxnStatus(transaction, NUM_EVENTS_PER_TRANSACTION));
@@ -243,7 +241,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                     // Given that we have retry logic both in the interaction with controller and
                     // segment store, we should fail the test case in the presence of any exception
                     // caught here.
-                    txnIsDone.set(true);
                     log.warn("Exception while writing events in the transaction: ", e);
                     if (transaction != null) {
                         log.debug("Transaction with id: {}  failed", transaction.getTxnId());
