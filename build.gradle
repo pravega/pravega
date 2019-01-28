@@ -245,9 +245,6 @@ project('segmentstore:storage:impl') {
 
 project ('bindings') {
     dependencies {
-        // For filesystem
-        compile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: googleCloudStorageProviderVersion
-
         // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
@@ -258,6 +255,7 @@ project ('bindings') {
         compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
         testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
 
         compile project(':common')
         compile project(':segmentstore:storage')
