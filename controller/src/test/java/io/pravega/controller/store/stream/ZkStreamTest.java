@@ -17,7 +17,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
-import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.shared.segment.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.collect.Lists;
 import org.apache.curator.framework.CuratorFramework;

@@ -7,13 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.stream;
+package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -25,19 +26,41 @@ import lombok.RequiredArgsConstructor;
 public class ScalingPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public enum ScaleType {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
-        FIXED_NUM_SEGMENTS,
+        FIXED_NUM_SEGMENTS((byte) 0),
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_KBYTES_PER_SEC,
+        BY_RATE_IN_KBYTES_PER_SEC((byte) 1),
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS_PER_SEC,
+        BY_RATE_IN_EVENTS_PER_SEC((byte) 2);
+
+        @Getter
+        private final byte id;
+
+        /**
+         * Gets the {@link ScaleType} that matches the given id.
+         *
+         * @param id The Id to match.
+         * @return the {@link ScaleType}.
+         */
+        public static ScaleType byId(byte id) {
+            if (id == FIXED_NUM_SEGMENTS.getId()) {
+                return FIXED_NUM_SEGMENTS;
+            } else if (id == BY_RATE_IN_KBYTES_PER_SEC.getId()) {
+                return BY_RATE_IN_KBYTES_PER_SEC;
+            } else if (id == BY_RATE_IN_EVENTS_PER_SEC.getId()) {
+                return BY_RATE_IN_EVENTS_PER_SEC;
+            } else {
+                throw new IllegalArgumentException("Unsupported Scale Type id " + id);
+            }
+        }
     }
 
     private final ScaleType scaleType;

@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.shared.segment.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;

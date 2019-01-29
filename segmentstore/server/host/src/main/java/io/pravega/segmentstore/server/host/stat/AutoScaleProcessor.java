@@ -27,7 +27,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -206,45 +205,41 @@ public class AutoScaleProcessor {
         });
     }
 
-    void report(String streamSegmentName, long targetRate, byte type, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
+    void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
         if (initialized.get()) {
             // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
             // possible.
             // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'
-            if (type != WireCommands.CreateSegment.NO_SCALE) {
-                long currentTime = System.currentTimeMillis();
-                if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
-                    log.debug("cool down period elapsed for {}", streamSegmentName);
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - startTime > configuration.getCooldownDuration().toMillis()) {
+                log.debug("cool down period elapsed for {}", streamSegmentName);
 
-                    // report to see if a scale operation needs to be performed.
-                    if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
-                            (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
-                            (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
-                        int numOfSplits = Math.max(2, (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate));
-                        log.debug("triggering scale up for {} with number of splits {}", streamSegmentName, numOfSplits);
+                // report to see if a scale operation needs to be performed.
+                if ((twoMinuteRate > 5.0 * targetRate && currentTime - startTime > TWO_MINUTES) ||
+                        (fiveMinuteRate > 2.0 * targetRate && currentTime - startTime > FIVE_MINUTES) ||
+                        (tenMinuteRate > targetRate && currentTime - startTime > TEN_MINUTES)) {
+                    int numOfSplits = Math.max(2, (int) (Double.max(Double.max(twoMinuteRate, fiveMinuteRate), tenMinuteRate) / targetRate));
+                    log.debug("triggering scale up for {} with number of splits {}", streamSegmentName, numOfSplits);
 
-                        triggerScaleUp(streamSegmentName, numOfSplits);
-                    }
+                    triggerScaleUp(streamSegmentName, numOfSplits);
+                }
 
-                    if (twoMinuteRate < targetRate &&
-                            fiveMinuteRate < targetRate &&
-                            tenMinuteRate < targetRate &&
-                            twentyMinuteRate < targetRate / 2.0 &&
-                            currentTime - startTime > TWENTY_MINUTES) {
-                        log.debug("triggering scale down for {}", streamSegmentName);
+                if (twoMinuteRate < targetRate &&
+                        fiveMinuteRate < targetRate &&
+                        tenMinuteRate < targetRate &&
+                        twentyMinuteRate < targetRate / 2.0 &&
+                        currentTime - startTime > TWENTY_MINUTES) {
+                    log.debug("triggering scale down for {}", streamSegmentName);
 
-                        triggerScaleDown(streamSegmentName, false);
-                    }
+                    triggerScaleDown(streamSegmentName, false);
                 }
             }
         }
     }
 
-    void notifyCreated(String segmentStreamName, byte type, long targetRate) {
-        if (type != WireCommands.CreateSegment.NO_SCALE) {
-            cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
-        }
+    void notifyCreated(String segmentStreamName) {
+        cache.put(segmentStreamName, new ImmutablePair<>(System.currentTimeMillis(), System.currentTimeMillis()));
     }
 
     void notifySealed(String segmentStreamName) {

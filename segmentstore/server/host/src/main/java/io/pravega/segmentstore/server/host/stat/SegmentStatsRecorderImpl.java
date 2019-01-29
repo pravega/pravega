@@ -9,16 +9,14 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import lombok.extern.slf4j.Slf4j;
-
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
@@ -27,6 +25,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
@@ -110,7 +109,7 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
                                 byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
                                 int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_RATE).intValue();
-                                cache.put(streamSegmentName, new SegmentAggregates(type, rate));
+                                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), rate));
                             }
                             pendingCacheLoads.remove(streamSegmentName);
                         }, executor);
@@ -120,8 +119,11 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate) {
-        cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
-        reporter.notifyCreated(streamSegmentName, type, targetRate);
+        SegmentAggregates sa = SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), targetRate);
+        cache.put(streamSegmentName, sa);
+        if (sa.isScalingEnabled()) {
+            reporter.notifyCreated(streamSegmentName);
+        }
     }
 
     @Override
@@ -137,8 +139,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null) {
             // if there is a scale type change, discard the old object and create a new object
-            if (aggregates.getScaleType() != type) {
-                cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
+            if (aggregates.getScaleType().getId() != type) {
+                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), targetRate));
             } else {
                 aggregates.setTargetRate(targetRate);
             }
@@ -164,11 +166,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
             // only upon txn commit. This is done via merge method. So here we can get a txn which
             // we do not know about and hence we can get null and ignore.
 
-            if (aggregates != null) {
-                if (aggregates.getScaleType() != WireCommands.CreateSegment.NO_SCALE) {
-                    aggregates.update(dataLength, numOfEvents);
-                    report(streamSegmentName, aggregates);
-                }
+            if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
+                report(streamSegmentName, aggregates);
             }
         } catch (Exception e) {
             log.warn("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e);
@@ -186,23 +185,17 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-        if (aggregates != null) {
-            aggregates.updateTx(dataLength, numOfEvents, txnCreationTime);
+        if (aggregates != null && aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
             report(streamSegmentName, aggregates);
         }
     }
 
-    private long report(String streamSegmentName, SegmentAggregates aggregates) {
-        return aggregates.lastReportedTime.getAndUpdate(prev -> {
-            if (System.currentTimeMillis() - prev > reportingDuration) {
-                reporter.report(streamSegmentName,
-                        aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
-                        aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                        aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
-                return System.currentTimeMillis();
-            }
-
-            return prev;
+    private void report(String streamSegmentName, SegmentAggregates aggregates) {
+        aggregates.reportIfNecessary(reportingDuration, () -> {
+            reporter.report(streamSegmentName,
+                    aggregates.getTargetRate(), aggregates.getStartTime(),
+                    aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
+                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
         });
     }
 
