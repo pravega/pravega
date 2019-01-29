@@ -16,6 +16,7 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.ArrayView;
@@ -94,6 +95,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -152,6 +158,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
+    private final ScheduledExecutorService executor;
 
     //endregion
 
@@ -161,42 +168,46 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Creates a new instance of the PravegaRequestProcessor class with no Metrics StatsRecorder.
      *
      * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore The TableStore to attach to (and issue requests to).
+     * @param tableStore   The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
-     */
-    @VisibleForTesting
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
-        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), MetricsProvider.getDynamicLogger(), false);
-    }
-
-    /**
-     * Creates a new instance of the PravegaRequestProcessor class with metrics logger.
-     *
-     * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore The TableStore to attach to (and issue requests to).
-     * @param connection   The ServerConnection to attach to (and send responses to).
-     * @param dynamicLogger  The DynamicLogger to log metrics.
+     * @param executor     The executor to run processing tasks.
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                                   DynamicLogger dynamicLogger) {
-        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), dynamicLogger, false);
+                                   ScheduledExecutorService executor) {
+        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), MetricsProvider.getDynamicLogger(), false, executor);
+    }
+
+    /**
+     * Creates a new instance of the Praveg aRequestProcessor class with metrics logger.
+     *
+     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore    The TableStore to attach to (and issue requests to).
+     * @param connection    The ServerConnection to attach to (and send responses to).
+     * @param dynamicLogger The DynamicLogger to log metrics.
+     * @param executor      The executor to run processing tasks.
+     */
+    @VisibleForTesting
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
+                                   DynamicLogger dynamicLogger, ScheduledExecutorService executor) {
+        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), dynamicLogger, false, executor);
     }
 
     /**
      * Creates a new instance of the PravegaRequestProcessor class.
      *
-     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore The TableStore to attach to (and issue requests to).
-     * @param connection    The ServerConnection to attach to (and send responses to).
-     * @param statsRecorder (Optional) A StatsRecorder for Metrics.
-     * @param tokenVerifier  Verifier class that verifies delegation token.
-     * @param dynamicLogger  DynamicLogger to log metrics.
+     * @param segmentStore               The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore                 The TableStore to attach to (and issue requests to).
+     * @param connection                 The ServerConnection to attach to (and send responses to).
+     * @param statsRecorder              (Optional) A StatsRecorder for Metrics.
+     * @param tokenVerifier              Verifier class that verifies delegation token.
+     * @param dynamicLogger              DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
+     * @param executor                   The executor to run processing tasks.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
                             SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                            DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
+                            DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
@@ -204,6 +215,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.statsRecorder = statsRecorder;
         this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.executor = executor;
     }
 
     //endregion
@@ -733,6 +745,62 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                          }).collect(toList());
 
         return new WireCommands.TableEntries(entries);
+    }
+
+    @Override
+    public void getTableKeys(WireCommands.GetTableKeys getTableKeys) {
+        final String segment = getTableKeys.getSegment();
+        final String operation = "getKeys";
+
+        if (!verifyToken(segment, getTableKeys.getRequestId(), getTableKeys.getDelegationToken(), operation)) {
+            return;
+        }
+
+        log.info(getTableKeys.getRequestId(), "Fetching keys from {}.", getTableKeys);
+
+        int suggestedKeyCount = getTableKeys.getSuggestedKeyCount();
+        ByteBuffer token = getTableKeys.getContinuationToken();
+
+        byte[] state = null;
+
+        if (!token.equals(EMPTY_BYTE_BUFFER)) {
+            state = token.array();
+        }
+
+        final AtomicBoolean canContinue = new AtomicBoolean(true);
+        final AtomicInteger keyCount = new AtomicInteger(0);
+        final AtomicReference<ByteBuffer> continuationToken = new AtomicReference<>(EMPTY_BYTE_BUFFER);
+        final LinkedBlockingQueue<TableKey> keys = new LinkedBlockingQueue<>();
+        tableStore.keyIterator(segment, state, TIMEOUT)
+                  .thenCompose(itr -> Futures.loop(
+                          canContinue::get,
+                          itr::getNext,
+                          e -> {
+                              if (e == null) {
+                                  canContinue.set(false);
+                              } else {
+                                  keys.addAll(e.getEntries()); // read all entries
+                                  ArrayView lastState = e.getState();
+                                  // update the continuation token.
+                                  continuationToken.set(ByteBuffer.wrap(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                  keyCount.addAndGet(e.getEntries().size());
+                                  if (keyCount.get() >= suggestedKeyCount) { // set the continuation flag to false if we have read more
+                                      // than the suggested count.
+                                      canContinue.set(false);
+                                  }
+                              }
+                          }, executor))
+                  .thenAccept(v -> {
+                      List<WireCommands.TableKey> wireCommandKeys = keys.stream()
+                                                                        .map(k -> {
+                                                                            ArrayView keyArray = k.getKey();
+                                                                            return new WireCommands.TableKey(ByteBuffer.wrap(keyArray.array(),
+                                                                                                                             keyArray.arrayOffset(),
+                                                                                                                             keyArray.getLength()), k.getVersion());
+                                                                        })
+                                                                        .collect(toList());
+                      connection.send(new WireCommands.TableKeys(getTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
+                  }).exceptionally(e -> handleException(getTableKeys.getRequestId(), segment, operation, e));
     }
 
     //endregion

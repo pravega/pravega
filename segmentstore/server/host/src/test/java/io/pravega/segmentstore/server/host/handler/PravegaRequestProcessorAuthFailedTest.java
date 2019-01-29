@@ -13,6 +13,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,7 +21,7 @@ import org.junit.Test;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class PravegaRequestProcessorAuthFailedTest {
+public class PravegaRequestProcessorAuthFailedTest extends ThreadPooledTestSuite {
 
     private PravegaRequestProcessor processor;
     private ServerConnection connection;
@@ -30,7 +31,7 @@ public class PravegaRequestProcessorAuthFailedTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
         processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, null, (resource, token, expectedLevel) -> false,
-                                                           MetricsProvider.getDynamicLogger(), false);
+                                                           MetricsProvider.getDynamicLogger(), false, executorService());
     }
 
     @After

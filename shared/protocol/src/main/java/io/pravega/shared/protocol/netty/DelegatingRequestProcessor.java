@@ -130,4 +130,9 @@ public abstract class DelegatingRequestProcessor implements RequestProcessor {
         getNextRequestProcessor().readTable(readTable);
     }
 
+    @Override
+    public void getTableKeys(WireCommands.GetTableKeys getTableKeys) {
+        getNextRequestProcessor().getTableKeys(getTableKeys);
+    }
+
 }

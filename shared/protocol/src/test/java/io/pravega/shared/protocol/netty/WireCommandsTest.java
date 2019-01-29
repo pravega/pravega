@@ -618,6 +618,23 @@ public class WireCommandsTest {
         assertTrue(cmd.isFailure());
     }
 
+    @Test
+    public void testGetTableKeys() throws IOException {
+        WireCommands.GetTableKeys cmd = new WireCommands.GetTableKeys(l, testString1, "", 100, buffer);
+        testCommand(cmd);
+        cmd = new WireCommands.GetTableKeys(l, testString1, "", 100, ByteBuffer.wrap(new byte[0]));
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testTableKeys() throws IOException {
+        List<WireCommands.TableKey> keys = Arrays.asList(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableKey(buffer, 2L));
+        WireCommands.TableKeys cmd = new WireCommands.TableKeys(l, testString1, keys, buffer);
+        testCommand(cmd);
+        cmd = new WireCommands.TableKeys(l, testString1, keys, ByteBuffer.wrap(new byte[0]));
+        testCommand(cmd);
+    }
+
     private void testCommand(WireCommand command) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         command.writeFields(new DataOutputStream(bout));

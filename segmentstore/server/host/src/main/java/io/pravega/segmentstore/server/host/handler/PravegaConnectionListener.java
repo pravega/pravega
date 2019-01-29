@@ -31,6 +31,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -42,6 +43,7 @@ import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import java.io.File;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.net.ssl.SSLException;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -65,6 +67,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private EventLoopGroup workerGroup;
     private final SegmentStatsRecorder statsRecorder;
     private final boolean replyWithStackTraceOnError;
+    private final ScheduledExecutorService executor;
 
     //endregion
 
@@ -114,6 +117,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
             this.tokenVerifier = new PassingTokenVerifier();
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(Runtime.getRuntime().availableProcessors(),
+                                                                      "pravegaRequestProcessor");
     }
 
     //endregion
@@ -163,7 +168,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tokenVerifier, MetricsProvider.getDynamicLogger(), replyWithStackTraceOnError),
+                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tokenVerifier,
+                                                     MetricsProvider.getDynamicLogger(), replyWithStackTraceOnError, executor),
                          statsRecorder,
                          tokenVerifier,
                          MetricsProvider.getDynamicLogger(),
@@ -177,6 +183,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
     @Override
     public void close() {
+        ExecutorServiceHelpers.shutdown(executor);
         // Wait until the server socket is closed.
         Exceptions.handleInterrupted(() -> {
             serverChannel.close();

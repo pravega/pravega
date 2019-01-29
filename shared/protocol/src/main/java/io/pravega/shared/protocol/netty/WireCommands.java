@@ -1697,6 +1697,87 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class GetTableKeys implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.GET_TABLE_KEYS;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+        final int suggestedKeyCount;
+        final ByteBuffer continuationToken; // this used to indicate the point from which the next keys should be fetched.
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.getTableKeys(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(suggestedKeyCount);
+            out.writeInt(continuationToken.remaining()); // continuation token length.
+            if (continuationToken.remaining() != 0) {
+                out.write(continuationToken.array(), continuationToken.arrayOffset() + continuationToken.position(), continuationToken.remaining());
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int suggestedKeyCount = in.readInt();
+            int dataLength = in.readInt();
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new GetTableKeys(requestId, segment, delegationToken, suggestedKeyCount, ByteBuffer.wrap(continuationToken));
+        }
+    }
+
+    @Data
+    public static final class TableKeys implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEYS;
+        final long requestId;
+        final String segment;
+        final List<TableKey> keys;
+        final ByteBuffer continuationToken; // this used to indicate the point from which the next keys should be fetched.
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableKeys(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeInt(keys.size());
+            for (TableKey key : keys) {
+                key.writeFields(out);
+            }
+            out.writeInt(continuationToken.remaining());
+            out.write(continuationToken.array(), continuationToken.arrayOffset() + continuationToken.position(), continuationToken.remaining());
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            int numberOfKeys = in.readInt();
+            List<TableKey> keys = new ArrayList<>(numberOfKeys);
+            for (int i = 0; i < numberOfKeys; i++) {
+                keys.add(TableKey.readFrom(in, in.available()));
+            }
+            int dataLength = in.readInt();
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new TableKeys(requestId, segment, keys, ByteBuffer.wrap(continuationToken));
+        }
+    }
+
+    @Data
     public static final class TableEntries {
         final List<Map.Entry<TableKey, TableValue>> entries;
 

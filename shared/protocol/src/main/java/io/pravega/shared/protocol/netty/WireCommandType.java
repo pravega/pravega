@@ -97,6 +97,12 @@ public enum WireCommandType {
     TABLE_KEY_DOES_NOT_EXIST(81, WireCommands.TableKeyDoesNotExist::readFrom),
     TABLE_KEY_BAD_VERSION(82, WireCommands.TableKeyBadVersion::readFrom),
 
+    GET_TABLE_KEYS(83, WireCommands.GetTableKeys::readFrom ),
+    TABLE_KEYS(84, WireCommands.TableKeys::readFrom),
+
+    //    GET_TABLE_ENTRIES(85,),
+    //    TABLE_ENTRIES(86,),
+
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
     private final int code;

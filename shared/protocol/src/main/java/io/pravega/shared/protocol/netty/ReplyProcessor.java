@@ -81,4 +81,6 @@ public interface ReplyProcessor {
     void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist);
 
     void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
+
+    void tableKeys(WireCommands.TableKeys tableKeys);
 }
