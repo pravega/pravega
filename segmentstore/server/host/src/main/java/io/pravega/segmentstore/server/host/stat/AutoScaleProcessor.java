@@ -30,6 +30,7 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -61,13 +62,16 @@ public class AutoScaleProcessor {
     private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
+    private final ExecutorService executor;
     private final ScheduledExecutorService maintenanceExecutor;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
 
 
     AutoScaleProcessor(AutoScalerConfig configuration,
+                       ExecutorService executor, 
                        ScheduledExecutorService maintenanceExecutor) {
         this.configuration = configuration;
+        this.executor = executor;
         this.maintenanceExecutor = maintenanceExecutor;
 
         serializer = new JavaSerializer<>();
@@ -89,17 +93,18 @@ public class AutoScaleProcessor {
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, maintenanceExecutor);
+    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration,
+            ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, executor, maintenanceExecutor);
         this.writer.set(writer);
         this.initialized.set(true);
         maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(AutoScalerConfig configuration, EventStreamClientFactory cf,
-                       ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, maintenanceExecutor);
+    AutoScaleProcessor(AutoScalerConfig configuration, EventStreamClientFactory cf, ExecutorService executor,
+            ScheduledExecutorService maintenanceExecutor) {
+        this(configuration, executor, maintenanceExecutor);
         clientFactory.set(cf);
     }
 
@@ -164,7 +169,7 @@ public class AutoScaleProcessor {
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
                         AutoScaleEvent.UP, timestamp, numOfSplits, false, requestId);
                 // Mute scale for timestamp for both scale up and down
-                writeRequest(event).thenAccept(x -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
+                writeRequest(event, () -> cache.put(streamSegmentName, new ImmutablePair<>(timestamp, timestamp)));
             }
         }
     }
@@ -186,7 +191,7 @@ public class AutoScaleProcessor {
                 Segment segment = Segment.fromScopedName(streamSegmentName);
                 AutoScaleEvent event = new AutoScaleEvent(segment.getScope(), segment.getStreamName(), segment.getSegmentId(),
                         AutoScaleEvent.DOWN, timestamp, 0, silent, requestId);
-                writeRequest(event).thenAccept(x -> {
+                writeRequest(event, () -> {
                     if (!silent) {
                         // mute only scale downs
                         cache.put(streamSegmentName, new ImmutablePair<>(0L, timestamp));
@@ -196,13 +201,16 @@ public class AutoScaleProcessor {
         }
     }
 
-    private CompletableFuture<Void> writeRequest(AutoScaleEvent event) {
-        return writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
-            if (e != null) {
-                log.error(event.getTimestamp(), "error sending request to requeststream {}", e);
-            } else {
-                log.debug(event.getTimestamp(), "scale event posted successfully");
-            }
+    private void writeRequest(AutoScaleEvent event, Runnable onSuccess) {
+        executor.execute(() -> {
+            writer.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
+                if (e != null) {
+                    log.error(event.getTimestamp(), "error sending request to requeststream {}", e);
+                } else {
+                    log.debug(event.getTimestamp(), "scale event posted successfully");
+                    onSuccess.run();
+                }
+            });
         });
     }
 

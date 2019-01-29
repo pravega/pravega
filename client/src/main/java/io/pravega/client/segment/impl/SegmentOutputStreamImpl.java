@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -67,7 +68,8 @@ import static com.google.common.base.Preconditions.checkState;
 @Slf4j
 @ToString(of = {"segmentName", "writerId", "state"})
 class SegmentOutputStreamImpl implements SegmentOutputStream {
-
+    private static final long FLUSH_TIMEOUT = 30000;
+    
     @Getter
     private final String segmentName;
     private final Controller controller;
@@ -110,9 +112,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         /**
          * Block until all events are acked by the server.
+         * @throws TimeoutException If the timeout is reached.
          */
-        private void waitForInflight() {
-           Exceptions.handleInterrupted(() -> waitingInflight.await());
+        private void waitForInflight(long timeout) throws TimeoutException {
+           Exceptions.handleInterrupted(() -> waitingInflight.await(timeout));
         }
 
         private boolean isAlreadySealed() {
@@ -488,22 +491,28 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Override
     public void flush() throws SegmentSealedException {
         int numInflight = state.getNumInflight();
-        log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
-        if (numInflight != 0) {
+        while (numInflight != 0) {
+            log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
             } catch (Exception e) {
                 failConnection(e);
             }
-            state.waitForInflight();
-            Exceptions.checkNotClosed(state.isClosed(), this);
-            /* SegmentSealedException is thrown if either of the below conditions are true
+            try {
+                state.waitForInflight(FLUSH_TIMEOUT);
+                Exceptions.checkNotClosed(state.isClosed(), this);
+                /* SegmentSealedException is thrown if either of the below conditions are true
                  - resendToSuccessorsCallback has been invoked.
                  - the segment corresponds to an aborted Transaction.
-             */
-            if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
-                throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
+                 */
+                if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
+                    throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
+                }
+                numInflight = 0;
+            } catch (TimeoutException e) {
+                failConnection(e);
+                numInflight = state.getNumInflight();
             }
         }
     }
