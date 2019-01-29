@@ -76,11 +76,11 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
 
         AutoScaleProcessor monitor = new AutoScaleProcessor(writer,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                        .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
-                        .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
-                        .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
-                        .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                executorService());
+                                          .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                                          .with(AutoScalerConfig.AUTH_ENABLED, authEnabled)
+                                          .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
+                                          .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
+                executorService(), executorService());
 
         String streamSegmentName1 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
         String streamSegmentName2 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM2, 0L);
@@ -125,10 +125,10 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 scaleDownFuture.completeExceptionally(new RuntimeException());
             }
         }), AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
-                .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
-                .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
-                executorService());
+                                      .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                                      .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 1)
+                                      .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
+                executorService(), executorService());
         String streamSegmentName1 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
         monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
