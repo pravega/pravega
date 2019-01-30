@@ -57,7 +57,7 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     private final AtomicReference<EventStreamClientFactory> clientFactory = new AtomicReference<>();
     private final Cache<String, Pair<Long, Long>> cache;
-    private final Serializer<AutoScaleEvent> serializer; // TODO: this isn't versioned.
+    private final Serializer<AutoScaleEvent> serializer;
     private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
@@ -122,7 +122,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         // creation of requeststream.
         executor.schedule(
                 () -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
-                           .run(() -> bootstrapOnce(executor)),
+                           .runInExecutor(() -> bootstrapOnce(executor), executor),
                 10, TimeUnit.SECONDS);
     }
 
@@ -131,7 +131,7 @@ public class AutoScaleProcessor implements AutoCloseable {
         log.debug("error while creating writer for requeststream", e); // Only output stack trace in debug mode.
     }
 
-    private Void bootstrapOnce(ScheduledExecutorService executor) {
+    private void bootstrapOnce(ScheduledExecutorService executor) {
         if (clientFactory.get() == null) {
             // This may have been already initialized in a previous attempt, so don't do it again.
             clientFactory.set(createFactory());
@@ -146,7 +146,6 @@ public class AutoScaleProcessor implements AutoCloseable {
         // own background thread.
         executor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
         log.info("AutoScale Processor Initialized. RequestStream={}", configuration.getInternalRequestStream());
-        return null;
     }
 
     private EventStreamClientFactory createFactory() {
