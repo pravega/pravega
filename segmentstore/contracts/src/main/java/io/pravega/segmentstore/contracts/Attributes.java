@@ -28,7 +28,7 @@ public class Attributes {
      * The Attribute ID at which Table Attributes can begin at. Everything with an ID smaller than this is a general
      * Attribute.
      */
-    public static final long TABLE_ATTRIBUTES_START_OFFSET = 1024; // Powers of 2 make UUID.toString look readable.
+    public static final long TABLE_ATTRIBUTES_START_OFFSET = 1024 * 1024; // Powers of 2 make UUID.toString look readable.
 
     /**
      * Defines an attribute value that denotes a missing value.
