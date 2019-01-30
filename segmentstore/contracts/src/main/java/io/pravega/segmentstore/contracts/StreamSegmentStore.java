@@ -123,12 +123,6 @@ public interface StreamSegmentStore {
      * Gets information about a StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment.
-     * @param waitForPendingOps If true, it waits for all operations that are currently pending to complete before returning
-     *                          the result. Use this parameter if you need consistency with respect to operation order
-     *                          (for example, if a series of Appends were just added but not yet processed, a call to
-     *                          this method with isSync==false would not guarantee those appends are taken into consideration).
-     *                          A side effect of setting this to true is that the operation may take longer to process
-     *                          because it needs to wait for pending ops to complete.
      * @param timeout           Timeout for the operation.
      * @return A CompletableFuture that, when completed normally, will contain the result. If the operation failed, the
      * future will be failed with the causing exception. Note that this result will only contain those attributes that
@@ -136,7 +130,7 @@ public interface StreamSegmentStore {
      * getAttributes(), which will fetch all attributes, regardless of where they are currently located.
      * @throws IllegalArgumentException If any of the arguments are invalid.
      */
-    CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout);
+    CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout);
 
     /**
      * Creates a new StreamSegment.

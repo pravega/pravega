@@ -550,10 +550,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             if (expectDeleted) {
                 AssertExtensions.assertSuppliedFutureThrows(
                         "Segment '" + segmentName + "' was not deleted.",
-                        () -> store.getStreamSegmentInfo(segmentName, false, TIMEOUT),
+                        () -> store.getStreamSegmentInfo(segmentName, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
             } else {
-                SegmentProperties sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                SegmentProperties sp = store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
                 long expectedStartOffset = startOffsets.getOrDefault(segmentName, 0L);
                 long expectedLength = e.getValue();
                 Assert.assertEquals("Unexpected Start Offset for segment " + segmentName, expectedStartOffset, sp.getStartOffset());
@@ -585,7 +585,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
-            long segmentLength = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
+            long segmentLength = store.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
             Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedData.length, segmentLength);
 
             AtomicLong expectedCurrentOffset = new AtomicLong(0);
@@ -643,7 +643,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
-            long segmentLength = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
+            long segmentLength = store.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
             long expectedCurrentOffset = 0;
             boolean truncate = false;
 
@@ -733,7 +733,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // 1. Deletion status
             SegmentProperties sp = null;
             try {
-                sp = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             } catch (Exception ex) {
                 if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
@@ -743,7 +743,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             if (sp == null) {
                 AssertExtensions.assertSuppliedFutureThrows(
                         "Segment is marked as deleted in SegmentStore but was not deleted in Storage " + segmentName,
-                        () -> readOnlySegmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT),
+                        () -> readOnlySegmentStore.getStreamSegmentInfo(segmentName, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
 
                 // No need to do other checks.
@@ -751,12 +751,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             // 2. Seal Status
-            SegmentProperties storageProps = readOnlySegmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties storageProps = readOnlySegmentStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             Assert.assertEquals("Segment seal status disagree between Store and Storage for segment " + segmentName,
                     sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.
-            SegmentProperties metadataProps = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties metadataProps = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedData.length,
                     storageProps.getLength());
             byte[] actualData = new byte[expectedData.length];
@@ -795,7 +795,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                                              StreamSegmentStore readOnlyStore) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             segmentsCompletion.add(waitForSegmentInStorage(sp, readOnlyStore));
         }
 
@@ -813,7 +813,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return Futures.loop(
                 tryAgain::get,
                 () -> Futures
-                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT),
+                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), TIMEOUT),
                                 ex -> ex instanceof StreamSegmentNotExistsException,
                                 StreamSegmentInformation.builder().name(sp.getName()).build())
                         .thenCompose(storageProps -> {

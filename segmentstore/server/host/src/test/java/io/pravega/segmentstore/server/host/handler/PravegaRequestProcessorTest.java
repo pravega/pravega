@@ -253,13 +253,13 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
                 .length(1234)
                 .startOffset(123)
                 .build();
-        when(store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT))
+        when(store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(info));
 
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
         processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(store).getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT);
+        verify(store).getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT);
         verify(connection).send(new WireCommands.SegmentIsTruncated(0, streamSegmentName, info.getStartOffset(), ""));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -524,21 +524,21 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         assertFalse(append(streamSegmentName, 2, store));
 
         // Truncate half.
-        final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+        final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getLength() / 2;
         AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
         processor.truncateSegment(new WireCommands.TruncateSegment(3, streamSegmentName, truncateOffset, ""));
-        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Truncate at the same offset - verify idempotence.
         processor.truncateSegment(new WireCommands.TruncateSegment(4, streamSegmentName, truncateOffset, ""));
-        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Truncate at a lower offset - verify failure.
         processor.truncateSegment(new WireCommands.TruncateSegment(5, streamSegmentName, truncateOffset - 1, ""));
-        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, false, PravegaRequestProcessor.TIMEOUT)
+        assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Delete.

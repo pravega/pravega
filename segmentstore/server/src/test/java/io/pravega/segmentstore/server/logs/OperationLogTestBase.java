@@ -29,7 +29,6 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
@@ -190,8 +189,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
             }
         }
 
-        addProbe(result);
-
         for (long transactionId : transactionIds.keySet()) {
             for (int i = 0; i < appendsPerStreamSegment; i++) {
                 val attributes = Collections.singletonList(new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.Replace, i));
@@ -200,8 +197,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 appendId++;
             }
         }
-
-        addProbe(result);
 
         // Merge Transactions.
         if (mergeTransactions) {
@@ -212,7 +207,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 result.add(new MergeSegmentOperation(mapping.getValue(), mapping.getKey()));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
-            addProbe(result);
         }
 
         // Seal the StreamSegments.
@@ -221,7 +215,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
                 result.add(new StreamSegmentSealOperation(streamSegmentId));
                 addCheckpointIfNeeded(result, metadataCheckpointsEvery);
             });
-            addProbe(result);
         }
 
         return result;
@@ -235,10 +228,6 @@ abstract class OperationLogTestBase extends ThreadPooledTestSuite {
         if (metadataCheckpointsEvery > 0 && operations.size() % metadataCheckpointsEvery == 0) {
             operations.add(new MetadataCheckpointOperation());
         }
-    }
-
-    private void addProbe(Collection<Operation> operations) {
-        operations.add(new ProbeOperation());
     }
 
     //endregion

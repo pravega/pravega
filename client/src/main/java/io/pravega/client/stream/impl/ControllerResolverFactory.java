@@ -15,11 +15,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import io.grpc.Attributes;
 import io.grpc.EquivalentAddressGroup;
+import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
@@ -145,8 +145,8 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
                         .forTarget(connectString)
                         .nameResolverFactory(new ControllerResolverFactory())
-                        .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                        .usePlaintext(true)
+                        .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
+                        .usePlaintext()
                         .build());
             } else {
                 this.client = null;

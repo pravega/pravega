@@ -158,6 +158,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
                             }
                         }), scaleExecutorService)
                 .thenCompose(v -> Futures.allOf(writers))
+                .thenRun(this::waitForTxnsToComplete)
                 .thenCompose(v -> {
                     stopReadFlag.set(true);
                     log.info("All writers have stopped. Setting Stop_Read_Flag. Event Written Count:{}, Event Read " +
