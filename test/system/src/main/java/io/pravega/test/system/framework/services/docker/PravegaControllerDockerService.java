@@ -66,7 +66,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
     }
 
     private ServiceSpec setServiceSpec() {
-        Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
+        Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/opt/pravega/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> stringBuilderMap = new HashMap<>();
         stringBuilderMap.put("ZK_URL", zk);
