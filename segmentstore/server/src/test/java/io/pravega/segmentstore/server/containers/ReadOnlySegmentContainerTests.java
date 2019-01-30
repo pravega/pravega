@@ -59,7 +59,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         // Non-existent segment.
         AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected exception when the segment does not exist.",
-                () -> context.container.getStreamSegmentInfo(SEGMENT_NAME, false, TIMEOUT),
+                () -> context.container.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // Create a segment, add some data, set some attributes, "truncate" it and then seal it.
@@ -72,7 +72,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
                 .build();
 
         // Fetch the SegmentInfo from the ReadOnlyContainer and verify it is as expected.
-        val actual = context.container.getStreamSegmentInfo(SEGMENT_NAME, false, TIMEOUT).join();
+        val actual = context.container.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT).join();
         Assert.assertEquals("Unexpected Name.", expectedInfo.getName(), actual.getName());
         Assert.assertEquals("Unexpected Length.", expectedInfo.getLength(), actual.getLength());
         Assert.assertEquals("Unexpected Sealed status.", expectedInfo.isSealed(), actual.isSealed());
@@ -88,7 +88,7 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         val context = new TestContext();
         context.container.startAsync().awaitRunning();
         val writtenData = populate(SEGMENT_LENGTH, truncationOffset, context);
-        val segmentInfo = context.container.getStreamSegmentInfo(SEGMENT_NAME, false, TIMEOUT).join();
+        val segmentInfo = context.container.getStreamSegmentInfo(SEGMENT_NAME, TIMEOUT).join();
         @Cleanup
         val rr = context.container.read(SEGMENT_NAME, 0, writtenData.length, TIMEOUT).join();
         StreamSegmentStorageReaderTests.verifyReadResult(rr, segmentInfo, 0, writtenData.length, writtenData);

@@ -156,7 +156,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             if (this.segments.contains(streamSegmentName)) {
                 return CompletableFuture.completedFuture(StreamSegmentInformation.builder().name(streamSegmentName).build());
             } else {
