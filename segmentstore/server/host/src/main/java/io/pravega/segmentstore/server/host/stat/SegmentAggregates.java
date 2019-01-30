@@ -28,7 +28,7 @@ import lombok.Getter;
  * for exponential weighing.
  */
 @ThreadSafe
-public abstract class SegmentAggregates {
+abstract class SegmentAggregates {
 
     private static final int SECONDS_PER_MINUTE = 60;
 
@@ -108,11 +108,11 @@ public abstract class SegmentAggregates {
         return currentCount;
     }
 
-    public abstract ScalingPolicy.ScaleType getScaleType();
+    abstract ScalingPolicy.ScaleType getScaleType();
 
     protected abstract long getUpdateCountDelta(long dataLength, int numOfEvents);
 
-    public boolean isScalingEnabled() {
+    boolean isScalingEnabled() {
         return true;
     }
 
@@ -188,9 +188,9 @@ public abstract class SegmentAggregates {
         return twentyMinuteRate;
     }
 
-    void reportIfNecessary(long reportingDuration, Runnable callback) {
+    void reportIfNecessary(Duration reportingDuration, Runnable callback) {
         lastReportedTime.getAndUpdate(prev -> {
-            if (getTimeMillis() - prev > reportingDuration) {
+            if (getTimeMillis() - prev > reportingDuration.toMillis()) {
                 callback.run();
                 return getTimeMillis();
             }

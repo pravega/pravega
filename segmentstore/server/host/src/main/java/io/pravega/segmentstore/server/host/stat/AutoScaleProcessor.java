@@ -30,10 +30,12 @@ import io.pravega.shared.controller.event.AutoScaleEvent;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import lombok.NonNull;
+import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
@@ -42,7 +44,7 @@ import org.slf4j.LoggerFactory;
  * This looks at segment aggregates and determines if a scale operation has to be triggered.
  * If a scale has to be triggered, then it puts a new scale request into the request stream.
  */
-public class AutoScaleProcessor {
+public class AutoScaleProcessor implements AutoCloseable {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleProcessor.class));
 
@@ -54,21 +56,16 @@ public class AutoScaleProcessor {
     private static final int INITIAL_CAPACITY = 1000;
 
     private final AtomicReference<EventStreamClientFactory> clientFactory = new AtomicReference<>();
-    private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final Cache<String, Pair<Long, Long>> cache;
-    private final Serializer<AutoScaleEvent> serializer;
+    private final Serializer<AutoScaleEvent> serializer; // TODO: this isn't versioned.
     private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final EventWriterConfig writerConfig;
     private final AutoScalerConfig configuration;
-    private final ScheduledExecutorService maintenanceExecutor;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
+    private final ScheduledFuture<?> cacheCleanup;
 
-
-    AutoScaleProcessor(AutoScalerConfig configuration,
-                       ScheduledExecutorService maintenanceExecutor) {
+    AutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull ScheduledExecutorService executor) {
         this.configuration = configuration;
-        this.maintenanceExecutor = maintenanceExecutor;
-
         serializer = new JavaSerializer<>();
         writerConfig = EventWriterConfig.builder().build();
         writer = new AtomicReference<>();
@@ -81,72 +78,96 @@ public class AutoScaleProcessor {
                     if (notification.getCause().equals(RemovalCause.EXPIRED)) {
                         triggerScaleDown(notification.getKey(), true);
                     }
-                }, maintenanceExecutor))
+                }, executor))
                 .build();
 
-        CompletableFuture.runAsync(this::bootstrapRequestWriters, maintenanceExecutor);
+        bootstrapRequestWriters(executor);
+        // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
+        // caches do not perform clean up if there is no activity. This is because they do not maintain their
+        // own background thread.
+        this.cacheCleanup = executor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(EventStreamWriter<AutoScaleEvent> writer, AutoScalerConfig configuration, ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, maintenanceExecutor);
+    AutoScaleProcessor(@NonNull EventStreamWriter<AutoScaleEvent> writer, @NonNull AutoScalerConfig configuration,
+                       @NonNull ScheduledExecutorService executor) {
+        this(configuration, executor);
         this.writer.set(writer);
-        this.initialized.set(true);
-        maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
     }
 
     @VisibleForTesting
-    AutoScaleProcessor(AutoScalerConfig configuration, EventStreamClientFactory cf,
-                       ScheduledExecutorService maintenanceExecutor) {
-        this(configuration, maintenanceExecutor);
+    AutoScaleProcessor(@NonNull AutoScalerConfig configuration, @NonNull EventStreamClientFactory cf, @NonNull ScheduledExecutorService executor) {
+        this(configuration, executor);
         clientFactory.set(cf);
     }
 
-    private void bootstrapRequestWriters() {
+    @Override
+    public void close() {
+        val w = this.writer.get();
+        if (w != null) {
+            w.close();
+        }
+        val cf = this.clientFactory.get();
+        if (cf != null) {
+            cf.close();
+        }
 
-        CompletableFuture<Void> createWriter = new CompletableFuture<>();
+        this.cacheCleanup.cancel(true);
+    }
 
+    private void bootstrapRequestWriters(ScheduledExecutorService executor) {
         // Starting with initial delay, in case request stream has not been created, to give it time to start
         // However, we have this wrapped in consumeFailure which means the creation of writer will be retried.
         // We are introducing a delay to avoid exceptions in the log in case creation of writer is attempted before
         // creation of requeststream.
-        maintenanceExecutor.schedule(() -> Retry.indefinitelyWithExpBackoff(100, 10, 10000,
-                e -> {
-                    log.warn("error while creating writer for requeststream");
-                    log.debug("error while creating writer for requeststream {}", e);
-                })
-                .runAsync(() -> {
-                    if (clientFactory.get() == null) {
-                        EventStreamClientFactory factory = null;
-                        if (configuration.isAuthEnabled()) {
-                            factory = EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                                    ClientConfig.builder().controllerURI(configuration.getControllerUri())
-                                                .trustStore(configuration.getTlsCertFile())
-                                                .validateHostName(configuration.isValidateHostName())
-                                                .build());
-                        } else {
-                            factory = EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
-                        }
-                        clientFactory.compareAndSet(null, factory);
-                    }
+        executor.schedule(
+                () -> Retry.indefinitelyWithExpBackoff(100, 10, 10000, this::handleBootstrapException)
+                           .run(() -> bootstrapOnce(executor)),
+                10, TimeUnit.SECONDS);
+    }
 
-                    this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),
-                            serializer,
-                            writerConfig));
-                    initialized.set(true);
-                    // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
-                    // caches do not perform clean up if there is no activity. This is because they do not maintain their
-                    // own background thread.
-                    maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
-                    log.info("bootstrapping auto-scale reporter done");
-                    createWriter.complete(null);
-                    return createWriter;
-                }, maintenanceExecutor), 10, TimeUnit.SECONDS);
+    private void handleBootstrapException(Throwable e) {
+        log.warn("error while creating writer for requeststream"); // Don't output stack trace.
+        log.debug("error while creating writer for requeststream", e); // Only output stack trace in debug mode.
+    }
+
+    private Void bootstrapOnce(ScheduledExecutorService executor) {
+        if (clientFactory.get() == null) {
+            // This may have been already initialized in a previous attempt, so don't do it again.
+            clientFactory.set(createFactory());
+        }
+
+        this.writer.set(clientFactory.get().createEventWriter(configuration.getInternalRequestStream(),
+                serializer,
+                writerConfig));
+
+        // even if there is no activity, keep cleaning up the cache so that scale down can be triggered.
+        // caches do not perform clean up if there is no activity. This is because they do not maintain their
+        // own background thread.
+        executor.scheduleAtFixedRate(cache::cleanUp, 0, configuration.getCacheCleanup().getSeconds(), TimeUnit.SECONDS);
+        log.info("AutoScale Processor Initialized. RequestStream={}", configuration.getInternalRequestStream());
+        return null;
+    }
+
+    private EventStreamClientFactory createFactory() {
+        if (configuration.isAuthEnabled()) {
+            return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                    ClientConfig.builder().controllerURI(configuration.getControllerUri())
+                                .trustStore(configuration.getTlsCertFile())
+                                .validateHostName(configuration.isValidateHostName())
+                                .build());
+        } else {
+            return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
+                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
+        }
+    }
+
+    private boolean isInitialized() {
+        return this.writer.get() != null;
     }
 
     private void triggerScaleUp(String streamSegmentName, int numOfSplits) {
-        if (initialized.get()) {
+        if (isInitialized()) {
             Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
             long lastRequestTs = 0;
 
@@ -169,7 +190,7 @@ public class AutoScaleProcessor {
     }
 
     private void triggerScaleDown(String streamSegmentName, boolean silent) {
-        if (initialized.get()) {
+        if (isInitialized()) {
             Pair<Long, Long> pair = cache.getIfPresent(streamSegmentName);
             long lastRequestTs = 0;
 
@@ -207,7 +228,7 @@ public class AutoScaleProcessor {
 
     void report(String streamSegmentName, long targetRate, long startTime, double twoMinuteRate, double fiveMinuteRate, double tenMinuteRate, double twentyMinuteRate) {
         log.info("received traffic for {} with twoMinute rate = {} and targetRate = {}", streamSegmentName, twoMinuteRate, targetRate);
-        if (initialized.get()) {
+        if (isInitialized()) {
             // note: we are working on caller's thread. We should not do any blocking computation here and return as quickly as
             // possible.
             // So we will decide whether to scale or not and then unblock by asynchronously calling 'writeEvent'

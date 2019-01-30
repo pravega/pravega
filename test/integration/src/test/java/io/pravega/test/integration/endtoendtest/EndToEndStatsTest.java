@@ -165,5 +165,9 @@ public class EndToEndStatsTest {
                 return y;
             });
         }
+
+        @Override
+        public void close() {
+        }
     }
 }

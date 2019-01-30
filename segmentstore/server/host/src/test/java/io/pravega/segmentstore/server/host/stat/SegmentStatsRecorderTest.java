@@ -9,38 +9,37 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import org.junit.Before;
+import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SegmentStatsRecorderTest {
+public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     private static final String STREAM_SEGMENT_NAME = "test/test/0";
 
     private SegmentStatsRecorderImpl statsRecorder;
     private final CompletableFuture<Void> latch = new CompletableFuture<>();
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
-    private ScheduledExecutorService maintenanceExecutor = Executors.newSingleThreadScheduledExecutor();
+
+    protected int getThreadPoolSize() {
+        return 3;
+    }
 
     @Before
     public void setup() {
@@ -89,20 +88,14 @@ public class SegmentStatsRecorderTest {
 
         when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, false, Duration.ofMinutes(1))).thenReturn(toBeReturned);
 
-        statsRecorder = new SegmentStatsRecorderImpl(processor, store, 10000,
-                2, TimeUnit.SECONDS, executor, maintenanceExecutor);
-    }
-
-    @After
-    public void cleanup() {
-        ExecutorServiceHelpers.shutdown(executor, maintenanceExecutor);
+        statsRecorder = new SegmentStatsRecorderImpl(processor, store, Duration.ofSeconds(10000), Duration.ofSeconds(2), executorService());
     }
 
     @Test(timeout = 10000)
     public void testRecordTraffic() {
         statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
-        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate() == 0);
+        assertEquals(0, (int) statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate());
         // record for over 5 seconds
         long startTime = System.currentTimeMillis();
         // after 10 seconds we should have written ~100 events.
@@ -119,10 +112,10 @@ public class SegmentStatsRecorderTest {
     public void testExpireSegment() throws InterruptedException, ExecutionException {
         statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
 
-        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) != null);
+        assertNotNull(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
         Thread.sleep(2500);
         // Verify that segment has been removed from the cache
-        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) == null);
+        assertNull(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
 
         // this should result in asynchronous loading of STREAM_SEGMENT_NAME
         statsRecorder.record(STREAM_SEGMENT_NAME, 0, 1);
@@ -131,6 +124,6 @@ public class SegmentStatsRecorderTest {
         while (statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) == null && i-- != 0) {
             Thread.sleep(100);
         }
-        assertTrue(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME) != null);
+        assertNotNull(statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
     }
 }
