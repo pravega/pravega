@@ -78,7 +78,8 @@ public class KeyVersionImpl implements KeyVersion {
     }
 
     /*
-     * The object returned by this method is serialized to the object stream.
+     * The object returned by this method is serialized to the object stream. This method is invoked when
+     * {@link java.io.ObjectOutputStream} is preparing to write the object to the stream.
      */
     @SneakyThrows(IOException.class)
     private Object writeReplace() throws ObjectStreamException {

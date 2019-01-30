@@ -843,8 +843,8 @@ public class SegmentHelper {
         };
 
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
-            final WireCommands.TableValue value = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue()));
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
+            final WireCommands.TableValue value = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue()));
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
