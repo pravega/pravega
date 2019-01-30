@@ -86,7 +86,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
             }
         });
 
-        when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, false, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+        when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, Duration.ofMinutes(1))).thenReturn(toBeReturned);
 
         statsRecorder = new SegmentStatsRecorderImpl(processor, store, Duration.ofSeconds(10000), Duration.ofSeconds(2), executorService());
     }

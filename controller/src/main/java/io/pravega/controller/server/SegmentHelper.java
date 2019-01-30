@@ -15,6 +15,12 @@ import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.shared.segment.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.tables.impl.KeyVersion;
+import io.pravega.client.tables.impl.KeyVersionImpl;
+import io.pravega.client.tables.impl.TableEntry;
+import io.pravega.client.tables.impl.TableEntryImpl;
+import io.pravega.client.tables.impl.TableKey;
+import io.pravega.client.tables.impl.TableKeyImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
@@ -30,15 +36,21 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.nio.ByteBuffer;
+import java.util.AbstractMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
@@ -600,6 +612,437 @@ public class SegmentHelper {
                 qualifiedName, delegationToken);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
+    }
+
+    /**
+     * This method sends a WireCommand to create a table segment.
+     *
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param hostControllerStore Host controller store.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Boolean> createTableSegment(final String scope,
+                                                         final String stream,
+                                                         final HostControllerStore hostControllerStore,
+                                                         final ConnectionFactory clientCF,
+                                                         String delegationToken,
+                                                         final long clientRequestId) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final String qualifiedStreamSegmentName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "CreateTableSegment {} Connection dropped", qualifiedStreamSegmentName);
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "CreateTableSegment {} wrong host", qualifiedStreamSegmentName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
+                log.info(requestId, "CreateTableSegment {} segmentAlreadyExists", qualifiedStreamSegmentName);
+                result.complete(true);
+            }
+
+            @Override
+            public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
+                log.info(requestId, "CreateTableSegment {} SegmentCreated", qualifiedStreamSegmentName);
+                result.complete(true);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "CreateTableSegment {} threw exception", qualifiedStreamSegmentName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, delegationToken);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+    /**
+     * This method sends a WireCommand to delete a table segment.
+     *
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
+     * @param hostControllerStore Host controller store.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will indicate the table segment deletion completed
+     * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
+     * can be retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Boolean> deleteTableSegment(final String scope,
+                                                         final String stream,
+                                                         final boolean mustBeEmpty,
+                                                         final HostControllerStore hostControllerStore,
+                                                         final ConnectionFactory clientCF,
+                                                         String delegationToken,
+                                                         final long clientRequestId) {
+        final CompletableFuture<Boolean> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
+        final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "deleteTableSegment {} Connection dropped.", qualifiedName);
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "deleteTableSegment {} wrong host.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.info(requestId, "deleteTableSegment {} NoSuchSegment.", qualifiedName);
+                result.complete(true);
+            }
+
+            @Override
+            public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
+                log.info(requestId, "deleteTableSegment {} SegmentDeleted.", qualifiedName);
+                result.complete(true);
+            }
+
+            @Override
+            public void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty) {
+                log.warn(requestId, "deleteTableSegment {} TableSegmentNotEmpty.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableSegmentNotEmpty));
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "deleteTableSegment {} failed.", qualifiedName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, delegationToken);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+    /**
+     * This method sends a WireCommand to update table entries.
+     *
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param entries             List of {@link TableEntry}s to be updated.
+     * @param hostControllerStore Host controller store.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will contain the current versions of each {@link TableEntry}
+     * If the operation failed, the future will be failed with the causing exception. If the exception can be retried
+     * then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
+                                                                  final String stream,
+                                                                  final List<TableEntry<byte[], byte[]>> entries,
+                                                                  final HostControllerStore hostControllerStore,
+                                                                  final ConnectionFactory clientCF,
+                                                                  String delegationToken,
+                                                                  final long clientRequestId) {
+        final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
+        final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "updateTableEntries {} Connection dropped", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "updateTableEntries {} wrong host", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.warn(requestId, "updateTableEntries {} NoSuchSegment", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
+            }
+
+            @Override
+            public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
+                log.info(requestId, "updateTableEntries request for {} tableSegment completed.", qualifiedName);
+                result.complete(tableEntriesUpdated.getUpdatedVersions().stream().map(KeyVersionImpl::new).collect(Collectors.toList()));
+            }
+
+            @Override
+            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
+            }
+
+            @Override
+            public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
+                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyBadVersion.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion));
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "updateTableEntries {} failed", qualifiedName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
+            final WireCommands.TableKey key = convertToWireCommand(te.getKey());
+            final WireCommands.TableValue value = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue()));
+            return new AbstractMap.SimpleImmutableEntry<>(key, value);
+        }).collect(Collectors.toList());
+
+        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, delegationToken,
+                                                                                      new WireCommands.TableEntries(wireCommandEntries));
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+    /**
+     * This method sends a WireCommand to remove table keys.
+     *
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
+     *                            {@link KeyVersion#NOT_EXISTS} then an unconditional update/removal is performed. Else an atomic conditional
+     *                            update (removal) is performed.
+     * @param hostControllerStore Host controller store.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that will complete normally when the provided keys are deleted.
+     * If the operation failed, the future will be failed with the causing exception. If the exception can be
+     * retried then the future will be failed with {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<Void> removeTableKeys(final String scope,
+                                                   final String stream,
+                                                   final List<TableKey<byte[]>> keys,
+                                                   final HostControllerStore hostControllerStore,
+                                                   final ConnectionFactory clientCF,
+                                                   String delegationToken,
+                                                   final long clientRequestId) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
+        final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "removeTableKeys {} Connection dropped", qualifiedName);
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "removeTableKeys {} Wrong host", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.warn(requestId, "removeTableKeys {} NoSuchSegment", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
+            }
+
+            @Override
+            public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
+                log.info(requestId, "removeTableKeys {} completed.", qualifiedName);
+                result.complete(null);
+            }
+
+            @Override
+            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+                log.info(requestId, "removeTableKeys request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                result.complete(null);
+            }
+
+            @Override
+            public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
+                log.warn(requestId, "removeTableKeys request for {} tableSegment failed with TableKeyBadVersion.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion));
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "removeTableKeys {} failed", qualifiedName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
+
+        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+    /**
+     * This method sends a WireCommand to read table entries.
+     *
+     * @param scope               Stream scope.
+     * @param stream              Stream name.
+     * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
+     *                            during this operation and the latest version is read.
+     * @param hostControllerStore Host controller store.
+     * @param clientCF            Client connection factory.
+     * @param delegationToken     The token to be presented to the segmentstore.
+     * @param clientRequestId     Request id.
+     * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with
+     * a value corresponding to the latest version. If the operation failed, the future will be failed with the
+     * causing exception. If the exception can be retried then the future will be failed with
+     * {@link WireCommandFailedException}.
+     */
+    public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
+                                                                         final String stream,
+                                                                         final List<TableKey<byte[]>> keys,
+                                                                         final HostControllerStore hostControllerStore,
+                                                                         final ConnectionFactory clientCF,
+                                                                         String delegationToken,
+                                                                         final long clientRequestId) {
+        final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
+        final WireCommandType type = WireCommandType.READ_TABLE;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "readTable {} Connection dropped", qualifiedName);
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "readTable {} wrong host", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.warn(requestId, "readTable {} NoSuchSegment", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
+            }
+
+            @Override
+            public void tableRead(WireCommands.TableRead tableRead) {
+                log.info(requestId, "readTable {} successful.", qualifiedName);
+                List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
+                                                                         .map(e -> {
+                                                                             WireCommands.TableKey k = e.getKey();
+                                                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(k.getData().array(), new KeyVersionImpl(k.getKeyVersion()));
+                                                                             return new TableEntryImpl<>(tableKey, e.getValue().getData().array());
+                                                                         }).collect(Collectors.toList());
+                result.complete(tableEntries);
+            }
+
+            @Override
+            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+                log.warn(requestId, "readTable request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "readTable {} failed", qualifiedName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        // the version is always NO_VERSION as read returns the latest version of value.
+        List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(ByteBuffer.wrap(k.getKey()), WireCommands.TableKey.NO_VERSION))
+                                                  .collect(Collectors.toList());
+
+        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
+        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+    private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {
+        WireCommands.TableKey key;
+        if (k.getVersion() == null) {
+            // unconditional update.
+            key = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey()), WireCommands.TableKey.NO_VERSION);
+        } else {
+            key = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey()), k.getVersion().getSegmentVersion());
+        }
+        return key;
     }
 
     private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,

@@ -246,7 +246,7 @@ class SegmentStoreReader implements StoreReader {
                             .read(segmentName, getReadOffset(), Integer.MAX_VALUE, SegmentStoreReader.this.testConfig.getTimeout())
                             .thenComposeAsync(this::processReadResult, SegmentStoreReader.this.executor)
                             .thenCompose(v -> SegmentStoreReader.this.store
-                                    .getStreamSegmentInfo(segmentName, false, SegmentStoreReader.this.testConfig.getTimeout()))
+                                    .getStreamSegmentInfo(segmentName, SegmentStoreReader.this.testConfig.getTimeout()))
                             .handle(this::readCompleteCallback),
                     SegmentStoreReader.this.executor);
         }

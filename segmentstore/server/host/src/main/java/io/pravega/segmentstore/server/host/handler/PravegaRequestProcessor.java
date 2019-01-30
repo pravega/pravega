@@ -267,7 +267,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
-            segmentStore.getStreamSegmentInfo(segment, false, TIMEOUT)
+            segmentStore.getStreamSegmentInfo(segment, TIMEOUT)
                     .thenAccept(info ->
                             connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, info.getStartOffset(), EMPTY_STACK_TRACE)))
                     .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e)));
@@ -398,7 +398,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         long trace = LoggerHelpers.traceEnter(log, operation, getSegmentAttribute);
-        segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
+        segmentStore.getStreamSegmentInfo(segmentName, TIMEOUT)
                 .thenAccept(properties -> {
                     LoggerHelpers.traceLeave(log, operation, trace, properties);
                     if (properties == null) {
@@ -424,7 +424,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             return;
         }
 
-        segmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT)
+        segmentStore.getStreamSegmentInfo(segmentName, TIMEOUT)
                 .thenAccept(properties -> {
                     if (properties != null) {
                         StreamSegmentInfo result = new StreamSegmentInfo(getStreamSegmentInfo.getRequestId(),

@@ -93,7 +93,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
             if (store != null) {
-                store.getStreamSegmentInfo(streamSegmentName, false, TIMEOUT)
+                store.getStreamSegmentInfo(streamSegmentName, TIMEOUT)
                         .thenAcceptAsync(prop -> {
                             if (prop != null &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
