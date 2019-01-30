@@ -293,7 +293,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.notEmptyTableSegment(this);
+            cp.tableSegmentNotEmpty(this);
         }
 
         @Override
@@ -1722,7 +1722,10 @@ public final class WireCommands {
 
     @Data
     public static final class TableKey {
+        public static final long NO_VERSION = Long.MIN_VALUE;
+        public static final long NOT_EXISTS = -1L;
         public final static TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
+
         final ByteBuffer data;
         final long keyVersion;
 
