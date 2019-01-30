@@ -45,7 +45,8 @@ public class RawClientTest {
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
-        Mockito.verify(connection).send(new WireCommands.Hello(0, 0));
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
         rawClient.close();
         Mockito.verify(connection).close();
     }
@@ -65,7 +66,8 @@ public class RawClientTest {
         UUID id = UUID.randomUUID();
         ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER));
         CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
-        Mockito.verify(connection).send(request);
+        Mockito.verify(connection).sendAsync(Mockito.eq(request),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
         assertFalse(future.isDone());
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
         DataAppended reply = new DataAppended(id, 1, 0);

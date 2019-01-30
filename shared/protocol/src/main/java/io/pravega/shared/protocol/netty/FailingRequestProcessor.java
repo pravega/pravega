@@ -75,12 +75,47 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void createTableSegment(WireCommands.CreateTableSegment createTableSegment) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void deleteTableSegment(WireCommands.DeleteTableSegment deleteSegment) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void updateTableEntries(WireCommands.UpdateTableEntries tableEntries) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void removeTableKeys(WireCommands.RemoveTableKeys tableKeys) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void readTable(WireCommands.ReadTable readTable) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
     public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
         throw new IllegalStateException("Unexpected operation");
     }
 
     @Override
+    public void mergeTableSegments(WireCommands.MergeTableSegments mergeSegments) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
     public void sealSegment(SealSegment sealSegment) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void sealTableSegment(WireCommands.SealTableSegment sealTableSegment) {
         throw new IllegalStateException("Unexpected operation");
     }
 

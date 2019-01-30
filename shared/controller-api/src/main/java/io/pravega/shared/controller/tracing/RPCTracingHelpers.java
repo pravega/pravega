@@ -36,8 +36,8 @@ public final class RPCTracingHelpers {
 
     private static final String REQUEST_DESCRIPTOR = "requestDescriptor";
     private static final String REQUEST_ID = "requestId";
-    public static final CallOptions.Key<String> REQUEST_DESCRIPTOR_CALL_OPTION = CallOptions.Key.of(REQUEST_DESCRIPTOR, "");
-    public static final CallOptions.Key<String> REQUEST_ID_CALL_OPTION = CallOptions.Key.of(REQUEST_ID, "");
+    public static final CallOptions.Key<String> REQUEST_DESCRIPTOR_CALL_OPTION = CallOptions.Key.createWithDefault(REQUEST_DESCRIPTOR, "");
+    public static final CallOptions.Key<String> REQUEST_ID_CALL_OPTION = CallOptions.Key.createWithDefault(REQUEST_ID, "");
     static final Metadata.Key<String> DESCRIPTOR_HEADER = Metadata.Key.of(REQUEST_DESCRIPTOR, Metadata.ASCII_STRING_MARSHALLER);
     static final Metadata.Key<String> ID_HEADER = Metadata.Key.of(REQUEST_ID, Metadata.ASCII_STRING_MARSHALLER);
 

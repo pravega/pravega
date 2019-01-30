@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.store;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -43,6 +42,7 @@ import io.pravega.segmentstore.server.tables.TableService;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.CacheFactory;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
 import io.pravega.segmentstore.storage.StorageFactory;
@@ -127,11 +127,17 @@ public class ServiceBuilder implements AutoCloseable {
         this.streamSegmentStoreCreator = notConfiguredCreator(StreamSegmentStore.class);
 
         // Setup Thread Pools.
-        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), "core");
-        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), "storage-io");
+        String instancePrefix = getInstanceIdPrefix(serviceConfig);
+        this.coreExecutor = executorBuilder.apply(serviceConfig.getCoreThreadPoolSize(), instancePrefix + "core");
+        this.storageExecutor = executorBuilder.apply(serviceConfig.getStorageThreadPoolSize(), instancePrefix + "storage-io");
         this.threadPoolMetrics = new SegmentStoreMetrics.ThreadPool(this.coreExecutor);
 
         this.cacheManager = new CacheManager(serviceConfig.getCachePolicy(), this.coreExecutor);
+    }
+
+    private String getInstanceIdPrefix(ServiceConfig serviceConfig) {
+        String id = serviceConfig.getInstanceId();
+        return id == null || id.isEmpty() ? "" : id + "-";
     }
 
     //endregion

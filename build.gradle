@@ -72,6 +72,8 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
+            sourceCompatibility = "8"
+            targetCompatibility = "8"
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
@@ -137,7 +139,7 @@ project('shared:authplugin') {
     }
 }
 
-project ('shared') {
+project ('shared:cluster') {
     dependencies {
         compile project(':common')
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
@@ -174,19 +176,21 @@ project ('shared:metrics') {
 
 project('shared:protocol') {
     dependencies {
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile project(':common')
+        compile group: 'io.netty', name: 'netty-transport', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        testCompile project(':test:testcommon')
     }
 }
 
 project('client') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+        compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
@@ -221,7 +225,7 @@ project('segmentstore:contracts') {
 project('segmentstore:storage') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
+        compile project(':shared:protocol')
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
@@ -233,6 +237,7 @@ project('segmentstore:storage:impl') {
         compile project(':common')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
+        compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
@@ -242,18 +247,17 @@ project('segmentstore:storage:impl') {
 
 project ('bindings') {
     dependencies {
-        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
+        // For HDFS
         compile group: 'org.apache.hadoop', name: 'hadoop-common', version: hadoopVersion, withoutLogger
-
-        // https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common
         compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: hadoopVersion, withoutLogger
         testCompile group: 'org.apache.hadoop', name: 'hadoop-minicluster', version: hadoopVersion, withoutLogger
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         //For Extended S3
-        compile "com.emc.ecs:object-client:3.0.0"
-        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.2'
+        compile group: 'com.emc.ecs', name: 'object-client', version: ecsObjectClientVersion, withoutLogger
+        testCompile group: 'org.gaul', name: 's3proxy', version: '1.5.5'
         testCompile group: 'commons-httpclient', name: 'commons-httpclient', version: '3.1'
+        testCompile group: 'org.apache.jclouds.provider', name: 'google-cloud-storage', version: '2.1.1'
 
         compile project(':common')
         compile project(':segmentstore:storage')
@@ -266,7 +270,6 @@ project ('bindings') {
 project('segmentstore:server') {
     dependencies {
         compile project(':common')
-        compile project(':shared')
         compile project(':segmentstore:contracts')
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
@@ -302,6 +305,7 @@ project('segmentstore:server:host') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(':shared:cluster')
         compile project(':segmentstore:contracts')
         compile project(':client')
         compile project(':segmentstore:storage')
@@ -454,7 +458,7 @@ project('shared:controller-api') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
 
         compile "io.grpc:grpc-netty:" + grpcVersion
-        compile "io.grpc:grpc-all:" + grpcVersion
+        compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
         compile "io.grpc:grpc-stub:" + grpcVersion
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
@@ -506,8 +510,9 @@ project('controller') {
 
     dependencies {
         compile project(':common')
-        compile project(":shared:controller-api")
         compile project(":shared:authplugin")
+        compile project(":shared:controller-api")
+        compile project(':shared:cluster')
         compile project(":client")
         compile project(":shared:metrics")
         runtime group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion

@@ -72,7 +72,7 @@ public abstract class MetadataStore {
 
     //endregion
 
-    //region Constructor
+    //region Constructor and Initialization
 
     /**
      * Creates a new instance of the MetadataStore class.
@@ -81,12 +81,20 @@ public abstract class MetadataStore {
      *                  and upstream callers.
      * @param executor  The executor to use for async operations.
      */
-    public MetadataStore(@NonNull Connector connector, @NonNull Executor executor) {
+    MetadataStore(@NonNull Connector connector, @NonNull Executor executor) {
         this.traceObjectId = String.format("MetadataStore[%d]", connector.containerMetadata.getContainerId());
         this.connector = connector;
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
     }
+
+    /**
+     * Initializes the MetadataStore, if necessary.
+     *
+     * @param timeout Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the initialization is done.
+     */
+    abstract CompletableFuture<Void> initialize(Duration timeout);
 
     //endregion
 
@@ -389,7 +397,7 @@ public abstract class MetadataStore {
      * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
     private CompletableFuture<Long> submitAssignmentWithRetry(SegmentInfo segmentInfo, Duration timeout) {
-        return retryWithCleanup(() -> submitAssignment(segmentInfo, timeout));
+        return retryWithCleanup(() -> submitAssignment(segmentInfo, false, timeout));
     }
 
     /**
@@ -399,11 +407,12 @@ public abstract class MetadataStore {
      * with the requested Segment Id.
      *
      * @param segmentInfo The SegmentInfo for the StreamSegment to generate and persist.
+     * @param pin         If true, this Segment's metadata will be pinned to memory.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain the internal SegmentId that was assigned (or the
      * one supplied via SegmentInfo, if any). If the operation failed, then this Future will complete with that exception.
      */
-    private CompletableFuture<Long> submitAssignment(SegmentInfo segmentInfo, Duration timeout) {
+    protected CompletableFuture<Long> submitAssignment(SegmentInfo segmentInfo, boolean pin, Duration timeout) {
         SegmentProperties properties = segmentInfo.getProperties();
         if (properties.isDeleted()) {
             // Stream does not exist. Fail the request with the appropriate exception.
@@ -418,7 +427,7 @@ public abstract class MetadataStore {
             return CompletableFuture.completedFuture(existingSegmentId);
         } else {
             return this.connector.getMapSegmentId()
-                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), timeout)
+                                 .apply(segmentInfo.getSegmentId(), segmentInfo.getProperties(), pin, timeout)
                                  .thenApply(id -> completeAssignment(properties.getName(), id));
         }
     }
@@ -533,7 +542,7 @@ public abstract class MetadataStore {
      */
     @RequiredArgsConstructor
     @Getter
-    public static class Connector {
+    static class Connector {
         /**
          * The {@link ContainerMetadata} to bind to. All assignments are vetted from here, but the Metadata is not touched
          * directly from this component.
@@ -571,7 +580,7 @@ public abstract class MetadataStore {
 
         @FunctionalInterface
         public interface MapSegmentId {
-            CompletableFuture<Long> apply(long segmentId, SegmentProperties segmentProperties, Duration timeout);
+            CompletableFuture<Long> apply(long segmentId, SegmentProperties segmentProperties, boolean pin, Duration timeout);
         }
 
         @FunctionalInterface
@@ -636,7 +645,7 @@ public abstract class MetadataStore {
 
     @Data
     @Builder
-    private static class SegmentInfo {
+    protected static class SegmentInfo {
         private static final SegmentInfoSerializer SERIALIZER = new SegmentInfoSerializer();
         private final long segmentId;
         private final SegmentProperties properties;

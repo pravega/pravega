@@ -25,6 +25,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -60,6 +61,7 @@ import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsNames.nameFromStream;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
+import static org.mockito.Mockito.mock;
 
 /**
  * Check the end to end correctness of metrics published by the Controller.
@@ -99,7 +101,7 @@ public class ControllerMetricsTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

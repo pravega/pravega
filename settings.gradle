@@ -11,7 +11,7 @@
 rootProject.name = 'pravega'
 
 include 'common',
-        'shared',
+        'shared:cluster',
         'shared:authplugin',
         'shared:metrics',
         'shared:protocol',

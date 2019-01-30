@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
@@ -20,7 +21,6 @@ import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
@@ -126,7 +126,7 @@ public class ControllerImpl implements Controller {
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
                                 .nameResolverFactory(new ControllerResolverFactory())
-                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                                .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
@@ -173,7 +173,7 @@ public class ControllerImpl implements Controller {
         ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
         Credentials credentials = config.getClientConfig().getCredentials();
         if (credentials != null) {
-            PravegaCredsWrapper wrapper = new PravegaCredsWrapper(credentials);
+            PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;

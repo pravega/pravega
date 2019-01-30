@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -32,6 +33,7 @@ import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class StreamMetadataTest {
 
@@ -45,7 +47,7 @@ public class StreamMetadataTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup

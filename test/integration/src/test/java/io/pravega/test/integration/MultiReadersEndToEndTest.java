@@ -28,6 +28,7 @@ import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -53,6 +54,8 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class MultiReadersEndToEndTest {
@@ -191,7 +194,7 @@ public class MultiReadersEndToEndTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", "localhost", servicePort);
