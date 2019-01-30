@@ -170,7 +170,7 @@ public class BoundedStreamReaderTest {
         createStream(STREAM1);
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                                                                             EventWriterConfig.builder().build());
