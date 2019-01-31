@@ -408,22 +408,12 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         ensureRunning();
 
         logRequest("getStreamSegmentInfo", streamSegmentName);
         this.metrics.getInfo();
-
-        if (waitForPendingOps) {
-            // We have been instructed to wait for all pending operations to complete. Use an op barrier and wait for it
-            // before proceeding.
-            TimeoutTimer timer = new TimeoutTimer(timeout);
-            return this.durableLog
-                    .operationProcessingBarrier(timer.getRemaining())
-                    .thenComposeAsync(v -> this.metadataStore.getSegmentInfo(streamSegmentName, timer.getRemaining()), this.executor);
-        } else {
-            return this.metadataStore.getSegmentInfo(streamSegmentName, timeout);
-        }
+        return this.metadataStore.getSegmentInfo(streamSegmentName, timeout);
     }
 
     @Override

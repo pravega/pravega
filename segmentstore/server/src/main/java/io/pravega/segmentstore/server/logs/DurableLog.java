@@ -30,7 +30,6 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -368,18 +367,6 @@ public class DurableLog extends AbstractService implements OperationLog {
 
             return result;
         }
-    }
-
-    @Override
-    public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
-        return add(new ProbeOperation(), timeout)
-                .whenComplete((r, ex) -> {
-                    // We don't care if this operation completed successfully or not. The Operation Barrier needs to complete
-                    // when all operations prior to it completed, regardless of outcome.
-                    if (ex != null) {
-                        log.warn("{}: Error caught while waiting for {}: {}.", this.traceObjectId, ProbeOperation.class.getSimpleName(), ex);
-                    }
-                });
     }
 
     @Override

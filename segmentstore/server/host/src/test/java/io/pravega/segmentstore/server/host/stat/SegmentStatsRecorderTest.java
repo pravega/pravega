@@ -87,7 +87,7 @@ public class SegmentStatsRecorderTest {
             }
         });
 
-        when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, false, Duration.ofMinutes(1))).thenReturn(toBeReturned);
+        when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, Duration.ofMinutes(1))).thenReturn(toBeReturned);
 
         statsRecorder = new SegmentStatsRecorderImpl(processor, store, 10000,
                 2, TimeUnit.SECONDS, executor, maintenanceExecutor);

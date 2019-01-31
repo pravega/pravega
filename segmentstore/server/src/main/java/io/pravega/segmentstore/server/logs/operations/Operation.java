@@ -65,16 +65,6 @@ public abstract class Operation implements SequencedItemList.Element {
         this.sequenceNumber = value;
     }
 
-    /**
-     * Gets a value indicating whether this operation can be serialized to the DurableDataLog. This generally differentiates
-     * between control operations (i.e. ProbeOperations) and operations that serve a real purpose.
-     *
-     * @return True if can (and must) serialize, false otherwise.
-     */
-    public boolean canSerialize() {
-        return true;
-    }
-
     @Override
     public String toString() {
         return String.format("%s: SequenceNumber = %d", this.getClass().getSimpleName(), getSequenceNumber());

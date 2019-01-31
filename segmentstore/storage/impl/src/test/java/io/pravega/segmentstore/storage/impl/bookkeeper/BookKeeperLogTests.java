@@ -42,7 +42,6 @@ import org.apache.bookkeeper.client.BKException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -183,9 +182,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&
-                        ex.getCause() instanceof KeeperException.NoNodeException &&
-                        ex.getCause().getMessage().
-                                indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0
+                        ex.getCause() instanceof BKException.ZKException
         );
     }
 

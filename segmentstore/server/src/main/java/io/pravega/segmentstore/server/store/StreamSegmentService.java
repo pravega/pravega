@@ -85,11 +85,11 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         return invoke(
                 streamSegmentName,
-                container -> container.getStreamSegmentInfo(streamSegmentName, waitForPendingOps, timeout),
-                "getStreamSegmentInfo", streamSegmentName, waitForPendingOps);
+                container -> container.getStreamSegmentInfo(streamSegmentName, timeout),
+                "getStreamSegmentInfo", streamSegmentName);
     }
 
     @Override
