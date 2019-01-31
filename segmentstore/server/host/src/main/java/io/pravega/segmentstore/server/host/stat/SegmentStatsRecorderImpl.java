@@ -102,6 +102,9 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void close() {
         this.cacheCleanup.cancel(true);
+        this.createStreamSegment.close();
+        this.readStreamSegment.close();
+        this.writeStreamSegment.close();
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
@@ -204,7 +207,6 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 // do not maintain intermittent txn segment stats. Txn stats will be accounted for
                 // only upon txn commit. This is done via merge method. So here we can get a txn which
                 // we do not know about and hence we can get null and ignore.
-
                 if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
                     report(streamSegmentName, aggregates);
                 }
