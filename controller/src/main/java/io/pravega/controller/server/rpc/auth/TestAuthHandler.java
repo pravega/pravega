@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
-import com.sun.security.auth.UnixPrincipal;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.ServerConfig;
 import java.security.Principal;
@@ -26,7 +25,7 @@ public class TestAuthHandler implements AuthHandler {
 
     @Override
     public Principal authenticate(String token) {
-        return new UnixPrincipal(token);
+        return new UserPrincipal(token);
     }
 
     @Override
