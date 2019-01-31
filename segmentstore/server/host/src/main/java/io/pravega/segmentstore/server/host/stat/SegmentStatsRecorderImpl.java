@@ -91,8 +91,6 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                 .expireAfterAccess(expiryDuration.toMillis(), TimeUnit.MILLISECONDS)
                 .build();
 
-        // Dedicated thread for cache clean up scheduled periodically. This ensures that read and write
-        // on cache are not used for cache maintenance activities.
         this.cacheCleanup = executor.scheduleAtFixedRate(cache::cleanUp, CACHE_CLEANUP_INTERVAL.toMillis(), 2, TimeUnit.MINUTES);
         this.reportingDuration = reportingDuration;
         this.store = store;
@@ -247,12 +245,18 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     private void report(String streamSegmentName, SegmentAggregates aggregates) {
-        aggregates.reportIfNecessary(reportingDuration, () -> {
-            reporter.report(streamSegmentName,
-                    aggregates.getTargetRate(), aggregates.getStartTime(),
-                    aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
-        });
+        if (aggregates.reportIfNeeded(reportingDuration)) {
+            this.executor.execute(() -> {
+                try {
+                    reporter.report(streamSegmentName,
+                            aggregates.getTargetRate(), aggregates.getStartTime(),
+                            aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
+                            aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
+                } catch (Exception ex) {
+                    log.error("Unable to report Segment Aggregates for '{}'.", streamSegmentName, ex);
+                }
+            });
+        }
     }
 
     @VisibleForTesting

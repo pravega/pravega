@@ -188,15 +188,17 @@ abstract class SegmentAggregates {
         return twentyMinuteRate;
     }
 
-    void reportIfNecessary(Duration reportingDuration, Runnable callback) {
-        lastReportedTime.getAndUpdate(prev -> {
-            if (getTimeMillis() - prev > reportingDuration.toMillis()) {
-                callback.run();
-                return getTimeMillis();
+    boolean reportIfNeeded(Duration reportingDuration) {
+        long now = getTimeMillis();
+        long newValue = lastReportedTime.updateAndGet(prev -> {
+            if (now - prev > reportingDuration.toMillis()) {
+                return now;
             }
 
             return prev;
         });
+        return now == newValue;
+
     }
 
     //region Implementing classes

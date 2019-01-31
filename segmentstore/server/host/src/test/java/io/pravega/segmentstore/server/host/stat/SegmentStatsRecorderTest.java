@@ -53,8 +53,10 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
     @Test(timeout = 20000)
     public void testRecordTraffic() {
+        // Do not mock metrics here. We are making a huge number of invocations and mockito will record every single one
+        // of them, possibly causing OOMs.
         @Cleanup
-        val context = new TestContext(Duration.ofSeconds(10));
+        val context = new TestContext(Duration.ofSeconds(10), false);
         context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
         assertEquals(0, (int) context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME).getTwoMinuteRate());
 
@@ -74,7 +76,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testExpireSegment() throws Exception {
         @Cleanup
-        val context = new TestContext(Duration.ofSeconds(2));
+        val context = new TestContext(Duration.ofSeconds(2), true);
         context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10, Duration.ofSeconds(1));
 
         assertNotNull(context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
@@ -85,14 +87,14 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
 
         // this should result in asynchronous loading of STREAM_SEGMENT_NAME
         context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 0, 1, Duration.ofSeconds(2));
-        context.statsRecorder.loadAsyncCompletion.get(10000, TimeUnit.MILLISECONDS);
+        context.getLoadAsyncCompletion().get(10000, TimeUnit.MILLISECONDS);
         assertNotNull(context.statsRecorder.getIfPresent(STREAM_SEGMENT_NAME));
     }
 
     @Test(timeout = 10000)
     public void testMetrics() {
         @Cleanup
-        val context = new TestContext(Duration.ofSeconds(2));
+        val context = new TestContext(Duration.ofSeconds(2), true);
         val elapsed = Duration.ofSeconds(1);
 
         // Create Segment metrics.
@@ -144,9 +146,9 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         final OpStatsLogger readStreamSegment;
         final OpStatsLogger writeStreamSegment;
         final DynamicLogger dynamicLogger;
-        final TestRecorder statsRecorder;
+        final SegmentStatsRecorderImpl statsRecorder;
 
-        TestContext(Duration expiryTime) {
+        TestContext(Duration expiryTime, boolean mockMetrics) {
             AutoScaleProcessor processor = mock(AutoScaleProcessor.class);
             StreamSegmentStore store = mock(StreamSegmentStore.class);
             CompletableFuture<SegmentProperties> toBeReturned = CompletableFuture.completedFuture(
@@ -157,12 +159,29 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
                                     .put(Attributes.SCALE_POLICY_RATE, 10L).build())
                             .build());
             when(store.getStreamSegmentInfo(STREAM_SEGMENT_NAME, Duration.ofMinutes(1))).thenReturn(toBeReturned);
-            dynamicLogger = mock(DynamicLogger.class);
-            createStreamSegment = mock(OpStatsLogger.class);
-            readStreamSegment = mock(OpStatsLogger.class);
-            writeStreamSegment = mock(OpStatsLogger.class);
-            statsRecorder = new TestRecorder(processor, store, Duration.ofSeconds(10000), expiryTime, executorService(),
-                    dynamicLogger, createStreamSegment, readStreamSegment, writeStreamSegment);
+            val reportingDuration = Duration.ofSeconds(10000);
+            if (mockMetrics) {
+                dynamicLogger = mock(DynamicLogger.class);
+                createStreamSegment = mock(OpStatsLogger.class);
+                readStreamSegment = mock(OpStatsLogger.class);
+                writeStreamSegment = mock(OpStatsLogger.class);
+                statsRecorder = new TestRecorder(processor, store, reportingDuration, expiryTime, executorService(),
+                        dynamicLogger, createStreamSegment, readStreamSegment, writeStreamSegment);
+            } else {
+                dynamicLogger = null;
+                createStreamSegment = null;
+                readStreamSegment = null;
+                writeStreamSegment = null;
+                statsRecorder = new SegmentStatsRecorderImpl(processor, store, reportingDuration, expiryTime, executorService());
+            }
+        }
+
+        public CompletableFuture<Void> getLoadAsyncCompletion() {
+            if (statsRecorder instanceof TestRecorder) {
+                return ((TestRecorder) statsRecorder).loadAsyncCompletion;
+            } else {
+                throw new IllegalStateException();
+            }
         }
 
         @Override
