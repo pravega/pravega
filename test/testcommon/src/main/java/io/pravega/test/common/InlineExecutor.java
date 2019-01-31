@@ -27,7 +27,15 @@ import java.util.concurrent.TimeoutException;
  * Delayed tasks are run on a background thread.
  */
 public class InlineExecutor implements ScheduledExecutorService {
-    private final ScheduledExecutorService delayedExecutor = new ScheduledThreadPoolExecutor(1);
+    private final ScheduledThreadPoolExecutor delayedExecutor;
+
+    public InlineExecutor() {
+        // This is the same as ExecutorServiceHelpers.newScheduledThreadPool, however that class is not accessible from here.
+        this.delayedExecutor = new ScheduledThreadPoolExecutor(1);
+        this.delayedExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        this.delayedExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        this.delayedExecutor.setRemoveOnCancelPolicy(true);
+    }
 
     @Override
     public void execute(Runnable command) {

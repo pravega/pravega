@@ -32,10 +32,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
@@ -51,7 +47,6 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,17 +56,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
-
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
-import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -83,10 +72,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final int HIGH_WATER_MARK = 128 * 1024;
     private static final int LOW_WATER_MARK = 64 * 1024;
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
     private static final String EMPTY_STACK_TRACE = "";
-    private final DynamicLogger dynamicLogger;
     private final StreamSegmentStore store;
     private final ServerConnection connection;
     @Getter
@@ -118,42 +104,25 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, null, verifier, MetricsProvider.getDynamicLogger(), false);
-    }
-
-    /**
-     * Creates a new instance of the AppendProcessor class with dynamic metric logger.
-     *
-     * @param store      The SegmentStore to send append requests to.
-     * @param connection The ServerConnection to send responses to.
-     * @param next       The RequestProcessor to invoke next.
-     * @param verifier    The token verifier.
-     * @param dynamicLogger  The dynamic metric logger to log metrics
-     */
-    @VisibleForTesting
-    public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier,
-                           DynamicLogger dynamicLogger) {
-        this(store, connection, next, null, verifier, dynamicLogger, false);
+        this(store, connection, next, SegmentStatsRecorder.noOp(), verifier, false);
     }
 
     /**
      * Creates a new instance of the AppendProcessor class.
-     *  @param store         The SegmentStore to send append requests to.
+     * @param store         The SegmentStore to send append requests to.
      * @param connection    The ServerConnection to send responses to.
      * @param next          The RequestProcessor to invoke next.
-     * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
+     * @param statsRecorder A StatsRecorder to record Metrics.
      * @param tokenVerifier Delegation token verifier.
-     * @param dynamicLogger  The DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
-                    DelegationTokenVerifier tokenVerifier, DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
+                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
-        this.statsRecorder = statsRecorder;
+        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, statsRecorder);
         this.tokenVerifier = tokenVerifier;
-        this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
@@ -224,13 +193,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         Timer timer = new Timer();
         storeAppend(append)
                 .whenComplete((v, e) -> {
-                    handleAppendResult(append, e);
+                    handleAppendResult(append, e, timer);
                     LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
-                    if (e == null) {
-                        WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-                    } else {
-                        WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-                    }
                 })
                 .whenComplete((v, e) -> append.getData().release());
     }
@@ -290,7 +254,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, Throwable exception) {
+    private void handleAppendResult(final Append append, Throwable exception, Timer elapsedTimer) {
         try {
             boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
             long previousEventNumber;
@@ -309,22 +273,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
                 }
             } else {
-                if (statsRecorder != null && !StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
-                }
                 final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
                         previousEventNumber);
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
-
-                dynamicLogger.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), append.getDataLength());
-                dynamicLogger.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), append.getEventCount());
-                //Don't report segment specific metrics if segment is a transaction
-                //The parent segment metrics will be updated once the transaction is merged
-                if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
-                }
+                statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
             }
 
             /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent. Next,

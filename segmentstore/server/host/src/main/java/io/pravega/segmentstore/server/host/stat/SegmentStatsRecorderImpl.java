@@ -14,17 +14,33 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.shared.metrics.DynamicLogger;
+import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.metrics.OpStatsLogger;
+import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.segment.ScalingPolicy;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
+import static io.pravega.shared.MetricsNames.globalMetricName;
+import static io.pravega.shared.MetricsNames.nameFromSegment;
 
 @Slf4j
 class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
@@ -41,6 +57,16 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     // where traffic is flowing concurrently.
 
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
+    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
+    @Getter(AccessLevel.PROTECTED)
+    private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
+    @Getter(AccessLevel.PROTECTED)
+    private final OpStatsLogger readStreamSegment = STATS_LOGGER.createStats(SEGMENT_READ_LATENCY);
+    @Getter(AccessLevel.PROTECTED)
+    private final OpStatsLogger writeStreamSegment = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
+    @Getter(AccessLevel.PROTECTED)
+    private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+
     private final Set<String> pendingCacheLoads;
     private final Cache<String, SegmentAggregates> cache;
     private final Duration reportingDuration;
@@ -89,12 +115,13 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         return aggregates;
     }
 
-    private void loadAsynchronously(String streamSegmentName) {
+    @VisibleForTesting
+    protected CompletableFuture<Void> loadAsynchronously(String streamSegmentName) {
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
             if (store != null) {
-                store.getStreamSegmentInfo(streamSegmentName, TIMEOUT)
-                        .thenAcceptAsync(prop -> {
+                return store.getStreamSegmentInfo(streamSegmentName, TIMEOUT)
+                            .thenAcceptAsync(prop -> {
                             if (prop != null &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
@@ -106,10 +133,12 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                         }, executor);
             }
         }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public void createSegment(String streamSegmentName, byte type, int targetRate) {
+    public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
+        getCreateStreamSegment().reportSuccessEvent(elapsed);
         SegmentAggregates sa = SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), targetRate);
         cache.put(streamSegmentName, sa);
         if (sa.isScalingEnabled()) {
@@ -118,7 +147,16 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     @Override
+    public void deleteSegment(String segmentName) {
+        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segmentName));
+        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segmentName));
+        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segmentName));
+    }
+
+    @Override
     public void sealSegment(String streamSegmentName) {
+        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName));
+        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName));
         if (getSegmentAggregate(streamSegmentName) != null) {
             cache.invalidate(streamSegmentName);
             reporter.notifySealed(streamSegmentName);
@@ -147,21 +185,32 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      * @param streamSegmentName stream segment name
      * @param dataLength        length of data that was written
      * @param numOfEvents       number of events that were written
+     * @param elapsed           elapsed time for the append
      */
     @Override
-    public void record(String streamSegmentName, long dataLength, int numOfEvents) {
-        try {
-            SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-            // Note: we could get stats for a transaction segment. We will simply ignore this as we
-            // do not maintain intermittent txn segment stats. Txn stats will be accounted for
-            // only upon txn commit. This is done via merge method. So here we can get a txn which
-            // we do not know about and hence we can get null and ignore.
+    public void recordAppend(String streamSegmentName, long dataLength, int numOfEvents, Duration elapsed) {
+        getWriteStreamSegment().reportSuccessEvent(elapsed);
+        DynamicLogger dl = getDynamicLogger();
+        dl.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), dataLength);
+        dl.incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), numOfEvents);
+        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+            //Don't report segment specific metrics if segment is a transaction
+            //The parent segment metrics will be updated once the transaction is merged
+            dl.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), dataLength);
+            dl.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), numOfEvents);
+            try {
+                SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
+                // Note: we could get stats for a transaction segment. We will simply ignore this as we
+                // do not maintain intermittent txn segment stats. Txn stats will be accounted for
+                // only upon txn commit. This is done via merge method. So here we can get a txn which
+                // we do not know about and hence we can get null and ignore.
 
-            if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
-                report(streamSegmentName, aggregates);
+                if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
+                    report(streamSegmentName, aggregates);
+                }
+            } catch (Exception e) {
+                log.warn("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e);
             }
-        } catch (Exception e) {
-            log.warn("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e);
         }
     }
 
@@ -175,10 +224,24 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      */
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
+        getDynamicLogger().incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), dataLength);
+        getDynamicLogger().incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), numOfEvents);
+
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null && aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
             report(streamSegmentName, aggregates);
         }
+    }
+
+    @Override
+    public void readComplete(Duration elapsed) {
+        getReadStreamSegment().reportSuccessEvent(elapsed);
+    }
+
+    @Override
+    public void read(String segment, int length) {
+        getDynamicLogger().incCounterValue(globalMetricName(SEGMENT_READ_BYTES), length);
+        getDynamicLogger().incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), length);
     }
 
     private void report(String streamSegmentName, SegmentAggregates aggregates) {
