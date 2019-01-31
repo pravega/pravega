@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -27,14 +26,10 @@ import java.util.concurrent.TimeoutException;
  * Delayed tasks are run on a background thread.
  */
 public class InlineExecutor implements ScheduledExecutorService {
-    private final ScheduledThreadPoolExecutor delayedExecutor;
+    private final ScheduledExecutorService delayedExecutor;
 
     public InlineExecutor() {
-        // This is the same as ExecutorServiceHelpers.newScheduledThreadPool, however that class is not accessible from here.
-        this.delayedExecutor = new ScheduledThreadPoolExecutor(1);
-        this.delayedExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        this.delayedExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-        this.delayedExecutor.setRemoveOnCancelPolicy(true);
+        this.delayedExecutor = ThreadPooledTestSuite.createExecutorService(1);
     }
 
     @Override
