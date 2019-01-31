@@ -12,7 +12,6 @@ package io.pravega.controller.server.rpc.auth;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.sun.security.auth.UnixPrincipal;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
@@ -81,10 +80,10 @@ public class PasswordAuthHandler implements AuthHandler {
 
         try {
             if (userMap.containsKey(userName) && encryptor.checkPassword(password, userMap.get(userName).encryptedPassword)) {
-                return new UnixPrincipal(userName);
+                return new UserPrincipal(userName);
             }
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-            log.warn("Excpetion during password authentication", e);
+            log.warn("Exception during password authentication", e);
             throw new AuthenticationException(e);
         }
         throw new AuthenticationException("User authentication exception");
