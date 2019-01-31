@@ -762,7 +762,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         ByteBuffer token = getTableKeys.getContinuationToken();
 
         byte[] state = null;
-
         if (!token.equals(EMPTY_BYTE_BUFFER)) {
             state = token.array();
         }
@@ -784,13 +783,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                   // update the continuation token.
                                   continuationToken.set(ByteBuffer.wrap(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
                                   keyCount.addAndGet(e.getEntries().size());
-                                  if (keyCount.get() >= suggestedKeyCount) { // set the continuation flag to false if we have read more
-                                      // than the suggested count.
+                                  if (keyCount.get() >= suggestedKeyCount) {
+                                      // set the continuation flag to false if we have read more than the suggested count.
                                       canContinue.set(false);
                                   }
                               }
                           }, executor))
                   .thenAccept(v -> {
+                      log.debug(getTableKeys.getRequestId(), "{} keys obtained for GetTableKeys request.", keys.size());
                       List<WireCommands.TableKey> wireCommandKeys = keys.stream()
                                                                         .map(k -> {
                                                                             ArrayView keyArray = k.getKey();

@@ -35,6 +35,7 @@ import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.OpStatsData;
+import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -44,11 +45,13 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
@@ -64,6 +67,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
@@ -80,6 +84,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -87,8 +92,8 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
 
-    private static final int MAX_KEY_LENGTH = 128;
-    private static final int MAX_VALUE_LENGTH = 32;
+    private static final int MAX_KEY_LENGTH = 100;
+    private static final int MAX_VALUE_LENGTH = 100;
 
     static {
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
@@ -790,7 +795,65 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
 
     @Test
     public void testReadKeys() throws Exception {
+        // Set up PravegaRequestProcessor instance to execute requests against
+        val rnd = new Random(0);
+        String streamSegmentName = "testReadTable";
+        @Cleanup
+        ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        ServerConnection connection = mock(ServerConnection.class);
+        InOrder order = inOrder(connection);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, tableStore, connection, executorService());
 
+        // Generate keys.
+        ArrayList<HashedArray> keys = generateKeys(3, rnd);
+        TableEntry e1 = TableEntry.unversioned(keys.get(0), generateValue(rnd));
+        TableEntry e2 = TableEntry.unversioned(keys.get(1), generateValue(rnd));
+        TableEntry e3 = TableEntry.unversioned(keys.get(2), generateValue(rnd));
+
+        // Create a table segment and add data.
+        processor.createTableSegment(new WireCommands.CreateTableSegment(1, streamSegmentName, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
+        processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, streamSegmentName, "", getTableEntries(asList(e1, e2, e3))));
+
+        // 1. Now read the table keys where suggestedKeyCount is equal to number of entries in the Table Store.
+        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 3, ByteBuffer.wrap(new byte[0])));
+
+        // Capture the WireCommands sent.
+        ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
+        order.verify(connection, times(2)).send(wireCommandsCaptor.capture());
+
+        // Verify the WireCommands.
+        List<Long> keyVersions = ((WireCommands.TableEntriesUpdated) wireCommandsCaptor.getAllValues().get(0)).getUpdatedVersions();
+        WireCommands.TableKeys getTableKeysResponse = (WireCommands.TableKeys) wireCommandsCaptor.getAllValues().get(1);
+        assertTrue(getTableKeysResponse.getKeys().stream().map(WireCommands.TableKey::getKeyVersion).collect(Collectors.toList()).containsAll(keyVersions));
+
+        // 2. Now read the table keys where suggestedKeyCount is less than the number of keys in the Table Store.
+        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 1, ByteBuffer.wrap(new byte[0])));
+
+        // Capture the WireCommands sent.
+        ArgumentCaptor<WireCommands.TableKeys> tableKeysCaptor = ArgumentCaptor.forClass(WireCommands.TableKeys.class);
+        order.verify(connection, times(1)).send(tableKeysCaptor.capture());
+
+        // Verify the WireCommands.
+        getTableKeysResponse =  tableKeysCaptor.getAllValues().get(0);
+        assertEquals(1, getTableKeysResponse.getKeys().size());
+        assertTrue(keyVersions.contains(getTableKeysResponse.getKeys().get(0).getKeyVersion()));
+        // Get the last state.
+        ByteBuffer state = getTableKeysResponse.getContinuationToken();
+
+        // 3. Now read the remaining table keys by providing a higher suggestedKeyCount and the state to the iterator.
+        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 3, state));
+        // Capture the WireCommands sent.
+        tableKeysCaptor = ArgumentCaptor.forClass(WireCommands.TableKeys.class);
+        order.verify(connection, times(1)).send(tableKeysCaptor.capture());
+
+        // Verify the WireCommands.
+        getTableKeysResponse =  tableKeysCaptor.getAllValues().get(0);
+        assertEquals(2, getTableKeysResponse.getKeys().size());
+        assertTrue(keyVersions.containsAll(getTableKeysResponse.getKeys().stream().map(WireCommands.TableKey::getKeyVersion).collect(Collectors.toList())));
     }
 
     private HashedArray generateData(int length, Random rnd) {
