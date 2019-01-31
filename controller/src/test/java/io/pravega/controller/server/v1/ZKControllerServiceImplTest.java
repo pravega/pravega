@@ -94,7 +94,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        
+
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
