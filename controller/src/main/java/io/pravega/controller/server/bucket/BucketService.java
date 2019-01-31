@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * This class represents an instance of a background worker service that runs background work for all streams under a 
  * specific bucket for a specific service type. This means a separate instance of this class is instantiated for each 
  * bucket for each service type.   
- * Each object has two categories of work that it performs - process notification and execute the supplied worker funtion 
+ * Each object has two categories of work that it performs - process notification and execute the supplied worker function 
  * on known sets of streams.
  * 
  * This is an abstract class and its implementations should monitor the underlying bucket store and call `notify` method 
