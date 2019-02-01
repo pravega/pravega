@@ -20,13 +20,13 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
+import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
@@ -165,7 +165,7 @@ public class EventProcessorTest {
 
         @Cleanup
         EventStreamWriter<TestEvent> producer = clientFactory.createEventWriter(streamName,
-                new JavaSerializer<>(), EventWriterConfig.builder().build());
+                new EventSerializer<>(), EventWriterConfig.builder().build());
 
         int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         int expectedSum = input.length * (input.length + 1) / 2;
@@ -203,7 +203,7 @@ public class EventProcessorTest {
         // Test case 1. Actor does not throw any exception during normal operation.
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false, result))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();

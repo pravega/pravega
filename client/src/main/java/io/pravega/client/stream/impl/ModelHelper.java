@@ -125,7 +125,7 @@ public final class ModelHelper {
      * @param keyRanges List of Key Value pairs.
      * @return Collection of key ranges available.
      */
-    public static final List<AbstractMap.SimpleEntry<Double, Double>> encode(final Map<Double, Double> keyRanges) {
+    public static final List<Map.Entry<Double, Double>> encode(final Map<Double, Double> keyRanges) {
         Preconditions.checkNotNull(keyRanges, "keyRanges");
 
         return keyRanges
