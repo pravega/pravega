@@ -36,6 +36,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -60,6 +61,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private boolean closed;
     @GuardedBy("readers")
     private final List<EventSegmentReader> readers = new ArrayList<>();
+    @GuardedBy("readers")
+    private final Map<Segment, Boolean> sealedSegments = new HashMap<>();
     @GuardedBy("readers")
     private Sequence lastRead;
     @GuardedBy("readers")
@@ -165,8 +168,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
         if (atCheckpoint != null) {
-            groupState.checkpoint(atCheckpoint, getPosition());
+            for (Entry<Segment, Boolean> oldSegment : sealedSegments.entrySet()) {
+                groupState.handleEndOfSegment(oldSegment.getKey(), oldSegment.getValue());
+            }
             releaseSegmentsIfNeeded();
+            groupState.checkpoint(atCheckpoint, getPosition());
         }
         atCheckpoint = groupState.getCheckpoint();
         if (atCheckpoint != null) {
@@ -221,14 +227,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         return clock.get() - lastRead.getHighOrder();
     }
     
-    private void handleEndOfSegment(EventSegmentReader oldSegment, boolean fetchSuccessors) throws ReaderNotInReaderGroupException {
+    @GuardedBy("readers")
+    private void handleEndOfSegment(EventSegmentReader oldSegment, boolean fetchSuccessors) {
         log.info("{} encountered end of segment {} ", this, oldSegment.getSegmentId());
         readers.remove(oldSegment);
         oldSegment.close();
-        groupState.handleEndOfSegment(oldSegment.getSegmentId(), fetchSuccessors);
+        sealedSegments.put(oldSegment.getSegmentId(), fetchSuccessors);
     }
     
-    private void handleSegmentTruncated(EventSegmentReader segmentReader) throws ReaderNotInReaderGroupException, TruncatedDataException {
+    private void handleSegmentTruncated(EventSegmentReader segmentReader) throws TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
         String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
