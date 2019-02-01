@@ -139,8 +139,14 @@ public class InProcPravegaCluster implements AutoCloseable {
             Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
             //Check TLS related parameters
-            Preconditions.checkState(!enableTls || (!Strings.isNullOrEmpty(this.keyFile) && !Strings.isNullOrEmpty(this.certFile)),
-                    "TLS parameters not set");
+            Preconditions.checkState(!enableTls ||
+                            (!Strings.isNullOrEmpty(this.keyFile)
+                            && !Strings.isNullOrEmpty(this.certFile)
+                            && !Strings.isNullOrEmpty(this.jksKeyFile)
+                            && !Strings.isNullOrEmpty(this.jksTrustFile)
+                            && !Strings.isNullOrEmpty(this.keyPasswordFile)
+                            && !Strings.isNullOrEmpty(this.passwdFile)),
+                    "TLS enabled, but not all parameters set");
 
             if (this.isInMemStorage) {
                 this.isInProcHDFS = false;
