@@ -15,13 +15,13 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 
 @Builder
-@RequiredArgsConstructor
 @Data
+@AllArgsConstructor
 public class UpdateStreamEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;

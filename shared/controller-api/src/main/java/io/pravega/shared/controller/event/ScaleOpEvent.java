@@ -19,13 +19,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 
 @Builder
-@RequiredArgsConstructor
 @Data
+@AllArgsConstructor
 public class ScaleOpEvent implements ControllerEvent {
     private static final long serialVersionUID = 1L;
     private final String scope;

@@ -15,13 +15,13 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 
 @Builder
-@RequiredArgsConstructor
 @Data
+@AllArgsConstructor
 public class AutoScaleEvent implements ControllerEvent {
     public static final byte UP = (byte) 0;
     public static final byte DOWN = (byte) 1;
