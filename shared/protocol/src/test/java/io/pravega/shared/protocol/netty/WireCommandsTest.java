@@ -18,7 +18,7 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -563,12 +563,13 @@ public class WireCommandsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testUpdateTableEntries() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new AbstractMap.SimpleImmutableEntry(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
-                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), WireCommands.TableValue.EMPTY));
+                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
+                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), WireCommands.TableValue.EMPTY));
         testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
     }
 
@@ -595,10 +596,11 @@ public class WireCommandsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testTableRead() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableValue(buffer)),
-                new AbstractMap.SimpleImmutableEntry(new WireCommands.TableKey(buffer, 2L), new WireCommands.TableValue(buffer))
+                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, 2L), new WireCommands.TableValue(buffer))
         );
 
         testCommand(new WireCommands.TableRead(l, testString1, new WireCommands.TableEntries(entries)));

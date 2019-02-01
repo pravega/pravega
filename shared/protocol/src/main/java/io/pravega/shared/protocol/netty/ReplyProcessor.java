@@ -83,4 +83,6 @@ public interface ReplyProcessor {
     void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
 
     void tableKeysIteratorItem(WireCommands.TableKeysIteratorItem tableKeysIteratorItem);
+
+    void tableEntriesIteratorItem(WireCommands.TableEntriesIteratorItem tableEntriesIteratorItem);
 }

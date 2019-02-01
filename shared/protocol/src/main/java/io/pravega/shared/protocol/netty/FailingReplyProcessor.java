@@ -190,4 +190,9 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void tableKeysIteratorItem(WireCommands.TableKeysIteratorItem tableKeysIteratorItem) {
         throw new IllegalStateException("Unexpected operation: " + tableKeysIteratorItem);
     }
+
+    @Override
+    public void tableEntriesIteratorItem(WireCommands.TableEntriesIteratorItem tableEntriesIteratorItem) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesIteratorItem);
+    }
 }

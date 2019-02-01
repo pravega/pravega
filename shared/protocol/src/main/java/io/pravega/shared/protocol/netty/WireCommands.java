@@ -1818,6 +1818,40 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class TableEntriesIteratorItem implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_ENTRIES_ITERATOR_ITEM;
+        final long requestId;
+        final String segment;
+        final TableEntries entries;
+        final ByteBuffer continuationToken; // this used to indicate the point from which the next keys should be fetched.
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableEntriesIteratorItem(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            entries.writeFields(out);
+            out.writeInt(continuationToken.remaining());
+            out.write(continuationToken.array(), continuationToken.arrayOffset() + continuationToken.position(), continuationToken.remaining());
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            TableEntries entries = TableEntries.readFrom(in, in.available());
+            int dataLength = in.readInt();
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new TableEntriesIteratorItem(requestId, segment, entries, ByteBuffer.wrap(continuationToken));
+        }
+    }
+
+    @Data
     public static final class TableEntries {
         final List<Map.Entry<TableKey, TableValue>> entries;
 
