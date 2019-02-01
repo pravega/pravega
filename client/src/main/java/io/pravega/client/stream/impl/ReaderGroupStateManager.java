@@ -137,12 +137,8 @@ public class ReaderGroupStateManager {
                 return;
             }
             log.debug("Removing reader {} from reader grop. CurrentState is: {}", readerId, state);
-            if (lastPosition != null && !lastPosition.asImpl().getOwnedSegments().containsAll(segments)) {
-                throw new IllegalArgumentException(
-                        "When shutting down a reader: Given position does not match the segments it was assigned: \n"
-                                + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
-            }
-            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
+            updates.add(new RemoveReader(readerId, lastPosition == null ? Collections.emptyMap()
+                    : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
         });
     }
     
