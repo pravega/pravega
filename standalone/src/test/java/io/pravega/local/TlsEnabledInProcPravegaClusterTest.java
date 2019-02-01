@@ -57,7 +57,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     // Note: Strictly speaking, this test is really an "integration test" and is a little
     // time consuming. For now, its intended to run as a unit test, but it could be moved
     // to an integration test suite if and when necessary.
-    @Test
+    @Test(timeout = 50000)
     public void testWriteAndReadEventWhenConfigurationIsProper() throws ExecutionException,
             InterruptedException, ReinitializationRequiredException {
 
