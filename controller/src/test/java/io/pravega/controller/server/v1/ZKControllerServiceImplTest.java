@@ -38,6 +38,7 @@ import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -91,18 +92,19 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
+        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelper,
                 executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
-                new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);

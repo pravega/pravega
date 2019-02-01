@@ -108,7 +108,7 @@ public class TaskTest {
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
 
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore, segmentHelperMock,
                 executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
                                                                           .controllerURI(URI.create("tcp://localhost"))
                                                                           .build()),
@@ -235,7 +235,7 @@ public class TaskTest {
 
         // Create objects.
         @Cleanup
-        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore, segmentHelperMock,
                 executor, deadHost, Mockito.mock(ConnectionFactory.class),  AuthHelper.getDisabledAuthHelper(), requestTracker);
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
