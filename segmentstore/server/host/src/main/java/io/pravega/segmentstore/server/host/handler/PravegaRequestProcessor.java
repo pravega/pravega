@@ -716,7 +716,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                               .map(k -> new ByteArraySegment(k.getData().array()))
                                               .collect(Collectors.toList());
         tableStore.get(segment, keys, TIMEOUT)
-                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntries(keys, values))))
+                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment,
+                                                                                   getTableEntriesCommand(keys, values))))
                   .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
     }
 
@@ -838,7 +839,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                   }).exceptionally(e -> handleException(getTableEntries.getRequestId(), segment, operation, e));
     }
 
-    private WireCommands.TableEntries getTableEntries(final List<ArrayView> inputKeys, final List<TableEntry> resultEntries) {
+    private WireCommands.TableEntries getTableEntriesCommand(final List<ArrayView> inputKeys, final List<TableEntry> resultEntries) {
 
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
         final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries =
