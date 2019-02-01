@@ -98,7 +98,7 @@ public enum WireCommandType {
     TABLE_KEY_BAD_VERSION(82, WireCommands.TableKeyBadVersion::readFrom),
 
     GET_TABLE_KEYS(83, WireCommands.GetTableKeys::readFrom ),
-    TABLE_KEYS(84, WireCommands.TableKeys::readFrom),
+    TABLE_KEYS_ITERATOR_ITEM(84, WireCommands.TableKeysIteratorItem::readFrom),
 
     //    GET_TABLE_ENTRIES(85,),
     //    TABLE_ENTRIES(86,),

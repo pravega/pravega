@@ -1737,8 +1737,8 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class TableKeys implements Reply, WireCommand {
-        final WireCommandType type = WireCommandType.TABLE_KEYS;
+    public static final class TableKeysIteratorItem implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.TABLE_KEYS_ITERATOR_ITEM;
         final long requestId;
         final String segment;
         final List<TableKey> keys;
@@ -1746,7 +1746,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.tableKeys(this);
+            cp.tableKeysIteratorItem(this);
         }
 
         @Override
@@ -1773,7 +1773,7 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new TableKeys(requestId, segment, keys, ByteBuffer.wrap(continuationToken));
+            return new TableKeysIteratorItem(requestId, segment, keys, ByteBuffer.wrap(continuationToken));
         }
     }
 

@@ -799,7 +799,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                                                                              keyArray.getLength()), k.getVersion());
                                                                         })
                                                                         .collect(toList());
-                      connection.send(new WireCommands.TableKeys(getTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
+                      connection.send(new WireCommands.TableKeysIteratorItem(getTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
                   }).exceptionally(e -> handleException(getTableKeys.getRequestId(), segment, operation, e));
     }
 

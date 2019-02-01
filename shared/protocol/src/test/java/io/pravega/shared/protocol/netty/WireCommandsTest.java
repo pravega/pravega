@@ -629,9 +629,9 @@ public class WireCommandsTest {
     @Test
     public void testTableKeys() throws IOException {
         List<WireCommands.TableKey> keys = Arrays.asList(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableKey(buffer, 2L));
-        WireCommands.TableKeys cmd = new WireCommands.TableKeys(l, testString1, keys, buffer);
+        WireCommands.TableKeysIteratorItem cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, buffer);
         testCommand(cmd);
-        cmd = new WireCommands.TableKeys(l, testString1, keys, ByteBuffer.wrap(new byte[0]));
+        cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, ByteBuffer.wrap(new byte[0]));
         testCommand(cmd);
     }
 
