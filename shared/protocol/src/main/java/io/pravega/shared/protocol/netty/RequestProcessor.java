@@ -76,4 +76,6 @@ public interface RequestProcessor {
     void readTable(WireCommands.ReadTable readTable);
 
     void getTableKeys(WireCommands.GetTableKeys getTableKeys);
+
+    void getTableEntries(WireCommands.GetTableEntries getTableEntries);
 }

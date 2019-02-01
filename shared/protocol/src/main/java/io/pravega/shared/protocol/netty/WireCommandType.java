@@ -100,7 +100,7 @@ public enum WireCommandType {
     GET_TABLE_KEYS(83, WireCommands.GetTableKeys::readFrom ),
     TABLE_KEYS_ITERATOR_ITEM(84, WireCommands.TableKeysIteratorItem::readFrom),
 
-    //    GET_TABLE_ENTRIES(85,),
+    GET_TABLE_ENTRIES(85, WireCommands.GetTableEntries::readFrom),
     //    TABLE_ENTRIES(86,),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
