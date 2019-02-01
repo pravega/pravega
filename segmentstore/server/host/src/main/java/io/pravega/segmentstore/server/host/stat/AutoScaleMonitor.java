@@ -24,7 +24,7 @@ import lombok.NonNull;
  */
 @Data
 public class AutoScaleMonitor implements AutoCloseable {
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "auto-scaler");
+    private final ScheduledExecutorService executor;
     private final AutoScaleProcessor processor;
     @Getter
     private final SegmentStatsRecorder recorder;
@@ -32,11 +32,13 @@ public class AutoScaleMonitor implements AutoCloseable {
     @VisibleForTesting
     public AutoScaleMonitor(@NonNull StreamSegmentStore store, @NonNull EventStreamClientFactory clientFactory,
                             @NonNull AutoScalerConfig configuration) {
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler");
         this.processor = new AutoScaleProcessor(configuration, clientFactory, this.executor);
         this.recorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
     }
 
     public AutoScaleMonitor(@NonNull StreamSegmentStore store, @NonNull AutoScalerConfig configuration) {
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler");
         this.processor = new AutoScaleProcessor(configuration, this.executor);
         this.recorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
     }
