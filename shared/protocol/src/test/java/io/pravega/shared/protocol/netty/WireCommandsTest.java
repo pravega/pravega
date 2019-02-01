@@ -563,13 +563,12 @@ public class WireCommandsTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testUpdateTableEntries() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new SimpleImmutableEntry(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
-                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, l), WireCommands.TableValue.EMPTY));
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), WireCommands.TableValue.EMPTY));
         testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
     }
 
@@ -596,11 +595,10 @@ public class WireCommandsTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     public void testTableRead() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableValue(buffer)),
-                new SimpleImmutableEntry(new WireCommands.TableKey(buffer, 2L), new WireCommands.TableValue(buffer))
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, 2L), new WireCommands.TableValue(buffer))
         );
 
         testCommand(new WireCommands.TableRead(l, testString1, new WireCommands.TableEntries(entries)));
@@ -629,13 +627,37 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testTableKeys() throws IOException {
+    public void testGetTableEntries() throws IOException {
+        WireCommands.GetTableEntries cmd = new WireCommands.GetTableEntries(l, testString1, "", 10, buffer);
+        testCommand(cmd);
+        cmd = new WireCommands.GetTableEntries(l, testString1, "", 10, ByteBuffer.wrap(new byte[0]));
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testTableKeysIteratorItem() throws IOException {
         List<WireCommands.TableKey> keys = Arrays.asList(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableKey(buffer, 2L));
         WireCommands.TableKeysIteratorItem cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, buffer);
         testCommand(cmd);
         cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, ByteBuffer.wrap(new byte[0]));
         testCommand(cmd);
     }
+
+    @Test
+    public void testTableEntriesIteratorItem() throws IOException {
+
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)));
+        WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
+
+        WireCommands.TableEntriesIteratorItem cmd = new WireCommands.TableEntriesIteratorItem(l, testString1, tableEntries, buffer);
+        testCommand(cmd);
+        cmd = new WireCommands.TableEntriesIteratorItem(l, testString1, tableEntries, ByteBuffer.wrap(new byte[0]));
+        testCommand(cmd);
+    }
+
+
 
     private void testCommand(WireCommand command) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();

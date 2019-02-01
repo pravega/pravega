@@ -1813,7 +1813,7 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new GetTableKeys(requestId, segment, delegationToken, suggestedEntryCount, ByteBuffer.wrap(continuationToken));
+            return new GetTableEntries(requestId, segment, delegationToken, suggestedEntryCount, ByteBuffer.wrap(continuationToken));
         }
     }
 
