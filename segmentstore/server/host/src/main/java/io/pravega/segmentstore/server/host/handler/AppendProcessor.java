@@ -255,6 +255,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private void handleAppendResult(final Append append, Throwable exception, Timer elapsedTimer) {
+        boolean success = exception == null;
         try {
             boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
             long previousEventNumber;
@@ -264,20 +265,19 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         "Synchronization error in: %s while processing append: %s.",
                         AppendProcessor.this.getClass().getName(), append);
             }
-      
-            if (exception != null) {
+
+            if (success) {
+                final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
+                        previousEventNumber);
+                log.trace("Sending DataAppended : {}", dataAppendedAck);
+                connection.send(dataAppendedAck);
+            } else {
                 if (conditionalFailed) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
                     connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber()));
                 } else {
                     handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
                 }
-            } else {
-                final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
-                        previousEventNumber);
-                log.trace("Sending DataAppended : {}", dataAppendedAck);
-                connection.send(dataAppendedAck);
-                statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
             }
 
             /* Reply (DataAppended in case of success, else an error Reply based on exception) has been sent. Next,
@@ -302,7 +302,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             pauseOrResumeReading();
             performNextWrite();
         } catch (Throwable e) {
+            success = false;
             handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "handling append result", e);
+        }
+
+        if (success) {
+            // Record any necessary metrics or statistics, but after we have sent the ack back and initiated the next append.
+            this.statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
         }
     }
 
