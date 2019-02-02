@@ -9,10 +9,12 @@
  */
 package io.pravega.controller.eventProcessor;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.Serializer;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import java.nio.ByteBuffer;
+import lombok.NonNull;
 
 /**
  * Wrapper for {@link ControllerEventSerializer} that implements {@link Serializer}.
@@ -20,7 +22,24 @@ import java.nio.ByteBuffer;
  * @param <T> Type of {@link ControllerEvent} to serialize/deserialize.
  */
 public class EventSerializer<T extends ControllerEvent> implements Serializer<T> {
-    private final ControllerEventSerializer baseSerializer = new ControllerEventSerializer();
+    private final ControllerEventSerializer baseSerializer;
+
+    /**
+     * Creates a new instance of the {@link EventSerializer} class.
+     */
+    public EventSerializer() {
+        this(new ControllerEventSerializer());
+    }
+
+    /**
+     * Creates a new instance of the {@link EventSerializer} class.
+     *
+     * @param baseSerializer The {@link ControllerEventSerializer} to use.
+     */
+    @VisibleForTesting
+    public EventSerializer(@NonNull ControllerEventSerializer baseSerializer) {
+        this.baseSerializer = baseSerializer;
+    }
 
     @Override
     public ByteBuffer serialize(T value) {
