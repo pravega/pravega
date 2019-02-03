@@ -16,6 +16,7 @@ import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
+import io.pravega.client.admin.impl.StreamsIterator;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
@@ -32,8 +33,10 @@ import io.pravega.client.stream.impl.ReaderGroupImpl;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.NameUtils;
 import java.net.URI;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -65,8 +68,9 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     }
 
     @Override
-    public Map<Stream, StreamConfiguration> streamsInScope(String scopeName) {
-        return Futures.getAndHandleExceptions(controller.streamsInScope(scope), RuntimeException::new);
+    public Iterator<Stream> listStreamsInScope(String scopeName) {
+        AsyncIterator<Stream> asyncIterator = controller.streamsInScope(scopeName);
+        return new StreamsIterator(asyncIterator);
     }
 
     @Override

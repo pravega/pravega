@@ -27,6 +27,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
@@ -41,9 +42,13 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 
 public class LocalController implements Controller {
 
@@ -77,9 +82,25 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Stream, StreamConfiguration>> streamsInScope(String scopeName) {
-        return controller.listStreamsInScope(scopeName)
-                .thenApply(map -> map.entrySet().stream().collect(Collectors.toMap(x -> new StreamImpl(scopeName, x.getKey()), Map.Entry::getValue)));
+    public AsyncIterator<Stream> streamsInScope(String scopeName) {
+        final Function<String, CompletableFuture<Pair<List<String>, String>>> function = token -> 
+                controller.listStreamsInScope(scopeName, token);
+
+        return new AsyncIterator<Stream>() {
+            LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
+            AtomicReference<String> token = new AtomicReference<>(null);
+
+            @Override
+            public CompletableFuture<Stream> getNext() {
+                return function.apply(token.get()).thenApply(result -> {
+                    streams.addAll(result.getKey().stream()
+                                                 .map(x -> (Stream) new StreamImpl(scopeName, x))
+                                                 .collect(Collectors.toList()));
+                    token.set(result.getValue());
+                    return streams.poll();
+                });
+            }
+        };
     }
 
     @Override

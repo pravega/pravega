@@ -52,6 +52,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -357,15 +359,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void listStreamsInScope(ScopeInfo request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "streamsInScope", request.getScope());
-        log.info(requestTag.getRequestId(), "streamsInScope called for scope {}.", request.getScope());
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listStreamsInScope(request.getScope())
-                                                    .thenApply(x -> 
-                                                            Controller.StreamsInScopeResponse.newBuilder().addAllStreams(
-                                                            x.entrySet().stream().map(m -> ModelHelper.decode(request.getScope(), m.getKey(), m.getValue()))
-                                                                 .collect(Collectors.toList())).build()),
+    public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+        String scope = request.getScope().getScope();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStreamsInScope", scope);
+        log.info(requestTag.getRequestId(), "listStreamsInScope called for scope {}.", scope);
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope, AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.listStreamsInScope(scope, request.getContinuationToken().getToken())
+                                                    .thenApply(response -> {
+                                                        List<StreamInfo> streams = response.getKey().stream()
+                                                                                    .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())
+                                                                                    .collect(Collectors.toList());
+                                                        return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(
+                                                                streams).setContinuationToken(Controller.ContinuationToken
+                                                                .newBuilder().setToken(response.getValue()).build()).build();
+                                                    }),
                 responseObserver, requestTag);
     }
 

@@ -22,6 +22,7 @@ import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.pravega.client.admin.impl.StreamsIterator;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
@@ -36,6 +37,7 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -68,6 +70,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -80,13 +83,19 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
+
 import org.slf4j.LoggerFactory;
+
+import static io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -220,28 +229,41 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Map<Stream, StreamConfiguration>> streamsInScope(String scopeName) {
+    public AsyncIterator<Stream> streamsInScope(String scopeName) {
 
         Exceptions.checkNotClosed(closed.get(), this);
-        long traceId = LoggerHelpers.traceEnter(log, "streamsInScope", scopeName);
+        long traceId = LoggerHelpers.traceEnter(log, "listStreamsInScope", scopeName);
 
-        final CompletableFuture<StreamsInScopeResponse> resultFuture = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "streamsInScope");
-            new ControllerClientTagger(client).withTag(traceId, "streamsInScope", scopeName)
-                                              .listStreamsInScope(ScopeInfo.newBuilder().setScope(scopeName).build(), callback);
+        final Function<ContinuationToken, CompletableFuture<StreamsInScopeResponse>> function = token -> this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreamsInScope");
+            ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+            new ControllerClientTagger(client).withTag(traceId, "listStreamsInScope", scopeName)
+                                              .listStreamsInScope(StreamsInScopeRequest
+                                                      .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
             return callback.getFuture();
         }, this.executor);
-        return resultFuture.thenApply(streamsInScope -> {
-            log.debug("Received the following data from the controller {}", streamsInScope.getStreamsList());
-            return streamsInScope.getStreamsList().stream()
-                                 .collect(Collectors.toMap(x -> (Stream) new StreamImpl(x.getStreamInfo().getScope(), x.getStreamInfo().getStream()), 
-                                         ModelHelper::encode));
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("streamsInScope failed: ", e);
+        
+        return new AsyncIterator<Stream>() {
+            LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
+            AtomicReference<ContinuationToken> token = new AtomicReference<>(ContinuationToken.newBuilder().build());
+            
+            @Override
+            public CompletableFuture<Stream> getNext() {
+                return function.apply(token.get()).thenApply(streamsInScope -> {
+                    log.debug("Received the following data from the controller {}", streamsInScope.getStreamsList());
+                    streams.addAll(streamsInScope.getStreamsList().stream()
+                                                 .map(x -> (Stream) new StreamImpl(x.getScope(), x.getStream()))
+                                                 .collect(Collectors.toList()));
+                    token.set(streamsInScope.getContinuationToken());
+                    return streams.poll();
+                }).whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("listStreamsInScope failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "listStreamsInScope", traceId);
+                });
             }
-            LoggerHelpers.traceLeave(log, "streamsInScope", traceId);
-        });
+        };
     }
 
     @Override
@@ -1056,8 +1078,9 @@ public class ControllerImpl implements Controller {
             clientStub.createScope(scopeInfo, callback);
         }
 
-        public void listStreamsInScope(ScopeInfo scopeInfo, RPCAsyncCallback<StreamsInScopeResponse> callback) {
-            clientStub.listStreamsInScope(scopeInfo, callback);
+        public void listStreamsInScope(io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest request, 
+                                       RPCAsyncCallback<StreamsInScopeResponse> callback) {
+            clientStub.listStreamsInScope(request, callback);
         }
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {

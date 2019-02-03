@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.v1;
 
+import com.google.common.base.Strings;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
@@ -37,6 +38,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,6 +68,7 @@ public abstract class ControllerServiceImplTest {
     protected static final String SCOPE3 = "scope3";
     protected static final String STREAM1 = "stream1";
     protected static final String STREAM2 = "stream2";
+    protected static final String STREAM3 = "stream3";
 
     //Ensure each test completes within 10 seconds.
     @Rule
@@ -116,6 +120,59 @@ public abstract class ControllerServiceImplTest {
         status = result4.get();
         assertEquals(status.getStatus(), CreateScopeStatus.Status.INVALID_SCOPE_NAME);
         // endregion
+    }
+
+    @Test
+    public void streamsInScopeTest() {
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+
+        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
+        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE1).build();
+        this.controllerService.createScope(scopeInfo, result);
+        Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        ResultObserver<CreateStreamStatus> createStreamStatus1 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), createStreamStatus1);
+        CreateStreamStatus status = createStreamStatus1.get();
+        Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<CreateStreamStatus> createStreamStatus2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, configuration), createStreamStatus2);
+        status = createStreamStatus2.get();
+        Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<CreateStreamStatus> createStreamStatus3 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, configuration), createStreamStatus3);
+        status = createStreamStatus3.get();
+        Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse1 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest1 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest1, streamsInScopeResponse1);
+        List<Controller.StreamInfo> list = streamsInScopeResponse1.get().getStreamsList();
+        // check continuation token
+        assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse1.get().getContinuationToken().getToken()));
+        assertEquals(2, list.size());
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse2 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest2 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(streamsInScopeResponse1.get().getContinuationToken()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest2, streamsInScopeResponse2);
+        list = streamsInScopeResponse2.get().getStreamsList();
+        // check continuation token
+        assertTrue(Strings.isNullOrEmpty(streamsInScopeResponse2.get().getContinuationToken().getToken()));
+        assertEquals(1, list.size());
+
+        List<StreamInfo> m = new LinkedList<>();
+        m.addAll(streamsInScopeResponse1.get().getStreamsList());
+        m.addAll(streamsInScopeResponse2.get().getStreamsList());
+        
+        // verify that all three streams have been found
+        assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM1)));
+        assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM2)));
+        assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM3)));
+        
     }
 
     @Test

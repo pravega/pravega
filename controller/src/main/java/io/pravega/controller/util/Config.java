@@ -74,6 +74,9 @@ public final class Config {
         entries.forEach(entry -> log.info("{} = {}", entry.getKey(), entry.getValue()));
     }
 
+    // Scope pagination configuration
+    public static final int LIST_STREAM_LIMIT = CONFIG.getInt("config.controller.server.listStreamsInScopeLimit");
+    
     //REST server configuration
     public static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
     public static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");

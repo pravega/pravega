@@ -9,12 +9,18 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Strings;
 import lombok.Synchronized;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 /**
  * InMemory implementation of Scope.
@@ -24,7 +30,7 @@ public class InMemoryScope implements Scope {
     private final String scopeName;
 
     @GuardedBy("$lock")
-    private List<String> streamsInScope;
+    private SortedSet<String> sortedStreamsInScope;
 
     InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -38,40 +44,69 @@ public class InMemoryScope implements Scope {
     @Override
     @Synchronized
     public CompletableFuture<Void> createScope() {
-        this.streamsInScope = new ArrayList<>();
+        this.sortedStreamsInScope = new TreeSet<>(Scope::compare);
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<Void> deleteScope() {
-        this.streamsInScope.clear();
+        this.sortedStreamsInScope.clear();
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> addStreamToScope(String stream, long creationTime) {
+        sortedStreamsInScope.add(Scope.encode(stream, creationTime));
+        
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Void> removeStreamFromScope(String stream, long creationTime) {
+        this.sortedStreamsInScope.remove(Scope.encode(stream, creationTime));
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<List<String>> listStreamsInScope() {
-        return CompletableFuture.completedFuture(new ArrayList<>(this.streamsInScope));
+        return CompletableFuture.completedFuture(this.sortedStreamsInScope.stream().map(x -> Scope.decode(x).getKey()).collect(Collectors.toList()));
+    }
+    
+    @Override
+    @Synchronized
+    public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(int limit, String continuationToken, Executor executor) {
+        String newContinuationToken;
+        List<String> limited;
+        synchronized (this) {
+            if (Strings.isNullOrEmpty(continuationToken)) {
+                limited = sortedStreamsInScope.stream().limit(limit).collect(Collectors.toList());
+            } else {
+                // find in list based on time
+                limited = sortedStreamsInScope.tailSet(continuationToken)
+                                              .stream().limit(limit).collect(Collectors.toList());
+                if (!limited.isEmpty()) {
+                    limited.remove(0);
+                }
+            }
+            
+            if (limited.isEmpty() || limited.size() < limit) {
+                newContinuationToken = "";
+            } else {
+                newContinuationToken = limited.get(limited.size() - 1);      
+            }
+        }
+
+        List<String> result = limited.stream().map(x -> Scope.decode(x).getKey()).collect(Collectors.toList());
+        
+        return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }
 
     @Override
     public void refresh() {
 
-    }
-
-    /**
-     * Adds stream name to the scope.
-     *
-     * @param stream Name of stream to be added.
-     */
-    @Synchronized
-    public void addStreamToScope(String stream) {
-        this.streamsInScope.add(stream);
-    }
-
-    @Synchronized
-    public void removeStreamFromScope(String stream) {
-        this.streamsInScope.remove(stream);
     }
 }

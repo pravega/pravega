@@ -28,6 +28,7 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
@@ -247,7 +248,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                     }
                 });
     }
-
+    
     @Override
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.listScopes();

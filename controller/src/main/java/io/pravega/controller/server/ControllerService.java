@@ -437,6 +437,17 @@ public class ControllerService {
     }
 
     /**
+     * List existing streams in scopes.
+     *
+     * @param scope Name of the scope.
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(final String scope, final String token) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return streamStore.listStreamsInScope(scope, token, executor);
+    }
+
+    /**
      * List Scopes in cluster.
      *
      * @return List of scopes.

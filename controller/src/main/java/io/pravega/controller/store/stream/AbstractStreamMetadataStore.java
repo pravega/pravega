@@ -32,6 +32,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -132,7 +133,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor));
+                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber)
+                            .thenCompose(status -> getScope(scope).addStreamToScope(name, status.getTimestamp()).thenApply(x -> status)), executor));
     }
 
     @Override
@@ -145,6 +147,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .thenApply(activeSegments -> activeSegments.stream().map(Segment::getNumber)
                                                                     .reduce(Integer::max).get())
                 .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
+                .thenCompose(v -> s.getCreationTime().thenCompose(time -> getScope(scope).removeStreamFromScope(name, time)))
                 .thenCompose(v -> withCompletion(s.delete(), executor))
                 .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
     }
@@ -259,6 +262,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(String scopeName, String continuationToken, 
+                                                                            final Executor executor) {
+        return getScope(scopeName).listStreamsInScope(Config.LIST_STREAM_LIMIT, continuationToken, executor);
+    }
 
     @Override
     public CompletableFuture<Void> startTruncation(final String scope,

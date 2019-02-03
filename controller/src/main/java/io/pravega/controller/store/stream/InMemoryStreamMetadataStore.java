@@ -22,6 +22,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
@@ -119,7 +121,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
                     .thenCompose(startingSegmentNumber -> stream.create(configuration, timeStamp, startingSegmentNumber)
                     .thenApply(x -> {
                         streams.put(scopedStreamName(scopeName, streamName), stream);
-                        scopes.get(scopeName).addStreamToScope(streamName);
+                        scopes.get(scopeName).addStreamToScope(streamName, x.getTimestamp()).join();
                         return x;
                     }));
         } else {
@@ -150,8 +152,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         String scopedStreamName = scopedStreamName(scopeName, streamName);
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
             streams.remove(scopedStreamName);
-            scopes.get(scopeName).removeStreamFromScope(streamName);
-            return super.deleteStream(scopeName, streamName, context, executor);
+            return getCreationTime(scopeName, streamName, context, executor)
+                    .thenCompose(time -> scopes.get(scopeName).removeStreamFromScope(streamName, time))
+                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor));
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
@@ -346,7 +349,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-
+    
     @Override
     @Synchronized
     CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,

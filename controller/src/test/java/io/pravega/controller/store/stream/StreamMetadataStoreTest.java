@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -229,6 +230,27 @@ public abstract class StreamMetadataStoreTest {
             assertTrue("List streams in non-existent scope Scope1",
                     ce.getCause() instanceof StoreException.DataNotFoundException);
         }
+    }
+
+    @Test
+    public void listStreamsInScopePaginated() throws Exception {
+        // list stream in scope
+        String scope = "Scope";
+        store.createScope(scope).get();
+        String stream1 = "stream1";
+        String stream2 = "stream2";
+        String stream3 = "stream3";
+
+        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream1, State.ACTIVE, null, executor).get();
+        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream2, State.ACTIVE, null, executor).get();
+        store.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream3, State.ACTIVE, null, executor).get();
+        Pair<List<String>, String> streamInScope = store.listStreamsInScope(scope, "", executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getRight().length());
+        
+        store.listStreamsInScope(this.scope);
     }
 
     @Test

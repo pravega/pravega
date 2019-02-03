@@ -16,7 +16,10 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import java.net.URI;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Used to create, delete, and manage Streams and ReaderGroups.
@@ -113,7 +116,7 @@ public interface StreamManager extends AutoCloseable {
      * @param scopeName The name of the scope for which to list streams in.
      * @return Map of Stream to Configuration for all streams in the scope. 
      */
-    Map<Stream, StreamConfiguration> streamsInScope(String scopeName);
+    Iterator<Stream> listStreamsInScope(String scopeName);
 
     /**
      * Deletes an existing scope. The scope must contain no
