@@ -179,7 +179,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     /**
-     * Creates a new instance of the Praveg aRequestProcessor class with metrics logger.
+     * Creates a new instance of the PravegaRequestProcessor class with metrics logger.
      *
      * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore    The TableStore to attach to (and issue requests to).
