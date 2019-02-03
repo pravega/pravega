@@ -235,7 +235,7 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void listStreamsInScopePaginated() throws Exception {
         // list stream in scope
-        String scope = "Scope";
+        String scope = "scopeList";
         store.createScope(scope).get();
         String stream1 = "stream1";
         String stream2 = "stream2";
@@ -248,9 +248,10 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream3, State.ACTIVE, null, executor).get();
         Pair<List<String>, String> streamInScope = store.listStreamsInScope(scope, "", executor).get();
-        assertEquals("List streams in scope", 2, streamInScope.getRight().length());
-        
-        store.listStreamsInScope(this.scope);
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+
+        streamInScope = store.listStreamsInScope(scope, streamInScope.getValue(), executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
     }
 
     @Test
