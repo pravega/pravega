@@ -31,36 +31,18 @@ public class ScalingPolicy implements Serializable {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
-        FIXED_NUM_SEGMENTS((byte) 0),
+        FIXED_NUM_SEGMENTS(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_KBYTES_PER_SEC((byte) 1),
+        BY_RATE_IN_KBYTES_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS_PER_SEC((byte) 2);
+        BY_RATE_IN_EVENTS_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue());
 
         @Getter
-        private final byte id;
-
-        /**
-         * Gets the {@link ScaleType} that matches the given id.
-         *
-         * @param id The Id to match.
-         * @return the {@link ScaleType}.
-         */
-        public static ScaleType byId(byte id) {
-            if (id == FIXED_NUM_SEGMENTS.getId()) {
-                return FIXED_NUM_SEGMENTS;
-            } else if (id == BY_RATE_IN_KBYTES_PER_SEC.getId()) {
-                return BY_RATE_IN_KBYTES_PER_SEC;
-            } else if (id == BY_RATE_IN_EVENTS_PER_SEC.getId()) {
-                return BY_RATE_IN_EVENTS_PER_SEC;
-            } else {
-                throw new IllegalArgumentException("Unsupported Scale Type id " + id);
-            }
-        }
+        private final byte value;
     }
 
     private final ScaleType scaleType;
