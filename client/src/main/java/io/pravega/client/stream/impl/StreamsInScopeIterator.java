@@ -22,12 +22,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 class StreamsInScopeIterator implements AsyncIterator<Stream> {
-    LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
-    AtomicReference<Controller.ContinuationToken> token = new AtomicReference<>(Controller.ContinuationToken.newBuilder().build());
+    private LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
+    private AtomicReference<Controller.ContinuationToken> token = new AtomicReference<>(Controller.ContinuationToken.newBuilder().build());
 
     private final Function<Controller.ContinuationToken, CompletableFuture<Controller.StreamsInScopeResponse>> function;
 
-    public StreamsInScopeIterator(Function<Controller.ContinuationToken, CompletableFuture<Controller.StreamsInScopeResponse>> function) {
+    StreamsInScopeIterator(Function<Controller.ContinuationToken, CompletableFuture<Controller.StreamsInScopeResponse>> function) {
         this.function = function;
     }
 
@@ -44,7 +44,7 @@ class StreamsInScopeIterator implements AsyncIterator<Stream> {
         return function.apply(continuationToken).thenApply(streamsInScope -> {
             token.getAndUpdate(existing -> {    
                 if (existing.equals(continuationToken)) {
-                    log.debug("Received the following data from the controller {}", streamsInScope.getStreamsList());
+                    log.debug("Received the following data after calling the function {}", streamsInScope.getStreamsList());
                     streams.addAll(streamsInScope.getStreamsList().stream()
                                                  .map(x -> (Stream) new StreamImpl(x.getScope(), x.getStream()))
                                                  .collect(Collectors.toList()));
@@ -57,7 +57,7 @@ class StreamsInScopeIterator implements AsyncIterator<Stream> {
             return streams.poll();
         }).whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("listStreamsInScope failed: ", e);
+                log.warn("StreamsInScope async iteration failed: ", e);
             }
         });
     }
