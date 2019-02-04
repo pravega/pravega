@@ -14,12 +14,14 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@ThreadSafe
 @Slf4j
 class StreamsInScopeIterator implements AsyncIterator<Stream> {
     private LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
