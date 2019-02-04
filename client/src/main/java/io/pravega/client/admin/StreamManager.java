@@ -108,7 +108,7 @@ public interface StreamManager extends AutoCloseable {
     boolean createScope(String scopeName);
 
     /**
-     * Gets a map of all streams in scope. 
+     * Gets an iterator for all streams in scope. 
      * 
      * @param scopeName The name of the scope for which to list streams in.
      * @return Iterator of Stream to iterator over all streams in scope. 

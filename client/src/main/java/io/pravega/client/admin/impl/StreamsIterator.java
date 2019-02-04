@@ -13,8 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.util.AsyncIterator;
 import lombok.Synchronized;
-import net.jcip.annotations.ThreadSafe;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 

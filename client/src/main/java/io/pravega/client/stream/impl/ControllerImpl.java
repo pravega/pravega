@@ -233,36 +233,19 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "listStreamsInScope", scopeName);
 
-        final Function<ContinuationToken, CompletableFuture<StreamsInScopeResponse>> function = token -> this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreamsInScope");
-            ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
-            new ControllerClientTagger(client).withTag(traceId, "listStreamsInScope", scopeName)
-                                              .listStreamsInScope(StreamsInScopeRequest
-                                                      .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
-            return callback.getFuture();
-        }, this.executor);
-        
-        return new AsyncIterator<Stream>() {
-            LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
-            AtomicReference<ContinuationToken> token = new AtomicReference<>(ContinuationToken.newBuilder().build());
-            
-            @Override
-            public CompletableFuture<Stream> getNext() {
-                return function.apply(token.get()).thenApply(streamsInScope -> {
-                    log.debug("Received the following data from the controller {}", streamsInScope.getStreamsList());
-                    streams.addAll(streamsInScope.getStreamsList().stream()
-                                                 .map(x -> (Stream) new StreamImpl(x.getScope(), x.getStream()))
-                                                 .collect(Collectors.toList()));
-                    token.set(streamsInScope.getContinuationToken());
-                    return streams.poll();
-                }).whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("listStreamsInScope failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "listStreamsInScope", traceId);
-                });
-            }
-        };
+        try {
+            final Function<ContinuationToken, CompletableFuture<StreamsInScopeResponse>> function = token -> this.retryConfig.runAsync(() -> {
+                RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreamsInScope");
+                ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                new ControllerClientTagger(client).withTag(traceId, "listStreamsInScope", scopeName)
+                                                  .listStreamsInScope(StreamsInScopeRequest
+                                                          .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
+                return callback.getFuture();
+            }, this.executor);
+            return new StreamsInScopeIterator(function);
+        } finally {
+            LoggerHelpers.traceLeave(log, "listStreamsInScope", traceId);
+        }
     }
 
     @Override
