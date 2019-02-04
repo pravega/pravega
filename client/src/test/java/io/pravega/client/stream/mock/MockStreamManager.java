@@ -16,7 +16,6 @@ import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
-import io.pravega.client.admin.impl.StreamsIterator;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
@@ -70,7 +69,25 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     @Override
     public Iterator<Stream> listStreamsInScope(String scopeName) {
         AsyncIterator<Stream> asyncIterator = controller.streamsInScope(scopeName);
-        return new StreamsIterator(asyncIterator);
+        return new Iterator<Stream>() {
+            private Stream next;
+
+            private void load() {
+                next = asyncIterator.getNext().join();
+            }
+            
+            @Override
+            public boolean hasNext() {
+                load();
+                return next != null;
+            }
+
+            @Override
+            public Stream next() {
+                load();
+                return next;
+            }
+        };
     }
 
     @Override

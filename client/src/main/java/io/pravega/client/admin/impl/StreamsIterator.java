@@ -13,17 +13,25 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.util.AsyncIterator;
 import lombok.Synchronized;
+import net.jcip.annotations.ThreadSafe;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+/**
+ * This class is a wrapper over async iterator for iterating over streams.
+ * This is blocking wrapper on async iterator's getNext method which implements blocking hasNext and next methods of 
+ * iterator interface. 
+ * We have also made this class threadsafe but that has the drawback of blocking on asyncIterator's getNext within a lock. 
+ */
+@ThreadSafe
 @VisibleForTesting
-public class StreamsIterator implements Iterator<Stream> {
+class StreamsIterator implements Iterator<Stream> {
     private final AsyncIterator<Stream> asyncIterator;
     private Stream next;
     private boolean canHaveNext;
     
-    public StreamsIterator(AsyncIterator<Stream> asyncIterator) {
+    StreamsIterator(AsyncIterator<Stream> asyncIterator) {
         this.canHaveNext = true;
         this.next = null;
         this.asyncIterator = asyncIterator;
