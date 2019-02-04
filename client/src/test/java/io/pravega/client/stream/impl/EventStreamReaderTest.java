@@ -43,6 +43,7 @@ import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -114,11 +115,24 @@ public class EventStreamReaderTest {
                 orderer, clock::get,
                 ReaderConfig.builder().build());
 
+        InOrder inOrder = Mockito.inOrder(segmentInputStream1, groupState);
         EventRead<byte[]> event = reader.readNextEvent(100L);
+        assertNotNull(event.getEvent());
         //Validate that segmentInputStream1.close() is invoked on reaching endOffset.
         Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
-        //Validate that groupState.handleEndOfSegment method is invoked.
-        Mockito.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, false);
+        
+        // Ensure groupstate is updated not updated before the checkpoint.
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, false);
+        Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint").thenReturn(null);
+        assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
+        inOrder.verify(groupState).getCheckpoint();
+        // Ensure groupstate is updated not updated before the checkpoint.
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, false);
+        event = reader.readNextEvent(0);
+        assertFalse(event.isCheckpoint());
+        // Now it is called.
+        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, false);
+        
     }
 
     @SuppressWarnings("unchecked")
@@ -414,12 +428,26 @@ public class EventStreamReaderTest {
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                 .thenReturn(ImmutableMap.of(segment, 0L))
                 .thenReturn(Collections.emptyMap());
-
+        InOrder inOrder = Mockito.inOrder(groupState, segmentInputStream);
         // Validate that TruncatedDataException is thrown.
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
+        inOrder.verify(groupState).getCheckpoint();
         // Ensure this segment is closed.
-        Mockito.verify(segmentInputStream, Mockito.times(1)).close();
-        // Ensure groupstate is updated to handle end of segment.
-        Mockito.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, true);
+        inOrder.verify(segmentInputStream, Mockito.times(1)).close();      
+        // Ensure groupstate is updated not updated before the checkpoint.
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, true);
+        Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
+        EventRead<byte[]> event = reader.readNextEvent(0);
+        assertTrue(event.isCheckpoint());
+        assertEquals("Foo", event.getCheckpointName());
+        inOrder.verify(groupState).getCheckpoint();
+        // Ensure groupstate is updated not updated before the checkpoint.
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, true);
+        event = reader.readNextEvent(0);
+        assertFalse(event.isCheckpoint());
+        assertNull(event.getEvent());
+        // Now it is called.
+        inOrder.verify(groupState).handleEndOfSegment(segment, true);
+        
     }
 }
