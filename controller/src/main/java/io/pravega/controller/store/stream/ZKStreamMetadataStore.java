@@ -219,7 +219,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                     }
                 });
     }
-    
+
     @Override
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.listScopes();

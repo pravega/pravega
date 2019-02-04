@@ -79,7 +79,7 @@ public interface Scope {
      * @return List of streams in scope
      */
     CompletableFuture<List<String>> listStreamsInScope();
-    
+
     /**
      * Refresh the scope object. Typically to be used to invalidate any caches.
      * This allows us reuse of scope object without having to recreate a new scope object for each new operation
