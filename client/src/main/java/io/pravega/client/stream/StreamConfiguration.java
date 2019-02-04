@@ -9,7 +9,6 @@
  */
 package io.pravega.client.stream;
 
-import io.pravega.shared.segment.ScalingPolicy;
 import java.io.Serializable;
 
 import lombok.Builder;

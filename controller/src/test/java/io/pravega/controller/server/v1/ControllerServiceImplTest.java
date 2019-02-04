@@ -11,7 +11,7 @@ package io.pravega.controller.server.v1;
 
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
