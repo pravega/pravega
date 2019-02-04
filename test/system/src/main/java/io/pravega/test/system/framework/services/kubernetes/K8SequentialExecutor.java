@@ -10,6 +10,7 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.models.V1ContainerStateTerminated;
 import io.kubernetes.client.models.V1ObjectMetaBuilder;
 import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSourceBuilder;
 import io.kubernetes.client.models.V1Pod;
@@ -22,6 +23,7 @@ import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestExecutor;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
@@ -55,8 +57,9 @@ public class K8SequentialExecutor implements TestExecutor {
                      .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                      .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
                      .thenCompose(v -> {
-                         client.downloadLogs(pod, "./build/test-results/" + podName + ".log"); //start background log download.
-                         return client.waitUntilPodCompletes(NAMESPACE, podName);
+                         // start download of logs.
+                         CompletableFuture<Void> logDownload = client.downloadLogs(pod, "./build/test-results/" + podName);
+                         return client.waitUntilPodCompletes(NAMESPACE, podName).thenCombine(logDownload, (status, v1) -> status);
                      }).handle((s, t) -> {
                          if (t == null) {
                              log.info("Test execution completed with status {}", s);

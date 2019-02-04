@@ -64,7 +64,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static javax.ws.rs.core.Response.Status.CONFLICT;
+import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 
 @Slf4j
 public class K8sClient {
@@ -73,6 +75,8 @@ public class K8sClient {
     private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
+    // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately request for log download.
+    private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(15);
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
@@ -547,20 +551,25 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return Retry.withExpBackoff(500, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
+        return Retry.withExpBackoff(LOG_DOWNLOAD_INIT_DELAY_MS, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
                     .runInExecutor(() -> {
                         final String podName = fromPod.getMetadata().getName();
-                        log.debug("copy logs from pod {} to file {}", podName, toFile);
+                        log.debug("Download logs from pod {}", podName);
                         try {
                             @Cleanup
                             InputStream logStream = logUtility.streamNamespacedPodLog(fromPod);
-                            Files.copy(logStream, Paths.get(toFile));
-                            log.debug("log copy completed for pod {}", podName);
+                            // On every retry this method attempts to download the complete pod logs from from K8s api-server. Due to the
+                            // amount of logs for a pod and the K8s cluster configuration it can so happen that the K8s api-server can
+                            // return truncated logs. Hence, every retry attempt does not overwrite the previously downloaded logs for
+                            // the pod.
+                            String logFile = toFile + "-" + randomAlphanumeric(5) + ".log";
+                            Files.copy(logStream, Paths.get(logFile));
+                            log.debug("Logs downloaded from pod {} to {}", podName, logFile);
                         } catch (ApiException | IOException e) {
-                            log.error("Error while copying files from pod {}.", podName);
-                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
+                            log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
+                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
                         }
                     }, executor);
     }
@@ -584,7 +593,10 @@ public class K8sClient {
 
         @Override
         public void onFailure(ApiException e, int responseCode, Map<String, List<String>> responseHeaders) {
-            log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+            if (CONFLICT.getStatusCode() != responseCode) {
+                //Ignore conflict error code as it implies that the resource is already created/updated.
+                log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+            }
             future.completeExceptionally(e);
         }
 
