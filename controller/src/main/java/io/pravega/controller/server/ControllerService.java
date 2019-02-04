@@ -440,6 +440,7 @@ public class ControllerService {
      * List existing streams in scopes.
      *
      * @param scope Name of the scope.
+     * @param token continuation token
      * @return List of streams in scope.
      */
     public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(final String scope, final String token) {

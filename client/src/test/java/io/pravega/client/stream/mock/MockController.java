@@ -104,7 +104,7 @@ public class MockController implements Controller {
                 }
 
                 return CompletableFuture.completedFuture(next);
-            };
+            }
         };
     }
 

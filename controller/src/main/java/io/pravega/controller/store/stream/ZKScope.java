@@ -109,7 +109,6 @@ public class ZKScope implements Scope {
                     set.incrementAndGet();
                 });
         
-        
         return Futures.loop(() -> taken.size() < Config.LIST_STREAM_LIMIT && set.get() < 100, supplier, executor)
                       .thenApply(v -> {
                           List<String> list = taken.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList());

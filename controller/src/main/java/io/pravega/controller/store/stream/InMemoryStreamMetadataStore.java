@@ -20,8 +20,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
