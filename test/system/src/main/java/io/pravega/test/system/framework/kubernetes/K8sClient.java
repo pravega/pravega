@@ -71,8 +71,8 @@ import static javax.ws.rs.core.Response.Status.CONFLICT;
 @Slf4j
 public class K8sClient {
 
-    private static final int DEFAULT_TIMEOUT_MINUTES = 5; // timeout of http client.
-    private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
+    private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
+    private static final int RETRY_MAX_DELAY_MS = 5_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
