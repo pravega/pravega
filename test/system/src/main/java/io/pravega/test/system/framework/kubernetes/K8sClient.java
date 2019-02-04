@@ -76,7 +76,7 @@ public class K8sClient {
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately request for log download.
-    private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(15);
+    private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
