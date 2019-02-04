@@ -25,8 +25,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
-
 /**
  * Stream Controller APIs.
  */
@@ -47,10 +45,10 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createScope(final String scopeName);
 
     /**
-     * Gets a map of all streams in scope with their current configuration.
+     * Gets an async iterator on streams in scope.
      *
      * @param scopeName The name of the scope for which to list streams in.
-     * @return A future which when completed will contain a map of Stream to Configuration for all streams in the scope. 
+     * @return A future which when completed will contain an iterator for all Streams in the scope. 
      */
     AsyncIterator<Stream> streamsInScope(final String scopeName);
 
