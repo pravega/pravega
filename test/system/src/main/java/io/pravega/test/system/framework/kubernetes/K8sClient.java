@@ -56,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -66,7 +67,6 @@ import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static javax.ws.rs.core.Response.Status.CONFLICT;
-import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 
 @Slf4j
 public class K8sClient {
@@ -551,6 +551,7 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
+        final AtomicInteger retryCount = new AtomicInteger(0);
         return Retry.withExpBackoff(LOG_DOWNLOAD_INIT_DELAY_MS, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
@@ -564,7 +565,7 @@ public class K8sClient {
                             // amount of logs for a pod and the K8s cluster configuration it can so happen that the K8s api-server can
                             // return truncated logs. Hence, every retry attempt does not overwrite the previously downloaded logs for
                             // the pod.
-                            String logFile = toFile + "-" + randomAlphanumeric(5) + ".log";
+                            String logFile = toFile + "-" + retryCount.incrementAndGet() + ".log";
                             Files.copy(logStream, Paths.get(logFile));
                             log.debug("Logs downloaded from pod {} to {}", podName, logFile);
                         } catch (ApiException | IOException e) {
