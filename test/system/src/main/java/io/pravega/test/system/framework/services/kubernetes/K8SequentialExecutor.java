@@ -10,7 +10,6 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
-import io.kubernetes.client.models.V1ContainerStateTerminated;
 import io.kubernetes.client.models.V1ObjectMetaBuilder;
 import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSourceBuilder;
 import io.kubernetes.client.models.V1Pod;
@@ -23,7 +22,6 @@ import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestExecutor;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
