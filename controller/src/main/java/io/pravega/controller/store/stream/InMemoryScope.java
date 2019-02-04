@@ -44,7 +44,7 @@ public class InMemoryScope implements Scope {
     @Override
     @Synchronized
     public CompletableFuture<Void> createScope() {
-        this.sortedStreamsInScope = new TreeSet<>(Scope::compare);
+        this.sortedStreamsInScope = new TreeSet<>(Scope::compareStreamInScope);
         return CompletableFuture.completedFuture(null);
     }
 
@@ -58,7 +58,7 @@ public class InMemoryScope implements Scope {
     @Override
     @Synchronized
     public CompletableFuture<Void> addStreamToScope(String stream, long creationTime) {
-        sortedStreamsInScope.add(Scope.encode(stream, creationTime));
+        sortedStreamsInScope.add(Scope.encodeStreamInScope(stream, creationTime));
         
         return CompletableFuture.completedFuture(null);
     }
@@ -66,14 +66,14 @@ public class InMemoryScope implements Scope {
     @Override
     @Synchronized
     public CompletableFuture<Void> removeStreamFromScope(String stream, long creationTime) {
-        this.sortedStreamsInScope.remove(Scope.encode(stream, creationTime));
+        this.sortedStreamsInScope.remove(Scope.encodeStreamInScope(stream, creationTime));
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<List<String>> listStreamsInScope() {
-        return CompletableFuture.completedFuture(this.sortedStreamsInScope.stream().map(x -> Scope.decode(x).getKey()).collect(Collectors.toList()));
+        return CompletableFuture.completedFuture(this.sortedStreamsInScope.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList()));
     }
     
     @Override
@@ -100,7 +100,7 @@ public class InMemoryScope implements Scope {
             }
         }
 
-        List<String> result = limited.stream().map(x -> Scope.decode(x).getKey()).collect(Collectors.toList());
+        List<String> result = limited.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList());
         
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }

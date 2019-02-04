@@ -86,19 +86,19 @@ public interface Scope {
      */
     void refresh();
 
-    static String encode(String name, long creationTime) {
+    static String encodeStreamInScope(String name, long creationTime) {
         String streamWithCreationTime = name + "/" + creationTime;
         return Base64.getEncoder().encodeToString(streamWithCreationTime.getBytes());
     }
 
-    static Pair<String, Long> decode(String encodedName) {
+    static Pair<String, Long> decodeStreamInScope(String encodedName) {
         String[] decoded = new String(Base64.getDecoder().decode(encodedName)).split("/");
         return new ImmutablePair<>(decoded[0], Long.parseLong(decoded[1]));
     }
     
-    static int compare(String encodedToken1, String encodedToken2) {
-        Pair<String, Long> decodedToken1 = decode(encodedToken1);
-        Pair<String, Long> decodedToken2 = decode(encodedToken2);
+    static int compareStreamInScope(String encodedToken1, String encodedToken2) {
+        Pair<String, Long> decodedToken1 = decodeStreamInScope(encodedToken1);
+        Pair<String, Long> decodedToken2 = decodeStreamInScope(encodedToken2);
         
         if (decodedToken1.getValue() < decodedToken2.getValue()) {
             return -1;

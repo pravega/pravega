@@ -65,7 +65,7 @@ public class ZKScope implements Scope {
     public CompletableFuture<Void> addStreamToScope(String name, long creationTime) {
         Integer set = findSetForStream(name);
         String setPath = getSetPath(set);
-        String path = ZKPaths.makePath(setPath, Scope.encode(name, creationTime));
+        String path = ZKPaths.makePath(setPath, Scope.encodeStreamInScope(name, creationTime));
         return Futures.toVoid(store.createZNodeIfNotExist(path));
     }
     
@@ -73,7 +73,7 @@ public class ZKScope implements Scope {
     public CompletableFuture<Void> removeStreamFromScope(String name, long creationTime) {
         Integer set = findSetForStream(name);
         String setPath = getSetPath(set);
-        String path = ZKPaths.makePath(setPath, Scope.encode(name, creationTime));
+        String path = ZKPaths.makePath(setPath, Scope.encodeStreamInScope(name, creationTime));
         return Futures.toVoid(store.deletePath(path, true));
     }
     
@@ -87,11 +87,11 @@ public class ZKScope implements Scope {
         AtomicInteger set = new AtomicInteger(0);
         AtomicReference<String> floor = new AtomicReference<>();
         if (!Strings.isNullOrEmpty(continuationToken)) {
-            Pair<String, Long> decoded = Scope.decode(continuationToken);
+            Pair<String, Long> decoded = Scope.decodeStreamInScope(continuationToken);
             set.set(findSetForStream(decoded.getKey()));
             floor.set(continuationToken);
         } else {
-            floor.set(Scope.encode("", 0L));
+            floor.set(Scope.encodeStreamInScope("", 0L));
         }
         
         List<String> taken = new LinkedList<>();
@@ -104,7 +104,7 @@ public class ZKScope implements Scope {
                         taken.addAll(encodedStreams);
                     }
                     // reset the floor. 
-                    floor.set(Scope.encode("", 0L));
+                    floor.set(Scope.encodeStreamInScope("", 0L));
                     // try the next set. 
                     set.incrementAndGet();
                 });
@@ -112,7 +112,7 @@ public class ZKScope implements Scope {
         
         return Futures.loop(() -> taken.size() < Config.LIST_STREAM_LIMIT && set.get() < 100, supplier, executor)
                       .thenApply(v -> {
-                          List<String> list = taken.stream().map(x -> Scope.decode(x).getKey()).collect(Collectors.toList());
+                          List<String> list = taken.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList());
                           // set next continuation token as the last element in this list
                           String nextContinuationToken = taken.isEmpty() || taken.size() < limit ? "" : taken.get(list.size() - 1);
                           return new ImmutablePair<>(list, nextContinuationToken);
@@ -138,7 +138,7 @@ public class ZKScope implements Scope {
                         }
                     })
                     .thenApply(children -> children.stream()
-                                               .filter(x -> Scope.compare(x, continuationToken) > 0)
+                                               .filter(x -> Scope.compareStreamInScope(x, continuationToken) > 0)
                                                .limit(limit).collect(Collectors.toList()));
     }
     
