@@ -123,7 +123,9 @@ public class ZKScope implements Scope {
     }
 
     private int findSetForStream(String stream) {
-        return Math.abs(stream.hashCode()) % SET_COUNT;
+        int hash = stream.hashCode();
+        
+        return hash == Integer.MIN_VALUE ? 0 : Math.abs(hash) % SET_COUNT;
     }
 
     private CompletableFuture<List<String>> getStreamsInSet(Integer set, int limit, String continuationToken) {
