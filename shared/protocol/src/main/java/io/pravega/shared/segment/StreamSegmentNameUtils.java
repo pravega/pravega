@@ -11,7 +11,6 @@ package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -21,11 +20,6 @@ import java.util.UUID;
  */
 public final class StreamSegmentNameUtils {
     //region Members
-
-    /**
-     * This is appended to the end of the Segment/Transaction name to indicate it stores its State.
-     */
-    private static final String STATE_SUFFIX = "$state";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
@@ -51,6 +45,11 @@ public final class StreamSegmentNameUtils {
      * This is appended to the end of the Primary Segment Name, followed by epoch.
      */
     private static final String EPOCH_DELIMITER = ".#epoch.";
+
+    /**
+     * Format for Container Metadata Segment name.
+     */
+    private static final String METADATA_SEGMENT_NAME_FORMAT = "_system/containers/metadata_%d";
 
     /**
      * The Transaction unique identifier is made of two parts, each having a length of 16 bytes (64 bits in Hex).
@@ -137,17 +136,6 @@ public final class StreamSegmentNameUtils {
     }
 
     /**
-     * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing Segment State.
-     *
-     * @param segmentName The name of the Segment to get the State segment name for.
-     * @return The result.
-     */
-    public static String getStateSegmentName(String segmentName) {
-        Preconditions.checkArgument(!segmentName.endsWith(STATE_SUFFIX), "segmentName is already a state segment name");
-        return segmentName + STATE_SUFFIX;
-    }
-
-    /**
      * Gets the name of the meta-Segment mapped to the given Segment Name that is responsible with storing extended attributes.
      *
      * @param segmentName The name of the Segment to get the Attribute segment name for.
@@ -192,6 +180,18 @@ public final class StreamSegmentNameUtils {
     public static String getSegmentChunkName(String segmentName, long offset) {
         Preconditions.checkArgument(!segmentName.contains(OFFSET_SUFFIX), "segmentName is already a SegmentChunk name");
         return segmentName + OFFSET_SUFFIX + Long.toString(offset);
+    }
+
+    /**
+     * Gets the name of the Segment that is used to store the Container's Segment Metadata. There is one such Segment
+     * per container.
+     *
+     * @param containerId The Id of the Container.
+     * @return The Metadata Segment name.
+     */
+    public static String getMetadataSegmentName(int containerId) {
+        Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative number.");
+        return String.format(METADATA_SEGMENT_NAME_FORMAT, containerId);
     }
 
     /**

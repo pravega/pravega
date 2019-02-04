@@ -33,8 +33,6 @@ import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.controller.util.Config;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -63,16 +61,12 @@ import java.util.stream.Collectors;
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
-
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
-    protected final int bucketCount;
-
+    
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
 
-    protected AbstractStreamMetadataStore(HostIndex hostIndex, int bucketCount) {
+    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -108,7 +102,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         this.hostIndex = hostIndex;
-        this.bucketCount = bucketCount;
     }
 
     /**
@@ -822,12 +815,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     private TxnResource getTxnResource(String str) {
         return TxnResource.parse(str, RESOURCE_PART_SEPARATOR);
     }
-
-    int getBucket(String scope, String stream) {
-        String scopedStreamName = getScopedStreamName(scope, stream);
-        return scopedStreamName.hashCode() % bucketCount;
-    }
-
+    
     String getScopedStreamName(String scope, String stream) {
         return String.format("%s/%s", scope, stream);
     }

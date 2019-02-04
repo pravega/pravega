@@ -9,10 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.server.retention.BucketChangeListener;
-import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -893,77 +890,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final long from, 
                                                             final long to, final OperationContext context, final Executor executor);
-
-    /**
-     * Method to register listener for changes to bucket's ownership.
-     *
-     * @param listener listener
-     */
-    void registerBucketOwnershipListener(BucketOwnershipListener listener);
-
-    /**
-     * Unregister listeners for bucket ownership.
-     */
-    void unregisterBucketOwnershipListener();
-
-    /**
-     * Method to register listeners for changes to streams under the bucket.
-     *
-     * @param bucket   bucket
-     * @param listener listener
-     */
-    void registerBucketChangeListener(int bucket, BucketChangeListener listener);
-
-    /**
-     * Method to unregister listeners for changes to streams under the bucket.
-     *
-     * @param bucket bucket
-     */
-    void unregisterBucketListener(int bucket);
-
-    /**
-     * Method to take ownership of a bucket.
-     *
-     * @param bucket   bucket id
-     * @param processId process id
-     *@param executor executor  @return future boolean which tells if ownership attempt succeeded or failed.
-     */
-    CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, final Executor executor);
-
-    /**
-     * Return all streams in the bucket.
-     *
-     * @param bucket   bucket id.
-     * @param executor executor
-     * @return List of scopedStreamName (scope/stream)
-     */
-    CompletableFuture<List<String>> getStreamsForBucket(final int bucket, final Executor executor);
-
-    /**
-     * Add the given stream to appropriate bucket for auto-retention.
-     *
-     * @param scope           scope
-     * @param stream          stream
-     * @param retentionPolicy retention policy
-     * @param context         operation context
-     * @param executor        executor
-     * @return future
-     */
-    CompletableFuture<Void> addUpdateStreamForAutoStreamCut(final String scope, final String stream, final RetentionPolicy retentionPolicy,
-                                                            final OperationContext context, final Executor executor);
-
-    /**
-     * Remove stream from auto retention bucket.
-     *
-     * @param scope    scope
-     * @param stream   stream
-     * @param context  context
-     * @param executor executor
-     * @return future
-     */
-    CompletableFuture<Void> removeStreamFromAutoStreamCut(final String scope, final String stream,
-                                                          final OperationContext context, final Executor executor);
-
+    
     /**
      * Add stream cut to retention set of the given stream.
      *
@@ -1111,9 +1038,4 @@ public interface StreamMetadataStore {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
-
-    /**
-     * This method performs initialization tasks for the correct operation of services working on Stream buckets.
-     */
-    CompletableFuture<Void> createBucketsRoot();
 }

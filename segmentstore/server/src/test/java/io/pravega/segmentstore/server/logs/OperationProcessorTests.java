@@ -29,7 +29,6 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
@@ -60,7 +59,6 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -418,10 +416,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
         boolean encounteredFirstFailure = false;
         for (int i = 0; i < completionFutures.size(); i++) {
             OperationWithCompletion oc = completionFutures.get(i);
-            if (!oc.operation.canSerialize()) {
-                // Non-serializable operations (i.e., ProbeOperations always complete normally).
-                continue;
-            }
 
             // Once an operation failed (in our scenario), no other operation can succeed.
             if (encounteredFirstFailure) {
@@ -446,38 +440,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
-    }
-
-    /**
-     * Tests the ability of the OperationProcessor to handle a single ProbeOperation (this is because it's a non-serializable
-     * operation, so there is no commit to DurableDataLog - we need to verify the operation is properly completed in this
-     * case).
-     */
-    @Test
-    public void testWithSingleProbeOperation() throws Exception {
-        @Cleanup
-        TestContext context = new TestContext();
-
-        // Generate some test data.
-        ProbeOperation operation = new ProbeOperation();
-
-        // Setup an OperationProcessor and start it.
-        @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
-        dataLog.initialize(TIMEOUT);
-        @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
-        operationProcessor.startAsync().awaitRunning();
-
-        // Process all generated operations.
-        OperationWithCompletion completionFuture = processOperations(Collections.singleton(operation), operationProcessor).get(0);
-
-        // Wait for the ProbeOperation to complete (without exception). This is all we need to verify.
-        completionFuture.completion.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
     }
 
     /**
@@ -537,7 +499,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
         val successfulOps = operations.stream()
                                       .filter(oc -> !oc.completion.isCompletedExceptionally())
                                       .map(oc -> oc.operation)
-                                      .filter(Operation::canSerialize)
                                       .limit(maxCount)
                                       .collect(Collectors.toList());
 

@@ -17,6 +17,7 @@ BK_HOME=/opt/bookkeeper
 PORT0=${PORT0:-$bookiePort}
 PORT0=${PORT0:-3181}
 ZK_URL=${ZK_URL:-127.0.0.1:2181}
+ZK_URL=$(echo "${ZK_URL}" | sed -r 's/,/;/g')
 USE_MOUNT=${USE_MOUNT:-0}
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
@@ -37,16 +38,14 @@ echo "ZK_URL is $ZK_URL"
 echo "BK_DIR is $BK_DIR"
 echo "BK_LEDGERS_PATH is $BK_LEDGERS_PATH"
 
-sed -i 's/3181/'$PORT0'/' ${BK_HOME}/conf/bk_server.conf
-sed -i "s/localhost:2181/${ZK_URL}/" ${BK_HOME}/conf/bk_server.conf
-sed -i 's|journalDirectory=/tmp/bk-txn|journalDirectory='${BK_DIR}'/journal|' ${BK_HOME}/conf/bk_server.conf
-sed -i 's|ledgerDirectories=/tmp/bk-data|ledgerDirectories='${BK_DIR}'/ledgers|' ${BK_HOME}/conf/bk_server.conf
-sed -i 's|indexDirectories=/tmp/data/bk/ledgers|indexDirectories='${BK_DIR}'/index|' ${BK_HOME}/conf/bk_server.conf
-sed -i 's|# zkLedgersRootPath=/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' ${BK_HOME}/conf/bk_server.conf
-
-sed -i '/autoRecoveryDaemonEnabled/d' ${BK_HOME}/conf/bk_server.conf
-echo autoRecoveryDaemonEnabled=${BK_AUTORECOVERY} >> ${BK_HOME}/conf/bk_server.conf
-echo useHostNameAsBookieID=${BK_useHostNameAsBookieID} >> ${BK_HOME}/conf/bk_server.conf
+sed -i "s|bookiePort=.*\$|bookiePort=${PORT0}|" ${BK_HOME}/conf/bk_server.conf
+sed -i "s|metadataServiceUri=.*\$|metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}|" ${BK_HOME}/conf/bk_server.conf
+sed -i "/zkServers=.*/d" ${BK_HOME}/conf/bk_server.conf
+sed -i "s|journalDirectory=.*\$|journalDirectory=${BK_DIR}/journal|" ${BK_HOME}/conf/bk_server.conf
+sed -i "s|ledgerDirectories=.*\$|ledgerDirectories=${BK_DIR}/ledgers|" ${BK_HOME}/conf/bk_server.conf
+sed -i "s|indexDirectories=.*\$|indexDirectories=${BK_DIR}/index|" ${BK_HOME}/conf/bk_server.conf
+sed -i "s|# autoRecoveryDaemonEnabled=.*\$|autoRecoveryDaemonEnabled=${BK_AUTORECOVERY}|" ${BK_HOME}/conf/bk_server.conf
+sed -i "s|# useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
 
 echo "
 tlsProvider=OpenSSL

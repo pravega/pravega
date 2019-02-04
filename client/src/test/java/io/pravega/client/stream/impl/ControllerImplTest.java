@@ -753,7 +753,7 @@ public class ControllerImplTest {
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
         } else {
-            builder = builder.usePlaintext(true);
+            builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller = new ControllerImpl(builder,
@@ -787,7 +787,7 @@ public class ControllerImplTest {
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
         } else {
-            builder = builder.usePlaintext(true);
+            builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,

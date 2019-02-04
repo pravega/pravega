@@ -162,7 +162,7 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void notEmptyTableSegment(TableSegmentNotEmpty tableSegmentNotEmpty) {
+    public void tableSegmentNotEmpty(TableSegmentNotEmpty tableSegmentNotEmpty) {
         throw new IllegalStateException("Unexpected operation: " + tableSegmentNotEmpty);
     }
 

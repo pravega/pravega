@@ -10,7 +10,6 @@
 package io.pravega.shared.segment;
 
 import io.pravega.test.common.AssertExtensions;
-
 import java.util.List;
 import java.util.Stack;
 import java.util.UUID;
@@ -108,5 +107,14 @@ public class StreamSegmentNameUtilsTests {
         assertEquals("scope", tokens.get(0));
         assertEquals("stream", tokens.get(1));
         assertEquals(Long.toString(segmentId), tokens.get(2));
+    }
+
+    @Test
+    public void testMetadataSegmentName() {
+        Assert.assertEquals("_system/containers/metadata_123", StreamSegmentNameUtils.getMetadataSegmentName(123));
+        AssertExtensions.assertThrows(
+                "getMetadataSegmentName allowed negative container ids.",
+                () -> StreamSegmentNameUtils.getMetadataSegmentName(-1),
+                ex -> ex instanceof IllegalArgumentException);
     }
 }
