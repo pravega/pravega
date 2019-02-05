@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # State Synchronizer Design
 
-A State Synchronizer provides means for data to be written and read by multiple processes, while consistency is guaranteed using optimistic checks. For more information, check out the [State Synchronizer API]. (https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java)
+A State Synchronizer provides means for data to be written and read by multiple processes, while consistency is guaranteed using optimistic checks. For more information, check out the [State Synchronizer API](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java).
 
 This works by having each process keep a copy of the data. All the updates are written through the State Synchronizer which appends them to the Pravega Stream Segment. Latest updates can be incorporated to the data by consuming from the Stream Segment. To provide consistency a conditional append is used. This ensures that the updates can only proceed if the process performing them has the most recent data. To avoid the unbounded data in the Stream Segment, a compact operation is involved which re-writes the latest data and truncates the old data.
 
