@@ -199,8 +199,8 @@ public interface StreamMetadataStore {
      * @param executor 
      * @return A map of streams in scope to their configurations
      */
-    CompletableFuture<Pair<List<String>, String>> listStreamsInScope(final String scopeName, final String continuationToken, 
-                                                                     final Executor executor);
+    CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(final String scopeName, final String continuationToken,
+                                                                         final Executor executor);
 
     /**
      * List Scopes in cluster.

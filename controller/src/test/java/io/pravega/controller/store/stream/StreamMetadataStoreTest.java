@@ -249,20 +249,20 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream3, State.ACTIVE, null, executor).get();
         
-        Pair<List<String>, String> streamInScope = store.listStreamsInScope(scope, "", executor).get();
+        Pair<List<String>, String> streamInScope = store.listStreamNamesInScope(scope, "", executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamsInScope(scope, streamInScope.getValue(), executor).get();
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), executor).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertTrue(Strings.isNullOrEmpty(streamInScope.getValue()));
         
         store.deleteStream(scope, stream1, null, executor).join();
-        streamInScope = store.listStreamsInScope(scope, "", executor).get();
+        streamInScope = store.listStreamNamesInScope(scope, "", executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamsInScope(scope, streamInScope.getValue(), executor).get();
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), executor).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertTrue(Strings.isNullOrEmpty(streamInScope.getValue()));
     }

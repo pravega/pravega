@@ -226,7 +226,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> streamsInScope(String scopeName) {
+    public AsyncIterator<Stream> listStreamsInScope(String scopeName) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "listStreamsInScope", scopeName);
 

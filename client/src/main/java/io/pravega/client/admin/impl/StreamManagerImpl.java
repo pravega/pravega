@@ -116,7 +116,7 @@ public class StreamManagerImpl implements StreamManager {
     public Iterator<Stream> listStreamsInScope(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Listing streams in scope: {}", scopeName);
-        AsyncIterator<Stream> asyncIterator = controller.streamsInScope(scopeName);
+        AsyncIterator<Stream> asyncIterator = controller.listStreamsInScope(scopeName);
         return new StreamsIterator(asyncIterator);
     }
 

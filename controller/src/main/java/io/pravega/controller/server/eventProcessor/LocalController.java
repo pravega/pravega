@@ -82,9 +82,9 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> streamsInScope(String scopeName) {
+    public AsyncIterator<Stream> listStreamsInScope(String scopeName) {
         final Function<String, CompletableFuture<Pair<List<String>, String>>> function = token -> 
-                controller.listStreamsInScope(scopeName, token);
+                controller.listStreamNamesInScope(scopeName, token);
 
         return new AsyncIterator<Stream>() {
             LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();

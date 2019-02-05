@@ -1177,7 +1177,7 @@ public class ControllerImplTest {
     @Test
     public void testStreamsInScope() {
         String scope = "scopeList";
-        AsyncIterator<Stream> iterator = controllerClient.streamsInScope(scope);
+        AsyncIterator<Stream> iterator = controllerClient.listStreamsInScope(scope);
 
         Stream m = iterator.getNext().join();
         assertEquals("stream1", m.getStreamName());
