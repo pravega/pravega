@@ -453,7 +453,7 @@ public class K8sClient {
                 .retryWhen(t -> {
                     Throwable ex = Exceptions.unwrap(t);
                     if (ex.getCause() instanceof IOException) {
-                        log.warn("Exception while fetching status of pod, will attempt a retry", ex.getCause());
+                        log.warn("Exception while fetching status of pod, will attempt a retry", ex.getMessage());
                         return true;
                     }
                     log.error("Exception while fetching status of pod", ex);
