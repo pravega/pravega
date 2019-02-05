@@ -281,7 +281,8 @@ public class K8sClient {
                         throw Exceptions.sneakyThrow(e);
                     }
                 }).exceptionally(t -> {
-                    log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it.", name, customResourceGroup, t);
+                    log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it. Details: {}", name,
+                             customResourceGroup, t.getMessage());
                     try {
                         //create object
                         K8AsyncCallback<Object> cb = new K8AsyncCallback<>("createCustomObject");
@@ -453,7 +454,7 @@ public class K8sClient {
                 .retryWhen(t -> {
                     Throwable ex = Exceptions.unwrap(t);
                     if (ex.getCause() instanceof IOException) {
-                        log.warn("Exception while fetching status of pod, will attempt a retry", ex.getMessage());
+                        log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
                         return true;
                     }
                     log.error("Exception while fetching status of pod", ex);
