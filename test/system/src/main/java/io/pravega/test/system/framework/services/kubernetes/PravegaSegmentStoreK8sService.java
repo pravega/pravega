@@ -62,9 +62,10 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                                                       .count())
                         .thenApply(runCount -> runCount >= DEFAULT_SEGMENTSTORE_COUNT)
                         .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pods " + PRAVEGA_SEGMENTSTORE_LABEL, t);
-                           return false;
-                       }).join();
+                            log.warn("Exception observed while checking status of pods {}. Details: {}", PRAVEGA_SEGMENTSTORE_LABEL,
+                                     t.getMessage());
+                            return false;
+                        }).join();
     }
 
     @Override

@@ -67,12 +67,13 @@ import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static javax.ws.rs.core.Response.Status.CONFLICT;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 
 @Slf4j
 public class K8sClient {
 
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
-    private static final int RETRY_MAX_DELAY_MS = 5_000; // max time between retries to check if pod has completed.
+    private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
@@ -595,8 +596,9 @@ public class K8sClient {
 
         @Override
         public void onFailure(ApiException e, int responseCode, Map<String, List<String>> responseHeaders) {
-            if (CONFLICT.getStatusCode() != responseCode) {
-                //Ignore conflict error code as it implies that the resource is already created/updated.
+            if (CONFLICT.getStatusCode() == responseCode || NOT_FOUND.getStatusCode() == responseCode) {
+                log.warn("Exception observed for method {} with response code {}", method, responseCode);
+            } else {
                 log.error("Exception observed for method {} with response code {}", method, responseCode, e);
             }
             future.completeExceptionally(e);
