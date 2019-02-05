@@ -14,7 +14,7 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;

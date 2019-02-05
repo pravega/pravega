@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;

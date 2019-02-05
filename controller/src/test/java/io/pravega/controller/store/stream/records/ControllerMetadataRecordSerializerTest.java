@@ -11,7 +11,7 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.State;

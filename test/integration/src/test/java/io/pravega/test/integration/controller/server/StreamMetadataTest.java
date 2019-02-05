@@ -10,7 +10,7 @@
 package io.pravega.test.integration.controller.server;
 
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;

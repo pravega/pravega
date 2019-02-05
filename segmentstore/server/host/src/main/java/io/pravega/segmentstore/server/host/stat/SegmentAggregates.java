@@ -10,7 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.shared.segment.ScaleType;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
@@ -87,11 +87,11 @@ abstract class SegmentAggregates {
         this.twentyMinuteRate = 0.0;
     }
 
-    static SegmentAggregates forPolicy(ScalingPolicy.ScaleType scaleType, int targetRate) {
+    static SegmentAggregates forPolicy(ScaleType scaleType, int targetRate) {
         switch (scaleType) {
-            case BY_RATE_IN_EVENTS_PER_SEC:
+            case EventRate:
                 return new ByEventCount(targetRate);
-            case BY_RATE_IN_KBYTES_PER_SEC:
+            case Throughput:
                 return new ByThroughput(targetRate);
             default:
                 return new Fixed(targetRate);
@@ -108,7 +108,7 @@ abstract class SegmentAggregates {
         return currentCount;
     }
 
-    abstract ScalingPolicy.ScaleType getScaleType();
+    abstract ScaleType getScaleType();
 
     protected abstract long getUpdateCountDelta(long dataLength, int numOfEvents);
 
@@ -207,8 +207,8 @@ abstract class SegmentAggregates {
         }
 
         @Override
-        public ScalingPolicy.ScaleType getScaleType() {
-            return ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC;
+        public ScaleType getScaleType() {
+            return ScaleType.Throughput;
         }
 
         @Override
@@ -223,8 +223,8 @@ abstract class SegmentAggregates {
         }
 
         @Override
-        public ScalingPolicy.ScaleType getScaleType() {
-            return ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC;
+        public ScaleType getScaleType() {
+            return ScaleType.EventRate;
         }
 
         @Override
@@ -239,8 +239,8 @@ abstract class SegmentAggregates {
         }
 
         @Override
-        public ScalingPolicy.ScaleType getScaleType() {
-            return ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS;
+        public ScaleType getScaleType() {
+            return ScaleType.NoScaling;
         }
 
         @Override

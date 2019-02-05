@@ -14,7 +14,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.shared.segment.ScaleType;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Collections;
@@ -100,7 +100,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
                                 byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
                                 int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_RATE).intValue();
-                                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), rate));
+                                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScaleType.fromValue(type), rate));
                             }
                             pendingCacheLoads.remove(streamSegmentName);
                         }, executor);
@@ -110,7 +110,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate) {
-        SegmentAggregates sa = SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), targetRate);
+        SegmentAggregates sa = SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate);
         cache.put(streamSegmentName, sa);
         if (sa.isScalingEnabled()) {
             reporter.notifyCreated(streamSegmentName);
@@ -130,8 +130,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null) {
             // if there is a scale type change, discard the old object and create a new object
-            if (aggregates.getScaleType().getId() != type) {
-                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScalingPolicy.ScaleType.byId(type), targetRate));
+            if (aggregates.getScaleType().getValue() != type) {
+                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate));
             } else {
                 aggregates.setTargetRate(targetRate);
             }

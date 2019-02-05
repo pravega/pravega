@@ -12,7 +12,7 @@ package io.pravega.client.batch.impl;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;

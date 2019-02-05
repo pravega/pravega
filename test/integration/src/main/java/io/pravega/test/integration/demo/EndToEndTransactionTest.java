@@ -10,7 +10,7 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
