@@ -293,7 +293,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                             // Segment has never been created because there was nothing to write to it. As long as we know
                             // its expected length is zero, this is a valid case.
                             this.handle.set(null);
-                            log.info("{}: Initialized. Segment does not exist in Storage but Metadata indicates it should be empty.");
+                            log.info("{}: Initialized. Segment does not exist in Storage but Metadata indicates it should be empty.", this.traceObjectId);
                         } else {
                             // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
                             // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
