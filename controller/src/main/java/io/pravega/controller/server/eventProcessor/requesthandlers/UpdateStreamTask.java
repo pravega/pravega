@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
@@ -32,16 +33,20 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
+    private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
 
     public UpdateStreamTask(final StreamMetadataTasks streamMetadataTasks,
                             final StreamMetadataStore streamMetadataStore,
+                            final BucketStore bucketStore, 
                             final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
+        Preconditions.checkNotNull(bucketStore);
         Preconditions.checkNotNull(executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
+        this.bucketStore = bucketStore;
         this.executor = executor;
     }
 
@@ -74,19 +79,18 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
         StreamConfigurationRecord configProperty = record.getObject();
 
         return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.UPDATING, state, context, executor)
-                .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, context, configProperty, updated)
+                .thenCompose(updated -> updateStreamForAutoStreamCut(scope, stream, configProperty, updated)
                         .thenCompose(x -> notifyPolicyUpdate(context, scope, stream, configProperty.getStreamConfiguration(), requestId))
                         .thenCompose(x -> streamMetadataStore.completeUpdateConfiguration(scope, stream, record, context, executor))
                         .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updated, context, executor))));
     }
 
     private CompletableFuture<Void> updateStreamForAutoStreamCut(String scope, String stream,
-                        OperationContext context, StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
+                        StreamConfigurationRecord configProperty, VersionedMetadata<State> updated) {
         if (configProperty.getStreamConfiguration().getRetentionPolicy() != null) {
-            return streamMetadataStore.addUpdateStreamForAutoStreamCut(scope, stream,
-                    configProperty.getStreamConfiguration().getRetentionPolicy(), context, executor);
+            return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
         } else {
-            return streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context, executor);
+            return bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, stream, executor);
         }
     }
 

@@ -57,7 +57,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        store = new ZKStreamMetadataStore(cli, 1, executor, Duration.ofSeconds(1));
+        store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
+        bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }
 
     @Override
@@ -406,22 +407,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertTrue(batches.contains(secondBatch));
         assertTrue(batches.contains(thirdBatch));
     }
-
-    @Test
-    public void verifyBucketInitialization() {
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-        // Verify that buckets are not initialized.
-        assertFalse(zkStoreHelper.checkExists(ZKStreamMetadataStore.BUCKET_ROOT_PATH).join());
-        // Execute the initialization of buckets in ZKStreamMetadataStore.
-        store.createBucketsRoot().join();
-        // Verify that the expected buckets are created after the execution of createBucketsRoot().
-        assertTrue(zkStoreHelper.checkExists(ZKStreamMetadataStore.BUCKET_ROOT_PATH).join());
-        assertTrue(zkStoreHelper.checkExists(ZKStreamMetadataStore.BUCKET_OWNERSHIP_PATH).join());
-        for (int i = 0; i < ((AbstractStreamMetadataStore) store).getBucketCount(); i++) {
-            assertTrue(zkStoreHelper.checkExists(String.format(ZKStreamMetadataStore.BUCKET_PATH, i)).join());
-        }
-    }
-
+    
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
