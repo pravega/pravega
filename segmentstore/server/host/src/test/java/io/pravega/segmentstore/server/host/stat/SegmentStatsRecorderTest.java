@@ -66,7 +66,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         // Which means 2 minute rate at this point is 100 / 120 ~= 0.4 events per second
         val elapsed = Duration.ofSeconds(1);
         while (System.currentTimeMillis() - startTime < Duration.ofSeconds(6).toMillis()) {
-            for (int i = 0; i < 5000; i++) {
+            for (int i = 0; i < 11; i++) {
                 context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 0, 1, elapsed);
             }
         }
