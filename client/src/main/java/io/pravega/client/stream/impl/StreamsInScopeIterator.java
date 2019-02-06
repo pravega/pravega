@@ -24,9 +24,9 @@ import java.util.stream.Collectors;
 @ThreadSafe
 @Slf4j
 class StreamsInScopeIterator implements AsyncIterator<Stream> {
-    private LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
-    private AtomicReference<Controller.ContinuationToken> token = new AtomicReference<>(Controller.ContinuationToken.newBuilder().build());
-
+    private final LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
+    private final AtomicReference<Controller.ContinuationToken> token = new AtomicReference<>(Controller.ContinuationToken.newBuilder().build());
+    private final Object lock = new Object();
     private final Function<Controller.ContinuationToken, CompletableFuture<Controller.StreamsInScopeResponse>> function;
 
     StreamsInScopeIterator(Function<Controller.ContinuationToken, CompletableFuture<Controller.StreamsInScopeResponse>> function) {
@@ -44,17 +44,19 @@ class StreamsInScopeIterator implements AsyncIterator<Stream> {
     public CompletableFuture<Stream> getNext() {
         final Controller.ContinuationToken continuationToken = token.get();
         return function.apply(continuationToken).thenApply(streamsInScope -> {
-            token.getAndUpdate(existing -> {    
-                if (existing.equals(continuationToken)) {
-                    log.debug("Received the following data after calling the function {}", streamsInScope.getStreamsList());
-                    streams.addAll(streamsInScope.getStreamsList().stream()
-                                                 .map(x -> (Stream) new StreamImpl(x.getScope(), x.getStream()))
-                                                 .collect(Collectors.toList()));
-                    return streamsInScope.getContinuationToken();
-                } else {
-                    return existing;
-                }
-            });
+            synchronized (lock) {
+                token.getAndUpdate(existing -> {
+                    if (existing.equals(continuationToken)) {
+                        log.debug("Received the following data after calling the function {}", streamsInScope.getStreamsList());
+                        streams.addAll(streamsInScope.getStreamsList().stream()
+                                                     .map(x -> (Stream) new StreamImpl(x.getScope(), x.getStream()))
+                                                     .collect(Collectors.toList()));
+                        return streamsInScope.getContinuationToken();
+                    } else {
+                        return existing;
+                    }
+                });
+            }
         
             return streams.poll();
         }).whenComplete((x, e) -> {
