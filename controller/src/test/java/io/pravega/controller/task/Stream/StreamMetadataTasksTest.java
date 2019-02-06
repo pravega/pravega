@@ -15,7 +15,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.RetentionPolicy;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
@@ -40,6 +40,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -122,6 +123,7 @@ public class StreamMetadataTasksTest {
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
+    private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
@@ -137,15 +139,16 @@ public class StreamMetadataTasksTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(1, executor);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
         streamStorePartialMock = spy(streamStore); //create a partial mock.
-
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
+        
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock,
+        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key"), requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
@@ -154,9 +157,9 @@ public class StreamMetadataTasksTest {
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
@@ -231,7 +234,7 @@ public class StreamMetadataTasksTest {
                         .thenAccept(loop::set), executor).join();
 
         // event posted, first step performed. now pick the event for processing
-        UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+        UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
         UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
         AssertExtensions.assertFutureThrows("", updateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
@@ -867,9 +870,9 @@ public class StreamMetadataTasksTest {
         String scopedStreamName = String.format("%s/%s", SCOPE, stream);
 
         // verify that stream is not added to bucket
-        assertTrue(!streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
-        UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+        UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
 
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
@@ -885,14 +888,14 @@ public class StreamMetadataTasksTest {
         task.execute(update).join();
 
         // verify that bucket has the stream.
-        assertTrue(streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+        assertTrue(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
         // update stream such that stream is updated with null retention policy
         streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, noRetentionConfig, null, executor).join();
         task.execute(update).join();
 
         // verify that the stream is no longer present in the bucket
-        assertTrue(!streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
     }
 
     @Test(timeout = 30000)

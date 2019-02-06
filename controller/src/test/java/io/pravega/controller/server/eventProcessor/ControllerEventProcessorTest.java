@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -29,6 +29,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -80,6 +81,7 @@ public class ControllerEventProcessorTest {
 
     private ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
@@ -99,10 +101,11 @@ public class ControllerEventProcessorTest {
         zkClient.start();
 
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
                 segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
                 executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());

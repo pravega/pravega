@@ -14,7 +14,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.CorruptedFrameException;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.shared.segment.ScaleType;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -995,9 +995,9 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request, WireCommand {
-        public static final byte NO_SCALE = ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS.getId();
-        public static final byte IN_KBYTES_PER_SEC = ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getId();
-        public static final byte IN_EVENTS_PER_SEC = ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC.getId();
+        public static final byte NO_SCALE = ScaleType.NoScaling.getValue();
+        public static final byte IN_KBYTES_PER_SEC = ScaleType.Throughput.getValue();
+        public static final byte IN_EVENTS_PER_SEC = ScaleType.EventRate.getValue();
 
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final long requestId;

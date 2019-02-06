@@ -11,7 +11,7 @@ package io.pravega.client.byteStream;
 import com.google.common.annotations.Beta;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 
 /**
  * Provides a way to read and write raw byte streams. This API is NOT intended to interoperate with

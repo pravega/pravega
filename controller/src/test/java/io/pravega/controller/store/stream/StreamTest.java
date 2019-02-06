@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.collect.Lists;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;

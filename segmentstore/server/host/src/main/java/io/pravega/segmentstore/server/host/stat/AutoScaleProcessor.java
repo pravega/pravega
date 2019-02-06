@@ -22,6 +22,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
@@ -146,8 +147,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private void handleBootstrapException(Throwable e) {
-        log.warn("error while creating writer for requeststream"); // Don't output stack trace.
-        log.debug("error while creating writer for requeststream", e); // Only output stack trace in debug mode.
+        log.warn("Unable to create writer for requeststream: {}.", LoggerHelpers.exceptionSummary(log, e));
     }
 
     private void bootstrapOnce(EventStreamClientFactory clientFactory) {

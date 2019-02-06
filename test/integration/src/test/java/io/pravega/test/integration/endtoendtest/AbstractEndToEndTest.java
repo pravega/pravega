@@ -13,7 +13,7 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;

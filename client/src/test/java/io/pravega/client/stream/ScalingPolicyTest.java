@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.shared.segment;
+package io.pravega.client.stream;
 
 import org.junit.Test;
 

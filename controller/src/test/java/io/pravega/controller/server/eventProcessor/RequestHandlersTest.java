@@ -13,7 +13,7 @@ import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.shared.segment.ScalingPolicy;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -30,6 +30,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -90,6 +91,7 @@ public class RequestHandlersTest {
 
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;
     private StreamMetadataTasks streamMetadataTasks;
@@ -121,6 +123,7 @@ public class RequestHandlersTest {
         }
 
         streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
@@ -129,7 +132,7 @@ public class RequestHandlersTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(EventStreamClientFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
@@ -414,8 +417,8 @@ public class RequestHandlersTest {
 
         StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
 
-        UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, executor);
-        UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, executor);
+        UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, bucketStore, executor);
+        UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, bucketStore, executor);
 
         CompletableFuture<Void> wait = new CompletableFuture<>();
         CompletableFuture<Void> signal = new CompletableFuture<>();
@@ -501,7 +504,7 @@ public class RequestHandlersTest {
         createStreamInStore(stream);
 
         SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
-        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, executor);
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
 
         // seal stream. 
         SealStreamEvent sealEvent = new SealStreamEvent(scope, stream, 0L);

@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -19,7 +20,6 @@ import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.segment.ScalingPolicy;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -98,7 +98,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         val elapsed = Duration.ofSeconds(1);
 
         // Create Segment metrics.
-        context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getId(), 2, elapsed);
+        context.statsRecorder.createSegment(STREAM_SEGMENT_NAME, ScalingPolicy.ScaleType.BY_RATE_IN_KBYTES_PER_SEC.getValue(), 2, elapsed);
         verify(context.createStreamSegment).reportSuccessEvent(eq(elapsed));
 
         // Append metrics non-txn.
