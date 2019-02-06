@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -1738,6 +1739,9 @@ public final class WireCommands {
 
     @Data
     public static final class TableKeysIteratorItem implements Reply, WireCommand {
+        public static final Function<Integer, Integer> GET_HEADER_BYTES =
+                keyCount -> Long.BYTES + Integer.BYTES + TableKey.HEADER_BYTES * keyCount + Integer.BYTES;
+
         final WireCommandType type = WireCommandType.TABLE_KEYS_ITERATOR_ITEM;
         final long requestId;
         final String segment;
@@ -1819,11 +1823,15 @@ public final class WireCommands {
 
     @Data
     public static final class TableEntriesIteratorItem implements Reply, WireCommand {
+        public static final Function<Integer, Integer> GET_HEADER_BYTES =
+                entryCount -> Long.BYTES + TableEntries.GET_HEADER_BYTES.apply(entryCount) + Integer.BYTES;
+
         final WireCommandType type = WireCommandType.TABLE_ENTRIES_ITERATOR_ITEM;
         final long requestId;
         final String segment;
         final TableEntries entries;
         final ByteBuffer continuationToken; // this used to indicate the point from which the next keys should be fetched.
+
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1853,11 +1861,14 @@ public final class WireCommands {
 
     @Data
     public static final class TableEntries {
+        static final Function<Integer, Integer> GET_HEADER_BYTES =
+                entryCount -> Integer.BYTES + entryCount * (TableKey.HEADER_BYTES + TableValue.HEADER_BYTES);
+
         final List<Map.Entry<TableKey, TableValue>> entries;
 
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(entries.size());
-            for (Map.Entry<TableKey, TableValue> ent :entries) {
+            for (Map.Entry<TableKey, TableValue> ent : entries) {
                 ent.getKey().writeFields(out);
                 ent.getValue().writeFields(out);
             }
@@ -1879,7 +1890,8 @@ public final class WireCommands {
     public static final class TableKey {
         public static final long NO_VERSION = Long.MIN_VALUE;
         public static final long NOT_EXISTS = -1L;
-        public final static TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
+        public static final int HEADER_BYTES = 2 * Integer.BYTES;
+        public static final TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
 
         final ByteBuffer data;
         final long keyVersion;
@@ -1911,7 +1923,9 @@ public final class WireCommands {
 
     @Data
     public static final class TableValue {
-        public final static TableValue EMPTY = new TableValue(ByteBuffer.wrap(new byte[0]));
+        public static final TableValue EMPTY = new TableValue(ByteBuffer.wrap(new byte[0]));
+        public static final int HEADER_BYTES = 2 * Integer.BYTES;
+
         final ByteBuffer data;
 
         public void writeFields(DataOutput out) throws IOException {

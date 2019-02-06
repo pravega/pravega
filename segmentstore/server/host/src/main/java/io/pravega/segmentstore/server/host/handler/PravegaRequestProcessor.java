@@ -38,6 +38,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
+import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -144,6 +145,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
+    private static final int ITERATOR_RESPONSE_SIZE_THRESHOLD_BYTES = 4 * 1024 * 1024;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final String EMPTY_STACK_TRACE = "";
@@ -742,6 +744,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final AtomicBoolean canContinue = new AtomicBoolean(true);
         final AtomicInteger keyCount = new AtomicInteger(0);
+        final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuffer> continuationToken = new AtomicReference<>(EMPTY_BYTE_BUFFER);
         final LinkedBlockingQueue<TableKey> keys = new LinkedBlockingQueue<>();
         tableStore.keyIterator(segment, state, TIMEOUT)
@@ -752,13 +755,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               if (e == null) {
                                   canContinue.set(false);
                               } else {
-                                  keys.addAll(e.getEntries()); // read all entries
-                                  ArrayView lastState = e.getState();
+                                  // store all keys.
+                                  keys.addAll(e.getEntries());
                                   // update the continuation token.
+                                  ArrayView lastState = e.getState();
                                   continuationToken.set(ByteBuffer.wrap(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                  // update the keycount and msgSize.
                                   keyCount.addAndGet(e.getEntries().size());
-                                  if (keyCount.get() >= suggestedKeyCount) {
-                                      // set the continuation flag to false if we have read more than the suggested count.
+                                  msgSize.addAndGet(getTableKeyBytes(segment, e));
+
+                                  if (keyCount.get() >= suggestedKeyCount || msgSize.get() >= ITERATOR_RESPONSE_SIZE_THRESHOLD_BYTES) {
+                                      // set the continuation flag to false if we have read more than the suggested count or
+                                      // if we have read more the the response threshold bytes.
                                       canContinue.set(false);
                                   }
                               }
@@ -798,6 +806,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final AtomicBoolean canContinue = new AtomicBoolean(true);
         final AtomicInteger entryCount = new AtomicInteger(0);
+        final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuffer> continuationToken = new AtomicReference<>(EMPTY_BYTE_BUFFER);
         final LinkedBlockingQueue<TableEntry> entries = new LinkedBlockingQueue<>();
         tableStore.entryIterator(segment, state, TIMEOUT)
@@ -808,13 +817,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               if (e == null) {
                                   canContinue.set(false);
                               } else {
-                                  entries.addAll(e.getEntries()); // read all entries
+                                  // Store all TableEntrys.
+                                  entries.addAll(e.getEntries());
+                                  // Update the continuation token.
                                   ArrayView lastState = e.getState();
-                                  // update the continuation token.
                                   continuationToken.set(ByteBuffer.wrap(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                  // Update entryCount and message size.
                                   entryCount.addAndGet(e.getEntries().size());
-                                  if (entryCount.get() >= suggestedEntryCount) {
-                                      // set the continuation flag to false if we have read more than the suggested count.
+                                  msgSize.addAndGet(getTableEntryBytes(segment, e));
+
+                                  if (entryCount.get() >= suggestedEntryCount || msgSize.get() >= ITERATOR_RESPONSE_SIZE_THRESHOLD_BYTES) {
+                                      // Set the continuation flag to false if we have read more than the suggested count or
+                                      // if we have read more than the response threshold bytes.
                                       canContinue.set(false);
                                   }
                               }
@@ -837,6 +851,26 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                                 new WireCommands.TableEntries(wireCommandEntries),
                                                                                 continuationToken.get()));
                   }).exceptionally(e -> handleException(getTableEntries.getRequestId(), segment, operation, e));
+    }
+
+    private int getTableKeyBytes(String segment, IteratorItem<TableKey> item) {
+        int stateLength = item.getState().getLength();
+        int headerLength = WireCommands.TableKeysIteratorItem.GET_HEADER_BYTES.apply(item.getEntries().size());
+        int segmentLength = segment.getBytes().length;
+        int dataLength = item.getEntries().stream().mapToInt(value -> value.getKey().getLength() + Long.BYTES).sum();
+        return stateLength + headerLength + segmentLength + dataLength;
+    }
+
+    private int getTableEntryBytes(String segment, IteratorItem<TableEntry> item) {
+        int headerLength = WireCommands.TableEntriesIteratorItem.GET_HEADER_BYTES.apply(item.getEntries().size());
+        int segmentLength = segment.getBytes().length;
+        int dataLength = item.getEntries().stream().mapToInt(value -> {
+            return value.getKey().getKey().getLength() // key
+                    + Long.BYTES // key version
+                    + value.getValue().getLength(); // value
+        }).sum();
+        int stateLength = item.getState().getLength();
+        return headerLength + segmentLength + dataLength + stateLength;
     }
 
     private WireCommands.TableEntries getTableEntriesCommand(final List<ArrayView> inputKeys, final List<TableEntry> resultEntries) {
