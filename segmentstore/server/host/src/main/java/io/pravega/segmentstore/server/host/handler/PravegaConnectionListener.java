@@ -79,7 +79,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
-        this(ssl, "localhost", port, streamSegmentStore, tableStore, null, new PassingTokenVerifier(), null, null, true);
+        this(ssl, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), new PassingTokenVerifier(), null, null, true);
     }
 
     /**
@@ -103,7 +103,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
-        this.statsRecorder = statsRecorder;
+        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
         this.certFile = certFile;
         this.keyFile = keyFile;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);

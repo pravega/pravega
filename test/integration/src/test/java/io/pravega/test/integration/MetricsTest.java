@@ -32,7 +32,10 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
+import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.metrics.MetricRegistryUtils;
@@ -41,6 +44,7 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.common.ThreadPooledTestSuite;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.time.Duration;
 import java.util.Collections;
@@ -49,8 +53,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -64,21 +66,27 @@ import static org.mockito.Mockito.mock;
 
 
 @Slf4j
-public class MetricsTest {
+public class MetricsTest extends ThreadPooledTestSuite {
 
     private static final String STREAM_NAME = "testMetricsStream" + new Random().nextInt(Integer.MAX_VALUE);
     private static final long TOTAL_NUM_EVENTS = 10;
-    String scope = "testMetricsScope";
-    String readerGroupName = "testMetricsReaderGroup";
-    ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
-    StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
-    String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
-    ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
+    private final String scope = "testMetricsScope";
+    private final String readerGroupName = "testMetricsReaderGroup";
+    private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private final String readerName = "reader" + new Random().nextInt(Integer.MAX_VALUE);
     private TestingServer zkTestServer = null;
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
     private StatsProvider statsProvider = null;
+    private ServiceBuilder serviceBuilder = null;
+    private AutoScaleMonitor monitor = null;
+
+    @Override
+    protected int getThreadPoolSize() {
+        return 5;
+    }
 
     @Before
     public void setup() throws Exception {
@@ -91,11 +99,13 @@ public class MetricsTest {
         this.zkTestServer = new TestingServerStarter().start();
 
         // 2. Start Pravega SegmentStore service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
+                monitor.getRecorder(), new PassingTokenVerifier(), null, null, true);
         this.server.startListening();
 
         // 3. Start Pravega Controller service
@@ -130,10 +140,22 @@ public class MetricsTest {
             this.controllerWrapper.close();
             this.controllerWrapper = null;
         }
+
         if (this.server != null) {
             this.server.close();
             this.server = null;
         }
+
+        if (this.monitor != null) {
+            this.monitor.close();
+            this.monitor = null;
+        }
+
+        if (this.serviceBuilder != null) {
+            this.serviceBuilder.close();
+            this.serviceBuilder = null;
+        }
+
         if (this.zkTestServer != null) {
             this.zkTestServer.close();
             this.zkTestServer = null;
@@ -155,7 +177,7 @@ public class MetricsTest {
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
-                    new JavaSerializer<String>(),
+                    new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
             String event = "12345";
             long bytesWritten = TOTAL_NUM_EVENTS * event.length() * 4;
@@ -178,7 +200,7 @@ public class MetricsTest {
 
             EventStreamReader<String> reader1 = clientFactory.createReader(readerName,
                     readerGroupName1,
-                    new JavaSerializer<String>(),
+                    new JavaSerializer<>(),
                     ReaderConfig.builder().build());
 
             for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
@@ -202,7 +224,7 @@ public class MetricsTest {
 
             EventStreamReader<String> reader2 = clientFactory.createReader(readerName,
                     readerGroupName2,
-                    new JavaSerializer<String>(),
+                    new JavaSerializer<>(),
                     ReaderConfig.builder().build());
 
             for (int q = 0; q < TOTAL_NUM_EVENTS; q++) {
@@ -227,11 +249,11 @@ public class MetricsTest {
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
                     Collections.singletonList(0L),
                     map,
-                    executorService).getFuture();
+                    executorService()).getFuture();
             Assert.assertTrue(scaleStatus.get());
 
             EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM_NAME,
-                    new JavaSerializer<String>(),
+                    new JavaSerializer<>(),
                     EventWriterConfig.builder().build());
 
             for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
