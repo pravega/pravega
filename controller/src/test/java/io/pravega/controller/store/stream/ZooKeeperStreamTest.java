@@ -33,7 +33,7 @@ public class ZooKeeperStreamTest extends StreamTestBase {
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         storeHelper = new ZKStoreHelper(cli, executor);
-        store = new ZKStreamMetadataStore(cli, 1, executor, Duration.ofSeconds(1));
+        store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
     }
 
     @Override

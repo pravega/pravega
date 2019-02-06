@@ -66,7 +66,7 @@ public class BookkeeperDockerService extends DockerBasedService {
 
         Mount mount1 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
                 .build();
-        Mount mount2 = Mount.builder().type("volume").source("logs-volume")
+        Mount mount2 = Mount.builder().type("volume").source("bookkeeper-logs")
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;

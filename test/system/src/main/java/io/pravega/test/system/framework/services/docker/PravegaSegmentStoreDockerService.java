@@ -71,7 +71,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.task.name", serviceName);
 
-        Mount mount = Mount.builder().type("volume").source("logs-volume").target("/tmp/logs").build();
+        Mount mount = Mount.builder().type("volume").source("segmentstore-logs").target("/opt/pravega/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         //System properties to configure SS service.
         Map<String, String> stringBuilderMap = new HashMap<>();
