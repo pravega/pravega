@@ -46,7 +46,7 @@ public class StreamManagerImplTest {
     public void setUp() {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        this.controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         this.streamManager = new StreamManagerImpl(controller, cf);
     }
 
@@ -101,7 +101,7 @@ public class StreamManagerImplTest {
                                       Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
-                                                           connectionFactory);
+                                                           connectionFactory, true);
         @Cleanup
         final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
 

@@ -70,6 +70,7 @@ public class MockController implements Controller {
     @GuardedBy("$lock")
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
+    private final boolean callServer;
     
     @Override
     @Synchronized
@@ -178,6 +179,9 @@ public class MockController implements Controller {
     }
 
     private boolean createSegment(String name) {
+        if (!callServer) {
+            return true;
+        }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -217,6 +221,9 @@ public class MockController implements Controller {
     }
     
     private boolean deleteSegment(String name) {
+        if (!callServer) {
+            return true;
+        }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -281,6 +288,10 @@ public class MockController implements Controller {
     
     private CompletableFuture<Void> commitTxSegment(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        if (!callServer) {
+            result.complete(null);
+            return result;
+        }
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -329,6 +340,10 @@ public class MockController implements Controller {
     
     private CompletableFuture<Void> abortTxSegment(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        if (!callServer) {
+            result.complete(null);
+            return result;
+        }
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -384,6 +399,10 @@ public class MockController implements Controller {
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        if (!callServer) {
+            result.complete(null);
+            return result;
+        }
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override

@@ -158,7 +158,7 @@ public class EndToEndTruncationTest {
         Future<Void> ack = producer.writeEvent(testString);
         ack.get(5, TimeUnit.SECONDS);
 
-        MockController controller = new MockController(endpoint, port, streamManager.getConnectionFactory());
+        MockController controller = new MockController(endpoint, port, streamManager.getConnectionFactory(), true);
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
                                                                                                   streamManager.getConnectionFactory());
         Segment segment = new Segment(scope, streamName, 0);

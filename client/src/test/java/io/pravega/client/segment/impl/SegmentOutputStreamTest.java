@@ -98,7 +98,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
@@ -120,7 +120,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
 
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
@@ -143,7 +143,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
 
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         doThrow(ConnectionFailedException.class).doNothing().when(connection).send(any(SetupAppend.class));
         cf.provideConnection(uri, connection);
@@ -168,7 +168,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
 
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
@@ -192,7 +192,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
 
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
@@ -242,7 +242,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
@@ -260,7 +260,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
@@ -318,7 +318,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
 
@@ -348,7 +348,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -387,7 +387,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -427,7 +427,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -465,7 +465,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
@@ -521,7 +521,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
@@ -573,7 +573,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
@@ -600,7 +600,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -625,7 +625,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -663,7 +663,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -698,7 +698,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -740,7 +740,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
@@ -808,7 +808,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
         implementAsDirectExecutor(executor); // Ensure task submitted to executor is run inline.
         cf.setExecutor(executor);
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         AtomicBoolean shouldThrow = new AtomicBoolean(true);
@@ -851,7 +851,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -884,7 +884,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -919,7 +919,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf);
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
