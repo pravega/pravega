@@ -14,7 +14,6 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.controller.event.AutoScaleEvent;
-import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -86,26 +85,20 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         String streamSegmentName2 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM2, 0L);
         String streamSegmentName3 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM3, 0L);
         String streamSegmentName4 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM4, 0L);
-        monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
-        monitor.notifyCreated(streamSegmentName2, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
-        monitor.notifyCreated(streamSegmentName3, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
-        monitor.notifyCreated(streamSegmentName4, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+        monitor.notifyCreated(streamSegmentName1);
+        monitor.notifyCreated(streamSegmentName2);
+        monitor.notifyCreated(streamSegmentName3);
+        monitor.notifyCreated(streamSegmentName4);
 
         long twentyminutesback = System.currentTimeMillis() - Duration.ofMinutes(20).toMillis();
         monitor.put(streamSegmentName1, new ImmutablePair<>(twentyminutesback, twentyminutesback));
         monitor.put(streamSegmentName3, new ImmutablePair<>(twentyminutesback, twentyminutesback));
 
-        monitor.report(streamSegmentName1, 10, WireCommands.CreateSegment.IN_EVENTS_PER_SEC,
-                twentyminutesback,
-                1001, 500, 200, 200);
+        monitor.report(streamSegmentName1, 10, twentyminutesback, 1001, 500, 200, 200);
 
-        monitor.report(streamSegmentName3, 10, WireCommands.CreateSegment.IN_EVENTS_PER_SEC,
-                twentyminutesback,
-                0.0, 0.0, 0.0, 0.0);
+        monitor.report(streamSegmentName3, 10, twentyminutesback, 0.0, 0.0, 0.0, 0.0);
 
-        monitor.report(streamSegmentName4, 10, WireCommands.CreateSegment.IN_EVENTS_PER_SEC,
-                twentyminutesback,
-                0.0, 0.0, 10.10, 0.0);
+        monitor.report(streamSegmentName4, 10, twentyminutesback, 0.0, 0.0, 10.10, 0.0);
 
         monitor.notifySealed(streamSegmentName1);
         assertTrue(Futures.await(result));
@@ -130,7 +123,7 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
                 .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 1).build(),
                 executorService());
         String streamSegmentName1 = StreamSegmentNameUtils.getQualifiedStreamSegmentName(SCOPE, STREAM1, 0L);
-        monitor.notifyCreated(streamSegmentName1, WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 10);
+        monitor.notifyCreated(streamSegmentName1);
 
         assertTrue(Futures.await(scaleDownFuture));
 
