@@ -10,7 +10,7 @@
 package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
@@ -86,7 +86,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         Assert.assertTrue("Failed to create the stream ", isStreamCreated);
 
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
+        ClientFactory clientFactory = ClientFactory.withScope(scope, clientConfig);
 
         // Write an event to the stream.
 
