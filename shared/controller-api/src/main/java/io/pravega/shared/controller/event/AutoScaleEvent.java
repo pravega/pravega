@@ -9,9 +9,8 @@
  */
 package io.pravega.shared.controller.event;
 
-import lombok.Data;
-
 import java.util.concurrent.CompletableFuture;
+import lombok.Data;
 
 @Data
 public class AutoScaleEvent implements ControllerEvent {
@@ -36,5 +35,11 @@ public class AutoScaleEvent implements ControllerEvent {
     @Override
     public CompletableFuture<Void> process(RequestProcessor processor) {
         return processor.processAutoScaleRequest(this);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s/%s/%s, Direction=%d, Splits=%d",
+                this.scope, this.stream, this.segmentId, this.direction, this.numOfSplits);
     }
 }
