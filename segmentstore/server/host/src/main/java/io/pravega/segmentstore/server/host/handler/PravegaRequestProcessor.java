@@ -726,18 +726,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     @Override
-    public void getTableKeys(WireCommands.GetTableKeys getTableKeys) {
-        final String segment = getTableKeys.getSegment();
-        final String operation = "getTableKeys";
+    public void readTableKeys(WireCommands.ReadTableKeys readTableKeys) {
+        final String segment = readTableKeys.getSegment();
+        final String operation = "readTableKeys";
 
-        if (!verifyToken(segment, getTableKeys.getRequestId(), getTableKeys.getDelegationToken(), operation)) {
+        if (!verifyToken(segment, readTableKeys.getRequestId(), readTableKeys.getDelegationToken(), operation)) {
             return;
         }
 
-        log.info(getTableKeys.getRequestId(), "Fetching keys from {}.", getTableKeys);
+        log.info(readTableKeys.getRequestId(), "Fetching keys from {}.", readTableKeys);
 
-        int suggestedKeyCount = getTableKeys.getSuggestedKeyCount();
-        ByteBuf token = getTableKeys.getContinuationToken();
+        int suggestedKeyCount = readTableKeys.getSuggestedKeyCount();
+        ByteBuf token = readTableKeys.getContinuationToken();
 
         byte[] state = null;
         if (!token.equals(EMPTY_BUFFER)) {
@@ -774,7 +774,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               }
                           }, executor))
                   .thenAccept(v -> {
-                      log.debug(getTableKeys.getRequestId(), "{} keys obtained for GetTableKeys request.", keys.size());
+                      log.debug(readTableKeys.getRequestId(), "{} keys obtained for ReadTableKeys request.", keys.size());
                       List<WireCommands.TableKey> wireCommandKeys = keys.stream()
                                                                         .map(k -> {
                                                                             ArrayView keyArray = k.getKey();
@@ -783,23 +783,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                                                                            keyArray.getLength()), k.getVersion());
                                                                         })
                                                                         .collect(toList());
-                      connection.send(new WireCommands.TableKeysIteratorItem(getTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
-                  }).exceptionally(e -> handleException(getTableKeys.getRequestId(), segment, operation, e));
+                      connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
+                  }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
     }
 
     @Override
-    public void getTableEntries(WireCommands.GetTableEntries getTableEntries) {
-        final String segment = getTableEntries.getSegment();
-        final String operation = "getTableEntries";
+    public void readTableEntries(WireCommands.ReadTableEntries readTableEntries) {
+        final String segment = readTableEntries.getSegment();
+        final String operation = "readTableEntries";
 
-        if (!verifyToken(segment, getTableEntries.getRequestId(), getTableEntries.getDelegationToken(), operation)) {
+        if (!verifyToken(segment, readTableEntries.getRequestId(), readTableEntries.getDelegationToken(), operation)) {
             return;
         }
 
-        log.info(getTableEntries.getRequestId(), "Fetching keys from {}.", getTableEntries);
+        log.info(readTableEntries.getRequestId(), "Fetching keys from {}.", readTableEntries);
 
-        int suggestedEntryCount = getTableEntries.getSuggestedEntryCount();
-        ByteBuf token = getTableEntries.getContinuationToken();
+        int suggestedEntryCount = readTableEntries.getSuggestedEntryCount();
+        ByteBuf token = readTableEntries.getContinuationToken();
 
         byte[] state = null;
         if (!token.equals(EMPTY_BUFFER)) {
@@ -836,7 +836,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               }
                           }, executor))
                   .thenAccept(v -> {
-                      log.debug(getTableEntries.getRequestId(), "{} entries obtained for GetTableEntries request.", entries.size());
+                      log.debug(readTableEntries.getRequestId(), "{} entries obtained for ReadTableEntries request.", entries.size());
                       List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries =
                               entries.stream()
                                      .map(e -> {
@@ -851,22 +851,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                      })
                                      .collect(toList());
 
-                      connection.send(new WireCommands.TableEntriesIteratorItem(getTableEntries.getRequestId(), segment,
-                                                                                new WireCommands.TableEntries(wireCommandEntries),
-                                                                                continuationToken.get()));
-                  }).exceptionally(e -> handleException(getTableEntries.getRequestId(), segment, operation, e));
+                      connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
+                                                                        new WireCommands.TableEntries(wireCommandEntries),
+                                                                        continuationToken.get()));
+                  }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
     private int getTableKeyBytes(String segment, IteratorItem<TableKey> item) {
         int stateLength = item.getState().getLength();
-        int headerLength = WireCommands.TableKeysIteratorItem.GET_HEADER_BYTES.apply(item.getEntries().size());
+        int headerLength = WireCommands.TableKeysRead.GET_HEADER_BYTES.apply(item.getEntries().size());
         int segmentLength = segment.getBytes().length;
         int dataLength = item.getEntries().stream().mapToInt(value -> value.getKey().getLength() + Long.BYTES).sum();
         return stateLength + headerLength + segmentLength + dataLength;
     }
 
     private int getTableEntryBytes(String segment, IteratorItem<TableEntry> item) {
-        int headerLength = WireCommands.TableEntriesIteratorItem.GET_HEADER_BYTES.apply(item.getEntries().size());
+        int headerLength = WireCommands.TableEntriesRead.GET_HEADER_BYTES.apply(item.getEntries().size());
         int segmentLength = segment.getBytes().length;
         int dataLength = item.getEntries().stream().mapToInt(value -> {
             return value.getKey().getKey().getLength() // key

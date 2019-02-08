@@ -1701,9 +1701,9 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class GetTableKeys implements Request, WireCommand {
+    public static final class ReadTableKeys implements Request, WireCommand {
 
-        final WireCommandType type = WireCommandType.GET_TABLE_KEYS;
+        final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId;
         final String segment;
         final String delegationToken;
@@ -1712,7 +1712,7 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            cp.getTableKeys(this);
+            cp.readTableKeys(this);
         }
 
         @Override
@@ -1740,16 +1740,16 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new GetTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken));
+            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken));
         }
     }
 
     @Data
-    public static final class TableKeysIteratorItem implements Reply, WireCommand {
+    public static final class TableKeysRead implements Reply, WireCommand {
         public static final Function<Integer, Integer> GET_HEADER_BYTES =
                 keyCount -> Long.BYTES + Integer.BYTES + TableKey.HEADER_BYTES * keyCount + Integer.BYTES;
 
-        final WireCommandType type = WireCommandType.TABLE_KEYS_ITERATOR_ITEM;
+        final WireCommandType type = WireCommandType.TABLE_KEYS_READ;
         final long requestId;
         final String segment;
         final List<TableKey> keys;
@@ -1757,7 +1757,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.tableKeysIteratorItem(this);
+            cp.tableKeysRead(this);
         }
 
         @Override
@@ -1790,14 +1790,14 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new TableKeysIteratorItem(requestId, segment, keys, wrappedBuffer(continuationToken));
+            return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken));
         }
     }
 
     @Data
-    public static final class GetTableEntries implements Request, WireCommand {
+    public static final class ReadTableEntries implements Request, WireCommand {
 
-        final WireCommandType type = WireCommandType.GET_TABLE_ENTRIES;
+        final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId;
         final String segment;
         final String delegationToken;
@@ -1806,7 +1806,7 @@ public final class WireCommands {
 
         @Override
         public void process(RequestProcessor cp) {
-            cp.getTableEntries(this);
+            cp.readTableEntries(this);
         }
 
         @Override
@@ -1835,16 +1835,16 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new GetTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken));
+            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken));
         }
     }
 
     @Data
-    public static final class TableEntriesIteratorItem implements Reply, WireCommand {
+    public static final class TableEntriesRead implements Reply, WireCommand {
         public static final Function<Integer, Integer> GET_HEADER_BYTES =
                 entryCount -> Long.BYTES + TableEntries.GET_HEADER_BYTES.apply(entryCount) + Integer.BYTES;
 
-        final WireCommandType type = WireCommandType.TABLE_ENTRIES_ITERATOR_ITEM;
+        final WireCommandType type = WireCommandType.TABLE_ENTRIES_READ;
         final long requestId;
         final String segment;
         final TableEntries entries;
@@ -1853,7 +1853,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.tableEntriesIteratorItem(this);
+            cp.tableEntriesRead(this);
         }
 
         @Override
@@ -1878,7 +1878,7 @@ public final class WireCommands {
             byte[] continuationToken = new byte[dataLength];
             in.readFully(continuationToken);
 
-            return new TableEntriesIteratorItem(requestId, segment, entries, wrappedBuffer(continuationToken));
+            return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken));
         }
     }
 
