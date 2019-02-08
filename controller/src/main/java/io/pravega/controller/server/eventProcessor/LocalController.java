@@ -28,12 +28,16 @@ import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -83,24 +87,14 @@ public class LocalController implements Controller {
 
     @Override
     public AsyncIterator<Stream> listStreamsInScope(String scopeName) {
-        final Function<String, CompletableFuture<Pair<List<String>, String>>> function = token -> 
-                controller.listStreamNamesInScope(scopeName, token);
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
+                controller.listStreamNamesInScope(scopeName, token)
+                          .thenApply(result -> {
+                              List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
+                              return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
+                          });
 
-        return new AsyncIterator<Stream>() {
-            LinkedBlockingQueue<Stream> streams = new LinkedBlockingQueue<>();
-            AtomicReference<String> token = new AtomicReference<>(null);
-
-            @Override
-            public CompletableFuture<Stream> getNext() {
-                return function.apply(token.get()).thenApply(result -> {
-                    streams.addAll(result.getKey().stream()
-                                                 .map(x -> (Stream) new StreamImpl(scopeName, x))
-                                                 .collect(Collectors.toList()));
-                    token.set(result.getValue());
-                    return streams.poll();
-                });
-            }
-        };
+        return new ContinuationTokenAsyncIterator<>(function, "");
     }
 
     @Override

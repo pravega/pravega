@@ -255,16 +255,21 @@ public abstract class StreamMetadataStoreTest {
 
         streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), executor).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
-        assertTrue(Strings.isNullOrEmpty(streamInScope.getValue()));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), executor).get();
+        assertEquals("List streams in scope", 0, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
         
         store.deleteStream(scope, stream1, null, executor).join();
+        
         streamInScope = store.listStreamNamesInScope(scope, "", executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
         streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), executor).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
-        assertTrue(Strings.isNullOrEmpty(streamInScope.getValue()));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
 
     @Test

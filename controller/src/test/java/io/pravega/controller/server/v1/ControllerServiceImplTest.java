@@ -161,8 +161,17 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest2, streamsInScopeResponse2);
         list = streamsInScopeResponse2.get().getStreamsList();
         // check continuation token
-        assertTrue(Strings.isNullOrEmpty(streamsInScopeResponse2.get().getContinuationToken().getToken()));
+        assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse2.get().getContinuationToken().getToken()));
         assertEquals(1, list.size());
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse3 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest3 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(streamsInScopeResponse2.get().getContinuationToken()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest3, streamsInScopeResponse3);
+        list = streamsInScopeResponse3.get().getStreamsList();
+        // check continuation token
+        assertEquals(streamsInScopeResponse2.get().getContinuationToken().getToken(), streamsInScopeResponse3.get().getContinuationToken().getToken());
+        assertEquals(0, list.size());
 
         List<StreamInfo> m = new LinkedList<>();
         m.addAll(streamsInScopeResponse1.get().getStreamsList());

@@ -88,13 +88,13 @@ public class InMemoryScope implements Scope {
                 // find in list based on time
                 limited = sortedStreamsInScope.tailSet(continuationToken)
                                               .stream().limit(limit).collect(Collectors.toList());
-                if (!limited.isEmpty()) {
+                if (!limited.isEmpty() && limited.get(0).equals(continuationToken)) {
                     limited.remove(0);
                 }
             }
             
-            if (limited.isEmpty() || limited.size() < limit) {
-                newContinuationToken = "";
+            if (limited.isEmpty()) {
+                newContinuationToken = continuationToken;
             } else {
                 newContinuationToken = limited.get(limited.size() - 1);      
             }

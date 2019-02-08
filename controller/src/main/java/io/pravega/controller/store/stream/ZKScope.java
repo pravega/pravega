@@ -33,7 +33,7 @@ public class ZKScope implements Scope {
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH = "/store/streamsinscope/%s";
     private static final int SET_COUNT = 100;
-    
+
     private final String scopePath;
     private final String streamsInScopePath;
     private final String scopeName;
@@ -68,7 +68,7 @@ public class ZKScope implements Scope {
         String path = ZKPaths.makePath(setPath, Scope.encodeStreamInScope(name, creationTime));
         return Futures.toVoid(store.createZNodeIfNotExist(path));
     }
-    
+
     @Override
     public CompletableFuture<Void> removeStreamFromScope(String name, long creationTime) {
         Integer set = findSetForStream(name);
@@ -76,7 +76,7 @@ public class ZKScope implements Scope {
         String path = ZKPaths.makePath(setPath, Scope.encodeStreamInScope(name, creationTime));
         return Futures.toVoid(store.deletePath(path, true));
     }
-    
+
     @Override
     public CompletableFuture<List<String>> listStreamsInScope() {
         return store.getChildren(scopePath);
@@ -93,7 +93,7 @@ public class ZKScope implements Scope {
         } else {
             floor.set(Scope.encodeStreamInScope("", 0L));
         }
-        
+
         List<String> taken = new LinkedList<>();
         // start with initial set. fetch all children over floor
 
@@ -108,14 +108,15 @@ public class ZKScope implements Scope {
                     // try the next set. 
                     set.incrementAndGet();
                 });
-        
-        return Futures.loop(() -> taken.size() < Config.LIST_STREAM_LIMIT && set.get() < 100, supplier, executor)
+
+        return Futures.loop(() -> taken.size() < Config.LIST_STREAM_LIMIT && set.get() < SET_COUNT, supplier, executor)
                       .thenApply(v -> {
                           List<String> list = taken.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList());
-                          // set next continuation token as the last element in this list
-                          String nextContinuationToken = taken.isEmpty() || taken.size() < limit ? "" : taken.get(list.size() - 1);
+                          // set next continuation token as the last element in this list or the original token received 
+                          // if there is nothing to return
+                          String nextContinuationToken = taken.isEmpty() ? continuationToken : taken.get(list.size() - 1);
                           return new ImmutablePair<>(list, nextContinuationToken);
-               });
+                      });
     }
 
     private String getSetPath(Integer set) {
@@ -124,7 +125,7 @@ public class ZKScope implements Scope {
 
     private int findSetForStream(String stream) {
         int hash = stream.hashCode();
-        
+
         return hash == Integer.MIN_VALUE ? 0 : Math.abs(hash) % SET_COUNT;
     }
 
@@ -139,10 +140,10 @@ public class ZKScope implements Scope {
                         }
                     })
                     .thenApply(children -> children.stream()
-                                               .filter(x -> Scope.compareStreamInScope(x, continuationToken) > 0)
-                                               .limit(limit).collect(Collectors.toList()));
+                                                   .filter(x -> Scope.compareStreamInScope(x, continuationToken) > 0)
+                                                   .limit(limit).collect(Collectors.toList()));
     }
-    
+
     @Override
     public void refresh() {
     }

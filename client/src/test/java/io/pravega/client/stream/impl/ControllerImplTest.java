@@ -710,7 +710,13 @@ public class ControllerImplTest {
                     list2.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream3").build());
                     responseObserver.onNext(Controller.StreamsInScopeResponse
                             .newBuilder().addAllStreams(list2)
-                            .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build());
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken2")) {
+                    List<StreamInfo> list3 = new LinkedList<>();
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().addAllStreams(list3)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("").build()).build());
                     responseObserver.onCompleted();
                 } else {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());

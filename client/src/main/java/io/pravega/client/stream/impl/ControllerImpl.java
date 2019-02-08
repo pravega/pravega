@@ -37,6 +37,7 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -73,6 +74,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -231,15 +234,21 @@ public class ControllerImpl implements Controller {
         long traceId = LoggerHelpers.traceEnter(log, "listStreamsInScope", scopeName);
 
         try {
-            final Function<ContinuationToken, CompletableFuture<StreamsInScopeResponse>> function = token -> this.retryConfig.runAsync(() -> {
-                RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreamsInScope");
-                ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
-                new ControllerClientTagger(client).withTag(traceId, "listStreamsInScope", scopeName)
-                                                  .listStreamsInScope(StreamsInScopeRequest
-                                                          .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
-                return callback.getFuture();
-            }, this.executor);
-            return new StreamsInScopeIterator(function);
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreamsInScope");
+                        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                        new ControllerClientTagger(client).withTag(traceId, "listStreamsInScope", scopeName)
+                                                          .listStreamsInScope(StreamsInScopeRequest
+                                                                  .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
+                        return callback.getFuture()
+                                       .thenApply(x -> {
+                                           List<Stream> result = x.getStreamsList().stream()
+                                                                  .map(y -> new StreamImpl(y.getScope(), y.getStream())).collect(Collectors.toList());
+                                           return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                       });
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
         } finally {
             LoggerHelpers.traceLeave(log, "listStreamsInScope", traceId);
         }

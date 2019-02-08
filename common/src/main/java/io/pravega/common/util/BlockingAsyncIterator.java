@@ -7,11 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.admin.impl;
+package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.stream.Stream;
-import io.pravega.common.util.AsyncIterator;
 import lombok.Synchronized;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -19,19 +17,19 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * This class is a wrapper over async iterator for iterating over streams.
+ * This class is a wrapper over async iterator that implements java.util.Iterator interface.
  * This is blocking wrapper on async iterator's getNext method which implements blocking hasNext and next methods of 
  * iterator interface. 
- * We have also made this class threadsafe but that has the drawback of blocking on asyncIterator's getNext within a lock. 
+ * This class is threadsafe but that has the drawback of blocking on asyncIterator's getNext within a lock. 
  */
 @ThreadSafe
 @VisibleForTesting
-class StreamsIterator implements Iterator<Stream> {
-    private final AsyncIterator<Stream> asyncIterator;
-    private Stream next;
+public class BlockingAsyncIterator<T> implements Iterator<T> {
+    private final AsyncIterator<T> asyncIterator;
+    private T next;
     private boolean canHaveNext;
-    
-    StreamsIterator(AsyncIterator<Stream> asyncIterator) {
+
+    public BlockingAsyncIterator(AsyncIterator<T> asyncIterator) {
         this.canHaveNext = true;
         this.next = null;
         this.asyncIterator = asyncIterator;
@@ -46,7 +44,7 @@ class StreamsIterator implements Iterator<Stream> {
             }
         }
     }
-    
+
     @Override
     @Synchronized
     public boolean hasNext() {
@@ -56,12 +54,12 @@ class StreamsIterator implements Iterator<Stream> {
 
     @Override
     @Synchronized
-    public Stream next() {
+    public T next() {
         load();
         if (next != null) {
-            Stream stream = next;
+            T retVal = next;
             next = null;
-            return stream;
+            return retVal;
         } else {
             assert !canHaveNext;
             throw new NoSuchElementException();
