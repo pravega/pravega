@@ -46,4 +46,9 @@ public class StoreClientConfigImpl implements StoreClientConfig {
         Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
         return new StoreClientConfigImpl(StoreType.Zookeeper, Optional.of(zkClientConfig));
     }
+    
+    public static StoreClientConfig withKvsClient(ZKClientConfig zkClientConfig) {
+        Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
+        return new StoreClientConfigImpl(StoreType.KVSTableSegment, Optional.of(zkClientConfig));
+    }
 }

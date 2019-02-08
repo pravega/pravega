@@ -23,6 +23,7 @@ import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 
+import java.io.Closeable;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Metadata.
  */
-public interface StreamMetadataStore {
+public interface StreamMetadataStore extends Closeable {
 
     /**
      * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided

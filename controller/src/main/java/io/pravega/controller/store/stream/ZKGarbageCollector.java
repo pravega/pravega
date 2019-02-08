@@ -144,8 +144,6 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     // next cycle.
                     return gcProcessingSupplier.get();
                 }, gcExecutor)
-                // fetch the version and update it.
-                .thenCompose(v -> fetchVersion())
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.WriteConflictException) {
                         log.debug("Unable to acquire guard. Will try in next cycle.");
@@ -154,7 +152,9 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                         log.error("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, e);
                     }
                     return null;
-                });
+                })
+                // fetch the version and update it.
+                .thenCompose(v -> fetchVersion());
     }
 
     @VisibleForTesting
