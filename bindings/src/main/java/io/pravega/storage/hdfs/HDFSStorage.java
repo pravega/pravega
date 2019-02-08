@@ -40,6 +40,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathNotFoundException;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
@@ -242,16 +243,27 @@ public class HDFSStorage implements SyncStorage {
         ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         handle = asWritableHandle(handle);
+        // only unsealed files should be sealed.
         try {
-            FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
+            Path filePath = getFilePath(handle.getSegmentName(), this.epoch);
+            Path sealedPath = getSealedFilePath(handle.getSegmentName());
+            makeReadOnly(filePath);
+            this.fileSystem.rename(filePath, sealedPath);
+        } catch (PathNotFoundException | FileNotFoundException e) {
+            try {
+                FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
 
-            if (!isSealed(status.getPath())) {
-                if (getEpoch(status) > this.epoch) {
-                    throw new StorageNotPrimaryException(handle.getSegmentName());
+                if (!isSealed(status.getPath())) {
+                    if (getEpoch(status) != this.epoch) {
+                        throw new StorageNotPrimaryException(handle.getSegmentName());
+                    }
+
+                    Path sealedPath = getSealedFilePath(handle.getSegmentName());
+                    this.fileSystem.rename(status.getPath(), sealedPath);
+                    makeReadOnly(sealedPath);
                 }
-                makeReadOnly(status);
-                Path sealedPath = getSealedFilePath(handle.getSegmentName());
-                this.fileSystem.rename(status.getPath(), sealedPath);
+            } catch (IOException ex) {
+                throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
             }
         } catch (IOException e) {
             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
@@ -263,10 +275,22 @@ public class HDFSStorage implements SyncStorage {
     public void unseal(SegmentHandle handle) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
+        Path targetPath = getFilePath(handle.getSegmentName(), this.epoch);
+        Path sealedPath = getSealedFilePath(handle.getSegmentName());
+
         try {
-            FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
-            makeWrite(status);
-            this.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.epoch));
+            makeWrite(sealedPath);
+            this.fileSystem.rename(sealedPath, targetPath);
+        } catch (PathNotFoundException | FileNotFoundException e) {
+            try {
+                FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
+                if (isSealed(status.getPath())) {
+                    makeWrite(status.getPath());
+                    this.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.epoch));
+                }
+            } catch (IOException ex) {
+                throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
+            }
         } catch (IOException e) {
             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
         }
@@ -314,13 +338,24 @@ public class HDFSStorage implements SyncStorage {
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
         handle = asWritableHandle(handle);
         try {
+            Path filePath = getFilePath(handle.getSegmentName(), this.epoch);
+            // return only if delete succeeded.
+            if (this.fileSystem.delete(filePath, true)) {
+                return;
+            }
+        } catch (PathNotFoundException | FileNotFoundException e) {
+            // do nothing here fall through
+        } catch (IOException e) {
+            throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
+        }
+        try {
             FileStatus statusForSegment = findStatusForSegment(handle.getSegmentName(), true);
             if (getEpoch(statusForSegment) > this.epoch && !isSealed(statusForSegment.getPath())) {
                 throw new StorageNotPrimaryException(handle.getSegmentName());
             }
             this.fileSystem.delete(statusForSegment.getPath(), true);
-        } catch (IOException e) {
-            throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
+        } catch (IOException ex) {
+            throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
         }
         LoggerHelpers.traceLeave(log, "delete", traceId, handle);
     }
@@ -344,29 +379,23 @@ public class HDFSStorage implements SyncStorage {
         ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         handle = asWritableHandle(handle);
-        FileStatus status = null;
-        try {
-            status = findStatusForSegment(handle.getSegmentName(), true);
-            if (isSealed(status.getPath())) {
-                throw new StreamSegmentSealedException(handle.getSegmentName());
-            }
-            if (getEpochFromPath(status.getPath()) > this.epoch) {
-                throw new StorageNotPrimaryException(handle.getSegmentName());
-            }
-        } catch (IOException e) {
-             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), e);
-        }
-
         Timer timer = new Timer();
-        try (FSDataOutputStream stream = this.fileSystem.append(status.getPath())) {
-            if (offset != status.getLen()) {
-                // Do the handle offset validation here, after we open the file. We want to throw FileNotFoundException
-                // before we throw BadOffsetException.
-                throw new BadOffsetException(handle.getSegmentName(), status.getLen(), offset);
-            } else if (stream.getPos() != offset) {
+
+        // The writer SHOULD NEVER write to the file with epoch different that this.epoch.
+        // If this.epoch is lower than that of file then it means this instance is no longer the owner.
+        // If this.epoch is greater than that of file then it means there is a possble data corruption.
+        // In normal conditions, openWrite first renames file to current epoch. So at this point epoch of file should never be lower that this.epoch.
+        // Even in this condition write SHOULD NOT write to avoid data corruption.
+        // In other words - write ONLY IF this.epoch matches, epoch of the file in file system.
+        // We can not write to sealed file either.
+        // Therefore open the file with exact name.
+
+        Path fileName = getFilePath(handle.getSegmentName(), this.epoch);
+        try (FSDataOutputStream stream = this.fileSystem.append(fileName)) {
+            if (stream.getPos() != offset) {
                 // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
-                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", status, status.getLen(), stream.getPos());
-                throw new BadOffsetException(handle.getSegmentName(), status.getLen(), offset);
+                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", handle.getSegmentName(), stream.getPos(), stream.getPos());
+                throw new BadOffsetException(handle.getSegmentName(), stream.getPos(), offset);
             }
 
             if (length == 0) {
@@ -383,56 +412,76 @@ public class HDFSStorage implements SyncStorage {
             IOUtils.copyBytes(data, stream, (long) length, false);
 
             stream.flush();
+
+            HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+            HDFSMetrics.WRITE_BYTES.add(length);
+            LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
+        } catch (PathNotFoundException | FileNotFoundException e) {
+            // We reach here only if the file with current epoch is not present or sealed.
+            FileStatus status = null;
+            try {
+                status = findStatusForSegment(handle.getSegmentName(), true);
+                if (isSealed(status.getPath())) {
+                    throw new StreamSegmentSealedException(handle.getSegmentName());
+                }
+                if (getEpochFromPath(status.getPath()) != this.epoch) {
+                    throw new StorageNotPrimaryException(handle.getSegmentName());
+                }
+            } catch (IOException ex) {
+                throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
+            }
         } catch (IOException ex) {
             throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
         }
-
-        HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        HDFSMetrics.WRITE_BYTES.add(length);
-        LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, length);
     }
 
     @Override
     public SegmentHandle openWrite(String streamSegmentName) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "openWrite", streamSegmentName);
-        long fencedCount = 0;
-        do {
+        claimOwnership(streamSegmentName);
+        LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
+        return HDFSSegmentHandle.write(streamSegmentName);
+    }
+
+    /**
+     * Claims the ownership of this file by renaming it.
+     * To avoid problems with race condition this method retries until either rename succeeds or it discovers file with higher epoc.
+     * @param streamSegmentName
+     * @throws StreamSegmentException
+     */
+    private void claimOwnership(String streamSegmentName) throws StreamSegmentException {
+        boolean fileClaimed = false;
+        // There could be multiple containers trying to open the file.
+        // In a race, a container with lower epoch may be able to rename file before this container instance.
+        // We should try until we are able to either rename the file to epoch of current instance or find the file with higher epoch
+        while (!fileClaimed) {
             try {
                 FileStatus fileStatus = findStatusForSegment(streamSegmentName, true);
+                if (isSealed(fileStatus.getPath())) {
+                    break;
+                }
 
-                if (!isSealed(fileStatus.getPath())) {
-                    if (getEpochFromPath(fileStatus.getPath()) > this.epoch) {
-                        throw new StorageNotPrimaryException(streamSegmentName);
-                    }
+                if (getEpochFromPath(fileStatus.getPath()) > this.epoch) {
+                    throw new StorageNotPrimaryException(streamSegmentName);
+                }
 
-                    Path targetPath = getFilePath(streamSegmentName, this.epoch);
-                    if (!targetPath.equals(fileStatus.getPath())) {
-                        try {
-                            this.fileSystem.rename(fileStatus.getPath(), targetPath);
-                        } catch (FileNotFoundException e) {
-                            //This happens when more than one host is trying to fence and only one of the host goes through.
-                            //Retry the rename so that host with the highest epoch gets access.
-                            //In the worst case, the current owner of the segment will win this race after a number of attempts
-                            //  equal to the number of Segment Stores in the race. The high bound for this number of attempts
-                            // is the total number of Segment Store instances in the cluster.
-                            //It is safe to retry for MAX_EPOCH times as we are sure that the loop will never go that long.
-                            log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
-                            fencedCount++;
-                            continue;
+                Path targetPath = getFilePath(streamSegmentName, this.epoch);
+                if (!targetPath.equals(fileStatus.getPath())) {
+                    try {
+                        if (this.fileSystem.rename(fileStatus.getPath(), targetPath)) {
+                            fileClaimed = true;
                         }
+                    } catch (PathNotFoundException | FileNotFoundException e) {
+                        //This happens when more than one host is trying to fence and only one of the host goes through.
+                        log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
+                        continue;
                     }
                 }
-                //Ensure that file exists
-                findStatusForSegment(streamSegmentName, true);
-                return HDFSSegmentHandle.write(streamSegmentName);
             } catch (IOException e) {
                 throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
             }
-            // Looping for the maximum possible number.
-        } while (fencedCount <= this.epoch);
-        LoggerHelpers.traceLeave(log, "openWrite", traceId, epoch);
-        throw new StorageNotPrimaryException("Not able to fence out other writers.");
+        }
     }
 
     @Override
@@ -459,8 +508,8 @@ public class HDFSStorage implements SyncStorage {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
         }
 
-        // Create the file for the segment with epoch 0.
-        Path fullPath = getFilePath(streamSegmentName, 0);
+        // Create the file for the segment with current epoch.
+        Path fullPath = getFilePath(streamSegmentName, this.epoch);
         try {
             // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
             this.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.config.getReplication(),
@@ -623,25 +672,19 @@ public class HDFSStorage implements SyncStorage {
     /**
      * Makes the file represented by the given FileStatus read-only.
      *
-     * @param file The FileDescriptor of the file to set. If this method returns true, this FileDescriptor will
+     * @param path The Path of the file to set. If this method returns true, this FileDescriptor will
      *             also be updated to indicate the file is read-only.
-     * @return True if the file was not read-only before (and it is now), or false if the file was already read-only.
      * @throws IOException If an exception occurred.
      */
-    private boolean makeReadOnly(FileStatus file) throws IOException {
-        if (isReadOnly(file)) {
-            return false;
-        }
-
-        this.fileSystem.setPermission(file.getPath(), READONLY_PERMISSION);
-        log.debug("MakeReadOnly '{}'.", file.getPath());
-        return true;
+    private void makeReadOnly(Path path) throws IOException {
+        this.fileSystem.setPermission(path, READONLY_PERMISSION);
+        log.debug("MakeReadOnly '{}'.", path);
+        return;
     }
 
-    private boolean makeWrite(FileStatus file) throws IOException {
-        this.fileSystem.setPermission(file.getPath(), READWRITE_PERMISSION);
-        log.debug("MakeReadOnly '{}'.", file.getPath());
-        return true;
+    private void makeWrite(Path path) throws IOException {
+        this.fileSystem.setPermission(path, READWRITE_PERMISSION);
+        log.debug("MakeReadOnly '{}'.", path);
     }
 
     private int readInternal(SegmentHandle handle, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
