@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -66,6 +67,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -684,13 +686,13 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(2, singletonList(0L)));
 
         // Remove a Table Key
-        WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
+        WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(3, streamSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableKeysRemoved(3, streamSegmentName));
 
         // Test with non-existent key.
         TableEntry e2 = TableEntry.versioned(keys.get(0), generateValue(rnd), 10L);
-        key = new WireCommands.TableKey(ByteBuffer.wrap(e1.getKey().getKey().array()), 0L);
+        key = new WireCommands.TableKey(wrappedBuffer(e1.getKey().getKey().array()), 0L);
         processor.removeTableKeys(new WireCommands.RemoveTableKeys(4, streamSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableKeyBadVersion(4, streamSegmentName, "" ));
     }
@@ -773,7 +775,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         TableEntry entry = TableEntry.unversioned(keys.get(0), generateValue(rnd));
 
         // Read value of a non-existent key.
-        WireCommands.TableKey key = new WireCommands.TableKey(ByteBuffer.wrap(entry.getKey().getKey().array()), TableKey.NO_VERSION);
+        WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(entry.getKey().getKey().array()), TableKey.NO_VERSION);
         processor.readTable(new WireCommands.ReadTable(2, streamSegmentName, "", singletonList(key)));
 
         // expected result is Key with an empty TableValue.
@@ -786,7 +788,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         order.verify(connection).send(new WireCommands.TableEntriesUpdated(3, singletonList(0L)));
 
         // Read the value of the key.
-        key = new WireCommands.TableKey(ByteBuffer.wrap(entry.getKey().getKey().array()), 0L);
+        key = new WireCommands.TableKey(wrappedBuffer(entry.getKey().getKey().array()), 0L);
         TableEntry expectedEntry = TableEntry.versioned(entry.getKey().getKey(), entry.getValue(), 0L);
         processor.readTable(new WireCommands.ReadTable(4, streamSegmentName, "", singletonList(key)));
         order.verify(connection).send(new WireCommands.TableRead(4, streamSegmentName,
@@ -819,7 +821,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, streamSegmentName, "", getTableEntries(asList(e1, e2, e3))));
 
         // 1. Now read the table keys where suggestedKeyCount is equal to number of entries in the Table Store.
-        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 3, ByteBuffer.wrap(new byte[0])));
+        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 3, wrappedBuffer(new byte[0])));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
@@ -831,7 +833,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         assertTrue(getTableKeysIteratorItemResponse.getKeys().stream().map(WireCommands.TableKey::getKeyVersion).collect(Collectors.toList()).containsAll(keyVersions));
 
         // 2. Now read the table keys where suggestedKeyCount is less than the number of keys in the Table Store.
-        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 1, ByteBuffer.wrap(new byte[0])));
+        processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 1, wrappedBuffer(new byte[0])));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommands.TableKeysIteratorItem> tableKeysCaptor = ArgumentCaptor.forClass(WireCommands.TableKeysIteratorItem.class);
@@ -842,7 +844,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         assertEquals(1, getTableKeysIteratorItemResponse.getKeys().size());
         assertTrue(keyVersions.contains(getTableKeysIteratorItemResponse.getKeys().get(0).getKeyVersion()));
         // Get the last state.
-        ByteBuffer state = getTableKeysIteratorItemResponse.getContinuationToken();
+        ByteBuf state = getTableKeysIteratorItemResponse.getContinuationToken();
 
         // 3. Now read the remaining table keys by providing a higher suggestedKeyCount and the state to the iterator.
         processor.getTableKeys(new WireCommands.GetTableKeys(3, streamSegmentName, "", 3, state));
@@ -883,7 +885,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         processor.updateTableEntries(new WireCommands.UpdateTableEntries(2, streamSegmentName, "", getTableEntries(asList(e1, e2, e3))));
 
         // 1. Now read the table entries where suggestedEntryCount is equal to number of entries in the Table Store.
-        processor.getTableEntries(new WireCommands.GetTableEntries(3, streamSegmentName, "", 3, ByteBuffer.wrap(new byte[0])));
+        processor.getTableEntries(new WireCommands.GetTableEntries(3, streamSegmentName, "", 3, wrappedBuffer(new byte[0])));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommand> wireCommandsCaptor = ArgumentCaptor.forClass(WireCommand.class);
@@ -896,14 +898,14 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         assertTrue(getTableEntriesIteratorsResp.getEntries().getEntries().stream().map(e -> e.getKey().getKeyVersion()).collect(Collectors.toList()).containsAll(keyVersions));
         // Verify if the value is correct.
         assertTrue(getTableEntriesIteratorsResp.getEntries().getEntries().stream().allMatch(e -> {
-            ByteBuffer buf = e.getValue().getData();
-            byte[] bytes = new byte[buf.remaining()];
-            buf.get(bytes);
+            ByteBuf buf = e.getValue().getData();
+            byte[] bytes = new byte[buf.readableBytes()];
+            buf.getBytes(buf.readerIndex(), bytes);
             return testValue.equals(new HashedArray(bytes));
         }));
 
         // 2. Now read the table keys where suggestedEntryCount is less than the number of entries in the Table Store.
-        processor.getTableEntries(new WireCommands.GetTableEntries(3, streamSegmentName, "", 1, ByteBuffer.wrap(new byte[0])));
+        processor.getTableEntries(new WireCommands.GetTableEntries(3, streamSegmentName, "", 1, wrappedBuffer(new byte[0])));
 
         // Capture the WireCommands sent.
         ArgumentCaptor<WireCommands.TableEntriesIteratorItem> tableEntriesCaptor =
@@ -915,7 +917,7 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
         assertEquals(1, getTableEntriesIteratorsResp.getEntries().getEntries().size());
         assertTrue(keyVersions.contains(getTableEntriesIteratorsResp.getEntries().getEntries().get(0).getKey().getKeyVersion()));
         // Get the last state.
-        ByteBuffer state = getTableEntriesIteratorsResp.getContinuationToken();
+        ByteBuf state = getTableEntriesIteratorsResp.getContinuationToken();
 
         // 3. Now read the remaining table entries by providing a higher suggestedKeyCount and the state to the iterator.
         processor.getTableEntries(new WireCommands.GetTableEntries(3, streamSegmentName, "", 3, state));
@@ -941,8 +943,8 @@ public class PravegaRequestProcessorTest extends ThreadPooledTestSuite {
             if (te == null) {
                 return new AbstractMap.SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY);
             } else {
-                val tableKey = new WireCommands.TableKey(ByteBuffer.wrap(te.getKey().getKey().array()), te.getKey().getVersion());
-                val tableValue = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue().array()));
+                val tableKey = new WireCommands.TableKey(wrappedBuffer(te.getKey().getKey().array()), te.getKey().getVersion());
+                val tableValue = new WireCommands.TableValue(wrappedBuffer(te.getValue().array()));
                 return new AbstractMap.SimpleImmutableEntry<>(tableKey, tableValue);
             }
         }).collect(toList());

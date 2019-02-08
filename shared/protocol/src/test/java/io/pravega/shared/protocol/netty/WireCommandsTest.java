@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
 import org.junit.Test;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -565,10 +566,10 @@ public class WireCommandsTest {
     @Test
     public void testUpdateTableEntries() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
                 new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), WireCommands.TableValue.EMPTY));
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
         testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
     }
 
@@ -579,8 +580,8 @@ public class WireCommandsTest {
 
     @Test
     public void testRemoveTableKeys() throws IOException {
-        testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buffer, 1L),
-                                                                                       new WireCommands.TableKey(buffer, 2L))));
+        testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
+                                                                                       new WireCommands.TableKey(buf, 2L))));
     }
 
     @Test
@@ -590,15 +591,15 @@ public class WireCommandsTest {
 
     @Test
     public void testReadTable() throws IOException {
-        testCommand(new WireCommands.ReadTable(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buffer, 1L),
-                                                                                 new WireCommands.TableKey(buffer, 2L))));
+        testCommand(new WireCommands.ReadTable(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
+                                                                                 new WireCommands.TableKey(buf, 2L))));
     }
 
     @Test
     public void testTableRead() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableValue(buffer)),
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, 2L), new WireCommands.TableValue(buffer))
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, 1L), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, 2L), new WireCommands.TableValue(buf))
         );
 
         testCommand(new WireCommands.TableRead(l, testString1, new WireCommands.TableEntries(entries)));
@@ -620,26 +621,26 @@ public class WireCommandsTest {
 
     @Test
     public void testGetTableKeys() throws IOException {
-        WireCommands.GetTableKeys cmd = new WireCommands.GetTableKeys(l, testString1, "", 100, buffer);
+        WireCommands.GetTableKeys cmd = new WireCommands.GetTableKeys(l, testString1, "", 100, buf);
         testCommand(cmd);
-        cmd = new WireCommands.GetTableKeys(l, testString1, "", 100, ByteBuffer.wrap(new byte[0]));
+        cmd = new WireCommands.GetTableKeys(l, testString1, "", 100, wrappedBuffer(new byte[0]));
         testCommand(cmd);
     }
 
     @Test
     public void testGetTableEntries() throws IOException {
-        WireCommands.GetTableEntries cmd = new WireCommands.GetTableEntries(l, testString1, "", 10, buffer);
+        WireCommands.GetTableEntries cmd = new WireCommands.GetTableEntries(l, testString1, "", 10, buf);
         testCommand(cmd);
-        cmd = new WireCommands.GetTableEntries(l, testString1, "", 10, ByteBuffer.wrap(new byte[0]));
+        cmd = new WireCommands.GetTableEntries(l, testString1, "", 10, wrappedBuffer(new byte[0]));
         testCommand(cmd);
     }
 
     @Test
     public void testTableKeysIteratorItem() throws IOException {
-        List<WireCommands.TableKey> keys = Arrays.asList(new WireCommands.TableKey(buffer, 1L), new WireCommands.TableKey(buffer, 2L));
-        WireCommands.TableKeysIteratorItem cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, buffer);
+        List<WireCommands.TableKey> keys = Arrays.asList(new WireCommands.TableKey(buf, 1L), new WireCommands.TableKey(buf, 2L));
+        WireCommands.TableKeysIteratorItem cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, buf);
         testCommand(cmd);
-        cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, ByteBuffer.wrap(new byte[0]));
+        cmd = new WireCommands.TableKeysIteratorItem(l, testString1, keys, wrappedBuffer(new byte[0]));
         testCommand(cmd);
     }
 
@@ -647,13 +648,13 @@ public class WireCommandsTest {
     public void testTableEntriesIteratorItem() throws IOException {
 
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)),
-                new SimpleImmutableEntry<>(new WireCommands.TableKey(buffer, l), new WireCommands.TableValue(buffer)));
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)));
         WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
 
-        WireCommands.TableEntriesIteratorItem cmd = new WireCommands.TableEntriesIteratorItem(l, testString1, tableEntries, buffer);
+        WireCommands.TableEntriesIteratorItem cmd = new WireCommands.TableEntriesIteratorItem(l, testString1, tableEntries, buf);
         testCommand(cmd);
-        cmd = new WireCommands.TableEntriesIteratorItem(l, testString1, tableEntries, ByteBuffer.wrap(new byte[0]));
+        cmd = new WireCommands.TableEntriesIteratorItem(l, testString1, tableEntries, wrappedBuffer(new byte[0]));
         testCommand(cmd);
     }
 

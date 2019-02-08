@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host.handler;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -112,6 +113,8 @@ import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
 
+import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
@@ -145,7 +148,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
-    private static final int ITERATOR_RESPONSE_SIZE_THRESHOLD_BYTES = 4 * 1024 * 1024;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final String EMPTY_STACK_TRACE = "";
@@ -675,8 +677,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
         List<TableEntry> entries = updateTableEntries.getTableEntries().getEntries().stream()
-                                                     .map(e -> versioned(new ByteArraySegment(e.getKey().getData()),
-                                                                         new ByteArraySegment(e.getValue().getData()),
+                                                     .map(e -> versioned(getArrayView(e.getKey().getData()),
+                                                                         getArrayView(e.getValue().getData()),
                                                                          e.getKey().getKeyVersion()))
                                                      .collect(Collectors.toList());
         tableStore.put(segment, entries, TIMEOUT)
@@ -696,7 +698,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
 
         List<TableKey> keys = removeTableKeys.getKeys().stream()
-                                                .map(k -> TableKey.versioned(new ByteArraySegment(k.getData()), k.getKeyVersion()))
+                                                .map(k -> TableKey.versioned(getArrayView(k.getData()), k.getKeyVersion()))
                                                 .collect(Collectors.toList());
         tableStore.remove(segment, keys, TIMEOUT)
                   .thenRun(() -> connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment)))
@@ -735,17 +737,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(getTableKeys.getRequestId(), "Fetching keys from {}.", getTableKeys);
 
         int suggestedKeyCount = getTableKeys.getSuggestedKeyCount();
-        ByteBuffer token = getTableKeys.getContinuationToken();
+        ByteBuf token = getTableKeys.getContinuationToken();
 
         byte[] state = null;
-        if (!token.equals(EMPTY_BYTE_BUFFER)) {
+        if (!token.equals(EMPTY_BUFFER)) {
             state = token.array();
         }
 
         final AtomicBoolean canContinue = new AtomicBoolean(true);
         final AtomicInteger keyCount = new AtomicInteger(0);
         final AtomicInteger msgSize = new AtomicInteger(0);
-        final AtomicReference<ByteBuffer> continuationToken = new AtomicReference<>(EMPTY_BYTE_BUFFER);
+        final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final LinkedBlockingQueue<TableKey> keys = new LinkedBlockingQueue<>();
         tableStore.keyIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> Futures.loop(
@@ -759,12 +761,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                   keys.addAll(e.getEntries());
                                   // update the continuation token.
                                   ArrayView lastState = e.getState();
-                                  continuationToken.set(ByteBuffer.wrap(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                  continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
                                   // update the keycount and msgSize.
                                   keyCount.addAndGet(e.getEntries().size());
                                   msgSize.addAndGet(getTableKeyBytes(segment, e));
 
-                                  if (keyCount.get() >= suggestedKeyCount || msgSize.get() >= ITERATOR_RESPONSE_SIZE_THRESHOLD_BYTES) {
+                                  if (keyCount.get() >= suggestedKeyCount || msgSize.get() >= MAX_READ_SIZE) {
                                       // set the continuation flag to false if we have read more than the suggested count or
                                       // if we have read more the the response threshold bytes.
                                       canContinue.set(false);
@@ -776,9 +778,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       List<WireCommands.TableKey> wireCommandKeys = keys.stream()
                                                                         .map(k -> {
                                                                             ArrayView keyArray = k.getKey();
-                                                                            return new WireCommands.TableKey(ByteBuffer.wrap(keyArray.array(),
-                                                                                                                             keyArray.arrayOffset(),
-                                                                                                                             keyArray.getLength()), k.getVersion());
+                                                                            return new WireCommands.TableKey(wrappedBuffer(keyArray.array(),
+                                                                                                                           keyArray.arrayOffset(),
+                                                                                                                           keyArray.getLength()), k.getVersion());
                                                                         })
                                                                         .collect(toList());
                       connection.send(new WireCommands.TableKeysIteratorItem(getTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
@@ -797,17 +799,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(getTableEntries.getRequestId(), "Fetching keys from {}.", getTableEntries);
 
         int suggestedEntryCount = getTableEntries.getSuggestedEntryCount();
-        ByteBuffer token = getTableEntries.getContinuationToken();
+        ByteBuf token = getTableEntries.getContinuationToken();
 
         byte[] state = null;
-        if (!token.equals(EMPTY_BYTE_BUFFER)) {
+        if (!token.equals(EMPTY_BUFFER)) {
             state = token.array();
         }
 
         final AtomicBoolean canContinue = new AtomicBoolean(true);
         final AtomicInteger entryCount = new AtomicInteger(0);
         final AtomicInteger msgSize = new AtomicInteger(0);
-        final AtomicReference<ByteBuffer> continuationToken = new AtomicReference<>(EMPTY_BYTE_BUFFER);
+        final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final LinkedBlockingQueue<TableEntry> entries = new LinkedBlockingQueue<>();
         tableStore.entryIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> Futures.loop(
@@ -821,12 +823,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                   entries.addAll(e.getEntries());
                                   // Update the continuation token.
                                   ArrayView lastState = e.getState();
-                                  continuationToken.set(ByteBuffer.wrap(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                  continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
                                   // Update entryCount and message size.
                                   entryCount.addAndGet(e.getEntries().size());
                                   msgSize.addAndGet(getTableEntryBytes(segment, e));
 
-                                  if (entryCount.get() >= suggestedEntryCount || msgSize.get() >= ITERATOR_RESPONSE_SIZE_THRESHOLD_BYTES) {
+                                  if (entryCount.get() >= suggestedEntryCount || msgSize.get() >= MAX_READ_SIZE) {
                                       // Set the continuation flag to false if we have read more than the suggested count or
                                       // if we have read more than the response threshold bytes.
                                       canContinue.set(false);
@@ -839,10 +841,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               entries.stream()
                                      .map(e -> {
                                          TableKey k = e.getKey();
-                                         val keyWireCommand = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey().array(), k.getKey().arrayOffset(), k.getKey().getLength()),
+                                         val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
+                                                                                          k.getKey().getLength()),
                                                                                         k.getVersion());
                                          ArrayView value = e.getValue();
-                                         val valueWireCommand = new WireCommands.TableValue(ByteBuffer.wrap(value.array(), value.arrayOffset(), value.getLength()));
+                                         val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(value.array(), value.arrayOffset(),
+                                                                                              value.getLength()));
                                          return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
                                      })
                                      .collect(toList());
@@ -873,6 +877,18 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return headerLength + segmentLength + dataLength + stateLength;
     }
 
+    private ArrayView getArrayView(ByteBuf buf ) {
+        final int length = buf.readableBytes();
+        if (buf.hasArray()) {
+            return new ByteArraySegment(buf.array(), buf.readerIndex(), length);
+        } else {
+            byte[] bytes;
+            bytes = new byte[length];
+            buf.getBytes(buf.readerIndex(), bytes);
+            return new ByteArraySegment(bytes, 0, length);
+        }
+    }
+
     private WireCommands.TableEntries getTableEntriesCommand(final List<ArrayView> inputKeys, final List<TableEntry> resultEntries) {
 
         Preconditions.checkArgument(resultEntries.size() == inputKeys.size(), "Number of input keys should match result entry count.");
@@ -882,16 +898,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                              TableEntry resultTableEntry = resultEntries.get(i);
                              if (resultTableEntry == null) { // no entry for key at index i.
                                  ArrayView k = inputKeys.get(i); // key for which the read result was null.
-                                 val keyWireCommand = new WireCommands.TableKey(ByteBuffer.wrap(k.array(), k.arrayOffset(), k.getLength()),
+                                 val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.array(), k.arrayOffset(), k.getLength()),
                                                                                 TableKey.NO_VERSION);
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
                              } else {
                                  TableEntry te = resultEntries.get(i);
                                  TableKey k = te.getKey();
-                                 val keyWireCommand = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey().array(), k.getKey().arrayOffset(), k.getKey().getLength()),
+                                 val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
+                                                                                              k.getKey().getLength()),
                                                                                 k.getVersion());
                                  ArrayView v = te.getValue();
-                                 val valueWireCommand = new WireCommands.TableValue(ByteBuffer.wrap(v.array(), v.arrayOffset(), v.getLength()));
+                                 val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(v.array(), v.arrayOffset(), v.getLength()));
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
 
                              }
