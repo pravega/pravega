@@ -7,17 +7,23 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.server.retention;
+package io.pravega.controller.server.bucket;
 
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 
 import java.util.concurrent.Executor;
 
-public class InMemoryStoreRetentionTest extends StreamCutServiceTest {
+public class InMemoryStoreRetentionTest extends BucketServiceTest {
 
     @Override
-    protected StreamMetadataStore createStore(int bucketCount, Executor executor) {
-        return StreamStoreFactory.createInMemoryStore(bucketCount, executor);
+    public StreamMetadataStore createStreamStore(Executor executor) {
+        return StreamStoreFactory.createInMemoryStore(executor);
+    }
+
+    @Override
+    public BucketStore createBucketStore(int bucketCount) {
+        return StreamStoreFactory.createInMemoryBucketStore(bucketCount);
     }
 }

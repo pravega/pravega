@@ -17,9 +17,8 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
@@ -47,7 +46,6 @@ import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
  */
 @Slf4j
 public final class ServiceStarter {
-    private static final long MAX_FILE_LENGTH = 4 * 1024 * 1024;
     //region Members
 
     private final ServiceBuilderConfig builderConfig;
@@ -55,7 +53,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
-    private SegmentStatsFactory segmentStatsFactory;
+    private AutoScaleMonitor autoScaleMonitor;
     private CuratorFramework zkClient;
     private boolean closed;
 
@@ -103,13 +101,11 @@ public final class ServiceStarter {
         TableStore tableStoreService = this.serviceBuilder.createTableStoreService();
 
         log.info("Creating Segment Stats recorder ...");
-        segmentStatsFactory = new SegmentStatsFactory();
-        SegmentStatsRecorder statsRecorder = segmentStatsFactory
-                .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
+        autoScaleMonitor = new AutoScaleMonitor(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
         TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
-                                                      this.serviceConfig.getListeningPort(), service, tableStoreService, statsRecorder,
+                                                      this.serviceConfig.getListeningPort(), service, tableStoreService, autoScaleMonitor.getRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError());
         this.listener.startListening();
@@ -139,8 +135,10 @@ public final class ServiceStarter {
                 log.info("ZooKeeper Client shut down.");
             }
 
-            if (this.segmentStatsFactory != null) {
-                segmentStatsFactory.close();
+            if (this.autoScaleMonitor != null) {
+                autoScaleMonitor.close();
+                autoScaleMonitor = null;
+                log.info("AutoScaleMonitor shut down.");
             }
 
             if (this.serviceConfig.isSecureZK()) {

@@ -23,6 +23,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -88,11 +89,11 @@ public class ControllerServiceTest {
 
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-
+        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper, executor,
-                "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore,
+                segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                 hostStore, segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
 

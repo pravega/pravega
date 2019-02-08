@@ -14,6 +14,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.CorruptedFrameException;
+import io.pravega.shared.segment.ScaleType;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -293,7 +294,7 @@ public final class WireCommands {
 
         @Override
         public void process(ReplyProcessor cp) {
-            cp.notEmptyTableSegment(this);
+            cp.tableSegmentNotEmpty(this);
         }
 
         @Override
@@ -994,9 +995,9 @@ public final class WireCommands {
 
     @Data
     public static final class CreateSegment implements Request, WireCommand {
-        public static final byte NO_SCALE = (byte) 0;
-        public static final byte IN_KBYTES_PER_SEC = (byte) 1;
-        public static final byte IN_EVENTS_PER_SEC = (byte) 2;
+        public static final byte NO_SCALE = ScaleType.NoScaling.getValue();
+        public static final byte IN_KBYTES_PER_SEC = ScaleType.Throughput.getValue();
+        public static final byte IN_EVENTS_PER_SEC = ScaleType.EventRate.getValue();
 
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final long requestId;
@@ -1722,7 +1723,10 @@ public final class WireCommands {
 
     @Data
     public static final class TableKey {
+        public static final long NO_VERSION = Long.MIN_VALUE;
+        public static final long NOT_EXISTS = -1L;
         public final static TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
+
         final ByteBuffer data;
         final long keyVersion;
 
