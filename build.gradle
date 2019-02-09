@@ -224,6 +224,7 @@ project('client') {
         failOnError = false
         exclude "**/impl/**";
         options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -257,7 +258,7 @@ project('segmentstore:contracts') {
         }
         failOnError = false
         options.addBooleanOption('html5', true)
-        options.addStringOption("Xdoclint:none", "-quiet")
+        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -344,7 +345,7 @@ project('segmentstore:server') {
         }
         failOnError = false
         options.addBooleanOption('html5', true)
-        options.addBooleanOption("Xdoclint:none", true)
+        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
 }
 
@@ -965,7 +966,7 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/10/docs/api/", "https://projectlombok.org/api/lombok/");
+    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
@@ -976,7 +977,7 @@ task javadocs(type: Javadoc) {
     })
     failOnError = true
     exclude "**/impl/**"
-    options.addBooleanOption("Xdoclint:all", true)
+    options.addBooleanOption("Xdoclint:all,-reference", true)
 }
 
 apply plugin: 'distribution'
