@@ -197,7 +197,7 @@ public class K8sClient {
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
         CoreV1Api api = new CoreV1Api();
 
-        // Workaround based on okhttp issue https://github.com/square/okhttp/issues/2300
+        // Workaround for okhttp issue, tracked by https://github.com/pravega/pravega/issues/3361
         log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
         api.getApiClient().getHttpClient().networkInterceptors().clear();
 
