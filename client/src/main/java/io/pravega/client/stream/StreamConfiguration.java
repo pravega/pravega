@@ -41,7 +41,10 @@ public class StreamConfiguration implements Serializable {
         /**
          * Scope is specified on stream creation.
          * @param scope ignored
-         * @deprecated Does nothing. 
+         * @deprecated Does nothing.
+         *
+         * @return Builder configuration of a stream for given scope
+         *
          */
         @Deprecated
         public StreamConfigurationBuilder scope(String scope) {
@@ -51,7 +54,9 @@ public class StreamConfiguration implements Serializable {
         /**
          * Stream name is specified on stream creation.
          * @param streamName ignored
-         * @deprecated Does nothing. 
+         * @deprecated Does nothing.
+         *
+         * @return deprecated so returns itself does nothing
          */
         @Deprecated
         public StreamConfigurationBuilder streamName(String streamName) {

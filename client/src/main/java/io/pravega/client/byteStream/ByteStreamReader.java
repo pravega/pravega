@@ -29,6 +29,9 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
 
     /**
      * Returns the current byte offset in the segment. This call does not block.
+     *
+     * @return the current offset of the stream - metadata - not an actual value
+     *
      */
     public abstract long getOffset();
 
@@ -55,6 +58,8 @@ public abstract class ByteStreamReader extends InputStream implements Asynchrono
      * This make an RPC to the server to fetch the offset at which new bytes would be written. This
      * is the same as the length of the segment (assuming no truncation). This offset can also be
      * passed to {@link #seekToOffset(long)} to only read bytes from this point forward.
+     *
+     * @return offset where new bytes would be written same as length of segment if not truncated
      */
     public abstract long fetchTailOffset();
 

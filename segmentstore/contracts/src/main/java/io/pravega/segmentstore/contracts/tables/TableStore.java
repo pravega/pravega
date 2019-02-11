@@ -32,11 +32,12 @@ import java.util.concurrent.CompletableFuture;
  * Conditional vs Unconditional Updates
  * * The {@link #put(String, List, Duration)} and {@link #remove(String, Collection, Duration)} methods support conditional
  * updates.
- * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableEntry#getKey()#hasVersion()} true,
+ *
+ * * If at least one of the {@link TableEntry} instances in the put() call has {@link TableEntry#key}.{@link TableKey#version hasVerion()} true,
  * or if at least one of the {@link TableKey} instances in the remove() call has {@link TableKey#hasVersion()} true, then
  * the operation will perform a Conditional Update. If the "hasVersion()" method returns false for ALL the items in the
  * respective collections, then the operation will perform an Unconditional Update.
- * * Conditional Updates compare the provided {@link TableKey#getVersion()} or {@link TableEntry#getKey()#getVersion()}
+ * * Conditional Updates compare the provided {@link TableKey#version} or {@link TableEntry#key} {@link TableKey#version}
  * against the version of the Key in the specified Table Segment. If the versions match, the Update (insert, update, remove)
  * will be allowed, otherwise it will be rejected. For a batched update (a Collection of {@link TableKey} or {@link TableEntry}),
  * all the items in the collection must meet the version comparison criteria in order for the entire batch to be accepted
@@ -146,21 +147,21 @@ public interface TableStore {
      * Inserts new or updates existing Table Entries into the given Table Segment.
      *
      * @param segmentName The name of the Table Segment to insert/update the Table Entries.
-     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#getKey()#hasVersion()}
+     * @param entries     A List of {@link TableEntry} instances to insert or update. If {@link TableEntry#key} {@link TableKey#version hasVersion}
      *                    returns true for at least one of the items in the list, then this will perform an atomic Conditional
-     *                    Update. If {@link TableEntry#getKey()#hasVersion()} returns false for ALL items in the list, then this
+     *                    Update. If {@link TableEntry#key} {@link TableKey#version} hasVersion} returns false for ALL items in the list, then this
      *                    will perform an Unconditional update.
      * @param timeout     Timeout for the operation.
      * @return A CompletableFuture that, when completed, will contain a List with the current version of the each TableEntry
      * Key provided. The versions will be in the same order as the TableEntry instances provided. If the operation failed,
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
-     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If {@link TableEntry#getKey()} exceeds {@link #maximumKeyLength()}.
-     * <li>{@link TableValueTooLongException} If {@link TableEntry#getValue()} exceeds {@link #maximumValueLength()}.
-     * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#getKey()#hasVersion()} is true and
-     * {@link TableEntry#getKey()#getVersion()} does not match the Table Entry's Key current Table Version.
-     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
+     * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.</li>
+     * <li>{@link TableKeyTooLongException} If {@link TableEntry#key} exceeds {@link #maximumKeyLength()}.</li>
+     * <li>{@link TableValueTooLongException} If {@link TableEntry#value} exceeds {@link #maximumValueLength()}.</li>
+     * <li>{@link ConditionalTableUpdateException} If {@link TableEntry#key} {@link TableKey#hasVersion() hasVersion() } is true and
+     * {@link TableEntry#key} {@link TableKey#version} does not match the Table Entry's Key current Table Version. </li>
+     * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment. </li>
      * </ul>
      */
     CompletableFuture<List<Long>> put(String segmentName, List<TableEntry> entries, Duration timeout);
@@ -178,8 +179,8 @@ public interface TableStore {
      * the future will be failed with the causing exception. Notable exceptions:
      * <ul>
      * <li>{@link StreamSegmentNotExistsException} If the Table Segment does not exist.
-     * <li>{@link TableKeyTooLongException} If {@link TableKey#getKey()} exceeds {@link #maximumKeyLength()}.
-     * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#getVersion()}
+     * <li>{@link TableKeyTooLongException} If {@link TableKey#key} exceeds {@link #maximumKeyLength()}.
+     * <li>{@link ConditionalTableUpdateException} If {@link TableKey#hasVersion()} is true and {@link TableKey#version}
      * does not match the Table Entry's Key current Table Version.
      * <li>{@link BadSegmentTypeException} If segmentName refers to a non-Table Segment.
      * </ul>
