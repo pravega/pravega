@@ -133,6 +133,10 @@ class SegmentMock implements DirectSegmentAccess {
         }, this.executor);
     }
 
+    synchronized void updateAttributes(Map<UUID, Long> attributeValues) {
+        this.metadata.updateAttributes(attributeValues);
+    }
+
     @GuardedBy("this")
     @SneakyThrows(BadAttributeUpdateException.class)
     private void collectAttributeValue(AttributeUpdate update, Map<UUID, Long> values) {

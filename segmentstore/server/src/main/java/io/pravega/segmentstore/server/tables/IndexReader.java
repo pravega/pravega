@@ -15,6 +15,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -69,7 +70,7 @@ class IndexReader {
      * @return The offset.
      */
     long getLastIndexedOffset(SegmentProperties segmentInfo) {
-        return segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_INDEX_OFFSET, 0L);
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.INDEX_OFFSET, 0L);
     }
 
     /**
@@ -79,7 +80,18 @@ class IndexReader {
      * @return The count.
      */
     long getEntryCount(SegmentProperties segmentInfo) {
-        return segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_ENTRY_COUNT, 0L);
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.ENTRY_COUNT, 0L);
+    }
+
+    /**
+     * Gets the total number of Table Entries in the Segment for the given {@link SegmentProperties}. This includes Entries
+     * that are no longer active (which have been replaced by other entries with the same Table Key).
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The count.
+     */
+    long getTotalEntryCount(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.TOTAL_ENTRY_COUNT, 0L);
     }
 
     /**
@@ -89,7 +101,7 @@ class IndexReader {
      * @return The count.
      */
     long getBucketCount(SegmentProperties segmentInfo) {
-        return segmentInfo.getAttributes().getOrDefault(Attributes.TABLE_BUCKET_COUNT, 0L);
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.BUCKET_COUNT, 0L);
     }
 
     /**
