@@ -247,4 +247,27 @@ public final class MetricsNames {
             return metricName + "_fail";
         }
     }
+
+    /**
+     * Generate a dot separated combination of metric name and tag value[s].
+     * e.g. metric "pravega.segmentstore.container.append_count" with tag "container=6" will get:
+     * "pravega.segmentstore.container.append_count.6".
+     *
+     * @param metric the metric name.
+     * @param tags the tag(s) associated with the metric.
+     * @return the dot separated combination of metric name and tag value(s).
+     */
+    public static String nameFromTags(String metric, String... tags) {
+        if (tags == null || tags.length == 0) {
+            return metric;
+        }
+        if (tags.length % 2 == 1) {
+            throw new IllegalArgumentException("tags size must be even, it is a set of key=value pairs");
+        }
+        StringBuilder sb = new StringBuilder(metric);
+        for (int i = 0; i < tags.length; i += 2) {
+            sb.append('.').append(tags[i + 1]);
+        }
+        return escapeSpecialChar(sb.toString());
+    }
 }

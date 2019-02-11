@@ -25,6 +25,7 @@
     <allow pkg="org.apache"/>
     <allow pkg="org.rocksdb"/>
     <allow pkg="com.codahale"/>
+    <allow pkg="io.micrometer"/>
     <allow pkg="com.emc.object"/>
     <allow pkg="com.readytalk"/>
     <allow pkg="com.sun.security"/>

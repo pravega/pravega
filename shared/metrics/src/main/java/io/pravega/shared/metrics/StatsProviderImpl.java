@@ -9,27 +9,21 @@
  */
 package io.pravega.shared.metrics;
 
-import com.codahale.metrics.ConsoleReporter;
-import com.codahale.metrics.CsvReporter;
-import com.codahale.metrics.JmxReporter;
-import com.codahale.metrics.MetricFilter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.ScheduledReporter;
-import com.codahale.metrics.ganglia.GangliaReporter;
-import com.codahale.metrics.graphite.Graphite;
-import com.codahale.metrics.graphite.GraphiteReporter;
-import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
-import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
-import com.readytalk.metrics.StatsDReporter;
-import info.ganglia.gmetric4j.gmetric.GMetric;
-import java.io.File;
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
+import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
+import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics;
+import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
+import io.micrometer.influx.InfluxConfig;
+import io.micrometer.influx.InfluxMeterRegistry;
+import io.micrometer.statsd.StatsdConfig;
+import io.micrometer.statsd.StatsdFlavor;
+import io.micrometer.statsd.StatsdMeterRegistry;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -37,8 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class StatsProviderImpl implements StatsProvider {
     @Getter
-    private final MetricRegistry metrics = MetricsProvider.METRIC_REGISTRY;
-    private final List<ScheduledReporter> reporters = new ArrayList<ScheduledReporter>();
+    private final MeterRegistry metrics = MetricsProvider.METRIC_REGISTRY;
     private final MetricsConfig conf;
 
     StatsProviderImpl(MetricsConfig conf) {
@@ -47,17 +40,10 @@ class StatsProviderImpl implements StatsProvider {
 
     @Synchronized
     private void init() {
-        // I'm not entirely sure that re-inserting is necessary, but given that
-        // at this point we are preserving the registry, it seems safer to remove
-        // and re-insert.
-        MemoryUsageGaugeSet memoryGaugeNames = new MemoryUsageGaugeSet();
-        GarbageCollectorMetricSet gcMetricSet = new GarbageCollectorMetricSet();
-
-        memoryGaugeNames.getMetrics().forEach((key, value) -> metrics.remove(key));
-        gcMetricSet.getMetrics().forEach((key, value) -> metrics.remove(key));
-
-        metrics.registerAll(new MemoryUsageGaugeSet());
-        metrics.registerAll(new GarbageCollectorMetricSet());
+        new JvmMemoryMetrics().bindTo(metrics);
+        new JvmGcMetrics().bindTo(metrics);
+        new ProcessorMetrics().bindTo(metrics);
+        new JvmThreadMetrics().bindTo(metrics);
     }
 
     @Synchronized
@@ -66,84 +52,82 @@ class StatsProviderImpl implements StatsProvider {
         init();
         log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
-        if (conf.isEnableCSVReporter()) {
-            // NOTE:  metrics output files are exclusive to a given process
-            File outdir;
-            if (!Strings.isNullOrEmpty(conf.getMetricsPrefix())) {
-                outdir = new File(conf.getCsvEndpoint(), conf.getMetricsPrefix());
-            } else {
-                outdir = new File(conf.getCsvEndpoint());
-            }
-            outdir.mkdirs();
-            log.info("Configuring stats with csv output to directory [{}]", outdir.getAbsolutePath());
-            reporters.add(CsvReporter.forRegistry(getMetrics())
-                          .convertRatesTo(TimeUnit.SECONDS)
-                          .convertDurationsTo(TimeUnit.MILLISECONDS)
-                          .build(outdir));
-        }
         if (conf.isEnableStatsdReporter()) {
             log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
-            reporters.add(StatsDReporter.forRegistry(getMetrics())
-                                        .prefixedWith(conf.getMetricsPrefix())
-                                        .build(conf.getStatsDHost(), conf.getStatsDPort()));
+            StatsdConfig config = new StatsdConfig() {
+                @Override
+                public Duration step() {
+                    return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
+                }
+                @Override
+                public String prefix() {
+                    return conf.getMetricsPrefix();
+                }
+                @Override
+                public String host() {
+                    return conf.getStatsDHost();
+                }
+                @Override
+                public int port() {
+                    return conf.getStatsDPort();
+                }
+                @Override
+                public StatsdFlavor flavor() {
+                    return StatsdFlavor.TELEGRAF; //Dimension supported
+                }
+                @Override
+                public String get(String key) {
+                    return null;
+                }
+            };
+
+            MeterRegistry registry = new StatsdMeterRegistry(config, Clock.SYSTEM);
+            Metrics.addRegistry(registry);
         }
-        if (conf.isEnableGraphiteReporter()) {
-            log.info("Configuring stats with graphite at {}:{}", conf.getGraphiteHost(), conf.getGraphitePort());
-            final Graphite graphite = new Graphite(new InetSocketAddress(conf.getGraphiteHost(), conf.getGraphitePort()));
-            reporters.add(GraphiteReporter.forRegistry(getMetrics())
-                .prefixedWith(conf.getMetricsPrefix())
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.MILLISECONDS)
-                .filter(MetricFilter.ALL)
-                .build(graphite));
+
+        if (conf.isEnableInfluxDBReporter()) {
+            log.info("Configuring stats with direct InfluxDB at {}", conf.getInfluxDBUri());
+            InfluxConfig config = new InfluxConfig() {
+                @Override
+                public Duration step() {
+                    return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
+                }
+                @Override
+                public String prefix() {
+                    return conf.getMetricsPrefix();
+                }
+                @Override
+                public String uri() {
+                    return conf.getInfluxDBUri();
+                }
+                @Override
+                public String db() {
+                    return conf.getInfluxDBName();
+                }
+                @Override
+                public String userName() {
+                    return conf.getInfluxDBUserName();
+                }
+                @Override
+                public String password() {
+                    return conf.getInfluxDBPassword();
+                }
+                @Override
+                public String get(String k) {
+                    return null;
+                }
+            };
+
+            MeterRegistry registry = new InfluxMeterRegistry(config, Clock.SYSTEM);
+            Metrics.addRegistry(registry);
         }
-        if (conf.isEnableJMXReporter()) {
-            log.info("Configuring stats with jmx {}", conf.getJmxDomain());
-            final JmxReporter jmx = JmxReporter.forRegistry(getMetrics())
-                .inDomain(conf.getJmxDomain())
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.MILLISECONDS)
-                .build();
-            jmx.start();
-        }
-        if (conf.isEnableGangliaReporter()) {
-            try {
-                log.info("Configuring stats with ganglia at {}:{}", conf.getGangliaHost(), conf.getGangliaPort());
-                final GMetric ganglia = new GMetric(conf.getGangliaHost(), conf.getGangliaPort(), GMetric.UDPAddressingMode.MULTICAST, 1);
-                reporters.add(GangliaReporter.forRegistry(getMetrics())
-                    .prefixedWith(conf.getMetricsPrefix())
-                    .convertRatesTo(TimeUnit.SECONDS)
-                    .convertDurationsTo(TimeUnit.MILLISECONDS)
-                    .build(ganglia));
-            } catch (IOException e) {
-                log.warn("ganglia create failure: {}", e);
-            }
-        }
-        if (conf.isEnableConsoleReporter()) {
-            log.info("Configuring console reporter");
-            reporters.add(ConsoleReporter.forRegistry(getMetrics())
-                .convertRatesTo(TimeUnit.SECONDS)
-                .convertDurationsTo(TimeUnit.MILLISECONDS)
-                .build());
-        }
-        for (ScheduledReporter r : reporters) {
-            r.start(conf.getStatsOutputFrequencySeconds().getSeconds(), TimeUnit.SECONDS);
-        }
+        //TODO: add more registries
     }
 
     @Synchronized
     @Override
     public void close() {
-        for (ScheduledReporter r : reporters) {
-            try {
-                r.report();
-                r.stop();
-            } catch (Exception e) {
-                log.error("Exception report or stop reporter", e);
-            }
-        }
-
-        metrics.removeMatching(MetricFilter.ALL);
+        metrics.close();
     }
 
     @Override
