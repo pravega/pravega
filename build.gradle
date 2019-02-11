@@ -120,7 +120,7 @@ project('common') {
             project(':shared:protocol').sourceSets.main.java
         }
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion   
         }
         options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
@@ -138,7 +138,7 @@ project('shared:authplugin') {
         title = "Pravega Auth API"
         failOnError = false
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion   
         }
         source {
             sourceSets.main.java
@@ -161,7 +161,7 @@ project ('shared:cluster') {
     javadoc {
         exclude 'io/pravega/shared/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion   
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -188,7 +188,7 @@ project ('shared:metrics') {
     javadoc {
         exclude 'io/pravega/shared/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -239,7 +239,7 @@ project('test:testcommon') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -254,7 +254,7 @@ project('segmentstore:contracts') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -272,7 +272,7 @@ project('segmentstore:storage') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -293,7 +293,7 @@ project('segmentstore:storage:impl') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -323,7 +323,7 @@ project ('bindings') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -341,7 +341,7 @@ project('segmentstore:server') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
@@ -541,7 +541,7 @@ project('shared:controller-api') {
     javadoc {
         exclude 'io/pravega/controller/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
         options.addBooleanOption('html5', true)
