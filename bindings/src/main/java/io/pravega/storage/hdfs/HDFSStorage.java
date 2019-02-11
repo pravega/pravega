@@ -21,6 +21,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.storage.DataCorruptionException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.SyncStorage;
@@ -247,17 +248,20 @@ public class HDFSStorage implements SyncStorage {
         try {
             Path filePath = getFilePath(handle.getSegmentName(), this.epoch);
             Path sealedPath = getSealedFilePath(handle.getSegmentName());
-            makeReadOnly(filePath);
             this.fileSystem.rename(filePath, sealedPath);
+            makeReadOnly(filePath);
         } catch (PathNotFoundException | FileNotFoundException e) {
             try {
                 FileStatus status = findStatusForSegment(handle.getSegmentName(), true);
 
                 if (!isSealed(status.getPath())) {
-                    if (getEpoch(status) != this.epoch) {
+                    long fileEpoch = getEpoch(status);
+                    if (fileEpoch > this.epoch) {
                         throw new StorageNotPrimaryException(handle.getSegmentName());
                     }
-
+                    if (fileEpoch < this.epoch) {
+                        throw new DataCorruptionException(handle.getSegmentName());
+                    }
                     Path sealedPath = getSealedFilePath(handle.getSegmentName());
                     this.fileSystem.rename(status.getPath(), sealedPath);
                     makeReadOnly(sealedPath);
@@ -287,6 +291,14 @@ public class HDFSStorage implements SyncStorage {
                 if (isSealed(status.getPath())) {
                     makeWrite(status.getPath());
                     this.fileSystem.rename(status.getPath(), getFilePath(handle.getSegmentName(), this.epoch));
+                } else {
+                    long fileEpoch = getEpoch(status);
+                    if (fileEpoch > this.epoch) {
+                        throw new StorageNotPrimaryException(handle.getSegmentName());
+                    }
+                    if (fileEpoch < this.epoch) {
+                        throw new DataCorruptionException(handle.getSegmentName());
+                    }
                 }
             } catch (IOException ex) {
                 throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
@@ -394,7 +406,7 @@ public class HDFSStorage implements SyncStorage {
         try (FSDataOutputStream stream = this.fileSystem.append(fileName)) {
             if (stream.getPos() != offset) {
                 // Looks like the filesystem changed from underneath us. This could be our bug, but it could be something else.
-                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", handle.getSegmentName(), stream.getPos(), stream.getPos());
+                log.warn("File changed detected for '{}'. Expected length = {}, actual length = {}.", handle.getSegmentName(), offset, stream.getPos());
                 throw new BadOffsetException(handle.getSegmentName(), stream.getPos(), offset);
             }
 
@@ -424,8 +436,13 @@ public class HDFSStorage implements SyncStorage {
                 if (isSealed(status.getPath())) {
                     throw new StreamSegmentSealedException(handle.getSegmentName());
                 }
-                if (getEpochFromPath(status.getPath()) != this.epoch) {
+
+                long fileEpoch = getEpoch(status);
+                if (fileEpoch > this.epoch) {
                     throw new StorageNotPrimaryException(handle.getSegmentName());
+                }
+                if (fileEpoch < this.epoch) {
+                    throw new DataCorruptionException(handle.getSegmentName());
                 }
             } catch (IOException ex) {
                 throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
@@ -446,7 +463,7 @@ public class HDFSStorage implements SyncStorage {
 
     /**
      * Claims the ownership of this file by renaming it.
-     * To avoid problems with race condition this method retries until either rename succeeds or it discovers file with higher epoc.
+     * To avoid problems with race condition this method retries until either rename succeeds or it discovers file with higher epoch.
      * @param streamSegmentName
      * @throws StreamSegmentException
      */
@@ -684,7 +701,7 @@ public class HDFSStorage implements SyncStorage {
 
     private void makeWrite(Path path) throws IOException {
         this.fileSystem.setPermission(path, READWRITE_PERMISSION);
-        log.debug("MakeReadOnly '{}'.", path);
+        log.debug("makeWrite '{}'.", path);
     }
 
     private int readInternal(SegmentHandle handle, byte[] buffer, long offset, int bufferOffset, int length) throws IOException {
