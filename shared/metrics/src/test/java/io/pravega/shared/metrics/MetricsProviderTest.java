@@ -71,7 +71,7 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.incCounterValue("dynamicCounter", i);
-            assertEquals(sum, MetricRegistryUtils.getCounter("pravega.dynamicCounter.Counter").getCount());
+            assertEquals(sum, MetricRegistryUtils.getCounter("pravega.dynamicCounter.Counter").count());
         }
         dynamicLogger.freezeCounter("dynamicCounter");
         assertEquals(null, MetricRegistryUtils.getCounter("pravega.dynamicCounter.Counter"));
@@ -94,7 +94,7 @@ public class MetricsProviderTest {
         for (int i = 1; i < 10; i++) {
             sum += i;
             dynamicLogger.recordMeterEvents("dynamicMeter", i);
-            assertEquals(sum, MetricRegistryUtils.getMeter("pravega.dynamicMeter.Meter").getCount());
+            assertEquals(sum, MetricRegistryUtils.getMeter("pravega.dynamicMeter.Meter").count());
         }
     }
 
@@ -106,11 +106,11 @@ public class MetricsProviderTest {
         AtomicInteger value = new AtomicInteger(1);
         statsLogger.registerGauge("testGauge", value::get);
         value.set(2);
-        assertEquals(value.get(), MetricRegistryUtils.getGauge("pravega.testStatsLogger.testGauge").getValue());
+        assertEquals(value.get(), MetricRegistryUtils.getGauge("pravega.testStatsLogger.testGauge").value());
 
         for (int i = 1; i < 10; i++) {
             dynamicLogger.reportGaugeValue("dynamicGauge", i);
-            assertEquals(i, MetricRegistryUtils.getGauge("pravega.dynamicGauge.Gauge").getValue());
+            assertEquals(i, MetricRegistryUtils.getGauge("pravega.dynamicGauge.Gauge").value());
         }
 
         dynamicLogger.freezeGaugeValue("dynamicGauge");

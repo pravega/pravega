@@ -37,24 +37,27 @@ public class StatsLoggerProxy implements StatsLogger {
     }
 
     @Override
-    public OpStatsLogger createStats(String name) {
-        return getOrSet(this.opStatsLoggers, name, this.statsLoggerRef.get()::createStats, OpStatsLoggerProxy::new);
+    public OpStatsLogger createStats(String name, String... tags) {
+        return getOrSet(this.opStatsLoggers, name,
+                metricName -> this.statsLoggerRef.get().createStats(metricName, tags), OpStatsLoggerProxy::new);
     }
 
     @Override
-    public Counter createCounter(String name) {
-        return getOrSet(this.counters, name, this.statsLoggerRef.get()::createCounter, CounterProxy::new);
+    public Counter createCounter(String name, String... tags) {
+        return getOrSet(this.counters, name,
+                metricName -> this.statsLoggerRef.get().createCounter(metricName, tags), CounterProxy::new);
     }
 
     @Override
-    public Meter createMeter(String name) {
-        return getOrSet(this.meters, name, this.statsLoggerRef.get()::createMeter, MeterProxy::new);
+    public Meter createMeter(String name, String... tags) {
+        return getOrSet(this.meters, name,
+                metricName -> this.statsLoggerRef.get().createMeter(metricName, tags), MeterProxy::new);
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
+    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
         return getOrSet(this.gauges, name,
-                metricName -> this.statsLoggerRef.get().registerGauge(metricName, value),
+                metricName -> this.statsLoggerRef.get().registerGauge(metricName, value, tags),
                 (metric, proxyName, c) -> new GaugeProxy(metric, proxyName, value, c));
     }
 

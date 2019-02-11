@@ -173,6 +173,12 @@ project ('shared:cluster') {
 
 project ('shared:metrics') {
     dependencies {
+        compile group: 'io.micrometer', name: 'micrometer-core', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-core/1.1.2
+        compile group: 'io.micrometer', name: 'micrometer-registry-statsd', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/1.1.2
+        compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/1.1.2
         compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
         // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
         compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
