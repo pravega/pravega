@@ -108,22 +108,22 @@ public class StatsLoggerProxyTest {
         }
 
         @Override
-        public OpStatsLogger createStats(String name) {
+        public OpStatsLogger createStats(String name, String... tags) {
             return create(name);
         }
 
         @Override
-        public Counter createCounter(String name) {
+        public Counter createCounter(String name, String... tags) {
             return create(name);
         }
 
         @Override
-        public Meter createMeter(String name) {
+        public Meter createMeter(String name, String... tags) {
             return create(name);
         }
 
         @Override
-        public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
+        public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
             return create(name);
         }
 
@@ -139,14 +139,18 @@ public class StatsLoggerProxyTest {
         }
     }
 
+    //TODO: get rid of this class.
     private static class TestMetric implements OpStatsLogger, Counter, Meter, Gauge {
         @Getter
-        private final String name;
+        private final io.micrometer.core.instrument.Meter.Id id;
         @Getter
         private boolean closed;
 
-        TestMetric(String name) {
-            this.name = "prefix-" + name;
+        TestMetric(String metricName, String... tagPairs) {
+            this.id = new io.micrometer.core.instrument.Meter.Id("prefix-" + metricName,
+                    io.micrometer.core.instrument.Tags.of(tagPairs),
+                    null, null,
+                    io.micrometer.core.instrument.Meter.Type.COUNTER);
         }
 
         @Override
@@ -158,11 +162,6 @@ public class StatsLoggerProxyTest {
 
         @Override
         public void inc() {
-
-        }
-
-        @Override
-        public void dec() {
 
         }
 

@@ -20,7 +20,7 @@ public interface DynamicLogger {
      * @param name  the name of Counter
      * @param delta the delta to be added
      */
-    void incCounterValue(String name, long delta);
+    void incCounterValue(String name, long delta, String... tags);
 
     /**
      * Updates the counter with value <i>value</i>.
@@ -28,14 +28,14 @@ public interface DynamicLogger {
      * @param name              the name of counter
      * @param value             the value to be updated
      */
-    void updateCounterValue(String name, long value);
+    void updateCounterValue(String name, long value, String... tags);
 
     /**
      * Notifies that the counter will not be updated.
      *
      * @param name              the name of counter
      */
-    void freezeCounter(String name);
+    void freezeCounter(String name, String... tags);
 
     /**
      * Report gauge value.
@@ -44,14 +44,14 @@ public interface DynamicLogger {
      * @param name  the name of gauge
      * @param value the value to be reported
      */
-    <T extends Number> void reportGaugeValue(String name, T value);
+    <T extends Number> void reportGaugeValue(String name, T value, String... tags);
 
     /**
      * Notifies that the gauge value will not be updated.
      *
      * @param name  the name of gauge
      */
-    void freezeGaugeValue(String name);
+    void freezeGaugeValue(String name, String... tags);
 
     /**
      * Record the occurrence of a given number of events in Meter.
@@ -59,5 +59,5 @@ public interface DynamicLogger {
      * @param name   the name of Meter
      * @param number the number of events occurrence
      */
-    void recordMeterEvents(String name, long number);
+    void recordMeterEvents(String name, long number, String... tags);
 }

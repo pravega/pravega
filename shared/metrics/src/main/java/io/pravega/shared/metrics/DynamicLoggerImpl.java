@@ -9,7 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
-import com.codahale.metrics.MetricRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.pravega.common.Exceptions;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
@@ -23,18 +23,20 @@ import java.util.concurrent.TimeUnit;
 
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.MetricsNames.nameFromTags;
+
 @Slf4j
 public class DynamicLoggerImpl implements DynamicLogger {
     private final long cacheSize;
     private final long cacheEvictionDuration;
 
-    private final MetricRegistry metrics;
+    private final MeterRegistry metrics;
     private final StatsLogger underlying;
     private final Cache<String, Counter> countersCache;
     private final Cache<String, Gauge> gaugesCache;
     private final Cache<String, Meter> metersCache;
 
-    public DynamicLoggerImpl(MetricsConfig metricsConfig, MetricRegistry metrics, StatsLogger statsLogger) {
+    public DynamicLoggerImpl(MetricsConfig metricsConfig, MeterRegistry metrics, StatsLogger statsLogger) {
         Preconditions.checkNotNull(metricsConfig, "metricsConfig");
         Preconditions.checkNotNull(metrics, "metrics");
         Preconditions.checkNotNull(statsLogger, "statsLogger");
@@ -50,9 +52,8 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     public void onRemoval(RemovalNotification<String, Counter> removal) {
                         Counter counter = removal.getValue();
                         if (removal.getCause() != RemovalCause.REPLACED) {
-                            Exceptions.checkNotNullOrEmpty(counter.getName(), "counter");
-                            metrics.remove(counter.getName());
-                            log.debug("Removed Counter: {}.", counter.getName());
+                            metrics.remove(counter.getId());
+                            log.debug("Removed Counter: {}.", counter.getId());
                         }
                     }
                 }).
@@ -65,9 +66,8 @@ public class DynamicLoggerImpl implements DynamicLogger {
                     public void onRemoval(RemovalNotification<String, Gauge> removal) {
                         Gauge gauge = removal.getValue();
                         if (removal.getCause() != RemovalCause.REPLACED) {
-                            Exceptions.checkNotNullOrEmpty(gauge.getName(), "gauge");
-                            metrics.remove(gauge.getName());
-                            log.debug("Removed Gauge: {}.", gauge.getName());
+                            metrics.remove(gauge.getId());
+                            log.debug("Removed Gauge: {}.", gauge.getId());
                         }
                     }
                 }).
@@ -80,9 +80,8 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 public void onRemoval(RemovalNotification<String, Meter> removal) {
                     Meter meter = removal.getValue();
                     if (removal.getCause() != RemovalCause.REPLACED) {
-                        Exceptions.checkNotNullOrEmpty(meter.getName(), "meter");
-                        metrics.remove(meter.getName());
-                        log.debug("Removed Meter: {}.", meter.getName());
+                        metrics.remove(meter.getId());
+                        log.debug("Removed Meter: {}.", meter.getId());
                     }
                 }
             }).
@@ -90,15 +89,16 @@ public class DynamicLoggerImpl implements DynamicLogger {
     }
 
     @Override
-    public void incCounterValue(String name, long delta) {
+    public void incCounterValue(String name, long delta, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(delta);
-        String counterName = name + ".Counter";
+        String counterName = nameFromTags(name, tags) + ".Counter";
         try {
             Counter counter = countersCache.get(counterName, new Callable<Counter>() {
                 @Override
                 public Counter call() throws Exception {
-                    return underlying.createCounter(counterName);
+                    return underlying.createCounter(
+                            (tags == null || tags.length == 0) ? counterName : name, tags);
                 }
             });
             counter.add(delta);
@@ -108,72 +108,77 @@ public class DynamicLoggerImpl implements DynamicLogger {
     }
 
     @Override
-    public void updateCounterValue(String name, long value) {
+    public void updateCounterValue(String name, long value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
-        String counterName = name + ".Counter";
+        String counterName = nameFromTags(name, tags) + ".Counter";
 
         Counter counter = countersCache.getIfPresent(counterName);
         if (counter != null) {
             counter.clear();
         } else {
-            counter = underlying.createCounter(counterName);
+            counter = underlying.createCounter(
+                    (tags == null || tags.length == 0) ? counterName : name, tags);
         }
         counter.add(value);
         countersCache.put(name, counter);
     }
 
     @Override
-    public void freezeCounter(String name) {
-        String counterName = name + ".Counter";
+    public void freezeCounter(String name, String... tags) {
+        String counterName = nameFromTags(name, tags) + ".Counter";
+        Counter counter = countersCache.getIfPresent(counterName);
+        metrics.remove(counter.getId());
         countersCache.invalidate(counterName);
-        metrics.remove(counterName);
     }
 
     @Override
-    public <T extends Number> void reportGaugeValue(String name, T value) {
+    public <T extends Number> void reportGaugeValue(String name, T value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
         Gauge newGauge = null;
-        String gaugeName = name + ".Gauge";
+        String gaugeCacheKey = nameFromTags(name, tags) + ".Gauge";
+        String gaugeRegisterKey = (tags == null || tags.length == 0) ? gaugeCacheKey : name;
 
         if (value instanceof Float) {
-            newGauge = underlying.registerGauge(gaugeName, value::floatValue);
+            newGauge = underlying.registerGauge(gaugeRegisterKey, value::floatValue, tags);
         } else if (value instanceof Double) {
-            newGauge = underlying.registerGauge(gaugeName, value::doubleValue);
+            newGauge = underlying.registerGauge(gaugeRegisterKey, value::doubleValue, tags);
         } else if (value instanceof Byte) {
-            newGauge = underlying.registerGauge(gaugeName, value::byteValue);
+            newGauge = underlying.registerGauge(gaugeRegisterKey, value::byteValue, tags);
         } else if (value instanceof Short) {
-            newGauge = underlying.registerGauge(gaugeName, value::shortValue);
+            newGauge = underlying.registerGauge(gaugeRegisterKey, value::shortValue, tags);
         } else if (value instanceof Integer) {
-            newGauge = underlying.registerGauge(gaugeName, value::intValue);
+            newGauge = underlying.registerGauge(gaugeRegisterKey, value::intValue, tags);
         } else if (value instanceof Long) {
-            newGauge = underlying.registerGauge(gaugeName, value::longValue);
+            newGauge = underlying.registerGauge(gaugeRegisterKey, value::longValue);
         }
 
         if (null == newGauge) {
             log.error("Unsupported Number type: {}.", value.getClass().getName());
         } else {
-            gaugesCache.put(gaugeName, newGauge);
+            gaugesCache.put(gaugeCacheKey, newGauge);
         }
     }
 
     @Override
-    public void freezeGaugeValue(String name) {
-        String gaugeName = name + ".Gauge";
+    public void freezeGaugeValue(String name, String... tags) {
+        String gaugeName = nameFromTags(name, tags) + ".Gauge";
+        Gauge gauge = gaugesCache.getIfPresent(gaugeName);
+        metrics.remove(gauge.getId());
         gaugesCache.invalidate(gaugeName);
-        metrics.remove(gaugeName);
     }
 
     @Override
-    public void recordMeterEvents(String name, long number) {
+    public void recordMeterEvents(String name, long number, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(number);
-        String meterName = name + ".Meter";
+        String meterName = nameFromTags(name, tags) + ".Meter";
         try {
             Meter meter = metersCache.get(meterName, new Callable<Meter>() {
                 @Override
                 public Meter call() throws Exception {
-                    return underlying.createMeter(meterName);
+                    return underlying.createMeter(
+                            (tags == null || tags.length == 0) ? meterName : name, tags);
                 }
             });
             meter.recordEvents(number);

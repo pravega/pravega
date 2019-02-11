@@ -30,6 +30,10 @@ public class MetricsConfig {
     public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
+    public final static Property<String> INFLUXDB_URI = Property.named("influxDBURI", "localhost:8086");
+    public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "influxdb");
+    public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
+    public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDBPassword", "");
     public final static Property<String> GRAPHITE_HOST = Property.named("graphiteHost", "localhost");
     public final static Property<Integer> GRAPHITE_PORT = Property.named("graphitePort", 2003);
     public final static Property<String> JMX_DOMAIN = Property.named("jmxDomain", "domain");
@@ -37,6 +41,7 @@ public class MetricsConfig {
     public final static Property<Integer> GANGLIA_PORT = Property.named("gangliaPort", 8649);
     public final static Property<Boolean> ENABLE_CSV_REPORTER = Property.named("enableCSVReporter", true);
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsdReporter", true);
+    public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("enableInfluxDBReporter", false);
     public final static Property<Boolean> ENABLE_GRAPHITE_REPORTER = Property.named("enableGraphiteReporter", false);
     public final static Property<Boolean> ENABLE_JMX_REPORTER = Property.named("enableJMXReporter", false);
     public final static Property<Boolean> ENABLE_GANGLIA_REPORTER = Property.named("enableGangliaReporter", false);
@@ -97,6 +102,30 @@ public class MetricsConfig {
     private final int statsDPort;
 
     /**
+     * The URI of InfluxDB endpoint.
+     */
+    @Getter
+    private final String influxDBUri;
+
+    /**
+     * The name of InfluxDB.
+     */
+    @Getter
+    private final String influxDBName;
+
+    /**
+     * The username to access InfluxDB.
+     */
+    @Getter
+    private final String influxDBUserName;
+
+    /**
+     * The password of user account accessing InfluxDB.
+     */
+    @Getter
+    private final String influxDBPassword;
+
+    /**
      * The host name where Graphite is listening.
      */
     @Getter
@@ -137,6 +166,12 @@ public class MetricsConfig {
      */
     @Getter
     private final boolean enableStatsdReporter;
+
+    /**
+     * The status of enable InfluxDB reporter.
+     */
+    @Getter
+    private final boolean enableInfluxDBReporter;
 
     /**
      * The status of enable Graphite reporter.
@@ -180,12 +215,17 @@ public class MetricsConfig {
         this.csvEndpoint = properties.get(CSV_ENDPOINT);
         this.statsDHost = properties.get(STATSD_HOST);
         this.statsDPort = properties.getInt(STATSD_PORT);
+        this.influxDBUri = properties.get(INFLUXDB_URI);
+        this.influxDBName = properties.get(INFLUXDB_NAME);
+        this.influxDBUserName = properties.get(INFLUXDB_USERNAME);
+        this.influxDBPassword = properties.get(INFLUXDB_PASSWORD);
         this.graphiteHost = properties.get(GRAPHITE_HOST);
         this.graphitePort = properties.getInt(GRAPHITE_PORT);
         this.jmxDomain = properties.get(JMX_DOMAIN);
         this.gangliaHost = properties.get(GANGLIA_HOST);
         this.gangliaPort = properties.getInt(GANGLIA_PORT);
         this.enableCSVReporter = properties.getBoolean(ENABLE_CSV_REPORTER);
+        this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsdReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);
         this.enableGraphiteReporter = properties.getBoolean(ENABLE_GRAPHITE_REPORTER);
         this.enableJMXReporter = properties.getBoolean(ENABLE_JMX_REPORTER);
