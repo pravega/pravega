@@ -48,6 +48,7 @@ public class ProcessStarter {
      * Creates a new instance of the ProcessStarter class.
      *
      * @param target The Class to start. This class must have a static main() method defined in it.
+     * @return ProcessStarter
      */
     public static ProcessStarter forClass(Class<?> target) {
         return new ProcessStarter(target);

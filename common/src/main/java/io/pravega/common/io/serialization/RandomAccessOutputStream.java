@@ -55,6 +55,7 @@ public interface RandomAccessOutputStream {
 
     /**
      * Gets a value indicating the size of this OutputStream.
+     * @return size of this OutputStream
      */
     int size();
 }

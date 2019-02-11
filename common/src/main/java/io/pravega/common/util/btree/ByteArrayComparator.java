@@ -30,7 +30,7 @@ import java.util.Comparator;
  *
  * For example:
  * - Consider any two Longs L1 and L2.
- * - Let S1 be the result of {@link BitConverter#writeUnsignedLong) when applied to L1, and S2 the result when applied to L2.
+ * - Let S1 be the result of {@link BitConverter#writeUnsignedLong} when applied to L1, and S2 the result when applied to L2.
  * - Then {@link Long#compare} applied to (L1, L2) is equal to {@link ByteArrayComparator#compare} applied to (S1, S2).
  * - This equality would not hold should L1 and L2 be serialized using {@link BitConverter#writeLong} or if we used plain
  * (signed) byte comparison internall.

@@ -119,7 +119,13 @@ project('common') {
             project(':common').sourceSets.main.java
             project(':shared:protocol').sourceSets.main.java
         }
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
+
 }
 
 def withoutLogger = { exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -132,10 +138,15 @@ project('shared:authplugin') {
     javadoc {
         title = "Pravega Auth API"
         failOnError = false
-
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
         source {
             sourceSets.main.java
         }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -150,6 +161,12 @@ project ('shared:cluster') {
     }
     javadoc {
         exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -171,6 +188,12 @@ project ('shared:metrics') {
 
     javadoc {
         exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -201,6 +224,8 @@ project('client') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -213,12 +238,28 @@ project('test:testcommon') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
     }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
+    }
 }
 
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -229,6 +270,14 @@ project('segmentstore:storage') {
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -242,6 +291,14 @@ project('segmentstore:storage:impl') {
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -265,6 +322,14 @@ project ('bindings') {
         testCompile project(':test:testcommon')
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
+    }
 }
 
 project('segmentstore:server') {
@@ -274,6 +339,14 @@ project('segmentstore:server') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
 }
 
@@ -468,6 +541,12 @@ project('shared:controller-api') {
 
     javadoc {
         exclude 'io/pravega/controller/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -888,7 +967,7 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/8/docs/api/");
+    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
@@ -897,8 +976,9 @@ task javadocs(type: Javadoc) {
     classpath = files(projects.collect {
         project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
     })
-    failOnError = false
+    failOnError = true
     exclude "**/impl/**"
+    options.addBooleanOption("Xdoclint:all,-reference", true)
 }
 
 apply plugin: 'distribution'

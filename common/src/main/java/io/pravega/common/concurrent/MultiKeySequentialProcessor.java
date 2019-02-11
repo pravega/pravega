@@ -63,6 +63,7 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
 
     /**
      * Gets the number of concurrent tasks currently executing.
+     * @return current task count
      */
     @VisibleForTesting
     public int getCurrentTaskCount() {
