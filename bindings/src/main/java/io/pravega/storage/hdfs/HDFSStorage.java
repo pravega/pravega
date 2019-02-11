@@ -468,32 +468,36 @@ public class HDFSStorage implements SyncStorage {
      * @throws StreamSegmentException
      */
     private void claimOwnership(String streamSegmentName) throws StreamSegmentException {
-        boolean fileClaimed = false;
         // There could be multiple containers trying to open the file.
         // In a race, a container with lower epoch may be able to rename file before this container instance.
         // We should try until we are able to either rename the file to epoch of current instance or find the file with higher epoch
-        while (!fileClaimed) {
+        for (long fencedCount = 0; fencedCount < this.epoch; fencedCount++) {
             try {
+                Path targetPath = getFilePath(streamSegmentName, this.epoch);
                 FileStatus fileStatus = findStatusForSegment(streamSegmentName, true);
+
+                // This instance is already owner.
+                if (targetPath.equals(fileStatus.getPath())) {
+                    return;
+                }
+
                 if (isSealed(fileStatus.getPath())) {
-                    break;
+                    return;
                 }
 
                 if (getEpochFromPath(fileStatus.getPath()) > this.epoch) {
                     throw new StorageNotPrimaryException(streamSegmentName);
                 }
 
-                Path targetPath = getFilePath(streamSegmentName, this.epoch);
-                if (!targetPath.equals(fileStatus.getPath())) {
-                    try {
-                        if (this.fileSystem.rename(fileStatus.getPath(), targetPath)) {
-                            fileClaimed = true;
-                        }
-                    } catch (PathNotFoundException | FileNotFoundException e) {
-                        //This happens when more than one host is trying to fence and only one of the host goes through.
-                        log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
-                        continue;
+                // Try to take ownership by renaming.
+                try {
+                    if (this.fileSystem.rename(fileStatus.getPath(), targetPath)) {
+                        return;
                     }
+                } catch (PathNotFoundException | FileNotFoundException e) {
+                    //This happens when more than one host is trying to fence and only one of the host goes through.
+                    log.warn("Race in fencing. More than two hosts trying to own the segment. Retrying");
+                    continue;
                 }
             } catch (IOException e) {
                 throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
