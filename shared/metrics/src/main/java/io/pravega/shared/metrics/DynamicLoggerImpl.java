@@ -127,7 +127,9 @@ public class DynamicLoggerImpl implements DynamicLogger {
     public void freezeCounter(String name, String... tags) {
         String counterName = nameFromTags(name, tags) + ".Counter";
         Counter counter = countersCache.getIfPresent(counterName);
-        metrics.remove(counter.getId());
+        if (counter != null) {
+            metrics.remove(counter.getId());
+        }
         countersCache.invalidate(counterName);
     }
 

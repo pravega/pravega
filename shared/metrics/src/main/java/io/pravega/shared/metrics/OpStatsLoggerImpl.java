@@ -35,7 +35,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     //region Constructor
 
-    OpStatsLoggerImpl(MeterRegistry metricRegistry, String baseName, String statName, String ... tags) {
+    OpStatsLoggerImpl(MeterRegistry metricRegistry, String baseName, String statName, String... tags) {
         this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
         this.successName = baseName + "." + statName;
         this.failName = baseName + "." + failMetricName(statName); //TODO: replace the original name() method
@@ -105,7 +105,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         for (OpStatsData.Percentile percent : OpStatsData.PERCENTILESET) {
             for (ValueAtPercentile vp : snapshot.percentileValues()) {
                 if (vp.percentile() == percent.getValue() / 100) {
-                    percentileLongMap.put(percent, (long)vp.value()); //TODO: change O(N*N) to O(N) after refactoring
+                    percentileLongMap.put(percent, (long) vp.value()); //TODO: change O(N*N) to O(N) after refactoring
                 }
             }
         }
