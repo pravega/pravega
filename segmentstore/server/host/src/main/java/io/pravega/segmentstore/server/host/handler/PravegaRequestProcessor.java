@@ -17,7 +17,6 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.ArrayView;
@@ -39,7 +38,6 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
-import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
@@ -97,7 +95,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -744,34 +741,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             state = token.array();
         }
 
-        final AtomicBoolean canContinue = new AtomicBoolean(true);
-        final AtomicInteger keyCount = new AtomicInteger(0);
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final LinkedBlockingQueue<TableKey> keys = new LinkedBlockingQueue<>();
-        tableStore.keyIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> Futures.loop(
-                          canContinue::get,
-                          itr::getNext,
-                          e -> {
-                              if (e == null) {
-                                  canContinue.set(false);
-                              } else {
-                                  // store all keys.
-                                  keys.addAll(e.getEntries());
-                                  // update the continuation token.
-                                  ArrayView lastState = e.getState();
-                                  continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
-                                  // update the keycount and msgSize.
-                                  keyCount.addAndGet(e.getEntries().size());
-                                  msgSize.addAndGet(getTableKeyBytes(segment, e));
+        final List<TableKey> keys = new ArrayList<>();
 
-                                  if (keyCount.get() >= suggestedKeyCount || msgSize.get() >= MAX_READ_SIZE) {
-                                      // set the continuation flag to false if we have read more than the suggested count or
-                                      // if we have read more the the response threshold bytes.
-                                      canContinue.set(false);
-                                  }
-                              }
+        tableStore.keyIterator(segment, state, TIMEOUT)
+                  .thenCompose(itr -> itr.forEachRemaining(
+                          e -> keys.size() >= suggestedKeyCount || msgSize.get() >= MAX_READ_SIZE,
+                          e -> {
+                              Collection<TableKey> tableKeys = e.getEntries();
+                              ArrayView lastState = e.getState();
+
+                              // Store all tableKeys.
+                              keys.addAll(tableKeys);
+                              // update the continuation token.
+                              continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                              // Update msgSize.
+                              msgSize.addAndGet(getTableKeyBytes(segment, tableKeys, lastState.getLength()));
                           }, executor))
                   .thenAccept(v -> {
                       log.debug(readTableKeys.getRequestId(), "{} keys obtained for ReadTableKeys request.", keys.size());
@@ -807,33 +793,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         final AtomicBoolean canContinue = new AtomicBoolean(true);
-        final AtomicInteger entryCount = new AtomicInteger(0);
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final LinkedBlockingQueue<TableEntry> entries = new LinkedBlockingQueue<>();
+        final List<TableEntry> entries = new ArrayList<>();
         tableStore.entryIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> Futures.loop(
-                          canContinue::get,
-                          itr::getNext,
+                  .thenCompose(itr -> itr.forEachRemaining(
+                          e -> entries.size() >= suggestedEntryCount || msgSize.get() >= MAX_READ_SIZE,
                           e -> {
-                              if (e == null) {
-                                  canContinue.set(false);
-                              } else {
-                                  // Store all TableEntrys.
-                                  entries.addAll(e.getEntries());
-                                  // Update the continuation token.
-                                  ArrayView lastState = e.getState();
-                                  continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
-                                  // Update entryCount and message size.
-                                  entryCount.addAndGet(e.getEntries().size());
-                                  msgSize.addAndGet(getTableEntryBytes(segment, e));
+                              final Collection<TableEntry> tableEntries = e.getEntries();
+                              final ArrayView lastState = e.getState();
 
-                                  if (entryCount.get() >= suggestedEntryCount || msgSize.get() >= MAX_READ_SIZE) {
-                                      // Set the continuation flag to false if we have read more than the suggested count or
-                                      // if we have read more than the response threshold bytes.
-                                      canContinue.set(false);
-                                  }
-                              }
+                              // Store all TableEntrys.
+                              entries.addAll(tableEntries);
+                              // Update the continuation token.
+                              continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                              // Update message size.
+                              msgSize.addAndGet(getTableEntryBytes(segment, tableEntries, lastState.getLength()));
+
                           }, executor))
                   .thenAccept(v -> {
                       log.debug(readTableEntries.getRequestId(), "{} entries obtained for ReadTableEntries request.", entries.size());
@@ -842,11 +818,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                      .map(e -> {
                                          TableKey k = e.getKey();
                                          val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
-                                                                                          k.getKey().getLength()),
+                                                                                                      k.getKey().getLength()),
                                                                                         k.getVersion());
                                          ArrayView value = e.getValue();
                                          val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(value.array(), value.arrayOffset(),
-                                                                                              value.getLength()));
+                                                                                                          value.getLength()));
                                          return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
                                      })
                                      .collect(toList());
@@ -857,24 +833,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                   }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
-    private int getTableKeyBytes(String segment, IteratorItem<TableKey> item) {
-        int stateLength = item.getState().getLength();
-        int headerLength = WireCommands.TableKeysRead.GET_HEADER_BYTES.apply(item.getEntries().size());
+    private int getTableKeyBytes(String segment, Collection<TableKey> keys, int continuationTokenLength) {
+        int headerLength = WireCommands.TableKeysRead.GET_HEADER_BYTES.apply(keys.size());
         int segmentLength = segment.getBytes().length;
-        int dataLength = item.getEntries().stream().mapToInt(value -> value.getKey().getLength() + Long.BYTES).sum();
-        return stateLength + headerLength + segmentLength + dataLength;
+        int dataLength = keys.stream().mapToInt(value -> value.getKey().getLength() + Long.BYTES).sum();
+        return continuationTokenLength + headerLength + segmentLength + dataLength;
     }
 
-    private int getTableEntryBytes(String segment, IteratorItem<TableEntry> item) {
-        int headerLength = WireCommands.TableEntriesRead.GET_HEADER_BYTES.apply(item.getEntries().size());
+    private int getTableEntryBytes(String segment, Collection<TableEntry> items, int continuationTokenLength) {
+        int headerLength = WireCommands.TableEntriesRead.GET_HEADER_BYTES.apply(items.size());
         int segmentLength = segment.getBytes().length;
-        int dataLength = item.getEntries().stream().mapToInt(value -> {
+        int dataLength = items.stream().mapToInt(value -> {
             return value.getKey().getKey().getLength() // key
                     + Long.BYTES // key version
                     + value.getValue().getLength(); // value
         }).sum();
-        int stateLength = item.getState().getLength();
-        return headerLength + segmentLength + dataLength + stateLength;
+        return headerLength + segmentLength + dataLength + continuationTokenLength;
     }
 
     private ArrayView getArrayView(ByteBuf buf ) {

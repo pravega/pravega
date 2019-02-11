@@ -14,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+
 /**
  * Defines an Iterator for which every invocation results in an async call with a delayed response.
  *
@@ -49,6 +51,29 @@ public interface AsyncIterator<T> {
                 this::getNext,
                 e -> {
                     if (e == null) {
+                        canContinue.set(false);
+                    } else {
+                        consumer.accept(e);
+                    }
+                }, executor);
+    }
+
+    /**
+     * Processes the remaining elements in the AsyncIterator until the specified {@link Predicate} returns true.
+     *
+     * @param until A Predicate that will be used to the decide the number of elements on which the Consumer will be invoked.
+     * @param consumer A Consumer that will be invoked for each remaining element. The consumer will be invoked using the
+     *                 given Executor, but any new invocation will wait for the previous invocation to complete.
+     * @param executor An Executor to run async tasks on.
+     * @return A CompletableFuture that, when completed, will indicate that the processing is complete.
+     */
+    default CompletableFuture<Void> forEachRemaining(Predicate<? super T> until, Consumer<? super T> consumer, Executor executor) {
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return Futures.loop(
+                canContinue::get,
+                this::getNext,
+                e -> {
+                    if (e == null || until.test(e)) {
                         canContinue.set(false);
                     } else {
                         consumer.accept(e);
