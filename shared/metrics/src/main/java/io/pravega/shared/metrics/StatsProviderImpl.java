@@ -59,22 +59,27 @@ class StatsProviderImpl implements StatsProvider {
                 public Duration step() {
                     return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
                 }
+
                 @Override
                 public String prefix() {
                     return conf.getMetricsPrefix();
                 }
+
                 @Override
                 public String host() {
                     return conf.getStatsDHost();
                 }
+
                 @Override
                 public int port() {
                     return conf.getStatsDPort();
                 }
+
                 @Override
                 public StatsdFlavor flavor() {
                     return StatsdFlavor.TELEGRAF; //Dimension supported
                 }
+
                 @Override
                 public String get(String key) {
                     return null;
@@ -92,26 +97,32 @@ class StatsProviderImpl implements StatsProvider {
                 public Duration step() {
                     return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
                 }
+                
                 @Override
                 public String prefix() {
                     return conf.getMetricsPrefix();
                 }
+
                 @Override
                 public String uri() {
                     return conf.getInfluxDBUri();
                 }
+
                 @Override
                 public String db() {
                     return conf.getInfluxDBName();
                 }
+
                 @Override
                 public String userName() {
                     return conf.getInfluxDBUserName();
                 }
+
                 @Override
                 public String password() {
                     return conf.getInfluxDBPassword();
                 }
+
                 @Override
                 public String get(String k) {
                     return null;
