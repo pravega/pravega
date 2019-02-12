@@ -723,6 +723,7 @@ project('test:system') {
     }
 
     task startK8SystemTests(type: Test) {
+        tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -741,7 +742,11 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
         // bookkeeper version defaults to pravega version.
         systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
-        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        // tier2Type , default is NFS.
+        systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
+        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        systemProperty "tier2Config", System.getProperty("tier2Config")
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"

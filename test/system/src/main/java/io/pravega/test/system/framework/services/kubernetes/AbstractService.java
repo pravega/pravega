@@ -9,6 +9,8 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.models.V1Container;
 import io.kubernetes.client.models.V1ContainerBuilder;
@@ -42,6 +44,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
 
 public abstract class AbstractService implements Service {
@@ -74,6 +77,10 @@ public abstract class AbstractService implements Service {
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
     private static final String PRAVEGA_OPERATOR_VERSION = System.getProperty("pravegaOperatorVersion", "latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
+    private static final String TIER2_NFS = "nfs";
+    private static final String TIER2_ECS = "ecs";
+    private static final String TIER2_HDFS = "hdfs";
+    private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
 
     final K8sClient k8sClient;
     private final String id;
@@ -163,8 +170,24 @@ public abstract class AbstractService implements Service {
     }
 
     private Map<String, Object> tier2Spec(String tier2ClaimName) {
-        return ImmutableMap.of("filesystem", ImmutableMap.of("persistentVolumeClaim",
-                                                             ImmutableMap.of("claimName", tier2ClaimName)));
+        final Map<String, Object> spec;
+        if (TIER2_TYPE.equalsIgnoreCase(TIER2_NFS)) {
+            spec = ImmutableMap.of("filesystem", ImmutableMap.of("persistentVolumeClaim",
+                                                                 ImmutableMap.of("claimName", tier2ClaimName)));
+        } else if (TIER2_TYPE.equalsIgnoreCase(TIER2_ECS)) {
+            spec = ImmutableMap.of(TIER2_ECS, getTier2Config());
+        } else if (TIER2_TYPE.equalsIgnoreCase(TIER2_HDFS)) {
+            spec = ImmutableMap.of(TIER2_HDFS, getTier2Config());
+        } else {
+            throw new UnsupportedOperationException("Unsupported tier2Type specified, nfs, ecs and hdfs are currently supported");
+        }
+        return spec;
+    }
+
+    private Map<String, String> getTier2Config() {
+        String tier2Config = System.getProperty("tier2Config");
+        checkNotNullOrEmpty(tier2Config, "tier2Config");
+        return Splitter.on(',').trimResults().withKeyValueSeparator("=").split(tier2Config);
     }
 
     private Map<String, Object> getPersistentVolumeClaimSpec(String size, String storageClass) {
