@@ -16,12 +16,12 @@ import lombok.Data;
 /**
  * This class is used to represent Stream information. It currently includes:
  *
- * <ul>
- *  <li> - scope of stream.
- *  <li> - name of stream.
- *  <li> - {@link StreamCut} which represents the current TAIL of the stream.
- *  <li> - {@link StreamCut} which represents the current HEAD of the stream.
- * </ul>
+ *  <ul>
+ *  <li> scope of stream. </li>
+ *  <li> name of stream. </li>
+ *  <li> {@link StreamCut} which represents the current TAIL of the stream. </li>
+ *  <li> {@link StreamCut} which represents the current HEAD of the stream. </li>
+ *  </ul>
  */
 @Beta
 @Data

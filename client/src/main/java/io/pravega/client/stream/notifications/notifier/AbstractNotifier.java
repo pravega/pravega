@@ -18,7 +18,7 @@ import io.pravega.client.stream.notifications.Observable;
 
 /**
  * AbstractNotifier which is used by all types of Notifiers.
- * @param <T>
+ * @param <T> The type of notification being listened to.
  */
 public abstract class AbstractNotifier<T extends Notification> implements Observable<T> {
 
