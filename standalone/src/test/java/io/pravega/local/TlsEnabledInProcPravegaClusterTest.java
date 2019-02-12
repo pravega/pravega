@@ -57,7 +57,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     // Note: Strictly speaking, this test is really an "integration test" and is a little
     // time consuming. For now, its intended to run as a unit test, but it could be moved
     // to an integration test suite if and when necessary.
-    @Test(timeout = 200000)
+    @Test(timeout = 50000)
     public void testWriteAndReadEventWhenConfigurationIsProper() throws ExecutionException,
             InterruptedException, ReinitializationRequiredException {
 
@@ -115,7 +115,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        EventRead<String> event = reader.readNextEvent(150000);
+        EventRead<String> event = reader.readNextEvent(50000);
         String readMessage = event.getEvent();
         log.debug("Read event '{}", readMessage);
         assertEquals(message, readMessage);
