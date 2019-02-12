@@ -16,7 +16,7 @@ You may obtain a copy of the License at
 * [System Diagram](#system-diagram)
 * [Components](#components)
     - [Service Endpoints](#service-endpoints)
-    - [Controller Service](#pravega-controller-service_1)
+    - [Controller Service](#controller-service)
     - [Stream Metadata Store](#stream-metadata-store)
         - [Stream Metadata](#stream-metadata)
         - [Stream Store Caching](#stream-store-caching)
@@ -173,7 +173,7 @@ interface. This includes API calls for Stream management as well as
 other administration API primarily dealing with _creation_ and _deletion_ of
 [**Scopes**](pravega-concepts.md#streams). We use [swagger](https://swagger.io) to describe our `REST` API. Please see, the swagger [`yaml`](https://github.com/pravega/pravega/tree/master/shared/controller-api/src/main/swagger) file.
 
-## Pravega Controller Service
+## Pravega Controller Service <a name ="controller-service"></a>
 
 This is the backend layer behind the Controller endpoints `gRPC` and
 `REST`. All the business logic required to serve Controller API calls are
