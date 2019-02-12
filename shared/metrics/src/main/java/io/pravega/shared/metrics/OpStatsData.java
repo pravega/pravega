@@ -19,6 +19,8 @@ import java.util.EnumSet;
  */
 public class OpStatsData {
     static final EnumSet<Percentile> PERCENTILESET = EnumSet.allOf(Percentile.class);
+    // Added for Micrometer's implementation, PERCENTILEARRAY MUST matches PERCENTILESET!
+    static final double[] PERCENTILEARRAY = {0.1, 0.5, 0.9, 0.99, 0.999, 0.9999};
     private final long numSuccessfulEvents, numFailedEvents;
     // All latency values are in Milliseconds.
     private final double avgLatencyMillis;
