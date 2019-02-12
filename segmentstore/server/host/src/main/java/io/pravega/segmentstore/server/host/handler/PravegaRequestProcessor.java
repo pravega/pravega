@@ -96,7 +96,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -133,6 +132,7 @@ import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static java.util.Collections.synchronizedList;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -743,7 +743,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final List<TableKey> keys = new ArrayList<>();
+        final List<TableKey> keys = synchronizedList(new ArrayList<>());
 
         tableStore.keyIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> itr.forEachRemaining(
@@ -792,10 +792,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             state = token.array();
         }
 
-        final AtomicBoolean canContinue = new AtomicBoolean(true);
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final List<TableEntry> entries = new ArrayList<>();
+        final List<TableEntry> entries = synchronizedList(new ArrayList<>());
         tableStore.entryIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> itr.forEachRemaining(
                           e -> entries.size() >= suggestedEntryCount || msgSize.get() >= MAX_READ_SIZE,
