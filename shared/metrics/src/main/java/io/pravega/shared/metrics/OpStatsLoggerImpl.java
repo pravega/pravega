@@ -14,7 +14,6 @@ import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
-import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 
 import java.time.Duration;
 import java.util.EnumMap;
@@ -38,9 +37,11 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     OpStatsLoggerImpl(MeterRegistry metricRegistry, String baseName, String statName, String... tags) {
         this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
         this.successName = baseName + "." + statName;
-        this.failName = baseName + "." + failMetricName(statName); //TODO: replace the original name() method
-        this.success = this.metricRegistry.timer(this.successName, tags);
-        this.fail = this.metricRegistry.timer(this.failName, tags);
+        this.failName = baseName + "." + failMetricName(statName);
+        this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
+                .register(this.metricRegistry);
+        this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
+                .register(this.metricRegistry);
     }
 
     //endregion
@@ -99,15 +100,12 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
         EnumMap<OpStatsData.Percentile, Long> percentileLongMap  =
                 new EnumMap<>(OpStatsData.Percentile.class);
-        ValueAtPercentile[] values = snapshot.percentileValues();
 
-        //TODO: refactor OpStatsData.Percentile based on micrometer implementation
+        //Snapshot percentileValues and sequence must match OpStatsData.PERCENTILEARRAY by definition
+        assert OpStatsData.PERCENTILEARRAY.length == snapshot.percentileValues().length;
+        int index = 0;
         for (OpStatsData.Percentile percent : OpStatsData.PERCENTILESET) {
-            for (ValueAtPercentile vp : snapshot.percentileValues()) {
-                if (vp.percentile() == percent.getValue() / 100) {
-                    percentileLongMap.put(percent, (long) vp.value()); //TODO: change O(N*N) to O(N) after refactoring
-                }
-            }
+            percentileLongMap.put(percent, (long) snapshot.percentileValues()[index++].value());
         }
         return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, percentileLongMap);
     }

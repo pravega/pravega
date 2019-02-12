@@ -32,6 +32,7 @@ public class MetricsProviderTest {
         MetricsProvider.initialize(MetricsConfig.builder()
                                                 .with(MetricsConfig.ENABLE_STATISTICS, true)
                                                 .build());
+        MetricsProvider.getMetricsProvider().start();
     }
 
     /**
