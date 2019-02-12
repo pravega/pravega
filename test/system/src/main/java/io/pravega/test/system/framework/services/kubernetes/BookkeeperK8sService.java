@@ -56,15 +56,15 @@ public class BookkeeperK8sService extends AbstractService {
     public boolean isRunning() {
         return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", BOOKKEEPER_LABEL)
                         .thenApply(statuses -> statuses.stream()
-                                                      .filter(podStatus -> podStatus.getContainerStatuses()
-                                                                                    .stream()
-                                                                                    .allMatch(st -> st.getState().getRunning() != null))
-                                                      .count())
+                                                       .filter(podStatus -> podStatus.getContainerStatuses()
+                                                                                     .stream()
+                                                                                     .allMatch(st -> st.getState().getRunning() != null))
+                                                       .count())
                         .thenApply(runCount -> runCount >= DEFAULT_BOOKIE_COUNT)
                         .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pods " + BOOKKEEPER_LABEL, t);
-                           return false;
-                       }).join();
+                            log.warn("Exception observed while checking status of pods {}. Details: {}", BOOKKEEPER_LABEL, t.getMessage());
+                            return false;
+                        }).join();
     }
 
     @Override

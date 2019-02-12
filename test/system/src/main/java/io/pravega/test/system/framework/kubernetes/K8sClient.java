@@ -56,6 +56,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -64,15 +65,19 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.concurrent.Futures.exceptionallyExpecting;
 import static io.pravega.test.system.framework.TestFrameworkException.Type.ConnectionFailed;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static javax.ws.rs.core.Response.Status.CONFLICT;
+import static javax.ws.rs.core.Response.Status.NOT_FOUND;
 
 @Slf4j
 public class K8sClient {
 
-    private static final int DEFAULT_TIMEOUT_MINUTES = 5; // timeout of http client.
-    private static final int RETRY_MAX_DELAY_MS = 10_000; // max time between retries to check if pod has completed.
+    private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
+    private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
     private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
+    // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
+    private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
     private static final String PRETTY_PRINT = "false";
     private final ApiClient client;
     private final PodLogs logUtility;
@@ -191,6 +196,11 @@ public class K8sClient {
     @SneakyThrows(ApiException.class)
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
         CoreV1Api api = new CoreV1Api();
+
+        // Workaround for okhttp issue, tracked by https://github.com/pravega/pravega/issues/3361
+        log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
+        api.getApiClient().getHttpClient().networkInterceptors().clear();
+
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelName + "=" + labelValue, null,
                                    null, null, false, callback);
@@ -277,7 +287,8 @@ public class K8sClient {
                         throw Exceptions.sneakyThrow(e);
                     }
                 }).exceptionally(t -> {
-                    log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it.", name, customResourceGroup, t);
+                    log.warn("Exception while trying to fetch instance {} of custom resource {}, try to create it. Details: {}", name,
+                             customResourceGroup, t.getMessage());
                     try {
                         //create object
                         K8AsyncCallback<Object> cb = new K8AsyncCallback<>("createCustomObject");
@@ -449,7 +460,7 @@ public class K8sClient {
                 .retryWhen(t -> {
                     Throwable ex = Exceptions.unwrap(t);
                     if (ex.getCause() instanceof IOException) {
-                        log.warn("Exception while fetching status of pod, will attempt a retry", ex.getCause());
+                        log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
                         return true;
                     }
                     log.error("Exception while fetching status of pod", ex);
@@ -547,20 +558,26 @@ public class K8sClient {
      */
     public CompletableFuture<Void> downloadLogs(final V1Pod fromPod, final String toFile) {
 
-        return Retry.withExpBackoff(500, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
+        final AtomicInteger retryCount = new AtomicInteger(0);
+        return Retry.withExpBackoff(LOG_DOWNLOAD_INIT_DELAY_MS, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
                     .runInExecutor(() -> {
                         final String podName = fromPod.getMetadata().getName();
-                        log.debug("copy logs from pod {} to file {}", podName, toFile);
+                        log.debug("Download logs from pod {}", podName);
                         try {
                             @Cleanup
                             InputStream logStream = logUtility.streamNamespacedPodLog(fromPod);
-                            Files.copy(logStream, Paths.get(toFile));
-                            log.debug("log copy completed for pod {}", podName);
+                            // On every retry this method attempts to download the complete pod logs from from K8s api-server. Due to the
+                            // amount of logs for a pod and the K8s cluster configuration it can so happen that the K8s api-server can
+                            // return truncated logs. Hence, every retry attempt does not overwrite the previously downloaded logs for
+                            // the pod.
+                            String logFile = toFile + "-" + retryCount.incrementAndGet() + ".log";
+                            Files.copy(logStream, Paths.get(logFile));
+                            log.debug("Logs downloaded from pod {} to {}", podName, logFile);
                         } catch (ApiException | IOException e) {
-                            log.error("Error while copying files from pod {}.", podName);
-                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while copying files", e);
+                            log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
+                            throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
                         }
                     }, executor);
     }
@@ -584,7 +601,11 @@ public class K8sClient {
 
         @Override
         public void onFailure(ApiException e, int responseCode, Map<String, List<String>> responseHeaders) {
-            log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+            if (CONFLICT.getStatusCode() == responseCode || NOT_FOUND.getStatusCode() == responseCode) {
+                log.warn("Exception observed for method {} with response code {}", method, responseCode);
+            } else {
+                log.error("Exception observed for method {} with response code {}", method, responseCode, e);
+            }
             future.completeExceptionally(e);
         }
 

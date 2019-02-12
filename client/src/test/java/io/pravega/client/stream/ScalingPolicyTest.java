@@ -7,10 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.admin.impl;
+package io.pravega.client.stream;
 
-import io.pravega.client.stream.ScalingPolicy;
 import org.junit.Test;
+
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public class ScalingPolicyTest {

@@ -46,6 +46,12 @@ public class AutoScaleEvent implements ControllerEvent {
         return processor.processAutoScaleRequest(this);
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s/%s/%s, Direction=%d, Splits=%d",
+                this.scope, this.stream, this.segmentId, this.direction, this.numOfSplits);
+    }
+
     //region Serialization
 
     private static class AutoScaleEventBuilder implements ObjectBuilder<AutoScaleEvent> {

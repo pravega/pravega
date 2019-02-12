@@ -105,7 +105,7 @@ public class ZookeeperK8sService extends AbstractService {
                                                       .count())
                         .thenApply(runCount -> runCount == DEFAULT_INSTANCE_COUNT)
                         .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pod " + getID(), t);
+                           log.warn("Exception observed while checking status of pod: {}. Details: {} ", getID(), t.getMessage());
                            return false;
                        }).join();
     }
