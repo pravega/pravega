@@ -149,13 +149,13 @@ public class ReaderGroupStateManager {
     /**
      * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
      */
-    void handleEndOfSegment(Segment segmentCompleted, boolean fetchSuccesors) throws ReaderNotInReaderGroupException {
+    void handleEndOfSegment(Segment segmentCompleted) throws ReaderNotInReaderGroupException {
         final Map<Segment, List<Long>> segmentToPredecessor;
-        if (fetchSuccesors) {
+        if (sync.getState().getEndSegments().containsKey(segmentCompleted)) {
+            segmentToPredecessor = Collections.emptyMap();
+        } else {
             val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
             segmentToPredecessor = successors.getSegmentToPredecessor();
-        } else {
-            segmentToPredecessor = Collections.emptyMap();
         }
 
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
@@ -268,7 +268,15 @@ public class ReaderGroupStateManager {
     Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReaderNotInReaderGroupException {
         fetchUpdatesIfNeeded();
         if (shouldAcquireSegment()) {
-            return acquireSegment(timeLag);
+            Map<Segment, Long> aquiredSegments = new HashMap<>();
+            for (Entry<Segment, Long> entry : acquireSegment(timeLag).entrySet()) {
+                if (entry.getValue() < 0) {
+                    handleEndOfSegment(entry.getKey());
+                } else {
+                    aquiredSegments.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return aquiredSegments;
         } else {
             return Collections.emptyMap();
         }

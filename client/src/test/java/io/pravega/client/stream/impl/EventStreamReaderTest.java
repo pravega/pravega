@@ -11,6 +11,10 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -22,17 +26,28 @@ import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
+import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.shared.NameUtils;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -42,6 +57,7 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -123,16 +139,16 @@ public class EventStreamReaderTest {
         Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
         
         // Ensure groupstate is updated not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, false);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint").thenReturn(null);
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Ensure groupstate is updated not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, false);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
         // Now it is called.
-        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment, false);
+        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment);
         
     }
 
@@ -436,19 +452,19 @@ public class EventStreamReaderTest {
         // Ensure this segment is closed.
         inOrder.verify(segmentInputStream, Mockito.times(1)).close();      
         // Ensure groupstate is updated not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, true);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
         EventRead<byte[]> event = reader.readNextEvent(0);
         assertTrue(event.isCheckpoint());
         assertEquals("Foo", event.getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Ensure groupstate is updated not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment, true);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
         assertNull(event.getEvent());
         // Now it is called.
-        inOrder.verify(groupState).handleEndOfSegment(segment, true);
+        inOrder.verify(groupState).handleEndOfSegment(segment);
     }
     
     @Test(timeout=10000)
@@ -503,13 +519,156 @@ public class EventStreamReaderTest {
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Ensure groupstate is updated not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment1, true);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment1);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
         // Now it is called.
-        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment1, true);
+        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment1);
         assertEquals(ImmutableList.of(segmentInputStream2, segmentInputStream3), reader.getReaders());        
         
     }
     
+    @Test
+    public void testReaderClose() throws EndOfSegmentException, SegmentTruncatedException, SegmentSealedException {
+        String scope = "scope";
+        String stream = "stream";
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        
+        //Mock for the two SegmentInputStreams.
+        Segment segment1 = new Segment(scope, stream, 0);
+        @Cleanup
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, "");
+        writeInt(stream1, 1);
+        writeInt(stream1, 1);
+        writeInt(stream1, 1);
+        Segment segment2 = new Segment(scope, stream, 1);
+        @Cleanup
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, "");
+        writeInt(stream2, 2);
+        writeInt(stream2, 2);
+        writeInt(stream2, 2);
+        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizerForReaderGroup(connectionFactory, controller,
+                                                                                         segmentStreamFactory,
+                                                                                         Stream.of(scope, stream),
+                                                                                         "reader1", clock, 2);
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader1 = createReader(controller, segmentStreamFactory, "reader1", sync, clock);
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader2 = createReader(controller, segmentStreamFactory, "reader2", sync, clock);
+        
+        assertEquals(1, readInt(reader1.readNextEvent(0)));
+        assertEquals(2, readInt(reader2.readNextEvent(0)));
+        reader2.close();
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        assertEquals(1, readInt(reader1.readNextEvent(0)));
+        assertEquals(2, readInt(reader1.readNextEvent(0)));
+        assertEquals(1, readInt(reader1.readNextEvent(0)));
+        assertEquals(2, readInt(reader1.readNextEvent(0)));
+    }
+    
+    private int readInt(EventRead<byte[]> eventRead) {
+        byte[] event = eventRead.getEvent();
+        assertNotNull(event);
+        return ByteBuffer.wrap(event).getInt();
+    }
+
+    private EventStreamReaderImpl<byte[]> createReader(MockController controller,
+                                                       MockSegmentStreamFactory segmentStreamFactory, String readerId,
+                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock) {
+        ReaderGroupStateManager groupState = new ReaderGroupStateManager(readerId, sync, controller, clock::get);
+        groupState.initializeReader(0);
+        return new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory, new ByteArraySerializer(),
+                                           groupState, new Orderer(), clock::get, ReaderConfig.builder().build());
+    }
+
+    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionFactory connectionFactory,
+                                                                                      Controller controller,
+                                                                                      MockSegmentStreamFactory streamFactory,
+                                                                                      Stream stream, String readerId,
+                                                                                      AtomicLong clock,
+                                                                                      int numSegments) {
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                                                              .build();
+        controller.createScope(stream.getScope());
+        controller.createStream(stream.getScope(), stream.getStreamName(), streamConfig);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionFactory,
+                                                                streamFactory, streamFactory, streamFactory,
+                                                                streamFactory);
+
+        ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(stream).build();
+        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup("readerGroup"),
+                                                                                         new ReaderGroupStateUpdatesSerializer(),
+                                                                                         new ReaderGroupStateInitSerializer(),
+                                                                                         SynchronizerConfig.builder()
+                                                                                                           .build());
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
+                                                                  ReaderGroupImpl.getSegmentsForStreams(controller,
+                                                                                                        config),
+                                                                  getEndSegmentsForStreams(config)));
+        return sync;
+    }
+
+    @Test
+    public void testPositionsContainSealedSegments() throws SegmentSealedException {
+        String scope = "scope";
+        String stream = "stream";
+        AtomicLong clock = new AtomicLong();
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        
+        //Mock for the two SegmentInputStreams.
+        Segment segment1 = new Segment(scope, stream, 0);
+        @Cleanup
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, "");
+        writeInt(stream1, 1);
+        Segment segment2 = new Segment(scope, stream, 1);
+        @Cleanup
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, "");
+        writeInt(stream2, 2);
+        writeInt(stream2, 2);
+        writeInt(stream2, 2);
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> sync = createStateSynchronizerForReaderGroup(connectionFactory, controller,
+                                                                                         segmentStreamFactory,
+                                                                                         Stream.of(scope, stream),
+                                                                                         "reader1", clock, 2);
+        @Cleanup
+        EventStreamReaderImpl<byte[]> reader = createReader(controller, segmentStreamFactory, "reader1", sync, clock);
+        EventRead<byte[]> event = reader.readNextEvent(100);
+        assertEquals(2, readInt(event));
+        assertEquals(ImmutableSet.of(), event.getPosition().asImpl().getCompletedSegments());
+        assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getOwnedSegments());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        event = reader.readNextEvent(100);
+        assertEquals(1, readInt(event));
+        assertEquals(ImmutableSet.of(), event.getPosition().asImpl().getCompletedSegments());
+        assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getOwnedSegments());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        event = reader.readNextEvent(100);
+        assertEquals(2, readInt(event));
+        assertEquals(ImmutableSet.of(), event.getPosition().asImpl().getCompletedSegments());
+        assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getOwnedSegments());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        event = reader.readNextEvent(100);
+        assertEquals(2, readInt(event));
+        assertEquals(ImmutableSet.of(segment1), event.getPosition().asImpl().getCompletedSegments());
+        assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getOwnedSegments());
+        clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
+        event = reader.readNextEvent(10);
+        assertNull(event.getEvent());
+        assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getCompletedSegments());
+        assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getOwnedSegments());
+    }
 }
