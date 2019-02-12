@@ -50,16 +50,19 @@ public abstract class StorageOperation extends Operation implements SegmentOpera
 
     /**
      * Gets a value indicating the Offset within the StreamSegment where this operation applies.
+     * @return the Offset within the StreamSegment
      */
     public abstract long getStreamSegmentOffset();
 
     /**
      * Gets a value indicating the Length of this StorageOperation.
+     * @return a value indicating the Length of this StorageOperation
      */
     public abstract long getLength();
 
     /**
      * Gets a value indicating the Offset within the StreamSegment of the last byte that this operation applies (i.e., ending offset).
+     * @return the Offset within the StreamSegment of the last byte that this operation applies
      */
     public long getLastStreamSegmentOffset() {
         return getStreamSegmentOffset() + getLength();

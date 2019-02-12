@@ -26,6 +26,7 @@ interface CompletableReadResultEntry extends ReadResultEntry {
 
     /**
      * Gets the CompletionConsumer that was set using setCompletionCallback.
+     * @return The CompletionConsumer object that was set using setCompletionCallback
      */
     CompletionConsumer getCompletionCallback();
 

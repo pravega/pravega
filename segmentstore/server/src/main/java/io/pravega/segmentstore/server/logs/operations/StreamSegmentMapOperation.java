@@ -63,6 +63,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     /**
      * Gets a value indicating the Name of the StreamSegment.
+     * @return the Name of the StreamSegment
      */
     public String getStreamSegmentName() {
         return this.streamSegmentName;
@@ -70,6 +71,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     /**
      * Gets a value indicating the Id of the StreamSegment.
+     * @return the Id of the StreamSegment
      */
     public long getStreamSegmentId() {
         return this.streamSegmentId;
@@ -88,6 +90,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     /**
      * Gets a value indicating the first offset within the StreamSegment available for reading.
+     * @return the first offset within the StreamSegment available for reading
      */
     public long getStartOffset() {
         return this.startOffset;
@@ -95,6 +98,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     /**
      * Gets a value indicating the Length of the StreamSegment at the time of the mapping.
+     * @return the Length of the StreamSegment at the time of the mapping
      */
     public long getLength() {
         return this.length;
@@ -102,6 +106,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     /**
      * Gets a value indicating whether the StreamSegment is currently sealed at the time of the mapping.
+     * @return true if the StreamSegment is currently sealed, false otherwise
      */
     public boolean isSealed() {
         return this.sealed;
@@ -125,6 +130,7 @@ public class StreamSegmentMapOperation extends MetadataOperation {
 
     /**
      * Gets the Attributes for the StreamSegment at the time of the mapping.
+     * @return Attributes for the StreamSegment
      */
     public Map<UUID, Long> getAttributes() {
         return this.attributes;

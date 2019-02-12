@@ -17,39 +17,46 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating the id of this StreamSegment.
+     * @return The StreamSegment Id
      */
     long getId();
 
     /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
+     * @return The Container Id
      */
     int getContainerId();
 
     /**
      * Gets a value indicating whether this StreamSegment has been merged into another.
+     * @return true if StreamSegment merged, false otherwise
      */
     boolean isMerged();
 
     /**
      * Gets a value indicating whether this StreamSegment has been sealed in Storage.
      * This is different from isSealed(), which returns true if the StreamSegment has been sealed in the Metadata or in Storage.
+     * @return true if this StreamSegment has been sealed in Storage, false otherwise
      */
     boolean isSealedInStorage();
 
     /**
      * Gets a value indicating whether this StreamSegment has been deleted in Storage.
      * This is different from isDeleted(), which returns true if the StreamSegment has been deleted in the Metadata or in Storage.
+     * @return true if this StreamSegment has been deleted in Storage, false otherwise
      */
     boolean isDeletedInStorage();
 
     /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
+     * @return The lenght of the StreamSegment
      */
     long getStorageLength();
 
     /**
      * Gets a value representing the when the Segment was last used. The meaning of this value is implementation specific,
      * however higher values should indicate it was used more recently.
+     * @return The value representing when the Segment last used
      */
     long getLastUsed();
 

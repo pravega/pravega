@@ -58,6 +58,7 @@ public interface TruncationMarkerRepository {
      * setValidTruncationPoint().
      *
      * @param operationSequenceNumber The Sequence number to query.
+     * @return true if the given Operation Sequence Number is valid, false otherwise
      */
     boolean isValidTruncationPoint(long operationSequenceNumber);
 
@@ -65,6 +66,7 @@ public interface TruncationMarkerRepository {
      * Gets a value representing the highest Truncation Point that is smaller than or equal to the given Sequence Number.
      *
      * @param operationSequenceNumber The Sequence number to query.
+     * @return The highest Truncation Point
      */
     long getClosestValidTruncationPoint(long operationSequenceNumber);
 }

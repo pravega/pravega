@@ -362,6 +362,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public interface Client {
         /**
          * Gets the current Cache Status.
+         * @return current Cache Status
          */
         CacheStatus getCacheStatus();
 
