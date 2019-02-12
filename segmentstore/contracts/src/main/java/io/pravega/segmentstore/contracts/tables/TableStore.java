@@ -13,15 +13,11 @@ import com.google.common.annotations.Beta;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.AttributeUpdateType;
-import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadSegmentTypeException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -63,24 +59,6 @@ public interface TableStore {
      */
     default int maximumValueLength() {
         return 1040384; // 1MB - maximumKeyLength();
-    }
-
-    /**
-     * Generates a set of {@link AttributeUpdate}s that set the initial Attributes on a newly create Table Segment.
-     * TODO cleanup as described in https://github.com/pravega/pravega/issues/3273.
-     *
-     * Attributes:
-     * * {@link Attributes#TABLE_INDEX_OFFSET} is initialized to 0.
-     * * {@link Attributes#TABLE_ENTRY_COUNT} is initialized to 0.
-     * * {@link Attributes#TABLE_BUCKET_COUNT} is initialized to 0.
-     *
-     * @return A Collection of {@link AttributeUpdate}s.
-     */
-    static Collection<AttributeUpdate> getInitialTableAttributes() {
-        return Arrays.asList(
-                new AttributeUpdate(Attributes.TABLE_INDEX_OFFSET, AttributeUpdateType.None, 0L),
-                new AttributeUpdate(Attributes.TABLE_ENTRY_COUNT, AttributeUpdateType.None, 0L),
-                new AttributeUpdate(Attributes.TABLE_BUCKET_COUNT, AttributeUpdateType.None, 0L));
     }
 
     /**

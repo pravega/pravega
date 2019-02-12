@@ -16,12 +16,12 @@ import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
-import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
@@ -237,8 +237,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     /**
      * Tests the ability to resume operations after a recovery event. Scenarios include:
-     * - Index is up-to-date ({@link Attributes#TABLE_INDEX_OFFSET} equals Segment.Length.
-     * - Index is not up-to-date ({@link Attributes#TABLE_INDEX_OFFSET} is less than Segment.Length.
+     * - Index is up-to-date ({@link TableAttributes#INDEX_OFFSET} equals Segment.Length.
+     * - Index is not up-to-date ({@link TableAttributes#INDEX_OFFSET} is less than Segment.Length.
      */
     @Test
     public void testRecovery() throws Exception {
@@ -273,7 +273,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             // Create a new instance of the extension (which simulates a recovery) and verify it exhibits the correct behavior.
             try (val ext = context.createExtension()) {
                 // We should have unindexed data.
-                long lastIndexedOffset = context.segment().getInfo().getAttributes().get(Attributes.TABLE_INDEX_OFFSET);
+                long lastIndexedOffset = context.segment().getInfo().getAttributes().get(TableAttributes.INDEX_OFFSET);
                 long segmentLength = context.segment().getInfo().getLength();
                 AssertExtensions.assertGreaterThan("Expected some unindexed data.", lastIndexedOffset, segmentLength);
 
@@ -741,7 +741,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void awaitRunning(long timeout, TimeUnit unit) throws TimeoutException {
+        public void awaitRunning(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
@@ -751,7 +751,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void awaitTerminated(long timeout, TimeUnit unit) throws TimeoutException {
+        public void awaitTerminated(long timeout, TimeUnit unit) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
@@ -791,7 +791,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 

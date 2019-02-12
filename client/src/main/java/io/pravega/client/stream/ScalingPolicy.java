@@ -14,6 +14,7 @@ import java.io.Serializable;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -25,19 +26,23 @@ import lombok.RequiredArgsConstructor;
 public class ScalingPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public enum ScaleType {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
-        FIXED_NUM_SEGMENTS,
+        FIXED_NUM_SEGMENTS(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_KBYTES_PER_SEC,
+        BY_RATE_IN_KBYTES_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS_PER_SEC,
+        BY_RATE_IN_EVENTS_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue());
+
+        @Getter
+        private final byte value;
     }
 
     private final ScaleType scaleType;

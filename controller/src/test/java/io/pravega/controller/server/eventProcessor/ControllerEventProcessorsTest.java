@@ -18,6 +18,7 @@ import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessor
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -62,6 +63,7 @@ public class ControllerEventProcessorsTest {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
+        BucketStore bucketStore = mock(BucketStore.class);
         HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
@@ -148,7 +150,7 @@ public class ControllerEventProcessorsTest {
         }
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
-                config, localController, checkpointStore, streamStore,
+                config, localController, checkpointStore, streamStore, bucketStore, 
                 connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                 system, executor);
         processors.startAsync();

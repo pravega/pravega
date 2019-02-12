@@ -9,29 +9,28 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.segmentstore.contracts.Attributes;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import lombok.extern.slf4j.Slf4j;
-
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.shared.segment.ScaleType;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
-    private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
-    private static final long TWENTY_MINUTES = Duration.ofMinutes(20).toMillis();
+class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
+    private static final Duration DEFAULT_REPORTING_DURATION = Duration.ofMinutes(2);
+    private static final Duration DEFAULT_EXPIRY_DURATION = Duration.ofMinutes(20);
+    private static final Duration CACHE_CLEANUP_INTERVAL = Duration.ofMinutes(2);
     private static final int INITIAL_CAPACITY = 1000;
     private static final int MAX_CACHE_SIZE = 100000; // 100k segment records in memory.
     // At 100k * with each aggregate approximately ~80 bytes = 8 Mb of memory foot print.
@@ -42,50 +41,41 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     // where traffic is flowing concurrently.
 
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
-
     private final Set<String> pendingCacheLoads;
     private final Cache<String, SegmentAggregates> cache;
-    private final long reportingDuration;
+    private final Duration reportingDuration;
     private final AutoScaleProcessor reporter;
     private final StreamSegmentStore store;
-    private final Executor executor;
+    private final ScheduledFuture<?> cacheCleanup;
+    private final ScheduledExecutorService executor;
 
-    SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store,
-                             ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
-        this(reporter, store, TWO_MINUTES, TWENTY_MINUTES, TimeUnit.MINUTES, executor, maintenanceExecutor);
+    SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store, ScheduledExecutorService executor) {
+        this(reporter, store, DEFAULT_REPORTING_DURATION, DEFAULT_EXPIRY_DURATION, executor);
     }
 
     @VisibleForTesting
-    SegmentStatsRecorderImpl(AutoScaleProcessor reporter, StreamSegmentStore store,
-                             long reportingDuration, long expiryDuration, TimeUnit timeUnit,
-                             ExecutorService executor, ScheduledExecutorService maintenanceExecutor) {
-        Preconditions.checkNotNull(executor);
-        Preconditions.checkNotNull(maintenanceExecutor);
+    SegmentStatsRecorderImpl(@NonNull AutoScaleProcessor reporter, @NonNull StreamSegmentStore store,
+                             @NonNull Duration reportingDuration, @NonNull Duration expiryDuration, @NonNull ScheduledExecutorService executor) {
         this.executor = executor;
         this.pendingCacheLoads = Collections.synchronizedSet(new HashSet<>());
 
         this.cache = CacheBuilder.newBuilder()
                 .initialCapacity(INITIAL_CAPACITY)
                 .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterAccess(expiryDuration, timeUnit)
-                // We may want to store some traffic related information in attributes
-                // and reconstruct while loading from it for evicted segments.
-                // .removalListener((RemovalListener<String, SegmentAggregates>) notification -> {
-                //    if (notification.getCause().equals(RemovalCause.SIZE)) {
-                //        store.updateAttributes(notification.getKey(), Collections.emptyList(), TIMEOUT);
-                //    }
-                //notification.getCause().equals(RemovalCause.EXPIRED)
-                // expired will happen if there is no traffic for expiry duration
-                // so no need to update attributes in the store
-                //})
+                .expireAfterAccess(expiryDuration.toMillis(), TimeUnit.MILLISECONDS)
                 .build();
 
         // Dedicated thread for cache clean up scheduled periodically. This ensures that read and write
         // on cache are not used for cache maintenance activities.
-        maintenanceExecutor.scheduleAtFixedRate(cache::cleanUp, Duration.ofMinutes(2).toMillis(), 2, TimeUnit.MINUTES);
+        this.cacheCleanup = executor.scheduleAtFixedRate(cache::cleanUp, CACHE_CLEANUP_INTERVAL.toMillis(), 2, TimeUnit.MINUTES);
         this.reportingDuration = reportingDuration;
         this.store = store;
         this.reporter = reporter;
+    }
+
+    @Override
+    public void close() {
+        this.cacheCleanup.cancel(true);
     }
 
     private SegmentAggregates getSegmentAggregate(String streamSegmentName) {
@@ -103,14 +93,14 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         if (!pendingCacheLoads.contains(streamSegmentName)) {
             pendingCacheLoads.add(streamSegmentName);
             if (store != null) {
-                store.getStreamSegmentInfo(streamSegmentName, false, TIMEOUT)
+                store.getStreamSegmentInfo(streamSegmentName, TIMEOUT)
                         .thenAcceptAsync(prop -> {
                             if (prop != null &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_TYPE) &&
                                     prop.getAttributes().containsKey(Attributes.SCALE_POLICY_RATE)) {
                                 byte type = prop.getAttributes().get(Attributes.SCALE_POLICY_TYPE).byteValue();
                                 int rate = prop.getAttributes().get(Attributes.SCALE_POLICY_RATE).intValue();
-                                cache.put(streamSegmentName, new SegmentAggregates(type, rate));
+                                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScaleType.fromValue(type), rate));
                             }
                             pendingCacheLoads.remove(streamSegmentName);
                         }, executor);
@@ -120,8 +110,11 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate) {
-        cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
-        reporter.notifyCreated(streamSegmentName, type, targetRate);
+        SegmentAggregates sa = SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate);
+        cache.put(streamSegmentName, sa);
+        if (sa.isScalingEnabled()) {
+            reporter.notifyCreated(streamSegmentName);
+        }
     }
 
     @Override
@@ -137,8 +130,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null) {
             // if there is a scale type change, discard the old object and create a new object
-            if (aggregates.getScaleType() != type) {
-                cache.put(streamSegmentName, new SegmentAggregates(type, targetRate));
+            if (aggregates.getScaleType().getValue() != type) {
+                cache.put(streamSegmentName, SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate));
             } else {
                 aggregates.setTargetRate(targetRate);
             }
@@ -164,11 +157,8 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
             // only upon txn commit. This is done via merge method. So here we can get a txn which
             // we do not know about and hence we can get null and ignore.
 
-            if (aggregates != null) {
-                if (aggregates.getScaleType() != WireCommands.CreateSegment.NO_SCALE) {
-                    aggregates.update(dataLength, numOfEvents);
-                    report(streamSegmentName, aggregates);
-                }
+            if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
+                report(streamSegmentName, aggregates);
             }
         } catch (Exception e) {
             log.warn("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e);
@@ -186,23 +176,17 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-        if (aggregates != null) {
-            aggregates.updateTx(dataLength, numOfEvents, txnCreationTime);
+        if (aggregates != null && aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
             report(streamSegmentName, aggregates);
         }
     }
 
-    private long report(String streamSegmentName, SegmentAggregates aggregates) {
-        return aggregates.lastReportedTime.getAndUpdate(prev -> {
-            if (System.currentTimeMillis() - prev > reportingDuration) {
-                reporter.report(streamSegmentName,
-                        aggregates.getTargetRate(), aggregates.getScaleType(), aggregates.getStartTime(),
-                        aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
-                        aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
-                return System.currentTimeMillis();
-            }
-
-            return prev;
+    private void report(String streamSegmentName, SegmentAggregates aggregates) {
+        aggregates.reportIfNecessary(reportingDuration, () -> {
+            reporter.report(streamSegmentName,
+                    aggregates.getTargetRate(), aggregates.getStartTime(),
+                    aggregates.getTwoMinuteRate(), aggregates.getFiveMinuteRate(),
+                    aggregates.getTenMinuteRate(), aggregates.getTwentyMinuteRate());
         });
     }
 

@@ -24,6 +24,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -269,10 +270,13 @@ public class MockController implements Controller {
     
     private StreamSegments getCurrentSegments(Stream stream) {
         List<Segment> segmentsInStream = getSegmentsForStream(stream);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         double increment = 1.0 / segmentsInStream.size();
         for (int i = 0; i < segmentsInStream.size(); i++) {
-            segments.put((i + 1) * increment, new Segment(stream.getScope(), stream.getStreamName(), i));
+            segments.put((i + 1) * increment,
+                         new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), i),
+                                              i * increment,
+                                              (i + 1) * increment));
         }
         return new StreamSegments(segments, "");
     }
