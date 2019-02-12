@@ -40,7 +40,6 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -48,7 +47,6 @@ import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertFalse;
 
-@Ignore
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
