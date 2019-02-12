@@ -119,6 +119,12 @@ project('common') {
             project(':common').sourceSets.main.java
             project(':shared:protocol').sourceSets.main.java
         }
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion
+            compile group: 'io.netty', name: 'netty-all', version:  nettyVersion   
+        }
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -132,10 +138,15 @@ project('shared:authplugin') {
     javadoc {
         title = "Pravega Auth API"
         failOnError = false
-
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
         source {
             sourceSets.main.java
         }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -150,6 +161,12 @@ project ('shared:cluster') {
     }
     javadoc {
         exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -171,6 +188,12 @@ project ('shared:metrics') {
 
     javadoc {
         exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -181,6 +204,8 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
+
+     
     }
 }
 
@@ -201,6 +226,9 @@ project('client') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference", true)
+        apply plugin: 'io.franzbecker.gradle-lombok'
     }
 }
 
@@ -213,12 +241,29 @@ project('test:testcommon') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
     }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
+    }
 }
 
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference", true)
+        apply plugin: 'io.franzbecker.gradle-lombok'
     }
 }
 
@@ -229,6 +274,14 @@ project('segmentstore:storage') {
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -242,6 +295,14 @@ project('segmentstore:storage:impl') {
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -265,6 +326,14 @@ project ('bindings') {
         testCompile project(':test:testcommon')
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
+    }
 }
 
 project('segmentstore:server') {
@@ -274,6 +343,14 @@ project('segmentstore:server') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
 }
 
@@ -456,7 +533,9 @@ project('shared:controller-api') {
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
+  
 
+	
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
@@ -468,6 +547,12 @@ project('shared:controller-api') {
 
     javadoc {
         exclude 'io/pravega/controller/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -888,7 +973,7 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/8/docs/api/");
+    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
@@ -897,8 +982,9 @@ task javadocs(type: Javadoc) {
     classpath = files(projects.collect {
         project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
     })
-    failOnError = false
+    failOnError = true
     exclude "**/impl/**"
+    options.addBooleanOption("Xdoclint:all,-reference", true)
 }
 
 apply plugin: 'distribution'
