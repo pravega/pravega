@@ -18,7 +18,6 @@ import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
-import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.DataCorruptionException;
@@ -474,7 +473,8 @@ public class HDFSStorage implements SyncStorage {
         for (long fencedCount = 0; fencedCount < this.epoch; fencedCount++) {
             try {
                 Path targetPath = getFilePath(streamSegmentName, this.epoch);
-                FileStatus fileStatus = findStatusForSegment(streamSegmentName, true);
+                FileStatus[] allFileStatuses = findAllStatusForSegment(streamSegmentName, true);
+                FileStatus fileStatus = allFileStatuses[0];
 
                 // This instance is already owner.
                 if (targetPath.equals(fileStatus.getPath())) {
@@ -492,6 +492,10 @@ public class HDFSStorage implements SyncStorage {
                 // Try to take ownership by renaming.
                 try {
                     if (this.fileSystem.rename(fileStatus.getPath(), targetPath)) {
+                        // If there is a race during creation and failure there might be zombie stray files, delete them.
+                        for (int i = 1; i < allFileStatuses.length; i++) {
+                            this.fileSystem.delete(allFileStatuses[i].getPath(), true);
+                        }
                         return;
                     }
                 } catch (PathNotFoundException | FileNotFoundException e) {
@@ -510,10 +514,8 @@ public class HDFSStorage implements SyncStorage {
         // Creates a file with the lowest possible epoch (0).
         // There is a possible race during create where more than one segmentstore may be trying to create a streamsegment.
         // If one create is delayed, it is possible that other segmentstore will be able to create the file with
-        // epoch (0) and then rename it using its epoch (segment_<epoch>).
+        // epoch (0) and then rename it by claiming ownership.
         //
-        // To fix this, the create code checks whether a file with higher epoch exists.
-        // If it does, it tries to remove the created file, and throws SegmentExistsException.
 
         ensureInitializedAndNotClosed();
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
@@ -529,8 +531,8 @@ public class HDFSStorage implements SyncStorage {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, HDFSExceptionHelpers.segmentExistsException(streamSegmentName));
         }
 
-        // Create the file for the segment with current epoch.
-        Path fullPath = getFilePath(streamSegmentName, this.epoch);
+        // Create the file for the segment with 0 epoch.
+        Path fullPath = getFilePath(streamSegmentName, 0);
         try {
             // Create the file, and then immediately close the returned OutputStream, so that HDFS may properly create the file.
             this.fileSystem.create(fullPath, READWRITE_PERMISSION, false, 0, this.config.getReplication(),
@@ -541,18 +543,10 @@ public class HDFSStorage implements SyncStorage {
             throw HDFSExceptionHelpers.convertException(streamSegmentName, e);
         }
 
-        // If there is a race during creation, delete the file with epoch 0 and throw exception.
-        // It is safe to delete the file as a file with higher epoch already exists. Any new operations will always
-        // work the file with higher epoch than 0.
-        try {
-            status = findAllRaw(streamSegmentName);
-            if (status != null && status.length > 1) {
-                this.fileSystem.delete(fullPath, true);
-                throw new StreamSegmentExistsException(streamSegmentName);
-            }
-        } catch (IOException e) {
-            log.warn("Exception while deleting a file with epoch 0.", e);
-        }
+        // Now claim the ownership of file before returning.
+        // In case of a race the stale instance will throw StorageNotPrimaryException
+        claimOwnership(streamSegmentName);
+
         LoggerHelpers.traceLeave(log, "create", traceId, streamSegmentName);
 
         // return handle
@@ -596,9 +590,6 @@ public class HDFSStorage implements SyncStorage {
         String pattern = String.format(NAME_FORMAT, getPathPrefix(segmentName), SUFFIX_GLOB_REGEX);
         FileStatus[] files = this.fileSystem.globStatus(new Path(pattern));
 
-        if (files.length > 1) {
-            throw new IllegalArgumentException("More than one file");
-        }
         return files;
     }
 
@@ -636,6 +627,26 @@ public class HDFSStorage implements SyncStorage {
      * @throws IOException If an exception occurred.
      */
     private FileStatus findStatusForSegment(String segmentName, boolean enforceExistence) throws IOException {
+        FileStatus[] statuses = findAllStatusForSegment(segmentName, enforceExistence);
+        if (null == statuses) {
+            return null;
+        }
+        if (statuses.length > 1) {
+            throw new IllegalArgumentException("More than one file");
+        }
+
+        return statuses[statuses.length -1];
+    }
+
+    /**
+     * Gets the array of filestatuses representing the segment.
+     *
+     * @param segmentName      The name of the Segment to retrieve for.
+     * @param enforceExistence If true, it will throw a FileNotFoundException if no files are found, otherwise null is returned.
+     * @return FileStatus[] of the HDFS file.
+     * @throws IOException If an exception occurred.
+     */
+    private FileStatus[] findAllStatusForSegment(String segmentName, boolean enforceExistence) throws IOException {
         FileStatus[] rawFiles = findAllRaw(segmentName);
         if (rawFiles == null || rawFiles.length == 0) {
             if (enforceExistence) {
@@ -646,9 +657,11 @@ public class HDFSStorage implements SyncStorage {
         }
 
         val result = Arrays.stream(rawFiles)
-                           .sorted(this::compareFileStatus)
-                           .collect(Collectors.toList());
-        return result.get(result.size() -1);
+                .sorted(this::compareFileStatus)
+                .collect(Collectors.toList());
+
+        FileStatus[] retValue = new FileStatus[rawFiles.length];
+        return result.toArray(retValue);
     }
 
     private int compareFileStatus(FileStatus f1, FileStatus f2) {
