@@ -18,11 +18,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
@@ -118,7 +119,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        if (!metadata.getAttributes().containsKey(Attributes.TABLE_INDEX_OFFSET)) {
+        if (!metadata.getAttributes().containsKey(TableAttributes.INDEX_OFFSET)) {
             // Not a Table Segment; nothing to do.
             return Collections.emptyList();
         }
@@ -133,7 +134,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentContainer.createStreamSegment(segmentName, TableStore.getInitialTableAttributes(), timeout);
+        val attributes = TableAttributes.DEFAULT_VALUES
+                .entrySet().stream()
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
+                .collect(Collectors.toList());
+        return this.segmentContainer.createStreamSegment(segmentName, attributes, timeout);
     }
 
     @Override
