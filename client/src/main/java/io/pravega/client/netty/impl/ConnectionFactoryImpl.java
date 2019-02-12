@@ -124,6 +124,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                 if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
                     sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
                                                       .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
+                    log.warn("Done setting the sslCtxFactory to FingerprintTrustManagerFactory");
                 } else {
                     sslCtxFactory = SslContextBuilder.forClient()
                                               .trustManager(new File(clientConfig.getTrustStore()));

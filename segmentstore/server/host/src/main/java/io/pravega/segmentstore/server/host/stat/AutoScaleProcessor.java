@@ -157,7 +157,7 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private static EventStreamClientFactory createFactory(AutoScalerConfig configuration) {
-        if (configuration.isAuthEnabled()) {
+        if (configuration.isTlsEnabled()) {
             return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
                                 .trustStore(configuration.getTlsCertFile())
