@@ -947,6 +947,7 @@ class DockerBuildTask extends Exec {
     DockerBuildTask() {
         executable project.dockerExecutable
         args "build"
+        args "--pull"
         args "-t", "${->baseTag}:${project.version}"
         args "-t", "${->baseTag}:latest"
         args "${->dockerDir}"
