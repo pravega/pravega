@@ -9,7 +9,8 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventRead;
@@ -26,6 +27,7 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -43,6 +45,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ReaderGroupStreamCutUpdateTest {
@@ -67,7 +71,7 @@ public class ReaderGroupStreamCutUpdateTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -101,15 +105,13 @@ public class ReaderGroupStreamCutUpdateTest {
         StreamManager streamManager = StreamManager.create(controllerURI);
         Assert.assertTrue(streamManager.createScope(scope));
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                     .scope(scope)
-                                                                     .streamName(stream)
                                                                      .scalingPolicy(ScalingPolicy.fixed(2))
                                                                      .build();
         streamManager.createStream(scope, stream, streamConfiguration);
 
         // Write some events in the stream.
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         writeEvents(clientFactory, stream, numEvents);
 
         // Read the events and test that positions are getting updated.
@@ -148,7 +150,7 @@ public class ReaderGroupStreamCutUpdateTest {
         } while ((eventRead.isCheckpoint() || eventRead.getEvent() != null) && iteration < numEvents);
     }
 
-    private void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents, int offset) {
+    private void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int offset) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -158,7 +160,7 @@ public class ReaderGroupStreamCutUpdateTest {
         }
     }
 
-    private void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
+    private void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents) {
         writeEvents(clientFactory, streamName, totalEvents, 0);
     }
 }

@@ -28,7 +28,8 @@ Pravega segment store uses Apache Bookkeeper as Tier 1 storage. Apache Bookkeepe
 The configurations can be found [here](pravega-security-configurations.md#pravega-segment-store).
 
 ### Encrypted access to Apache Zookeeper
-This implementation is still in [progress](https://github.com/pravega/pravega/issues/2034).
+Pravega segment store and Pravega controller interact with Apache Zookeeper. These connections can be encrypted based on configuration.
+The details about the configurations can be found at for [segmentstore](pravega-security-configurations.md#pravega-segment-store) and for [controller](pravega-security-configurations.md#pravega-controller).
 
 ## Encryption of data at rest
 ### Encryption of data in Tier 1

@@ -9,10 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.controller.server.retention.BucketChangeListener;
-import io.pravega.controller.server.retention.BucketOwnershipListener;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
@@ -81,6 +78,20 @@ public interface StreamMetadataStore {
                                                  final String streamName);
 
 
+    /**
+     * Api to get creation time for the stream. 
+     * 
+     * @param scopeName       scope name
+     * @param streamName      stream name
+     * @param context         operation context
+     * @param executor        callers executor
+     * @return CompletableFuture, which when completed, will contain the creation time of the stream. 
+     */
+    CompletableFuture<Long> getCreationTime(final String scopeName,
+                                            final String streamName,
+                                            final OperationContext context,
+                                            final Executor executor);
+    
     /**
      * Api to Delete the stream related metadata.
      *
@@ -174,9 +185,9 @@ public interface StreamMetadataStore {
      * List existing streams in scopes.
      *
      * @param scopeName Name of the scope
-     * @return List of streams in scope
+     * @return A map of streams in scope to their configurations
      */
-    CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scopeName);
+    CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName);
 
     /**
      * List Scopes in cluster.
@@ -866,77 +877,7 @@ public interface StreamMetadataStore {
      */
     CompletableFuture<List<ScaleMetadata>> getScaleMetadata(final String scope, final String name, final long from, 
                                                             final long to, final OperationContext context, final Executor executor);
-
-    /**
-     * Method to register listener for changes to bucket's ownership.
-     *
-     * @param listener listener
-     */
-    void registerBucketOwnershipListener(BucketOwnershipListener listener);
-
-    /**
-     * Unregister listeners for bucket ownership.
-     */
-    void unregisterBucketOwnershipListener();
-
-    /**
-     * Method to register listeners for changes to streams under the bucket.
-     *
-     * @param bucket   bucket
-     * @param listener listener
-     */
-    void registerBucketChangeListener(int bucket, BucketChangeListener listener);
-
-    /**
-     * Method to unregister listeners for changes to streams under the bucket.
-     *
-     * @param bucket bucket
-     */
-    void unregisterBucketListener(int bucket);
-
-    /**
-     * Method to take ownership of a bucket.
-     *
-     * @param bucket   bucket id
-     * @param processId process id
-     *@param executor executor  @return future boolean which tells if ownership attempt succeeded or failed.
-     */
-    CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, final Executor executor);
-
-    /**
-     * Return all streams in the bucket.
-     *
-     * @param bucket   bucket id.
-     * @param executor executor
-     * @return List of scopedStreamName (scope/stream)
-     */
-    CompletableFuture<List<String>> getStreamsForBucket(final int bucket, final Executor executor);
-
-    /**
-     * Add the given stream to appropriate bucket for auto-retention.
-     *
-     * @param scope           scope
-     * @param stream          stream
-     * @param retentionPolicy retention policy
-     * @param context         operation context
-     * @param executor        executor
-     * @return future
-     */
-    CompletableFuture<Void> addUpdateStreamForAutoStreamCut(final String scope, final String stream, final RetentionPolicy retentionPolicy,
-                                                            final OperationContext context, final Executor executor);
-
-    /**
-     * Remove stream from auto retention bucket.
-     *
-     * @param scope    scope
-     * @param stream   stream
-     * @param context  context
-     * @param executor executor
-     * @return future
-     */
-    CompletableFuture<Void> removeStreamFromAutoStreamCut(final String scope, final String stream,
-                                                          final OperationContext context, final Executor executor);
-
+    
     /**
      * Add stream cut to retention set of the given stream.
      *

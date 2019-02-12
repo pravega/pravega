@@ -9,7 +9,8 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.Checkpoint;
@@ -217,7 +218,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         String readerId = "checkPointReader";
         CompletableFuture<Checkpoint> checkpoint = null;
 
-        try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE_1, controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
                      new JavaSerializer<Integer>(), readerConfig)) {
 
@@ -239,7 +240,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         String readerId = "streamCut";
         CompletableFuture<Map<io.pravega.client.stream.Stream, StreamCut>> streamCuts = null;
 
-        try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE_2, controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_2, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
                                                                             new JavaSerializer<Integer>(), readerConfig)) {
 
@@ -301,7 +302,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     private <T extends Serializable> List<EventRead<T>> readEvents(final String scope, final String readerId) {
         List<EventRead<T>> events = new ArrayList<>();
 
-        try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamReader<T> reader = clientFactory.createReader(readerId,
                      READER_GROUP_NAME,
                      new JavaSerializer<T>(),
@@ -330,7 +331,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     }
 
     private <T extends Serializable> void writeEvents(final String scope, final List<T> events) {
-        try (ClientFactory clientFactory = ClientFactory.withScope(scope, controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamWriter<T> writer = clientFactory.createEventWriter(STREAM,
                      new JavaSerializer<T>(),
                      EventWriterConfig.builder().build())) {

@@ -15,7 +15,7 @@ package io.pravega.client.tables.impl;
  * @param <KeyT>   Key Type.
  * @param <ValueT> Value Type
  */
-interface TableEntry<KeyT, ValueT> {
+public interface TableEntry<KeyT, ValueT> {
     /**
      * The Key.
      */

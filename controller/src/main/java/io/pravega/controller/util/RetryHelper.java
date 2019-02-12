@@ -57,5 +57,4 @@ public class RetryHelper {
                                                          ScheduledExecutorService executor) {
         return Futures.loop(condition, () -> Futures.delayedFuture(loopBody, delay, executor), executor);
     }
-
 }

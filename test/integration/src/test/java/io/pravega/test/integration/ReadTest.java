@@ -49,6 +49,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -75,6 +76,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 public class ReadTest {
 
@@ -179,12 +181,12 @@ public class ReadTest {
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
-        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
         SegmentOutputStreamFactoryImpl segmentproducerClient = new SegmentOutputStreamFactoryImpl(controller, clientCF);
 
@@ -221,12 +223,12 @@ public class ReadTest {
         byte[] testString = "Hello world\n".getBytes();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
         Controller controller = new MockController(endpoint, port, clientCF);
         controller.createScope(scope);
-        controller.createStream(StreamConfiguration.builder().scope(scope).streamName(stream).build());
+        controller.createStream(scope, stream, StreamConfiguration.builder().build());
         
         ConditionalOutputStreamFactoryImpl segmentproducerClient = new ConditionalOutputStreamFactoryImpl(controller, clientCF);
 
@@ -262,7 +264,7 @@ public class ReadTest {
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -295,7 +297,7 @@ public class ReadTest {
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);

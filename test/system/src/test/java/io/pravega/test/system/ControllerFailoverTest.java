@@ -84,9 +84,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         log.info("conuris {} {}", conUris.get(0), conUris.get(1));
         log.debug("Pravega Controller service  details: {}", conUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
@@ -136,8 +134,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         List<URI> conUris = controllerService1.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
+        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
@@ -181,10 +178,8 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
     private void createStream(Controller controller, String scope, String stream, ScalingPolicy scalingPolicy) {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(stream)
                 .scalingPolicy(scalingPolicy)
                 .build();
-        controller.createStream(config).join();
+        controller.createStream(scope, stream, config).join();
     }
 }

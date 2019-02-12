@@ -88,27 +88,33 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void createStream(StreamConfig request, StreamObserver<CreateStreamStatus> responseObserver) {
+        String scope = request.getStreamInfo().getScope();
+        String stream = request.getStreamInfo().getStream();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "createStream",
-                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+                                                                            scope, stream);
 
-        log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.",
-                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(request.getStreamInfo().getScope()
-                        + "/" + request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.createStream(ModelHelper.encode(request), System.currentTimeMillis()),
-                responseObserver, requestTag);
+        log.info(requestTag.getRequestId(), "createStream called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(scope + "/"
+                + stream, AuthHandler.Permissions.READ_UPDATE),
+                                             delegationToken -> controllerService.createStream(scope, stream,
+                                                                                               ModelHelper.encode(request),
+                                                                                               System.currentTimeMillis()),
+                                             responseObserver, requestTag);
     }
 
     @Override
     public void updateStream(StreamConfig request, StreamObserver<UpdateStreamStatus> responseObserver) {
+        String scope = request.getStreamInfo().getScope();
+        String stream = request.getStreamInfo().getStream();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "updateStream",
-                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
+                scope, stream);
 
-        log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.",
-                request.getStreamInfo().getScope(), request.getStreamInfo().getStream());
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getStreamInfo().getScope() + "/" +
-                        request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.updateStream(ModelHelper.encode(request)), responseObserver, requestTag);
+        log.info(requestTag.getRequestId(), "updateStream called for stream {}/{}.", scope, stream);
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope + "/"
+                + stream, AuthHandler.Permissions.READ_UPDATE),
+                                             delegationToken -> controllerService.updateStream(scope, stream,
+                                                                                               ModelHelper.encode(request)),
+                                             responseObserver, requestTag);
     }
 
     @Override

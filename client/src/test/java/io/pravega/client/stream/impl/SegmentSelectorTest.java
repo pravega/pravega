@@ -28,7 +28,7 @@ import org.junit.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -47,11 +47,11 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.25, new Segment(scope, streamName, 0));
-        segments.put(0.5, new Segment(scope, streamName, 1));
-        segments.put(0.75, new Segment(scope, streamName, 2));
-        segments.put(1.0, new Segment(scope, streamName, 3));
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
         when(controller.getCurrentSegments(scope, streamName))
@@ -69,16 +69,20 @@ public class SegmentSelectorTest {
         }
     }
 
+    private void addNewSegment(TreeMap<Double, SegmentWithRange> segments, int number, double low, double high) {
+        segments.put(high, new SegmentWithRange(new Segment(scope, streamName, number), low, high));
+    }
+
     @Test
     public void testNullRoutingKey() {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.25, new Segment(scope, streamName, 0));
-        segments.put(0.5, new Segment(scope, streamName, 1));
-        segments.put(0.75, new Segment(scope, streamName, 2));
-        segments.put(1.0, new Segment(scope, streamName, 3));
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
         when(controller.getCurrentSegments(scope, streamName))
@@ -101,11 +105,11 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.25, new Segment(scope, streamName, 0));
-        segments.put(0.5, new Segment(scope, streamName, 1));
-        segments.put(0.75, new Segment(scope, streamName, 2));
-        segments.put(1.0, new Segment(scope, streamName, 3));
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
         when(controller.getCurrentSegments(scope, streamName))
@@ -141,9 +145,9 @@ public class SegmentSelectorTest {
 
         Controller controller = Mockito.mock(Controller.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.5, segment0);
-        segments.put(1.0, segment1);
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.5);
+        addNewSegment(segments, 1, 0.5, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
         when(controller.getCurrentSegments(scope, streamName))
@@ -162,7 +166,7 @@ public class SegmentSelectorTest {
                 });
 
         assertEquals(Collections.emptyList(), selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback));
-        assertThrows("Writer Future", writerFuture, t -> t instanceof NoSuchSegmentException);
+        assertFutureThrows("Writer Future", writerFuture, t -> t instanceof NoSuchSegmentException);
     }
 
 }

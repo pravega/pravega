@@ -82,7 +82,7 @@ public class LocalController implements Controller {
             case FAILURE:
                 throw new ControllerFailureException("Failed to delete scope: " + scopeName);
             case SCOPE_NOT_EMPTY:
-                throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
+                throw new IllegalStateException("Scope " + scopeName + " is not empty.");
             case SCOPE_NOT_FOUND:
                 return false;
             case SUCCESS:
@@ -95,8 +95,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
-        return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
@@ -116,8 +116,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig) {
-        return this.controller.updateStream(streamConfig).thenApply(x -> {
+    public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.updateStream(scope, streamName, streamConfig).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);
@@ -282,9 +282,9 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
         for (SegmentRange r : ranges) {
-            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
         return new StreamSegments(rangeMap, retrieveDelegationToken());
     }

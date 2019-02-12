@@ -24,6 +24,7 @@ import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.CancellableRequest;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
@@ -98,18 +99,18 @@ public class MockController implements Controller {
 
     @Override
     @Synchronized
-    public CompletableFuture<Boolean> createStream(StreamConfiguration streamConfig) {
-        Stream stream = new StreamImpl(streamConfig.getScope(), streamConfig.getStreamName());
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
+        Stream stream = new StreamImpl(scope, streamName);
         if (createdStreams.get(stream) != null) {
             return CompletableFuture.completedFuture(false);
         }
 
-        if (createdScopes.get(streamConfig.getScope()) == null) {
+        if (createdScopes.get(scope) == null) {
             return Futures.failedFuture(new IllegalArgumentException("Scope does not exit."));
         }
 
         createdStreams.put(stream, streamConfig);
-        createdScopes.get(streamConfig.getScope()).add(stream);
+        createdScopes.get(scope).add(stream);
         for (Segment segment : getSegmentsForStream(stream)) {
             createSegment(segment.getScopedName());
         }
@@ -126,13 +127,13 @@ public class MockController implements Controller {
         }
         List<Segment> result = new ArrayList<>(scalingPolicy.getMinNumSegments());
         for (int i = 0; i < scalingPolicy.getMinNumSegments(); i++) {
-            result.add(new Segment(config.getScope(), config.getStreamName(), i));
+            result.add(new Segment(stream.getScope(), stream.getStreamName(), i));
         }
         return result;
     }
 
     @Override
-    public CompletableFuture<Boolean> updateStream(StreamConfiguration streamConfig) {
+    public CompletableFuture<Boolean> updateStream(String scope, String streamName, StreamConfiguration streamConfig) {
         throw new UnsupportedOperationException();
     }
 
@@ -262,10 +263,13 @@ public class MockController implements Controller {
     
     private StreamSegments getCurrentSegments(Stream stream) {
         List<Segment> segmentsInStream = getSegmentsForStream(stream);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         double increment = 1.0 / segmentsInStream.size();
         for (int i = 0; i < segmentsInStream.size(); i++) {
-            segments.put((i + 1) * increment, new Segment(stream.getScope(), stream.getStreamName(), i));
+            segments.put((i + 1) * increment,
+                         new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), i),
+                                              i * increment,
+                                              (i + 1) * increment));
         }
         return new StreamSegments(segments, "");
     }
@@ -466,11 +470,12 @@ public class MockController implements Controller {
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });
-        try {
-            connection.send(request);
-        } catch (Exception e) {
-            resultFuture.completeExceptionally(e);
-        }
+
+        connection.sendAsync(request, cfe -> {
+            if (cfe != null) {
+                resultFuture.completeExceptionally(cfe);
+            }
+        });
     }
 
     @Override

@@ -35,14 +35,15 @@ import lombok.extern.slf4j.Slf4j;
 public class RawClient implements AutoCloseable {
 
     private final CompletableFuture<ClientConnection> connection;
-    
+    private final Segment segmentId;
+
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final class ResponseProcessor extends FailingReplyProcessor {
-        
+
         @Override
         public void process(Reply reply) {
             if (reply instanceof Hello) {
@@ -56,7 +57,7 @@ public class RawClient implements AutoCloseable {
                 reply(reply);
             }
         }
-        
+
         @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());
@@ -67,17 +68,18 @@ public class RawClient implements AutoCloseable {
             log.warn("Processing failure: ", error);
             closeConnection(error);
         }
-        
+
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             log.warn("Auth token failure: ", authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
     }
-    
+
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
-        connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                               .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+        this.segmentId = segmentId;
+        this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
+                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -90,9 +92,13 @@ public class RawClient implements AutoCloseable {
             future.complete(reply);
         }
     }
-    
+
     private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
+        if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
+            log.debug("Closing connection to segment {} with exception {}", this.segmentId, exceptionToInflightRequests);
+        } else {
+            log.warn("Closing connection to segment {} with exception: {}", this.segmentId, exceptionToInflightRequests);
+        }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
                 try {
@@ -111,7 +117,7 @@ public class RawClient implements AutoCloseable {
             request.completeExceptionally(exceptionToInflightRequests);
         }
     }
-    
+
     public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request) {
         return connection.thenCompose(c -> {
             log.debug("Sending request: {}", request);
@@ -119,19 +125,23 @@ public class RawClient implements AutoCloseable {
             synchronized (lock) {
                 requests.put(requestId, reply);
             }
-            try {
-                c.send(request);
-            } catch (ConnectionFailedException e) {
-                closeConnection(e);
-            }
+            c.sendAsync(request, cfe -> {
+                if (cfe != null) {
+                    synchronized (lock) {
+                        requests.remove(requestId);
+                    }
+                    reply.completeExceptionally(cfe);
+                    closeConnection(cfe);
+                }
+            });
             return reply;
         });
     }
-    
+
     public boolean isClosed() {
         return closed.get();
     }
-    
+
     @Override
     public void close() {
         closeConnection(new ConnectionClosedException());

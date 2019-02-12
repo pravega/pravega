@@ -57,7 +57,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        store = new ZKStreamMetadataStore(cli, 1, executor, Duration.ofSeconds(1));
+        store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
+        bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }
 
     @Override
@@ -171,10 +172,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
         store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
 
-        List<StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
+        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
         assertEquals("List streams in scope", 2, streamInScope.size());
-        assertEquals("List streams in scope", stream1, streamInScope.get(0).getStreamName());
-        assertEquals("List streams in scope", stream2, streamInScope.get(1).getStreamName());
+        assertTrue("List streams in scope", streamInScope.containsKey(stream1));
+        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
     }
 
     @Test
@@ -184,7 +185,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream1, State.CREATING, null, executor).get();
 
-        AssertExtensions.assertThrows("Should throw IllegalStateException",
+        AssertExtensions.assertFutureThrows("Should throw IllegalStateException",
                 store.getActiveSegments(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof StoreException.IllegalStateException);
     }
@@ -206,16 +207,16 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.StoreConnectionException;
 
         zkServer.close();
-        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
+        AssertExtensions.assertFutureThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
     }
 
     private void testFailure(String host, TxnResource txn, Predicate<Throwable> checker) {
-        AssertExtensions.assertThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
-        AssertExtensions.assertThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
-        AssertExtensions.assertThrows("Remove host fails", store.removeHostFromIndex(host), checker);
-        AssertExtensions.assertThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
-        AssertExtensions.assertThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
-        AssertExtensions.assertThrows("List hosts fails", store.listHostsOwningTxn(), checker);
+        AssertExtensions.assertFutureThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
+        AssertExtensions.assertFutureThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
+        AssertExtensions.assertFutureThrows("Remove host fails", store.removeHostFromIndex(host), checker);
+        AssertExtensions.assertFutureThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
+        AssertExtensions.assertFutureThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
+        AssertExtensions.assertFutureThrows("List hosts fails", store.listHostsOwningTxn(), checker);
     }
 
     @Test
@@ -223,7 +224,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String scope = "testScopeScale";
         String stream = "testStreamScale";
         ScalingPolicy policy = ScalingPolicy.fixed(3);
-        StreamConfiguration configuration = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(policy).build();
+        StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.0, 0.5);
         SimpleEntry<Double, Double> segment2 = new SimpleEntry<>(0.5, 1.0);
         List<Map.Entry<Double, Double>> newRanges = Arrays.asList(segment1, segment2);
@@ -265,8 +266,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String scope = "testScopeScale";
         String stream = "testStreamScale";
         ScalingPolicy policy = ScalingPolicy.fixed(2);
-        StreamConfiguration configuration = StreamConfiguration.builder().
-                scope(scope).streamName(stream).scalingPolicy(policy).build();
+        StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         store.createScope(scope).get();
         store.createStream(scope, stream, configuration, System.currentTimeMillis(), null, executor).get();
@@ -347,7 +347,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String scope = "scopeGC";
         String stream = "stream";
         store.createScope(scope).join();
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(ScalingPolicy.fixed(1))
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         store.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         store.setState(scope, stream, State.ACTIVE, null, executor).join();
@@ -407,7 +407,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertTrue(batches.contains(secondBatch));
         assertTrue(batches.contains(thirdBatch));
     }
-
+    
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))

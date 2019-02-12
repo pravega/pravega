@@ -31,10 +31,11 @@ import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 @Slf4j
 public class HDFSDockerService extends DockerBasedService {
 
+    private static final int HDFS_PORT = 8020;
     private final int instances = 1;
     private final double cpu = 0.5;
     private final double mem = 2048.0;
-    private final String hdfsimage = "dsrw/hdfs:2.7.3-1";
+    private final String hdfsimage = "pravega/hdfs:2.7.7";
 
     public HDFSDockerService(final String serviceName) {
         super(serviceName);
@@ -57,7 +58,7 @@ public class HDFSDockerService extends DockerBasedService {
     private ServiceSpec setServiceSpec() {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.task.name", serviceName);
-        Mount mount = Mount.builder().type("volume").source("hadoop-logs-volume").target("/opt/hadoop/logs").build();
+        Mount mount = Mount.builder().type("volume").source("hadoop-logs").target("/opt/hadoop/logs").build();
         String env1 = "SSH_PORT=2222";
         String env2 = "HDFS_HOST=" + serviceName;
 
@@ -65,7 +66,7 @@ public class HDFSDockerService extends DockerBasedService {
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(hdfsimage).env(Arrays.asList(env1, env2))
-                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(8020)).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(customHealthCheck("ss -l | grep " + HDFS_PORT + " || exit 1")).build())
                         .mounts(mount)
                         .labels(labels)
                         .hostname(serviceName)

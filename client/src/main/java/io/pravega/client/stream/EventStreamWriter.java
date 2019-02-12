@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.client.ClientFactory;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -64,7 +65,9 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Note that transactions can only be open for {@link EventWriterConfig#getTransactionTimeoutTime()}.
      * 
      * @return A transaction through which multiple events can be written atomically.
+     * @deprecated Use {@link ClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead
      */
+    @Deprecated
     Transaction<Type> beginTxn();
 
     /**
@@ -72,7 +75,9 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
      * @return Transaction object with given UUID
+     * @deprecated Use {@link ClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead
      */
+    @Deprecated
     Transaction<Type> getTxn(UUID transactionId);
 
     /**

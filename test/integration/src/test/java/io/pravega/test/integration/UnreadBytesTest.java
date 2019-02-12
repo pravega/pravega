@@ -11,7 +11,7 @@ package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
@@ -31,6 +31,7 @@ import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -51,6 +52,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class UnreadBytesTest {
 
@@ -74,7 +76,7 @@ public class UnreadBytesTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -98,17 +100,15 @@ public class UnreadBytesTest {
     @Test(timeout = 50000)
     public void testUnreadBytes() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("unreadbytes")
-                .streamName("unreadbytes")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
 
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream(config).get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -157,17 +157,15 @@ public class UnreadBytesTest {
     @Test(timeout = 50000)
     public void testUnreadBytesWithEndStreamCuts() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("unreadbytes")
-                                                        .streamName("unreadbytes")
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                                                         .build();
 
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("unreadbytes").get();
-        controller.createStream(config).get();
+        controller.createStream("unreadbytes", "unreadbytes", config).get();
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope("unreadbytes", ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());

@@ -10,13 +10,11 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -24,17 +22,20 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -56,9 +57,9 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Slf4j
 public class EndToEndAutoScaleUpWithTxnTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 1)).build();
+    static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                                 .build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -73,27 +74,28 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
             @Cleanup
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, connectionFactory);
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            TableStore tableStore = serviceBuilder.createTableStoreService();
             @Cleanup
-            SegmentStatsFactory segmentStatsFactory = new SegmentStatsFactory();
-            SegmentStatsRecorder statsRecorder = segmentStatsFactory.createSegmentStatsRecorder(store,
+            AutoScaleMonitor autoScaleMonitor = new AutoScaleMonitor(store,
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
+                                    .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
+            SegmentStatsRecorder statsRecorder = autoScaleMonitor.getRecorder();
 
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
+            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
                     statsRecorder, null, null, null, true);
             server.startListening();
 
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(CONFIG).get();
+            controller.createStream("test", "test", CONFIG).get();
             @Cleanup
             MockClientFactory clientFactory = new MockClientFactory("test", controller);
 
@@ -101,7 +103,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                               .transactionTimeoutTime(30000)
                                                               .build();
-            EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(), writerConfig);
+            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(), writerConfig);
 
             // region Successful commit tests
             Transaction<String> txn1 = test.beginTxn();
@@ -170,7 +172,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
         System.exit(0);
     }
 
-    private static void startWriter(EventStreamWriter<String> test, AtomicBoolean done) {
+    private static void startWriter(TransactionalEventStreamWriter<String> test, AtomicBoolean done) {
         CompletableFuture.runAsync(() -> {
             while (!done.get()) {
                 try {

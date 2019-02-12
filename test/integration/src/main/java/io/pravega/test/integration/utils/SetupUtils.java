@@ -11,7 +11,7 @@ package io.pravega.test.integration.utils;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -58,7 +58,7 @@ public final class SetupUtils {
     @Getter
     private Controller controller = null;
     @Getter
-    private ClientFactory clientFactory = null;
+    private EventStreamClientFactory clientFactory = null;
     private ControllerWrapper controllerWrapper = null;
     private PravegaConnectionListener server = null;
     private TestingServer zkTestServer = null;
@@ -108,7 +108,7 @@ public final class SetupUtils {
 
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        this.server = new PravegaConnectionListener(false, servicePort, store);
+        this.server = new PravegaConnectionListener(false, servicePort, store, serviceBuilder.createTableStoreService());
         this.server.startListening();
         log.info("Started Pravega Service");
 
@@ -159,8 +159,6 @@ public final class SetupUtils {
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName,
                                    StreamConfiguration.builder()
-                                                      .scope(scope)
-                                                      .streamName(streamName)
                                                       .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                       .build());
         log.info("Created stream: " + streamName);

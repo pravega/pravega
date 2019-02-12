@@ -87,7 +87,8 @@ public class AssertExtensions {
      * @param tester         A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>            The type of the future's result.
      */
-    public static <T> void assertThrows(String message, Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
+    public static <T> void assertSuppliedFutureThrows(String message,
+            Supplier<CompletableFuture<T>> futureSupplier, Predicate<Throwable> tester) {
         try {
             futureSupplier.get().join();
             Assert.fail(message + " No exception has been thrown.");
@@ -110,7 +111,7 @@ public class AssertExtensions {
      * @param tester  A predicate that indicates whether the exception (if thrown) is as expected.
      * @param <T>     The type of the future's result.
      */
-    public static <T> void assertThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
+    public static <T> void assertFutureThrows(String message, CompletableFuture<T> future, Predicate<Throwable> tester) {
         try {
             future.join();
             Assert.fail(message + " No exception has been thrown.");
@@ -365,7 +366,7 @@ public class AssertExtensions {
 
     /**
      * Asserts that the provided function blocks until the second function is run.
-     * 
+     *
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      * @return The result of the blockingFunction.
@@ -414,7 +415,7 @@ public class AssertExtensions {
 
     /**
      * Asserts that the provided function blocks until the second function is run.
-     * 
+     *
      * @param blockingFunction The function that is expected to block
      * @param unblocker The function that is expected to unblock the blocking function.
      */
@@ -464,6 +465,25 @@ public class AssertExtensions {
         }
         if (exception.get() != null) {
             throw new RuntimeException(exception.get());
-        } 
+        }
+    }
+
+    /**
+    * Compares two floating point values with a given precision.
+    *
+    * @param a the first operand.
+    * @param b the second operand.
+    * @param precision the maximum absolute difference between the two values.
+    * @return true if the two operands are both null or the represent the same
+    * value within the given precision
+    */
+    public static boolean nearlyEquals(Double a, Double b, double precision) {
+        if (a == null && b == null) {
+            return true;
+        }
+        if (a != null && b != null) {
+            return Math.abs(a - b) <= precision;
+        }
+        return false;
     }
 }

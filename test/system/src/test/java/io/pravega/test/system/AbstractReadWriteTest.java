@@ -11,7 +11,7 @@ package io.pravega.test.system;
 
 import com.google.common.base.Preconditions;
 import io.netty.util.internal.ConcurrentSet;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -22,23 +22,25 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
@@ -95,6 +97,9 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
 
         final AtomicLong writtenEvents = new AtomicLong();
         final AtomicLong readEvents = new AtomicLong();
+        // Due to segment rebalances across readers, any reader may read arbitrary sub-sequences of events for various
+        // routing keys. This calls for a global state across readers to check the correctness of event sequences.
+        final Map<String, Long> routingKeySeqNumber = new ConcurrentHashMap<>();
 
         TestState(boolean txnWrite) {
             this.txnWrite = txnWrite;
@@ -205,11 +210,10 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }, executorService);
     }
 
-    CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<String> writer, AtomicBoolean stopFlag) {
+    CompletableFuture<Void> startWritingIntoTxn(final TransactionalEventStreamWriter<String> writer, AtomicBoolean stopFlag) {
         return CompletableFuture.runAsync(() -> {
             while (!stopFlag.get()) {
                 Transaction<String> transaction = null;
-                AtomicBoolean txnIsDone = new AtomicBoolean(false);
 
                 try {
                     transaction = writer.beginTxn();
@@ -232,7 +236,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                     }
                     //commit Txn
                     transaction.commit();
-                    txnIsDone.set(true);
 
                     //wait for transaction to get committed
                     testState.txnStatusFutureList.add(checkTxnStatus(transaction, NUM_EVENTS_PER_TRANSACTION));
@@ -240,7 +243,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                     // Given that we have retry logic both in the interaction with controller and
                     // segment store, we should fail the test case in the presence of any exception
                     // caught here.
-                    txnIsDone.set(true);
                     log.warn("Exception while writing events in the transaction: ", e);
                     if (transaction != null) {
                         log.debug("Transaction with id: {}  failed", transaction.getTxnId());
@@ -262,7 +264,6 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return CompletableFuture.runAsync(() -> {
             log.info("Exit flag status: {}, Read count: {}, Write count: {}", testState.stopReadFlag.get(),
                     testState.getEventReadCount(), testState.getEventWrittenCount());
-            final Map<String, Long> routingKeySeqNumber = new HashMap<>();
             while (!(stopFlag.get() && testState.getEventReadCount() == testState.getEventWrittenCount())) {
                 log.info("Entering read loop");
                 // Exit only if exitFlag is true  and read Count equals write count.
@@ -275,7 +276,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                         // produced them and that there are no duplicate or missing events.
                         final String[] keyAndSeqNum = event.split(RK_VALUE_SEPARATOR);
                         final long seqNumber = Long.valueOf(keyAndSeqNum[1]);
-                        routingKeySeqNumber.compute(keyAndSeqNum[0], (rk, currentSeqNum) -> {
+                        testState.routingKeySeqNumber.compute(keyAndSeqNum[0], (rk, currentSeqNum) -> {
                             if (currentSeqNum != null && currentSeqNum + 1 != seqNumber) {
                                 throw new AssertionError("Event order violated at " + currentSeqNum + " by " + seqNumber);
                             }
@@ -296,7 +297,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }, executorService);
     }
 
-    void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
+    void createReaders(EventStreamClientFactory clientFactory, String readerGroupName, String scope,
                        ReaderGroupManager readerGroupManager, String stream, final int readers) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build());
@@ -329,11 +330,11 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         });
     }
 
-    void createWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+    void createWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
         createWritersInternal(clientFactory, writers, scope, stream, testState.writersComplete);
     }
 
-    void addNewWriters(ClientFactory clientFactory, final int writers, String scope, String stream) {
+    void addNewWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
         Preconditions.checkNotNull(testState.writersListComplete.get(0));
         createWritersInternal(clientFactory, writers, scope, stream, testState.newWritersComplete);
     }
@@ -389,11 +390,11 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         assertEquals(testState.getEventWrittenCount(), testState.getEventReadCount());
     }
 
-    void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
+    void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents) {
         writeEvents(clientFactory, streamName, totalEvents, 0);
     }
 
-    void writeEvents(ClientFactory clientFactory, String streamName, int totalEvents, int initialPoint) {
+    void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int initialPoint) {
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
@@ -403,7 +404,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }
     }
 
-    <T extends Serializable> List<CompletableFuture<Integer>> readEventFutures(ClientFactory client, String rGroup, int numReaders, int limit) {
+    <T extends Serializable> List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory client, String rGroup, int numReaders, int limit) {
         List<EventStreamReader<T>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
             readers.add(client.createReader(rGroup + "-" + String.valueOf(i), rGroup,
@@ -413,13 +414,13 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
     }
 
-    List<CompletableFuture<Integer>> readEventFutures(ClientFactory clientFactory, String readerGroup, int numReaders) {
+    List<CompletableFuture<Integer>> readEventFutures(EventStreamClientFactory clientFactory, String readerGroup, int numReaders) {
         return readEventFutures(clientFactory, readerGroup, numReaders, Integer.MAX_VALUE);
     }
 
     // Private methods region
 
-    private void createWritersInternal(ClientFactory clientFactory, final int writers, String scope, String stream, CompletableFuture<Void> writersComplete) {
+    private void createWritersInternal(EventStreamClientFactory clientFactory, final int writers, String scope, String stream, CompletableFuture<Void> writersComplete) {
         testState.writersListComplete.add(writersComplete);
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
@@ -440,7 +441,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         });
     }
 
-    private <T extends Serializable> EventStreamWriter<T> instantiateWriter(ClientFactory clientFactory, String stream) {
+    private <T extends Serializable> EventStreamWriter<T> instantiateWriter(EventStreamClientFactory clientFactory, String stream) {
         EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                           .maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
                                                           .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
@@ -450,6 +451,16 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     private <T> void closeWriter(EventStreamWriter<T> writer) {
+        try {
+            log.info("Closing writer");
+            writer.close();
+        } catch (Throwable e) {
+            log.error("Error while closing writer", e);
+            testState.getWriteException.compareAndSet(null, e);
+        }
+    }
+    
+    private <T> void closeWriter(TransactionalEventStreamWriter<T> writer) {
         try {
             log.info("Closing writer");
             writer.close();

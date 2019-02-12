@@ -727,7 +727,7 @@ public class ControllerImplTest {
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
         } else {
-            builder = builder.usePlaintext(true);
+            builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller = new ControllerImpl(builder,
@@ -737,12 +737,10 @@ public class ControllerImplTest {
                                                                         .build())
                                     .retryAttempts(1).build(),
                 this.executor);
-        CompletableFuture<Boolean> createStreamStatus = controller.createStream(StreamConfiguration.builder()
-                .streamName("streamdelayed")
-                .scope("scope1")
+        CompletableFuture<Boolean> createStreamStatus = controller.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+        AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         // Verify that the same RPC with permissible keepalive time succeeds.
@@ -763,7 +761,7 @@ public class ControllerImplTest {
         if (testSecure) {
             builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
         } else {
-            builder = builder.usePlaintext(true);
+            builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,
@@ -772,9 +770,7 @@ public class ControllerImplTest {
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(), this.executor);
-        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                .streamName("streamdelayed")
-                .scope("scope1")
+        createStreamStatus = controller1.createStream("scope1", "streamdelayed", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
@@ -791,22 +787,18 @@ public class ControllerImplTest {
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                           .trustStore("../config/cert.pem").build())
                 .retryAttempts(3).build(), this.executor);
-        CompletableFuture<Boolean> createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                .streamName("streamretryfailure")
-                .scope("scope1")
+        CompletableFuture<Boolean> createStreamStatus = controller1.createStream("scope1", "streamretryfailure", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+        AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         // The following call with retries should fail since number of retries is not sufficient.
         this.retryAttempts.set(0);
-        createStreamStatus = controller1.createStream(StreamConfiguration.builder()
-                .streamName("streamretrysuccess")
-                .scope("scope1")
+        createStreamStatus = controller1.createStream("scope1", "streamretrysuccess", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
-        AssertExtensions.assertThrows("Should throw RetriesExhaustedException", createStreamStatus,
+        AssertExtensions.assertFutureThrows("Should throw RetriesExhaustedException", createStreamStatus,
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         // The RPC should succeed when internal retry attempts is > 3 which is the hardcoded test value for success.
@@ -817,9 +809,7 @@ public class ControllerImplTest {
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                           .trustStore("../config/cert.pem").build())
                 .retryAttempts(4).build(), this.executor);
-        createStreamStatus = controller2.createStream(StreamConfiguration.builder()
-                .streamName("streamretrysuccess")
-                .scope("scope1")
+        createStreamStatus = controller2.createStream("scope1", "streamretrysuccess", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build());
         assertTrue(createStreamStatus.get());
@@ -835,93 +825,78 @@ public class ControllerImplTest {
         @Test
     public void testCreateStream() throws Exception {
         CompletableFuture<Boolean> createStreamStatus;
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream1")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream1", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertTrue(createStreamStatus.get());
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream2")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream2", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createStreamStatus, Throwable -> true);
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream3")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream3", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createStreamStatus, Throwable -> true);
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream4")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream4", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
         assertFalse(createStreamStatus.get());
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream5")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream5", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        AssertExtensions.assertThrows("Server should throw exception", createStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                createStreamStatus, Throwable -> true);
 
-        createStreamStatus = controllerClient.createStream(StreamConfiguration.builder()
-                                                                   .streamName("stream6")
-                                                                   .scope("scope1")
+        createStreamStatus = controllerClient.createStream("scope1", "stream6", StreamConfiguration.builder()
                                                                    .scalingPolicy(ScalingPolicy.fixed(1))
                                                                    .build());
-        AssertExtensions.assertThrows("Should throw Exception", createStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                createStreamStatus, throwable -> true);
     }
 
     @Test
     public void testUpdateStream() throws Exception {
         CompletableFuture<Boolean> updateStreamStatus;
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream1")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream1", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
         assertTrue(updateStreamStatus.get());
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream2")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream2", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream3")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream3", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream4")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream4", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        AssertExtensions.assertThrows("Server should throw exception", updateStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception",
+                updateStreamStatus, Throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream5")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream5", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                updateStreamStatus, throwable -> true);
 
-        updateStreamStatus = controllerClient.updateStream(StreamConfiguration.builder()
-                                                                  .streamName("stream6")
-                                                                  .scope("scope1")
+        updateStreamStatus = controllerClient.updateStream("scope1", "stream6", StreamConfiguration.builder()
                                                                   .scalingPolicy(ScalingPolicy.fixed(1))
                                                                   .build());
-        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                updateStreamStatus, throwable -> true);
     }
 
     @Test
@@ -931,16 +906,20 @@ public class ControllerImplTest {
         assertTrue(updateStreamStatus.get());
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream2");
-        AssertExtensions.assertThrows("Should throw exception", updateStreamStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw exception",
+                updateStreamStatus, Throwable -> true);
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream3");
-        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                updateStreamStatus, throwable -> true);
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream4");
-        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                updateStreamStatus, throwable -> true);
 
         updateStreamStatus = controllerClient.sealStream("scope1", "stream5");
-        AssertExtensions.assertThrows("Should throw Exception", updateStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                updateStreamStatus, throwable -> true);
     }
 
     @Test
@@ -950,16 +929,19 @@ public class ControllerImplTest {
         assertTrue(deleteStreamStatus.join());
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream2");
-        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                deleteStreamStatus, throwable -> true);
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream3");
         assertFalse(deleteStreamStatus.join());
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream4");
-        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                deleteStreamStatus, throwable -> true);
 
         deleteStreamStatus = controllerClient.deleteStream("scope1", "stream5");
-        AssertExtensions.assertThrows("Should throw Exception", deleteStreamStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception",
+                deleteStreamStatus, throwable -> true);
     }
 
     @Test
@@ -971,7 +953,7 @@ public class ControllerImplTest {
         assertEquals(new Segment("scope1", "stream1", 7), streamSegments.get().getSegmentForKey(0.6));
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream2");
-        AssertExtensions.assertThrows("Should throw Exception", streamSegments, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", streamSegments, throwable -> true);
     }
 
     @Test
@@ -982,7 +964,7 @@ public class ControllerImplTest {
         assertEquals(10, positions.get().get(new Segment("scope1", "stream1", 0)).longValue());
         assertEquals(20, positions.get().get(new Segment("scope1", "stream1", 1)).longValue());
         positions = controllerClient.getSegmentsAtTime(new StreamImpl("scope1", "stream2"), 0);
-        AssertExtensions.assertThrows("Should throw Exception", positions, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", positions, throwable -> true);
     }
 
     @Test
@@ -998,7 +980,7 @@ public class ControllerImplTest {
 
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream2", 0L))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
-        AssertExtensions.assertThrows("Should throw Exception", successors, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", successors, throwable -> true);
     }
 
     @Test
@@ -1021,15 +1003,15 @@ public class ControllerImplTest {
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "stream2"), new ArrayList<>(),
                                                    new HashMap<>(), executor).getFuture();
-        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", scaleStream, throwable -> true);
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("UNKNOWN", "stream2"), new ArrayList<>(),
                 new HashMap<>(), executor).getFuture();
-        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", scaleStream, throwable -> true);
 
         scaleStream = controllerClient.scaleStream(new StreamImpl("scope1", "UNKNOWN"), new ArrayList<>(),
                 new HashMap<>(), executor).getFuture();
-        AssertExtensions.assertThrows("Should throw Exception", scaleStream, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", scaleStream, throwable -> true);
     }
 
     @Test
@@ -1039,7 +1021,7 @@ public class ControllerImplTest {
         assertEquals(new PravegaNodeUri("localhost", SERVICE_PORT), endpointForSegment.get());
 
         endpointForSegment = controllerClient.getEndpointForSegment("scope1/stream2/0");
-        AssertExtensions.assertThrows("Should throw Exception", endpointForSegment, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", endpointForSegment, throwable -> true);
     }
 
     @Test
@@ -1052,7 +1034,7 @@ public class ControllerImplTest {
         assertFalse(segmentOpen.get());
 
         segmentOpen = controllerClient.isSegmentOpen(new Segment("scope1", "stream3", 0));
-        AssertExtensions.assertThrows("Should throw Exception", segmentOpen, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", segmentOpen, throwable -> true);
     }
 
     @Test
@@ -1071,7 +1053,7 @@ public class ControllerImplTest {
         assertEquals(new Segment("scope1", "stream2", 0), transaction.get().getSteamSegments().getSegmentForKey(.8));
         
         transaction = controllerClient.createTransaction(new StreamImpl("scope1", "stream3"), 0);
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
     }
 
     @Test
@@ -1081,16 +1063,16 @@ public class ControllerImplTest {
         assertTrue(transaction.get() == null);
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
     }
 
     @Test
@@ -1100,16 +1082,16 @@ public class ControllerImplTest {
         assertTrue(transaction.get() == null);
 
         transaction = controllerClient.abortTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.abortTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.abortTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.abortTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
     }
 
     @Test
@@ -1119,7 +1101,7 @@ public class ControllerImplTest {
         assertTrue(transaction.get() == null);
 
         transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID(), 0);
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
     }
 
     @Test
@@ -1129,7 +1111,7 @@ public class ControllerImplTest {
         assertEquals(Transaction.Status.OPEN, transaction.get());
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream2"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream3"), UUID.randomUUID());
         assertEquals(Transaction.Status.COMMITTING, transaction.get());
@@ -1144,7 +1126,7 @@ public class ControllerImplTest {
         assertEquals(Transaction.Status.ABORTED, transaction.get());
 
         transaction = controllerClient.checkTransactionStatus(new StreamImpl("scope1", "stream7"), UUID.randomUUID());
-        AssertExtensions.assertThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
     }
 
     @Test
@@ -1154,16 +1136,16 @@ public class ControllerImplTest {
         assertTrue(scopeStatus.get());
 
         scopeStatus = controllerClient.createScope("scope2");
-        AssertExtensions.assertThrows("Server should throw exception", scopeStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception", scopeStatus, Throwable -> true);
 
         scopeStatus = controllerClient.createScope("scope3");
-        AssertExtensions.assertThrows("Server should throw exception", scopeStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception", scopeStatus, Throwable -> true);
 
         scopeStatus = controllerClient.createScope("scope4");
         assertFalse(scopeStatus.get());
 
         scopeStatus = controllerClient.createScope("scope5");
-        AssertExtensions.assertThrows("Should throw Exception", scopeStatus, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", scopeStatus, throwable -> true);
     }
 
     @Test
@@ -1179,16 +1161,16 @@ public class ControllerImplTest {
         assertTrue(deleteStatus.join());
 
         deleteStatus = controllerClient.deleteScope(scope2);
-        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
 
         deleteStatus = controllerClient.deleteScope(scope3);
-        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
 
         deleteStatus = controllerClient.deleteScope(scope4);
         assertFalse(deleteStatus.join());
 
         deleteStatus = controllerClient.deleteScope(scope5);
-        AssertExtensions.assertThrows("Server should throw exception", deleteStatus, Throwable -> true);
+        AssertExtensions.assertFutureThrows("Server should throw exception", deleteStatus, Throwable -> true);
     }
 
     @Test
@@ -1201,10 +1183,8 @@ public class ControllerImplTest {
                 for (int j = 0; j < 2; j++) {
                     try {
                         CompletableFuture<Boolean> createStreamStatus;
-                        createStreamStatus = controllerClient.createStream(
+                        createStreamStatus = controllerClient.createStream("scope1", "streamparallel",
                                 StreamConfiguration.builder()
-                                        .streamName("streamparallel")
-                                        .scope("scope1")
                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                         .build());
                         log.info("{}", createStreamStatus.get());

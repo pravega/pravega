@@ -11,8 +11,11 @@ package io.pravega.test.integration;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import io.pravega.client.ClientFactory;
-import io.pravega.client.batch.BatchClient;
+import io.pravega.client.BatchClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.admin.StreamInfo;
+import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
@@ -29,6 +32,7 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -48,7 +52,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -61,6 +64,7 @@ import org.junit.rules.Timeout;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class BatchClientTest {
@@ -93,7 +97,7 @@ public class BatchClientTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -118,10 +122,10 @@ public class BatchClientTest {
     @Test
     public void testBatchClient() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
-
-        BatchClient batchClient = clientFactory.createBatchClient();
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
 
         // List out all the segments in the stream.
         ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), null, null).getIterator());
@@ -149,10 +153,12 @@ public class BatchClientTest {
     @Test
     @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws Exception {
+        StreamManager streamManager = StreamManager.create(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
-        BatchClient batchClient = clientFactory.createBatchClient();
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
 
         // 1. Create a StreamCut after 2 events(offset = 2 * 30 = 60).
         StreamCut streamCut60L = new StreamCutImpl(Stream.of(SCOPE, STREAM), ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 60L));
@@ -161,7 +167,7 @@ public class BatchClientTest {
         // 3a. Fetch Segments using StreamCut.UNBOUNDED>
         ArrayList<SegmentRange> segmentsPostTruncation1 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
         // 3b. Fetch Segments using getStreamInfo() api.
-        io.pravega.client.batch.StreamInfo streamInfo = batchClient.getStreamInfo(Stream.of(SCOPE, STREAM)).join();
+        StreamInfo streamInfo = streamManager.getStreamInfo(SCOPE, STREAM);
         ArrayList<SegmentRange> segmentsPostTruncation2 = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), streamInfo.getHeadStreamCut(), streamInfo.getTailStreamCut()).getIterator());
         // Validate results.
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation1);
@@ -171,9 +177,10 @@ public class BatchClientTest {
     @Test(expected = TruncatedDataException.class)
     public void testBatchClientWithStreamTruncationPostGetSegments() throws Exception {
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
-        BatchClient batchClient = clientFactory.createBatchClient();
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
 
         // 1. Fetch Segments.
         ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
@@ -191,7 +198,7 @@ public class BatchClientTest {
         eventList.addAll(Lists.newArrayList(segmentIterator));
     }
 
-    private void validateSegmentCountAndEventCount(BatchClient batchClient, ArrayList<SegmentRange> segmentsPostTruncation) {
+    private void validateSegmentCountAndEventCount(BatchClientFactory batchClient, ArrayList<SegmentRange> segmentsPostTruncation) {
         //expected segments = 1+ 3 + 2 = 6
         assertEquals("Expected number of segments post truncation", 6, segmentsPostTruncation.size());
         List<String> eventsPostTruncation = new ArrayList<>();
@@ -207,7 +214,7 @@ public class BatchClientTest {
      * Create a test stream with 1 segment which is scaled-up to 3 segments and later scaled-down to 2 segments.
      * Events of constant size are written to the stream before and after scale operation.
      */
-    private void createTestStreamWithEvents(ClientFactory clientFactory) throws Exception {
+    private void createTestStreamWithEvents(EventStreamClientFactory clientFactory) throws Exception {
         createStream();
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
@@ -237,13 +244,11 @@ public class BatchClientTest {
 
     private void createStream() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(STREAM)
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
 
         controllerWrapper.getControllerService().createScope(SCOPE).join();
-        assertTrue("Create Stream operation", controllerWrapper.getController().createStream(config).join());
+        assertTrue("Create Stream operation", controllerWrapper.getController().createStream(SCOPE, STREAM, config).join());
     }
 
     private void write30ByteEvents(int numberOfEvents, EventStreamWriter<String> writer) {

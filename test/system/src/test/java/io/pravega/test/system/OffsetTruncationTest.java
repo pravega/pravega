@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -46,6 +45,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -63,8 +63,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-                                                                  .streamName(STREAM)
+    private final StreamConfiguration config = StreamConfiguration.builder()
                                                                   .scalingPolicy(scalingPolicy).build();
     private URI controllerURI;
     private StreamManager streamManager;
@@ -115,7 +114,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
                                                                            .controllerURI(controllerURI).build()).build(),
                                                                            connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
         log.info("Invoking offsetTruncationTest test with Controller URI: {}", controllerURI);
 
         @Cleanup

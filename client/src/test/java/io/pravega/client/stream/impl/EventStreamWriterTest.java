@@ -94,8 +94,8 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     private StreamSegments getSegments(Segment segment) {
-        NavigableMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(1.0, segment);
+        NavigableMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        segments.put(1.0, new SegmentWithRange(segment, 0.0, 1.0));
         return new StreamSegments(segments, "");
     }
     
@@ -142,11 +142,11 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
 
     @NotThreadSafe
     @RequiredArgsConstructor
-    private static final class FakeSegmentOutputStream implements SegmentOutputStream {
+    public static final class FakeSegmentOutputStream implements SegmentOutputStream {
+        final ArrayList<PendingEvent> unacked = new ArrayList<>();
         private final Segment segment;
         private Consumer<Segment> callBackForSealed;
         private final ArrayList<PendingEvent> acked = new ArrayList<>();
-        private final ArrayList<PendingEvent> unacked = new ArrayList<>();
         private boolean sealed = false;
  
         private ByteBuffer getAcked(int index) {
@@ -165,7 +165,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
             return event.getData().slice().skipBytes(WireCommands.TYPE_PLUS_LENGTH_SIZE).nioBuffer();
         }
         
-        private void invokeSealedCallBack() {
+        void invokeSealedCallBack() {
             if (callBackForSealed != null) {
                 callBackForSealed.accept(segment);
             }
@@ -362,6 +362,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTxn() throws TxnFailedException {
         String scope = "scope";
         String streamName = "stream";
@@ -396,6 +397,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTxnFailed() {
         String scope = "scope";
         String streamName = "stream";

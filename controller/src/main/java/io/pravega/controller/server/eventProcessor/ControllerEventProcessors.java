@@ -11,7 +11,6 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.Serializer;
@@ -43,6 +42,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -50,9 +50,6 @@ import io.pravega.controller.util.Config;
 import io.pravega.shared.controller.event.AbortEvent;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.ControllerEvent;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -61,6 +58,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import static io.pravega.controller.util.RetryHelper.RETRYABLE_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
@@ -82,7 +81,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     private final CheckpointStore checkpointStore;
     private final EventProcessorSystem system;
     private final Controller controller;
-    private final ClientFactory clientFactory;
+    private final ClientFactoryImpl clientFactory;
     private final ScheduledExecutorService executor;
 
     private EventProcessorGroup<CommitEvent> commitEventProcessors;
@@ -97,11 +96,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
+                                     final BucketStore bucketStore,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final ScheduledExecutorService executor) {
-        this(host, config, controller, checkpointStore, streamMetadataStore, connectionFactory,
+        this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
                 streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
     }
 
@@ -111,6 +111,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
+                                     final BucketStore bucketStore,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
@@ -125,9 +126,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);
@@ -217,32 +218,26 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
     }
 
     private CompletableFuture<Void> createStreams() {
-        StreamConfiguration commitStreamConfig =
-                StreamConfiguration.builder()
-                        .scope(config.getScopeName())
-                        .streamName(config.getCommitStreamName())
-                        .scalingPolicy(config.getCommitStreamScalingPolicy())
-                        .build();
+        StreamConfiguration commitStreamConfig = StreamConfiguration.builder()
+                                                                    .scalingPolicy(config.getCommitStreamScalingPolicy())
+                                                                    .build();
 
-        StreamConfiguration abortStreamConfig =
-                StreamConfiguration.builder()
-                        .scope(config.getScopeName())
-                        .streamName(config.getAbortStreamName())
-                        .scalingPolicy(config.getAbortStreamScalingPolicy())
-                        .build();
+        StreamConfiguration abortStreamConfig = StreamConfiguration.builder()
+                                                                   .scalingPolicy(config.getAbortStreamScalingPolicy())
+                                                                   .build();
 
-        StreamConfiguration requestStreamConfig =
-                StreamConfiguration.builder()
-                        .scope(config.getScopeName())
-                        .streamName(Config.SCALE_STREAM_NAME)
-                        .scalingPolicy(config.getRequestStreamScalingPolicy())
-                        .build();
+        StreamConfiguration requestStreamConfig = StreamConfiguration.builder()
+                                                                     .scalingPolicy(config.getRequestStreamScalingPolicy())
+                                                                     .build();
 
-        return createScope(config.getScopeName())
-                .thenCompose(ignore ->
-                        CompletableFuture.allOf(createStream(commitStreamConfig),
-                                createStream(abortStreamConfig),
-                                createStream(requestStreamConfig)));
+        String scope = config.getScopeName();
+        CompletableFuture<Void> future = createScope(scope);
+        return future.thenCompose(ignore -> CompletableFuture.allOf(createStream(scope, config.getCommitStreamName(),
+                                                                                 commitStreamConfig),
+                                                                    createStream(scope, config.getAbortStreamName(),
+                                                                                 abortStreamConfig),
+                                                                    createStream(scope, Config.SCALE_STREAM_NAME,
+                                                                                 requestStreamConfig)));
     }
 
     private CompletableFuture<Void> createScope(final String scopeName) {
@@ -252,12 +247,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                         .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
     }
 
-    private CompletableFuture<Void> createStream(final StreamConfiguration streamConfig) {
+    private CompletableFuture<Void> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating event processor stream " + streamConfig.getStreamName(), e))
-                                   .runAsync(() -> controller.createStream(streamConfig)
+                e -> log.warn("Error creating event processor stream " + streamName, e))
+                                   .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
-                                        log.info("Created stream {}/{}", streamConfig.getScope(), streamConfig.getStreamName())),
+                                        log.info("Created stream {}/{}", scope, streamName)),
                         executor));
     }
 

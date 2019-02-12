@@ -16,6 +16,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.InvalidEventNumber;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
+import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAlreadyExists;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
@@ -144,6 +145,27 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation: " + segmentDeleted);
     }
 
+
+    @Override
+    public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesUpdated);
+    }
+
+    @Override
+    public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeysRemoved);
+    }
+
+    @Override
+    public void tableRead(WireCommands.TableRead tableRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableRead);
+    }
+
+    @Override
+    public void tableSegmentNotEmpty(TableSegmentNotEmpty tableSegmentNotEmpty) {
+        throw new IllegalStateException("Unexpected operation: " + tableSegmentNotEmpty);
+    }
+
     @Override
     public void segmentPolicyUpdated(SegmentPolicyUpdated segment) {
         throw new IllegalStateException("Unexpected operation: " + segment);
@@ -154,4 +176,13 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
         throw new IllegalStateException("Unexpected operation: " + keepAlive);
     }
 
+    @Override
+    public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyDoesNotExist);
+    }
+
+    @Override
+    public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeyBadVersion);
+    }
 }

@@ -141,7 +141,8 @@ class LogReader implements CloseableIterator<DurableDataLog.ReadItem, DurableDat
 
         ReadLedger previousLedger;
         try {
-            val reader = Exceptions.handleInterrupted(() -> ledger.readEntries(address.getEntryId(), lastEntryId));
+            val reader = Exceptions.handleInterruptedCall(
+                    () -> ledger.readEntries(address.getEntryId(), lastEntryId));
             previousLedger = this.currentLedger;
             this.currentLedger = new ReadLedger(metadata, ledger, reader);
             if (previousLedger != null) {

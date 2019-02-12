@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.EventStreamWriterMock;
@@ -26,6 +27,7 @@ import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -105,7 +107,7 @@ public class TimeoutServiceTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore,
                 new SegmentHelper(), executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
@@ -123,8 +125,6 @@ public class TimeoutServiceTest {
         streamStore.createScope(SCOPE).join();
 
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1)).build();
 
         streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)
@@ -244,11 +244,12 @@ public class TimeoutServiceTest {
     public void testPingOwnershipTransfer() throws Exception {
         StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(client, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, hostStore, taskMetadataStore,
+        StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, bucketStore, hostStore, taskMetadataStore,
                 new SegmentHelper(), executor, "2", connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
         @Cleanup
         StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2, hostStore,
@@ -504,6 +505,6 @@ public class TimeoutServiceTest {
     }
 
     private <T> void checkError(CompletableFuture<T> future, Class<? extends Throwable> expectedException) {
-        AssertExtensions.assertThrows("Failed future", future, e -> e.getClass().equals(expectedException));
+        AssertExtensions.assertFutureThrows("Failed future", future, e -> Exceptions.unwrap(e).getClass().equals(expectedException));
     }
 }

@@ -15,11 +15,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import io.grpc.Attributes;
 import io.grpc.EquivalentAddressGroup;
+import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
@@ -72,7 +72,7 @@ public class ControllerResolverFactory extends NameResolver.Factory {
         final List<InetSocketAddress> addresses = Splitter.on(',').splitToList(authority).stream().map(host -> {
             final String[] strings = host.split(":");
             Preconditions.checkArgument(strings.length == 2, "URI should have both address and port");
-            return InetSocketAddress.createUnresolved(strings[0], Integer.valueOf(strings[1]));
+            return InetSocketAddress.createUnresolved(strings[0], Integer.parseInt(strings[1]));
         }).collect(Collectors.toList());
 
         return new ControllerNameResolver(authority, addresses, SCHEME_DISCOVER.equals(scheme) || SCHEME_DISCOVER_TLS.equals(scheme));
@@ -145,8 +145,8 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                 this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
                         .forTarget(connectString)
                         .nameResolverFactory(new ControllerResolverFactory())
-                        .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                        .usePlaintext(true)
+                        .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
+                        .usePlaintext()
                         .build());
             } else {
                 this.client = null;

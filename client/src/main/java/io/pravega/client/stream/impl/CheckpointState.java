@@ -147,8 +147,14 @@ public class CheckpointState {
         return !uncheckpointedHosts.isEmpty();
     }
 
+    /**
+     * Get the number of outstanding Checkpoints. It should not take silent Checkpoints into account.
+     * @return the number of outstanding Checkpoints.
+     */
     int getOutstandingCheckpoints() {
-        return checkpoints.size();
+        return (int) checkpoints.stream()
+                                .filter(checkpoint -> !(isCheckpointSilent(checkpoint) || isCheckpointComplete(checkpoint)))
+                                .count();
     }
     
     void clearCheckpointsBefore(String checkpointId) {

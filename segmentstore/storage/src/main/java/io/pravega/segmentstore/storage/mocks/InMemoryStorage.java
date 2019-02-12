@@ -87,7 +87,7 @@ public class InMemoryStorage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentExistsException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         ensurePreconditions();
         synchronized (this.lock) {
             if (this.streamSegments.containsKey(streamSegmentName)) {
@@ -95,9 +95,8 @@ public class InMemoryStorage implements SyncStorage {
             }
 
             StreamSegmentData data = new StreamSegmentData(streamSegmentName, this.syncContext);
-            data.openWrite();
             this.streamSegments.put(streamSegmentName, data);
-            return data.getInfo();
+            return data.openWrite();
         }
     }
 

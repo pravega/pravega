@@ -44,9 +44,9 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.HttpStatus;
 
 /**
  * Storage adapter for extended S3 based storage.
@@ -138,7 +138,7 @@ public class ExtendedS3Storage implements SyncStorage {
     }
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return execute(streamSegmentName, () -> doCreate(streamSegmentName));
     }
 
@@ -273,7 +273,7 @@ public class ExtendedS3Storage implements SyncStorage {
         }
     }
 
-    private SegmentProperties doCreate(String streamSegmentName) throws StreamSegmentExistsException {
+    private SegmentHandle doCreate(String streamSegmentName) throws StreamSegmentExistsException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
 
         if (!client.listObjects(config.getBucket(), config.getRoot() + streamSegmentName).getObjects().isEmpty()) {
@@ -311,7 +311,7 @@ public class ExtendedS3Storage implements SyncStorage {
         client.putObject(request);
 
         LoggerHelpers.traceLeave(log, "create", traceId);
-        return doGetStreamSegmentInfo(streamSegmentName);
+        return ExtendedS3SegmentHandle.getWriteHandle(streamSegmentName);
     }
 
     private Void doWrite(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
@@ -427,8 +427,9 @@ public class ExtendedS3Storage implements SyncStorage {
     }
 
     private <T> T throwException(String segmentName, Exception e) throws StreamSegmentException {
-        if (e instanceof S3Exception && !Strings.isNullOrEmpty(((S3Exception) e).getErrorCode())) {
-            String errorCode = ((S3Exception) e).getErrorCode();
+        if (e instanceof S3Exception) {
+            S3Exception s3Exception = (S3Exception) e;
+            String errorCode = Strings.nullToEmpty(s3Exception.getErrorCode());
 
             if (errorCode.equals("NoSuchKey")) {
                 throw new StreamSegmentNotExistsException(segmentName);
@@ -440,20 +441,21 @@ public class ExtendedS3Storage implements SyncStorage {
 
             if (errorCode.equals("InvalidRange")
                     || errorCode.equals("InvalidArgument")
-                    || errorCode.equals("MethodNotAllowed")) {
+                    || errorCode.equals("MethodNotAllowed")
+                    || s3Exception.getHttpCode() == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
                 throw new IllegalArgumentException(segmentName, e);
             }
+
             if (errorCode.equals("AccessDenied")) {
                 throw new StreamSegmentSealedException(segmentName, e);
             }
-
         }
 
         if (e instanceof IndexOutOfBoundsException) {
             throw new ArrayIndexOutOfBoundsException(e.getMessage());
         }
 
-        throw Lombok.sneakyThrow(e);
+        throw Exceptions.sneakyThrow(e);
     }
 
     /**

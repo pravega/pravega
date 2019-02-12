@@ -10,7 +10,6 @@
 package io.pravega.test.integration.demo;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -21,9 +20,10 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -40,9 +40,9 @@ import org.apache.curator.test.TestingServer;
 
 @Slf4j
 public class EndToEndAutoScaleDownTest {
-    static final StreamConfiguration CONFIG =
-            StreamConfiguration.builder().scope("test").streamName("test").scalingPolicy(
-                    ScalingPolicy.byEventRate(10, 2, 1)).build();
+    static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                                 .build();
 
     public static void main(String[] args) throws Exception {
         try {
@@ -55,28 +55,29 @@ public class EndToEndAutoScaleDownTest {
             Controller controller = controllerWrapper.getController();
 
             controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
-            ClientFactory internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
+            ClientFactoryImpl internalCF = new ClientFactoryImpl(NameUtils.INTERNAL_SCOPE_NAME, controller, new ConnectionFactoryImpl(ClientConfig.builder().build()));
 
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            TableStore tableStore = serviceBuilder.createTableStoreService();
             @Cleanup
-            SegmentStatsFactory segmentStatsFactory = new SegmentStatsFactory();
-            SegmentStatsRecorder statsRecorder = segmentStatsFactory.createSegmentStatsRecorder(store,
+            AutoScaleMonitor autoScaleMonitor = new AutoScaleMonitor(store,
                     internalCF,
                     AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
-                            .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 5)
-                            .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 30).build());
+                                    .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0)
+                                    .with(AutoScalerConfig.CACHE_CLEANUP_IN_SECONDS, 5)
+                                    .with(AutoScalerConfig.CACHE_EXPIRY_IN_SECONDS, 30).build());
+            SegmentStatsRecorder statsRecorder = autoScaleMonitor.getRecorder();
 
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store,
+            PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
                     statsRecorder, null, null, null, true);
             server.startListening();
             controllerWrapper.awaitRunning();
             controllerWrapper.getControllerService().createScope("test").get();
 
-            controller.createStream(CONFIG).get();
+            controller.createStream("test", "test", CONFIG).get();
 
             Stream stream = new StreamImpl("test", "test");
             Map<Double, Double> map = new HashMap<>();

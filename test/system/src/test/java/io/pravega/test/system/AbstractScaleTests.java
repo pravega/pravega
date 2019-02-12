@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -33,20 +32,30 @@ import lombok.extern.slf4j.Slf4j;
 abstract class AbstractScaleTests extends AbstractReadWriteTest {
 
     final static String SCOPE = "testAutoScale" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    @Getter(lazy = true)
-    private final URI controllerURI = createControllerURI();
-    @Getter(lazy = true)
-    private final ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-    @Getter(lazy = true)
-    private final ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, new ControllerImpl(
-            ControllerImplConfig.builder().clientConfig(
-                    ClientConfig.builder().controllerURI(getControllerURI()).build())
-                                .build(), getConnectionFactory().getInternalExecutor()));
-    @Getter(lazy = true)
-    private final ControllerImpl controller = new ControllerImpl(
-            ControllerImplConfig.builder().clientConfig(
-                    ClientConfig.builder().controllerURI(getControllerURI()).build()
-            ).build(), getConnectionFactory().getInternalExecutor());
+    @Getter
+    private final URI controllerURI;
+    @Getter
+    private final ConnectionFactory connectionFactory;
+    @Getter
+    private final ClientFactoryImpl clientFactory;
+    @Getter
+    private final ControllerImpl controller;
+
+    public AbstractScaleTests() {
+        controllerURI = createControllerURI();
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        controller = createController();
+        clientFactory = new ClientFactoryImpl(SCOPE, getController());
+    }
+
+    private ControllerImpl createController() {
+        return new ControllerImpl(ControllerImplConfig.builder()
+                                                      .clientConfig(ClientConfig.builder()
+                                                                                .controllerURI(getControllerURI())
+                                                                                .build())
+                                                      .build(),
+                                  getConnectionFactory().getInternalExecutor());
+    }
 
     private URI createControllerURI() {
         Service conService = Utils.createPravegaControllerService(null);

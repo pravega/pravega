@@ -9,10 +9,10 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -41,6 +41,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -53,14 +54,11 @@ public class AutoScaleTest extends AbstractScaleTests {
     private static final String SCALE_DOWN_STREAM_NAME = "testScaleDown";
 
     private static final ScalingPolicy SCALING_POLICY = ScalingPolicy.byEventRate(1, 2, 1);
-    private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(SCALE_UP_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG_UP = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
-    private static final StreamConfiguration CONFIG_TXN = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(SCALE_UP_TXN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG_TXN = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
-    private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scope(SCOPE)
-            .streamName(SCALE_DOWN_STREAM_NAME).scalingPolicy(SCALING_POLICY).build();
+    private static final StreamConfiguration CONFIG_DOWN = StreamConfiguration.builder().scalingPolicy(SCALING_POLICY).build();
 
     //The execution time for @Before + @After + @Test methods should be less than 10 mins. Else the test will timeout.
     @Rule
@@ -93,10 +91,10 @@ public class AutoScaleTest extends AbstractScaleTests {
         log.debug("create scope status {}", createScopeStatus);
 
         //create a stream
-        Boolean createStreamStatus = controller.createStream(CONFIG_UP).get();
+        Boolean createStreamStatus = controller.createStream(SCOPE, SCALE_UP_STREAM_NAME, CONFIG_UP).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);
 
-        createStreamStatus = controller.createStream(CONFIG_DOWN).get();
+        createStreamStatus = controller.createStream(SCOPE, SCALE_DOWN_STREAM_NAME, CONFIG_DOWN).get();
         log.debug("create stream status for scaledown stream {}", createStreamStatus);
 
         log.debug("scale down stream starting segments:" + controller.getCurrentSegments(SCOPE, SCALE_DOWN_STREAM_NAME).get().getSegments().size());
@@ -111,7 +109,7 @@ public class AutoScaleTest extends AbstractScaleTests {
                 executorService).getFuture().get();
         assertTrue(status);
 
-        createStreamStatus = controller.createStream(CONFIG_TXN).get();
+        createStreamStatus = controller.createStream(SCOPE, SCALE_UP_TXN_STREAM_NAME, CONFIG_TXN).get();
         log.debug("create stream status for txn stream {}", createStreamStatus);
     }
 
@@ -147,7 +145,7 @@ public class AutoScaleTest extends AbstractScaleTests {
      * @throws URISyntaxException   If URI is invalid
      */
     private CompletableFuture<Void> scaleUpTest() {
-        ClientFactory clientFactory = getClientFactory();
+        ClientFactoryImpl clientFactory = getClientFactory();
         ControllerImpl controller = getController();
         final AtomicBoolean exit = new AtomicBoolean(false);
         createWriters(clientFactory, 6, SCOPE, SCALE_UP_STREAM_NAME);
@@ -204,8 +202,8 @@ public class AutoScaleTest extends AbstractScaleTests {
     private CompletableFuture<Void> scaleUpTxnTest() {
         ControllerImpl controller = getController();
         final AtomicBoolean exit = new AtomicBoolean(false);
-        ClientFactory clientFactory = getClientFactory();
-        startWritingIntoTxn(clientFactory.createEventWriter(SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
+        ClientFactoryImpl clientFactory = getClientFactory();
+        startWritingIntoTxn(clientFactory.createTransactionalEventWriter(SCALE_UP_TXN_STREAM_NAME, new JavaSerializer<>(),
                 EventWriterConfig.builder().build()), exit);
 
         // overall wait for test to complete in 260 seconds (4.2 minutes) or scale up, whichever happens first.

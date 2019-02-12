@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -47,7 +46,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 @Ignore
 @Slf4j
@@ -64,9 +63,8 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private final String scope = "testReadWriteAndScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
-    private ClientFactory clientFactory;
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private ClientFactoryImpl clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
 
@@ -89,22 +87,22 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
         // Verify controller is running.
         controllerInstance = Utils.createPravegaControllerService(zkUri);
-        assertTrue(controllerInstance.isRunning());
         List<URI> conURIs = controllerInstance.getServiceDetails();
         log.info("Pravega Controller service instance details: {}", conURIs);
+        assertFalse(conURIs.isEmpty());
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                :  uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
-
+        final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority)
+                                         .collect(Collectors.toList());
+        log.debug("controller uris {}", uris);
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
         // Verify segment store is running.
         segmentStoreInstance = Utils.createPravegaSegmentStoreService(zkUri, controllerURIDirect);
-        assertTrue(segmentStoreInstance.isRunning());
-        log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
+        List<URI> segmentStoreUris = segmentStoreInstance.getServiceDetails();
+        assertFalse(segmentStoreUris.isEmpty());
+        log.info("Pravega Segmentstore service instance details: {}", segmentStoreUris);
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,

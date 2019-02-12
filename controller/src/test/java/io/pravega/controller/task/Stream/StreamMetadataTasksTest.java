@@ -40,6 +40,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -122,6 +123,7 @@ public class StreamMetadataTasksTest {
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
+    private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
@@ -137,15 +139,16 @@ public class StreamMetadataTasksTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(1, executor);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
         streamStorePartialMock = spy(streamStore); //create a partial mock.
-
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
+        
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, hostStore, taskMetadataStore, segmentHelperMock,
+        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key"), requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
@@ -154,9 +157,9 @@ public class StreamMetadataTasksTest {
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStorePartialMock, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
@@ -166,7 +169,7 @@ public class StreamMetadataTasksTest {
                 "abortStream", new EventStreamWriterMock<>());
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
         streamStorePartialMock.createScope(SCOPE).join();
 
         long start = System.currentTimeMillis();
@@ -203,8 +206,6 @@ public class StreamMetadataTasksTest {
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(5)).build();
 
         StreamConfigurationRecord configProp = streamStorePartialMock.getConfigurationRecord(SCOPE, stream1, null, executor).join().getObject();
@@ -219,8 +220,6 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration));
 
         streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(6)).build();
 
         // 2. change state to scaling
@@ -235,9 +234,9 @@ public class StreamMetadataTasksTest {
                         .thenAccept(loop::set), executor).join();
 
         // event posted, first step performed. now pick the event for processing
-        UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+        UpdateStreamTask updateStreamTask = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
         UpdateStreamEvent taken = (UpdateStreamEvent) requestEventWriter.eventQueue.take();
-        AssertExtensions.assertThrows("", updateStreamTask.execute(taken),
+        AssertExtensions.assertFutureThrows("", updateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, stream1, State.ACTIVE, null, executor).get();
@@ -247,8 +246,6 @@ public class StreamMetadataTasksTest {
 
         // 3. multiple back to back updates.
         StreamConfiguration streamConfiguration1 = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.byEventRate(1, 1, 2)).build();
 
         CompletableFuture<UpdateStreamStatus.Status> updateOperationFuture1 = streamMetadataTasks.updateStream(SCOPE, stream1,
@@ -266,8 +263,6 @@ public class StreamMetadataTasksTest {
         assertTrue(configProp.getStreamConfiguration().equals(streamConfiguration1) && configProp.isUpdating());
 
         StreamConfiguration streamConfiguration2 = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(stream1)
                 .scalingPolicy(ScalingPolicy.fixed(7)).build();
 
         // post the second update request. This should fail here itself as previous one has started.
@@ -286,7 +281,7 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.setState(SCOPE, stream1, State.UPDATING, null, executor).join();
         UpdateStreamEvent event = new UpdateStreamEvent(SCOPE, stream1, System.nanoTime());
         assertTrue(Futures.await(updateStreamTask.execute(event)));
-        AssertExtensions.assertThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        AssertExtensions.assertFutureThrows("", updateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, stream1, true, null, executor).join());
     }
 
@@ -294,7 +289,7 @@ public class StreamMetadataTasksTest {
     public void truncateStreamTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -352,7 +347,7 @@ public class StreamMetadataTasksTest {
         // event posted, first step performed. now pick the event for processing
         TruncateStreamTask truncateStreamTask = new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
         TruncateStreamEvent taken = (TruncateStreamEvent) requestEventWriter.eventQueue.take();
-        AssertExtensions.assertThrows("", truncateStreamTask.execute(taken),
+        AssertExtensions.assertFutureThrows("", truncateStreamTask.execute(taken),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -401,7 +396,7 @@ public class StreamMetadataTasksTest {
 
         TruncateStreamEvent event = new TruncateStreamEvent(SCOPE, "test", System.nanoTime());
         assertTrue(Futures.await(truncateStreamTask.execute(event)));
-        AssertExtensions.assertThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
+        AssertExtensions.assertFutureThrows("", truncateStreamTask.execute(event), e -> Exceptions.unwrap(e) instanceof TaskExceptions.StartException);
 
         assertEquals(State.ACTIVE, streamStorePartialMock.getState(SCOPE, "test", true, null, executor).join());
     }
@@ -414,7 +409,7 @@ public class StreamMetadataTasksTest {
                 .retentionParam(Duration.ofMinutes(60).toMillis())
                 .build();
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy)
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
@@ -431,7 +426,7 @@ public class StreamMetadataTasksTest {
         StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, Long.MIN_VALUE, map1);
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any()); 
+                anyString(), anyString(), any(), any(), any());
 
         streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null, "").get();
         // verify that one streamCut is generated and added.
@@ -440,7 +435,7 @@ public class StreamMetadataTasksTest {
                 streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
                                       .thenCompose(retentionSet -> {
                                           return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
-                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test", 
+                                                      .map(x -> streamStorePartialMock.getStreamCutRecord(SCOPE, "test",
                                                               x, null, executor))
                                           .collect(Collectors.toList()));
                                       }).join();
@@ -531,7 +526,7 @@ public class StreamMetadataTasksTest {
                 .retentionType(RetentionPolicy.RetentionType.SIZE).retentionParam(100L).build();
 
         String streamName = "test";
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName(streamName).scalingPolicy(policy)
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
         streamStorePartialMock.createStream(SCOPE, streamName, configuration, System.currentTimeMillis(), null, executor).get();
@@ -868,23 +863,23 @@ public class StreamMetadataTasksTest {
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
         String stream = "test";
-        final StreamConfiguration noRetentionConfig = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(policy).build();
+        final StreamConfiguration noRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         // add stream without retention policy
         streamMetadataTasks.createStreamBody(SCOPE, stream, noRetentionConfig, System.currentTimeMillis()).join();
         String scopedStreamName = String.format("%s/%s", SCOPE, stream);
 
         // verify that stream is not added to bucket
-        assertTrue(!streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
-        UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, executor);
+        UpdateStreamTask task = new UpdateStreamTask(streamMetadataTasks, streamStorePartialMock, bucketStore, executor);
 
         final RetentionPolicy retentionPolicy = RetentionPolicy.builder()
                 .retentionType(RetentionPolicy.RetentionType.TIME)
                 .retentionParam(Duration.ofMinutes(60).toMillis())
                 .build();
 
-        final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scope(SCOPE).streamName(stream).scalingPolicy(policy)
+        final StreamConfiguration withRetentionConfig = StreamConfiguration.builder().scalingPolicy(policy)
                 .retentionPolicy(retentionPolicy).build();
 
         // now update stream with a retention policy
@@ -893,14 +888,14 @@ public class StreamMetadataTasksTest {
         task.execute(update).join();
 
         // verify that bucket has the stream.
-        assertTrue(streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+        assertTrue(bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
 
         // update stream such that stream is updated with null retention policy
         streamStorePartialMock.startUpdateConfiguration(SCOPE, stream, noRetentionConfig, null, executor).join();
         task.execute(update).join();
 
         // verify that the stream is no longer present in the bucket
-        assertTrue(!streamStorePartialMock.getStreamsForBucket(0, executor).join().contains(scopedStreamName));
+        assertTrue(!bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, 0, executor).join().contains(scopedStreamName));
     }
 
     @Test(timeout = 30000)
@@ -934,7 +929,7 @@ public class StreamMetadataTasksTest {
         // scaling operation fails once a stream is sealed.
         assertEquals(ScaleStreamStatus.FAILURE, scaleOpResult.getStatus());
 
-        AssertExtensions.assertThrows("Scale should not be allowed as stream is already sealed",
+        AssertExtensions.assertFutureThrows("Scale should not be allowed as stream is already sealed",
                 streamStorePartialMock.submitScale(SCOPE, stream1, Collections.singletonList(0L), Arrays.asList(segment3, segment4, segment5), 30, null, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.IllegalStateException);
     }
@@ -948,7 +943,7 @@ public class StreamMetadataTasksTest {
         // region seal a stream with transactions
         long start = System.currentTimeMillis();
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE).streamName(streamWithTxn).scalingPolicy(policy).build();
+        final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, streamWithTxn, config, start, null, executor).get();
         streamStorePartialMock.setState(SCOPE, streamWithTxn, State.ACTIVE, null, executor).get();
@@ -980,7 +975,7 @@ public class StreamMetadataTasksTest {
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
         streamMetadataTasks.sealStream(SCOPE, streamWithTxn, null);
-        AssertExtensions.assertThrows("seal stream did not fail processing with correct exception",
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         requestEventWriter.eventQueue.take();
 
@@ -1002,7 +997,7 @@ public class StreamMetadataTasksTest {
         doReturn(CompletableFuture.completedFuture(retVal)).when(streamStorePartialMock).getActiveTxns(
                 eq(SCOPE), eq(streamWithTxn), any(), any());
 
-        AssertExtensions.assertThrows("seal stream did not fail processing with correct exception",
+        AssertExtensions.assertFutureThrows("seal stream did not fail processing with correct exception",
                 processEvent(requestEventWriter), e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
         reset(streamStorePartialMock);
@@ -1050,7 +1045,7 @@ public class StreamMetadataTasksTest {
     public void eventWriterInitializationTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -1081,7 +1076,7 @@ public class StreamMetadataTasksTest {
     public void manualScaleTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
-        final StreamConfiguration configuration = StreamConfiguration.builder().scope(SCOPE).streamName("test").scalingPolicy(policy).build();
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
@@ -1099,7 +1094,7 @@ public class StreamMetadataTasksTest {
         assertEquals(streamStorePartialMock.getState(SCOPE, "test", false, context, executor).get(), State.ACTIVE);
 
         // Now when runScale runs even after that we should get the state as active.
-        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L), 
+        VersionedMetadata<EpochTransitionRecord> response = streamStorePartialMock.submitScale(SCOPE, "test", Collections.singletonList(0L),
                 new LinkedList<>(newRanges), 30, null, null, executor).get();
         assertEquals(response.getObject().getActiveEpoch(), 0);
         VersionedMetadata<State> versionedState = streamStorePartialMock.getVersionedState(SCOPE, "test", context, executor).get();
@@ -1112,10 +1107,16 @@ public class StreamMetadataTasksTest {
         ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
         task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
         Map<Long, Map.Entry<Double, Double>> segments = response.getObject().getNewSegmentsWithRange();
-        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(1, 1) && x.getValue().getKey() == 0.0 && x.getValue().getValue() == 0.5));
-        assertTrue(segments.entrySet().stream().anyMatch(x -> x.getKey() == computeSegmentId(2, 1) && x.getValue().getKey() == 0.5 && x.getValue().getValue() == 1.0));
+        assertTrue(segments.entrySet().stream()
+                .anyMatch(x -> x.getKey() == computeSegmentId(1, 1)
+                             && AssertExtensions.nearlyEquals(x.getValue().getKey(), 0.0, 0)
+                             && AssertExtensions.nearlyEquals(x.getValue().getValue(), 0.5, 0)));
+        assertTrue(segments.entrySet().stream()
+                .anyMatch(x -> x.getKey() == computeSegmentId(2, 1)
+                             && AssertExtensions.nearlyEquals(x.getValue().getKey(), 0.5, 0)
+                             && AssertExtensions.nearlyEquals(x.getValue().getValue(), 1.0, 0)));
     }
-    
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)

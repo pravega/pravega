@@ -10,7 +10,7 @@
 package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -47,22 +47,23 @@ public class InProcPravegaClusterTest {
         SingleNodeConfig conf = config.getConfig(SingleNodeConfig::builder);
 
         localPravega = LocalPravegaEmulator.builder()
-                                           .controllerPort(TestUtils.getAvailableListenPort())
-                                           .segmentStorePort(TestUtils.getAvailableListenPort())
-                                           .zkPort(TestUtils.getAvailableListenPort())
-                                           .restServerPort(TestUtils.getAvailableListenPort())
-                                           .enableRestServer(restEnabled)
-                                           .enableAuth(authEnabled)
-                                           .enableTls(tlsEnabled)
-                                           .certFile("../config/cert.pem")
-                                           .keyFile("../config/key.pem")
-                                           .jksKeyFile("../config/bookie.keystore.jks")
-                                           .jksTrustFile("../config/bookie.truststore.jks")
-                                           .keyPasswordFile("../config/bookie.keystore.jks.passwd")
-                                           .passwdFile("../config/passwd")
-                                           .userName("admin")
-                                           .passwd("1111_aaaa")
-                                           .build();
+                .controllerPort(TestUtils.getAvailableListenPort())
+                .segmentStorePort(TestUtils.getAvailableListenPort())
+                .zkPort(TestUtils.getAvailableListenPort())
+                .restServerPort(TestUtils.getAvailableListenPort())
+                .enableRestServer(restEnabled)
+                .enableAuth(authEnabled)
+                .enableTls(tlsEnabled)
+                .certFile("../config/cert.pem")
+                .keyFile("../config/key.pem")
+                .jksKeyFile("../config/standalone.keystore.jks")
+                .jksTrustFile("../config/standalone.truststore.jks")
+                .keyPasswordFile("../config/standalone.keystore.jks.passwd")
+                .passwdFile("../config/passwd")
+                .userName("admin")
+                .passwd("1111_aaaa")
+                .build();
+
         localPravega.start();
     }
 
@@ -91,13 +92,11 @@ public class InProcPravegaClusterTest {
         streamManager.createScope(scope);
         Assert.assertTrue("Stream creation is not successful ",
                 streamManager.createStream(scope, streamName, StreamConfiguration.builder()
-                                   .scope(scope)
-                                   .streamName(streamName)
                                    .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                    .build()));
         log.info("Created stream: " + streamName);
 
-        ClientFactory clientFactory = ClientFactory.withScope(scope, clientConfig);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                 new JavaSerializer<String>(),
                 EventWriterConfig.builder().build());

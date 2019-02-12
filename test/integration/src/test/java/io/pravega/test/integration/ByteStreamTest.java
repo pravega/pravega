@@ -9,21 +9,20 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.byteStream.ByteStreamClient;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
-import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -34,6 +33,7 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import lombok.Cleanup;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -42,6 +42,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ByteStreamTest {
@@ -65,8 +66,7 @@ public class ByteStreamTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-        this.server = new PravegaConnectionListener(false, servicePort, store);
+        this.server = new PravegaConnectionListener(false, servicePort, store,  mock(TableStore.class));
         this.server.startListening();
 
         // 3. Start Pravega Controller service
@@ -97,7 +97,7 @@ public class ByteStreamTest {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
@@ -106,12 +106,8 @@ public class ByteStreamTest {
         // create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
-
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = createClientFactory(scope);
 
         byte[] payload = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
         byte[] readBuffer = new byte[10];
@@ -144,7 +140,7 @@ public class ByteStreamTest {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
@@ -153,12 +149,8 @@ public class ByteStreamTest {
         // create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
-
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = createClientFactory(scope);
 
         byte[] payload = new byte[2 * PendingEvent.MAX_WRITE_SIZE + 2];
         Arrays.fill(payload, (byte) 7);
@@ -187,7 +179,7 @@ public class ByteStreamTest {
         String scope = "ByteStreamTest";
         String stream = "ReadWriteTest";
 
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope).streamName(stream).build();
+        StreamConfiguration config = StreamConfiguration.builder().build();
         @Cleanup
         StreamManager streamManager = new StreamManagerImpl(controller, null);
         // create a scope
@@ -196,12 +188,8 @@ public class ByteStreamTest {
         // create a stream
         Boolean createStreamStatus = streamManager.createStream(scope, stream, config);
         log.info("Create stream status {}", createStreamStatus);
-
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-        ByteStreamClient client = clientFactory.createByteStreamClient();
+        ByteStreamClientFactory client = createClientFactory(scope);
 
         byte[] payload = new byte[100];
         Arrays.fill(payload, (byte) 1);
@@ -228,6 +216,11 @@ public class ByteStreamTest {
         }, () -> writer.write(payload));
         writer.closeAndSeal();
         assertEquals(-1, reader.read());
+    }
+    
+    ByteStreamClientFactory createClientFactory(String scope) {
+        val connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        return new ByteStreamClientImpl(scope, controller, connectionFactory);
     }
 
 }

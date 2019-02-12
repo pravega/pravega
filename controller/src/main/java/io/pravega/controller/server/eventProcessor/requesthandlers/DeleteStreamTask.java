@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -33,16 +34,20 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamMetadataStore streamMetadataStore;
+    private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
 
     public DeleteStreamTask(final StreamMetadataTasks streamMetadataTasks,
                             final StreamMetadataStore streamMetadataStore,
+                            final BucketStore bucketStore, 
                             final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
+        Preconditions.checkNotNull(bucketStore);
         Preconditions.checkNotNull(executor);
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamMetadataStore = streamMetadataStore;
+        this.bucketStore = bucketStore;
         this.executor = executor;
     }
 
@@ -53,7 +58,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         String scope = request.getScope();
         String stream = request.getStream();
         long requestId = request.getRequestId();
-        return streamMetadataStore.isSealed(scope, stream, context, executor)
+
+        return streamMetadataStore.getCreationTime(scope, stream, context, executor)
+            .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||
+                                          request.getCreationTime() == creationTime))
+            .thenCompose(v -> streamMetadataStore.isSealed(scope, stream, context, executor))
                 .thenComposeAsync(sealed -> {
                     if (!sealed) {
                         log.warn(requestId, "{}/{} stream not sealed", scope, stream);
@@ -77,8 +86,8 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
                 .thenComposeAsync(allSegments -> {
                     return streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)
-                            .thenComposeAsync(x -> streamMetadataStore.removeStreamFromAutoStreamCut(scope, stream, context,
-                                    executor), executor)
+                            .thenComposeAsync(x -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 
+                                    scope, stream, executor), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
                                     executor), executor);
                 });

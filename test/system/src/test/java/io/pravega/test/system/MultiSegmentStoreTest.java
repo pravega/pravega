@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
@@ -135,13 +135,11 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
 
         // Create stream with large number of segments so that most segment containers are used.
         Assert.assertTrue(streamManager.createStream(scope, stream, StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(stream)
                 .scalingPolicy(ScalingPolicy.fixed(10))
                 .build()));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope,
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
                 ClientConfig.builder().controllerURI(controllerUri).build());
 
         log.info("Invoking writer with controller URI: {}", controllerUri);

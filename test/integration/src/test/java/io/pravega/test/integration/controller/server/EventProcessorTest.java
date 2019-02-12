@@ -11,7 +11,6 @@ package io.pravega.test.integration.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
@@ -34,6 +33,7 @@ import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -50,6 +50,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * End-to-end tests for event processor.
@@ -117,7 +119,7 @@ public class EventProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup
@@ -146,13 +148,11 @@ public class EventProcessorTest {
         }
 
         final StreamConfiguration config = StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
-        CompletableFuture<Boolean> createStatus = controller.createStream(config);
+        CompletableFuture<Boolean> createStatus = controller.createStream(scope, streamName, config);
         if (!createStatus.get()) {
             System.err.println("Stream alrady existed, exiting");
             return;
@@ -161,7 +161,7 @@ public class EventProcessorTest {
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
         @Cleanup
         EventStreamWriter<TestEvent> producer = clientFactory.createEventWriter(streamName,

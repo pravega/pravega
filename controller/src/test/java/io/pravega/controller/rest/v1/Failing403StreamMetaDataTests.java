@@ -20,7 +20,7 @@ import org.junit.Before;
 public class Failing403StreamMetaDataTests extends  FailingSecureStreamMetaDataTests {
     @Override
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         expectedResult = 403;
         super.setup();
     }

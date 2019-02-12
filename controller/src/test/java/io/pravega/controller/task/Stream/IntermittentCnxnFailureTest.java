@@ -24,6 +24,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -67,6 +68,7 @@ public class IntermittentCnxnFailureTest {
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
@@ -82,7 +84,7 @@ public class IntermittentCnxnFailureTest {
         zkClient.start();
 
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
-
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
@@ -92,7 +94,7 @@ public class IntermittentCnxnFailureTest {
                 anyString(), anyString(), anyInt(), any());
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelperMock,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
@@ -116,11 +118,11 @@ public class IntermittentCnxnFailureTest {
     @Test
     public void createStreamTest() throws Exception {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration1 = StreamConfiguration.builder().scope(SCOPE).streamName(stream1).scalingPolicy(policy1).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
 
         // start stream creation in background/asynchronously.
         // the connection to server will fail and should be retried
-        controllerService.createStream(configuration1, System.currentTimeMillis());
+        controllerService.createStream(SCOPE, stream1, configuration1, System.currentTimeMillis());
 
         // Stream should not have been created and while trying to access any stream metadata
         // we should get illegalStateException

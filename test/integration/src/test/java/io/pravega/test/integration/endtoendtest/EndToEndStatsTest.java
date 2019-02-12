@@ -27,6 +27,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -67,10 +68,11 @@ public class EndToEndStatsTest {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
         statsRecorder = new TestStatsRecorder();
 
-        server = new PravegaConnectionListener(false, "localhost", servicePort, store,
+        server = new PravegaConnectionListener(false, "localhost", servicePort, store, tableStore,
                 statsRecorder, null, null, null, true);
         server.startListening();
 
@@ -92,15 +94,14 @@ public class EndToEndStatsTest {
     }
 
     @Test(timeout = 10000)
+    @SuppressWarnings("deprecation")
     public void testStatsCount() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller);
 
@@ -163,6 +164,10 @@ public class EndToEndStatsTest {
                 y.addAndGet(numOfEvents);
                 return y;
             });
+        }
+
+        @Override
+        public void close() {
         }
     }
 }

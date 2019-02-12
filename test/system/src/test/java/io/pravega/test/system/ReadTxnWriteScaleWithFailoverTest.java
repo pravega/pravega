@@ -11,7 +11,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -65,9 +64,8 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
     private final String stream = "testReadTxnWriteScaleStream";
     private final String readerGroupName = "testReadTxnWriteScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(stream).scalingPolicy(scalingPolicy).build();
-    private ClientFactory clientFactory;
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private ClientFactoryImpl clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
 
@@ -95,9 +93,7 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);

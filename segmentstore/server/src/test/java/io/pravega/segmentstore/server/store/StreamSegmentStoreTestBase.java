@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server.store;
 
-import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
@@ -25,6 +24,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -82,7 +82,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
-    private static final int MAX_INSTANCE_COUNT = 5;
+    private static final int MAX_INSTANCE_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
     private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
@@ -260,9 +260,6 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             val segmentNames = createSegments(context.getActiveStore());
             val segmentsAndTransactions = new ArrayList<String>(segmentNames);
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
-            val transactionsBySegment = createTransactions(segmentNames, context.getActiveStore());
-            transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
-            log.info("Created Transactions: {}.", transactionsBySegment.values().stream().flatMap(Collection::stream).collect(Collectors.joining(", ")));
 
             // Generate all the requests.
             HashMap<String, Long> lengths = new HashMap<>();
@@ -270,12 +267,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
             val appends = createAppendDataRequests(segmentsAndTransactions, segmentContents, lengths,
                     applyFencingMultiplier(ATTRIBUTE_UPDATES_PER_SEGMENT), applyFencingMultiplier(APPENDS_PER_SEGMENT));
-            val mergers = createMergeTransactionsRequests(transactionsBySegment, lengths, segmentContents);
-            val seals = createSealSegmentsRequests(segmentNames);
-            val requests = Iterators.concat(appends.iterator(), mergers.iterator(), seals.iterator());
+            val requests = appends.iterator();
 
             // Calculate how frequently to create a new instance of the Segment Store.
-            int newInstanceFrequency = (appends.size() + mergers.size() + seals.size()) / applyFencingMultiplier(MAX_INSTANCE_COUNT);
+            int newInstanceFrequency = appends.size() / applyFencingMultiplier(MAX_INSTANCE_COUNT);
             log.info("Creating a new Segment Store instance every {} operations.", newInstanceFrequency);
 
             // Execute all the requests.
@@ -553,12 +548,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Segment '" + segmentName + "' was not deleted.",
-                        () -> store.getStreamSegmentInfo(segmentName, false, TIMEOUT),
+                        () -> store.getStreamSegmentInfo(segmentName, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
             } else {
-                SegmentProperties sp = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                SegmentProperties sp = store.getStreamSegmentInfo(segmentName, TIMEOUT).join();
                 long expectedStartOffset = startOffsets.getOrDefault(segmentName, 0L);
                 long expectedLength = e.getValue();
                 Assert.assertEquals("Unexpected Start Offset for segment " + segmentName, expectedStartOffset, sp.getStartOffset());
@@ -590,7 +585,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
-            long segmentLength = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
+            long segmentLength = store.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
             Assert.assertEquals("Unexpected Read Index length for segment " + segmentName, expectedData.length, segmentLength);
 
             AtomicLong expectedCurrentOffset = new AtomicLong(0);
@@ -648,7 +643,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         for (Map.Entry<String, ByteArrayOutputStream> e : segmentContents.entrySet()) {
             String segmentName = e.getKey();
             byte[] expectedData = e.getValue().toByteArray();
-            long segmentLength = store.getStreamSegmentInfo(segmentName, false, TIMEOUT).join().getLength();
+            long segmentLength = store.getStreamSegmentInfo(segmentName, TIMEOUT).join().getLength();
             long expectedCurrentOffset = 0;
             boolean truncate = false;
 
@@ -673,7 +668,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                 startOffset, readEntry.getStreamSegmentOffset());
 
                         // Verify the ReadResultEntry cannot be used and throws an appropriate exception.
-                        AssertExtensions.assertThrows(
+                        AssertExtensions.assertSuppliedFutureThrows(
                                 "ReadEntry.getContent() did not throw for a Truncated entry.",
                                 readEntry::getContent,
                                 ex -> ex instanceof StreamSegmentTruncatedException);
@@ -738,7 +733,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // 1. Deletion status
             SegmentProperties sp = null;
             try {
-                sp = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+                sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             } catch (Exception ex) {
                 if (!(Exceptions.unwrap(ex) instanceof StreamSegmentNotExistsException)) {
                     throw ex;
@@ -746,9 +741,9 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             if (sp == null) {
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Segment is marked as deleted in SegmentStore but was not deleted in Storage " + segmentName,
-                        () -> readOnlySegmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT),
+                        () -> readOnlySegmentStore.getStreamSegmentInfo(segmentName, TIMEOUT),
                         ex -> ex instanceof StreamSegmentNotExistsException);
 
                 // No need to do other checks.
@@ -756,12 +751,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             }
 
             // 2. Seal Status
-            SegmentProperties storageProps = readOnlySegmentStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties storageProps = readOnlySegmentStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             Assert.assertEquals("Segment seal status disagree between Store and Storage for segment " + segmentName,
                     sp.isSealed(), storageProps.isSealed());
 
             // 3. Contents.
-            SegmentProperties metadataProps = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties metadataProps = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             Assert.assertEquals("Unexpected Storage length for segment " + segmentName, expectedData.length,
                     storageProps.getLength());
             byte[] actualData = new byte[expectedData.length];
@@ -800,7 +795,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                                                              StreamSegmentStore readOnlyStore) {
         ArrayList<CompletableFuture<Void>> segmentsCompletion = new ArrayList<>();
         for (String segmentName : segmentNames) {
-            SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, false, TIMEOUT).join();
+            SegmentProperties sp = baseStore.getStreamSegmentInfo(segmentName, TIMEOUT).join();
             segmentsCompletion.add(waitForSegmentInStorage(sp, readOnlyStore));
         }
 
@@ -808,25 +803,33 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private CompletableFuture<Void> waitForSegmentInStorage(SegmentProperties sp, StreamSegmentStore readOnlyStore) {
+        if (sp.getLength() == 0) {
+            // Empty segments may or may not exist in Storage, so don't bother complicating ourselves with this.
+            return CompletableFuture.completedFuture(null);
+        }
+
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         AtomicBoolean tryAgain = new AtomicBoolean(true);
         return Futures.loop(
                 tryAgain::get,
-                () -> readOnlyStore.getStreamSegmentInfo(sp.getName(), false, TIMEOUT)
-                                   .thenCompose(storageProps -> {
-                                       if (sp.isSealed()) {
-                                           tryAgain.set(!storageProps.isSealed());
-                                       } else {
-                                           tryAgain.set(sp.getLength() != storageProps.getLength());
-                                       }
+                () -> Futures
+                        .exceptionallyExpecting(readOnlyStore.getStreamSegmentInfo(sp.getName(), TIMEOUT),
+                                ex -> ex instanceof StreamSegmentNotExistsException,
+                                StreamSegmentInformation.builder().name(sp.getName()).build())
+                        .thenCompose(storageProps -> {
+                            if (sp.isSealed()) {
+                                tryAgain.set(!storageProps.isSealed());
+                            } else {
+                                tryAgain.set(sp.getLength() != storageProps.getLength());
+                            }
 
-                                       if (tryAgain.get() && !timer.hasRemaining()) {
-                                           return Futures.<Void>failedFuture(new TimeoutException(
-                                                   String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
-                                       } else {
-                                           return Futures.delayedFuture(Duration.ofMillis(100), executorService());
-                                       }
-                                   }), executorService());
+                            if (tryAgain.get() && !timer.hasRemaining()) {
+                                return Futures.<Void>failedFuture(new TimeoutException(
+                                        String.format("Segment %s did not complete in Storage in the allotted time.", sp.getName())));
+                            } else {
+                                return Futures.delayedFuture(Duration.ofMillis(100), executorService());
+                            }
+                        }), executorService());
     }
 
     private int applyFencingMultiplier(int originalValue) {
