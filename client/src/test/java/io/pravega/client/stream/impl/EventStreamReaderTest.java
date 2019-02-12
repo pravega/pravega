@@ -467,7 +467,7 @@ public class EventStreamReaderTest {
         inOrder.verify(groupState).handleEndOfSegment(segment);
     }
     
-    @Test(timeout=10000)
+    @Test(timeout = 10000)
     public void testSegmentSplit() throws EndOfSegmentException, SegmentTruncatedException, SegmentSealedException, ReaderNotInReaderGroupException {
         AtomicLong clock = new AtomicLong();
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();

@@ -865,31 +865,28 @@ public class ReaderGroupStateManagerTest {
         segments.put(new Segment(scope, stream, 0), 123L);
         segments.put(new Segment(scope, stream, 1), 456L);
         stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(), segments, Collections.emptyMap()));
-        ReaderGroupStateManager readerState1 = new ReaderGroupStateManager("testReader",
-                stateSynchronizer,
-                controller,
-                clock::get);
+        ReaderGroupStateManager readerState1 = new ReaderGroupStateManager("testReader", stateSynchronizer, controller,
+                                                                           clock::get);
         readerState1.initializeReader(0);
         Segment toRelease = readerState1.findSegmentToReleaseIfRequired();
         assertNull(toRelease);
         Map<Segment, Long> newSegments = readerState1.acquireNewSegmentsIfNeeded(0);
         assertFalse(newSegments.isEmpty());
         assertEquals(2, newSegments.size());
-        
-        ReaderGroupStateManager readerState2 = new ReaderGroupStateManager("testReader2",
-                stateSynchronizer,
-                controller,
-                clock::get);
+
+        ReaderGroupStateManager readerState2 = new ReaderGroupStateManager("testReader2", stateSynchronizer, controller,
+                                                                           clock::get);
         readerState2.initializeReader(0);
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
-        Position pos = new PositionImpl(ImmutableMap.of(new Segment(scope, stream, 0), -1L, new Segment(scope, stream, 1), 789L));
+        Position pos = new PositionImpl(ImmutableMap.of(new Segment(scope, stream, 0), -1L,
+                                                        new Segment(scope, stream, 1), 789L));
         ReaderGroupStateManager.readerShutdown("testReader", pos, stateSynchronizer);
-        
+
         newSegments = readerState2.acquireNewSegmentsIfNeeded(0);
         assertEquals(1, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 1)));
         assertEquals(0, stateSynchronizer.getState().getNumberOfUnassignedSegments());
         AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,
-                () -> readerState1.acquireNewSegmentsIfNeeded(0L));
+                                      () -> readerState1.acquireNewSegmentsIfNeeded(0L));
     }
 }
