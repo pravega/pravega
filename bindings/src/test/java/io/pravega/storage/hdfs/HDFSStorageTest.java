@@ -17,6 +17,7 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.DataCorruptionException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
@@ -207,6 +208,74 @@ public class HDFSStorageTest extends StorageTestBase {
             // Seal and Delete (these should be run last, otherwise we can't run our test).
             verifyFinalWriteOperationsFail(handle1, storage1);
             verifyFinalWriteOperationsSucceed(handle2, storage2);
+        }
+    }
+
+    /**
+     * Tests fencing abilities escpecially in case of possible data corruption. We create three different Storage objects with different owner ids.
+     * The test setup is very specific for HDFS and may not be relevant in case of other storages.
+     *  Create segment with epoch 1
+     *  Create write with epoch 2
+     *  Delete segment with epoch 3 and recreate using epoch 1 again simulating possible data corruption.
+     */
+    @Test
+    public void testFencingFailsWithDataCorruptionException() {
+        final long epoch1 = 1;
+        final long epoch2 = 2;
+        final long epoch3 = 3;
+        final String segmentName = "segment";
+        try (val storage1 = createStorage();
+             val storage2 = createStorage();
+             val storage3 = createStorage();
+             ) {
+            storage1.initialize(epoch1);
+            storage2.initialize(epoch2);
+            storage3.initialize(epoch3);
+
+            final byte[] data = "hello".getBytes();
+
+            // Create segment in Storage1,
+            SegmentHandle handle1 = storage1.create(segmentName, TIMEOUT).join();
+            storage2.write(handle1, 0, new ByteArrayInputStream(data), data.length, TIMEOUT);
+
+            // Open in storage 2, file should be renamed successfully, Write should succeed
+            SegmentHandle handle2 = storage2.openWrite(segmentName).join();
+            storage2.write(handle2, data.length, new ByteArrayInputStream(data), data.length, TIMEOUT);
+            storage2.seal(handle2, TIMEOUT);
+
+            // Delete it using higher epoch and recreate it using lower epoch
+            // The handle2 is untouched.
+            SegmentHandle handle3 = storage3.openWrite(segmentName).join();
+            storage3.delete(handle3, TIMEOUT).join();
+            handle1 = storage1.create(segmentName, TIMEOUT).join();
+
+            // Write and seal should fail.
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "write was not fenced out for possible data corruption.",
+                    () -> storage2.write(handle2, 0, new ByteArrayInputStream(data), data.length, TIMEOUT),
+                    ex -> ex instanceof DataCorruptionException);
+
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "seal was not fenced out for possible data corruption.",
+                    () -> storage2.seal(handle2, TIMEOUT),
+                    ex -> ex instanceof DataCorruptionException);
+
+            // Delete should succeed.
+            storage2.delete(handle2, TIMEOUT).join();
+
+            // Recreate the segment.
+            handle1 = storage1.create(segmentName, TIMEOUT).join();
+
+            // Seal should work.
+            storage1.seal(handle2, TIMEOUT);
+            storage2.seal(handle3, TIMEOUT);
+
+            // Write after seal should continue to fail.
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "write was not fenced out after seal.",
+                    () -> storage2.write(handle2, 0, new ByteArrayInputStream(data), data.length, TIMEOUT),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
         }
     }
 
