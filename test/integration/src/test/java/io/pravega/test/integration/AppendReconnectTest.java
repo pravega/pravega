@@ -51,7 +51,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.Cleanup;
@@ -105,13 +104,12 @@ public class AppendReconnectTest {
     static EmbeddedChannel createChannel(StreamSegmentStore store) {
         ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
         EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
-                                                      new CommandEncoder(null),
-                                                      new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                                                      new CommandDecoder(),
-                                                      new AppendDecoder(),
-                                                      lsh);
-        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh, mock(ScheduledExecutorService.class)),
-                                                    null));
+                new CommandEncoder(null),
+                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                new CommandDecoder(),
+                new AppendDecoder(),
+                lsh);
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh), null));
         return channel;
     }
 
