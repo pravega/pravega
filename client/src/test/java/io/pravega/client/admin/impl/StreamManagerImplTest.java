@@ -74,7 +74,7 @@ public class StreamManagerImplTest {
         Assert.assertFalse(streamManager.deleteScope(defaultScope));
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 15000)
     public void testStreamInfo() throws Exception {
         final String streamName = "stream";
         final Stream stream = new StreamImpl(defaultScope, streamName);

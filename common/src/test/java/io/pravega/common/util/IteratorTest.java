@@ -61,7 +61,7 @@ public class IteratorTest {
                 if (x != null) {
                     foundMap.compute(x, (r, s) -> {
                         if (s != null) {
-                            return ++s;
+                            return s + 1;
                         } else {
                             return 1;
                         }
