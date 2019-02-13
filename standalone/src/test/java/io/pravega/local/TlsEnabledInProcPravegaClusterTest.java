@@ -30,6 +30,7 @@ import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+import io.pravega.common.Timer;
 import lombok.Cleanup;
 
 import lombok.extern.slf4j.Slf4j;
@@ -115,9 +116,17 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        EventRead<String> event = reader.readNextEvent(50000);
+        long readTimeOut = 10000;
+
+        EventRead<String> event = reader.readNextEvent(readTimeOut);
+        if (event.isCheckpoint()) {
+            log.info("Encountered a checkpoint event. Reading next event again.");
+            event = reader.readNextEvent(readTimeOut);
+        }
+
         String readMessage = event.getEvent();
-        log.debug("Read event '{}", readMessage);
+        log.info("Done reading event [{}]", readMessage);
+
         assertEquals(message, readMessage);
     }
 
