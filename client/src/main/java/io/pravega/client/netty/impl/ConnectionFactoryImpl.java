@@ -120,16 +120,16 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         final SslContext sslCtx;
         if (clientConfig.isEnableTls()) {
             try {
-                SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
+                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
                 if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
-                    sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
+                    clientSslCtxBuilder = clientSslCtxBuilder.trustManager(FingerprintTrustManagerFactory
                                                       .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
-                    log.warn("Done setting the sslCtxFactory to FingerprintTrustManagerFactory");
+                    log.debug("SslContextBuilder was set to an instance of {}", FingerprintTrustManagerFactory.class);
                 } else {
-                    sslCtxFactory = SslContextBuilder.forClient()
+                    clientSslCtxBuilder = SslContextBuilder.forClient()
                                               .trustManager(new File(clientConfig.getTrustStore()));
                 }
-                sslCtx = sslCtxFactory.build();
+                sslCtx = clientSslCtxBuilder.build();
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
