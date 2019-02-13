@@ -199,22 +199,7 @@ class ZKStream extends PersistentStreamBase {
         return cache.getCachedData(creationPath)
                     .thenApply(data -> BitConverter.readLong(data.getData(), 0));
     }
-
-    /**
-     * Method to check whether a scope exists before creating a stream under that scope.
-     *
-     * @return A future either returning a result or an exception.
-     */
-    @Override
-    public CompletableFuture<Void> checkScopeExists() {
-        return store.checkExists(scopePath)
-                    .thenAccept(x -> {
-                        if (!x) {
-                            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopePath);
-                        }
-                    });
-    }
-
+    
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(byte[] data) {
         return Futures.toVoid(store.createZNodeIfNotExist(retentionSetPath, data));

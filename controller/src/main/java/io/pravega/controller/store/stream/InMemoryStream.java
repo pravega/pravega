@@ -694,12 +694,7 @@ public class InMemoryStream extends PersistentStreamBase {
             return CompletableFuture.completedFuture(map);
         }
     }
-
-    @Override
-    CompletableFuture<Void> checkScopeExists() throws StoreException {
-        return CompletableFuture.completedFuture(null);
-    }
-
+    
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(byte[] retention) {
         Preconditions.checkNotNull(retention);

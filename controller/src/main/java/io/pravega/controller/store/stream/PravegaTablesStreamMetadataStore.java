@@ -33,19 +33,19 @@ import java.util.concurrent.Executor;
 class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     private final ZkInt96Counter counter;
     private final ZKGarbageCollector completedTxnGC;
-    private final SegmentHelper segmentHelper;
+    private final PravegaTablesStoreHelper storeHelper;
     
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, ZKGarbageCollector gc, ZkInt96Counter counter, Executor executor) {
         super(new PravegaTablesHostIndex(segmentHelper, "/hostTxnIndex", executor));
         this.counter = counter;
         this.completedTxnGC = gc;
-        this.segmentHelper = segmentHelper;
+        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper);
     }
     
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
-        return new PravegaTablesStream(scope, name, segmentHelper, completedTxnGC::getLatestBatch);
+        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
     }
 
     @Override
@@ -64,8 +64,8 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     }
     
     @Override
-    ZKScope newScope(final String scopeName) {
-        return new ZKScope(scopeName, segmentHelper);
+    PravegaTableScope newScope(final String scopeName) {
+        return new PravegaTableScope(scopeName, storeHelper);
     }
 
     @Override
