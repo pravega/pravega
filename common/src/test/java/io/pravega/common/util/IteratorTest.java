@@ -38,25 +38,25 @@ public class IteratorTest {
 
         AtomicInteger timesCalled = new AtomicInteger(0);
         ContinuationTokenAsyncIterator<String, Integer> iterator = getIterator(toReturn, timesCalled);
-        
+
         // region sequential calls
         Integer next = iterator.getNext().join();
         int found = 0;
-        while(next != null) {
+        while (next != null) {
             assertEquals(next.intValue(), found++);
             next = iterator.getNext().join();
         }
         assertEquals(4, timesCalled.get());
         assertEquals(25, found);
         // endregion
-        
+
         // region concurrent calls
         timesCalled = new AtomicInteger(0);
         iterator = getIterator(toReturn, timesCalled);
-        
+
         ConcurrentHashMap<Integer, Integer> foundMap = new ConcurrentHashMap<>();
         List<CompletableFuture<Void>> futures = new LinkedList<>();
-        for(int i = 0; i < 26; i++) {
+        for (int i = 0; i < 26; i++) {
             futures.add(iterator.getNext().thenAccept(x -> {
                 if (x != null) {
                     foundMap.compute(x, (r, s) -> {
@@ -66,12 +66,12 @@ public class IteratorTest {
                             return 1;
                         }
                     });
-                } 
+                }
             }));
         }
 
         Futures.allOf(futures).join();
-        
+
         Assert.assertTrue(timesCalled.get() >= 4);
         assertEquals(25, foundMap.size());
         Assert.assertTrue(foundMap.entrySet().stream().allMatch(x -> x.getValue() == 1));
@@ -84,7 +84,7 @@ public class IteratorTest {
         LinkedBlockingQueue<CompletableFuture<String>> queue = new LinkedBlockingQueue<>();
         queue.add(latch2);
         queue.add(latch3);
-        
+
         List<Integer> list = Lists.newArrayList(1, 2, 3);
         iterator = new ContinuationTokenAsyncIterator<>(s -> {
             int startIndex = Strings.isNullOrEmpty(s) ? 0 : Integer.parseInt(s);
@@ -97,11 +97,11 @@ public class IteratorTest {
                 // block the call
                 return latch.thenApply(v -> {
                     List<Integer> tmp = (startIndex >= list.size()) ? Lists.newArrayList() : list.subList(startIndex, endIndex);
-                    
+
                     return new AbstractMap.SimpleEntry<>("" + endIndex, tmp);
                 });
             }
-            
+
             return CompletableFuture.completedFuture(
                     new AbstractMap.SimpleEntry<>("" + endIndex, list.subList(startIndex, endIndex)));
         }, "");
@@ -109,7 +109,7 @@ public class IteratorTest {
         Integer next0 = iterator.getNext().join();
         assertEquals(next0.intValue(), 1);
         assertEquals(iterator.getToken().get(), "1");
-        
+
         CompletableFuture<Integer> next1 = iterator.getNext();
         // wait until first call is made.
         String token1 = latch2.join();
@@ -127,7 +127,7 @@ public class IteratorTest {
         assertEquals(next1.join() + next2.join(), 5);
         assertEquals(iterator.getToken().get(), "3");
         assertTrue(iterator.getQueue().isEmpty());
-        
+
         assertNull(iterator.getNext().join());
         // endregion
 
@@ -145,7 +145,7 @@ public class IteratorTest {
             return CompletableFuture.completedFuture(new AbstractMap.SimpleEntry<>("" + endIndex, toReturn.subList(startIndex, endIndex)));
         }, "");
     }
-    
+
     @Test(timeout = 10000L)
     public void testBlockingIterator() {
         List<Integer> toReturn = IntStream.range(0, 25).boxed().collect(Collectors.toList());
@@ -153,7 +153,7 @@ public class IteratorTest {
 
         BlockingAsyncIterator<Integer> iterator = new BlockingAsyncIterator<>(getIterator(toReturn, timesCalled));
         int found = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             Integer i = iterator.next();
             assertEquals(i.intValue(), found++);
         }
