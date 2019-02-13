@@ -51,10 +51,6 @@ allprojects {
             compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
             testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
         }
-        test {
-          // From JDK11+ Java will try to use TLSv1.3, we don't need it in tests
-          systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
-        }
     }
     // Plugin configurations
     apply from: "$rootDir/gradle/application.gradle"
@@ -698,8 +694,6 @@ project('standalone') {
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
-        systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
-
 
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
@@ -777,7 +771,6 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion")
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
-        systemProperty "jdk.tls.client.protocols", "TLSv1,TLSv1.1,TLSv1.2"
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "REMOTE_SEQUENTIAL"
