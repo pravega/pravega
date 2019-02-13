@@ -67,7 +67,7 @@ public class IteratorTest {
 
         Futures.allOf(futures).join();
         
-        Assert.assertEquals(4, timesCalled.get());
+        Assert.assertTrue(timesCalled.get() >= 4);
         Assert.assertEquals(25, foundMap.size());
         Assert.assertTrue(foundMap.entrySet().stream().allMatch(x -> x.getValue() == 1));
         // endregion
