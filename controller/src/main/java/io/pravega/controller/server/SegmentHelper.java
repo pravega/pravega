@@ -737,95 +737,7 @@ public class SegmentHelper {
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
-
-    /**
-     * This method sends a WireCommand to update table entries.
-     *
-     * @param scope               Stream scope.
-     * @param stream              Stream name.
-     * @param newEntry            {@link TableEntry}s to be created.
-     * @param clientRequestId     Request id.
-     * @return A CompletableFuture that, when completed normally, will contain the current versions of each {@link TableEntry}
-     * If the operation failed, the future will be failed with the causing exception. If the exception can be retried
-     * then the future will be failed with {@link WireCommandFailedException}.
-     */
-    public CompletableFuture<List<KeyVersion>> createTableEntryIfAbsent(final String scope,
-                                                                        final String stream,
-                                                                        final TableEntry<byte[], byte[]> newEntry,
-                                                                        final long clientRequestId) {
-        final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
-        final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
-        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
-
-        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
-
-            @Override
-            public void connectionDropped() {
-                log.warn(requestId, "updateTableEntries {} Connection dropped", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
-            }
-
-            @Override
-            public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "updateTableEntries {} wrong host", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
-            }
-
-            @Override
-            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.warn(requestId, "updateTableEntries {} NoSuchSegment", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
-            }
-
-            @Override
-            public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
-                log.info(requestId, "updateTableEntries request for {} tableSegment completed.", qualifiedName);
-                result.complete(tableEntriesUpdated.getUpdatedVersions().stream().map(KeyVersionImpl::new).collect(Collectors.toList()));
-            }
-
-            @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
-            }
-
-            @Override
-            public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
-                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyBadVersion.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion));
-            }
-
-            @Override
-            public void processingFailure(Exception error) {
-                log.error(requestId, "updateTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
-            }
-
-            @Override
-            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-                result.completeExceptionally(
-                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
-            }
-        };
-
-        List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
-        entries.add(newEntry);
-        
-        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
-            final WireCommands.TableKey key = convertToWireCommand(te.getKey());
-            final WireCommands.TableValue value = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue()));
-            return new AbstractMap.SimpleImmutableEntry<>(key, value);
-        }).collect(Collectors.toList());
-
-        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, retrieveDelegationToken(),
-                                                                                      new WireCommands.TableEntries(wireCommandEntries));
-        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
-        return result;
-    }
-
+    
     /**
      * This method sends a WireCommand to update table entries.
      *
@@ -927,7 +839,6 @@ public class SegmentHelper {
     public CompletableFuture<Void> removeTableKeys(final String scope,
                                                    final String stream,
                                                    final List<TableKey<byte[]>> keys,
-                                                   
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
