@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -169,6 +170,38 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
         // Test that truncate works in this scenario.
         testProgressiveTruncate(truncateHandle, truncateHandle, writtenData, s, baseStorage);
+    }
+
+    /**
+     * Tests the ability to (not) execute modify operations on already sealed segments. Verifies appropriate exceptions
+     * are being thrown.
+     */
+    @Test
+    public void testSealedSegment() {
+        final String segmentName = "Segment";
+        final String sourceSegmentName = "SourceSegment";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+
+            // Create and seal the segment.
+            s.create(segmentName, TIMEOUT).thenCompose(h -> s.seal(h, TIMEOUT)).join();
+            val handle = s.openWrite(segmentName).join();
+
+            // Modify operations should not succeed.
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "write() worked on previously sealed segment.",
+                    () -> s.write(handle, 0, new ByteArrayInputStream(new byte[0]), 0, TIMEOUT),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
+            s.create(sourceSegmentName, TIMEOUT).thenCompose(h -> s.seal(h, TIMEOUT)).join();
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "concat() worked on previously sealed segment.",
+                    () -> s.concat(handle, 0, sourceSegmentName, TIMEOUT),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
+            // Seal is idempotent.
+            s.seal(handle, TIMEOUT).join();
+        }
     }
 
     /**
