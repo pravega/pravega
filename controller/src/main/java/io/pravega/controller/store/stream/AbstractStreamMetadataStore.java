@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
-    
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
@@ -258,7 +258,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(String scopeName, String continuationToken,
                                                                                 final Executor executor) {
-        return getScope(scopeName).listStreamsInScope(Config.LIST_STREAM_LIMIT, continuationToken, executor);
+        return getScope(scopeName).listStreamsInScope(Scope.LIST_STREAM_LIMIT, continuationToken, executor);
     }
 
     @Override

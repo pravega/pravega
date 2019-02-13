@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
  * Identifier for a Scope is its name.
  */
 public interface Scope {
+    int LIST_STREAM_LIMIT = 1000;
 
     /**
      * Retrieve name of the scope.

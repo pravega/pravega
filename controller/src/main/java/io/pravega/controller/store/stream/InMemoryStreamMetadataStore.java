@@ -246,7 +246,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName));
         }
     }
-    
+
     @Override
     @Synchronized
     CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, int lastActiveSegment,

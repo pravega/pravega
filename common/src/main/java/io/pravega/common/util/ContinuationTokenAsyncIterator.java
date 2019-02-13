@@ -21,11 +21,18 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 @ThreadSafe
 @Slf4j
+/**
+ * This is a continuation token based async iterator implementation. This class takes a function that when completed will 
+ * have next batch of results with continuation token. 
+ * This class determines when to call the next iteration of function (if all existing results have been exhausted) and 
+ * ensures there is only one outstanding call. 
+ */
 public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
     private final Object lock = new Object();
 
@@ -38,55 +45,54 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
     @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<T> token;
     private final Function<T, CompletableFuture<Map.Entry<T, Collection<U>>>> function;
-
+    @GuardedBy("lock")
+    private CompletableFuture<Void> outstanding;
+    private final AtomicBoolean canContinue;
+    
     public ContinuationTokenAsyncIterator(Function<T, CompletableFuture<Map.Entry<T, Collection<U>>>> function, T tokenIdentity) {
         this.function = function;
         this.token = new AtomicReference<>(tokenIdentity);
         this.queue = new LinkedBlockingQueue<>();
+        this.outstanding = CompletableFuture.completedFuture(null);
+        this.canContinue = new AtomicBoolean(true);
     }
 
-    /**
-     * If multiple getNext are called concurrently it will result in multiple remote calls with
-     * same continuation token. This can mean same set of result can get added to the queue multiple times.
-     * To mitigate this, we add result to queue only if the token used in the request and existing value of token are same. 
-     * So if multiple getNext are concurrently called for same continuation token, the result from exactly one of them
-     * is processed and included while others are ignored because first one will update the token as well. 
-     */
     @Override
     public CompletableFuture<U> getNext() {
         final T continuationToken;
-        // if the result is available, return it without making function call
         synchronized (lock) {
+            // if the result is available, return it without making function call
             if (!queue.isEmpty()) {
                 return CompletableFuture.completedFuture(queue.poll());
             } else {
                 continuationToken = token.get();
+                // make the function call if previous outstanding call completed.
+                if (outstanding.isDone()) {
+                    outstanding = function.apply(continuationToken)
+                            .thenAccept(resultPair -> {
+                                synchronized (lock) {
+                                    if (token.get().equals(continuationToken)) {
+                                        log.debug("Received the following collection after calling the function: {} with continuation token: {}",
+                                                resultPair.getValue(), resultPair.getKey());
+                                        canContinue.set(resultPair.getValue() != null && !resultPair.getValue().isEmpty());
+                                        queue.addAll(resultPair.getValue());
+                                        token.set(resultPair.getKey());
+                                    }
+                                }
+                            }).whenComplete((x, e) -> {
+                                              if (e != null) {
+                                                  log.warn("Async iteration failed: ", e);
+                                              }
+                                          });
+                }
             }
         }
 
-        return function.apply(continuationToken).thenCompose(resultPair -> {
-            U polled;
-            synchronized (lock) {
-                if (token.get().equals(continuationToken)) {
-                    log.debug("Received the following data after calling the function {}", resultPair);
-                    queue.addAll(resultPair.getValue());
-                    token.set(resultPair.getKey());
-                }
-                polled = queue.poll();
-            }
-            
-            if (resultPair.getValue() != null && !resultPair.getValue().isEmpty() && polled == null) {
-                // If concurrent getNext calls were received, and we only add results once, it could so happen that 
-                // number of elements returned was less than number of outstanding calls. This could mean we return 
-                // "null" for some of the calls even though the "function" may have returned a continuation token and 
-                // non empty collection. So in this case, instead of returning null, we will call getNext recursively.
+        return outstanding.thenCompose(v -> {
+            if (canContinue.get()) {
                 return getNext();
             } else {
-                return CompletableFuture.completedFuture(polled);
-            }
-        }).whenComplete((x, e) -> {
-            if (e != null) {
-                log.warn("Async iteration failed: ", e);
+                return CompletableFuture.completedFuture(null);
             }
         });
     }

@@ -97,7 +97,7 @@ public class ZKScope implements Scope {
         List<String> taken = new LinkedList<>();
         // start with initial set. fetch all children over floor
 
-        Supplier<CompletableFuture<Void>> supplier = () -> getStreamsInSet(set.get(), Config.LIST_STREAM_LIMIT - taken.size(), floor.get())
+        Supplier<CompletableFuture<Void>> supplier = () -> getStreamsInSet(set.get(), LIST_STREAM_LIMIT - taken.size(), floor.get())
                 .thenAccept(encodedStreams -> {
                     if (!encodedStreams.isEmpty()) {
                         // we found streams in this set to be included. 
@@ -109,7 +109,7 @@ public class ZKScope implements Scope {
                     set.incrementAndGet();
                 });
 
-        return Futures.loop(() -> taken.size() < Config.LIST_STREAM_LIMIT && set.get() < SET_COUNT, supplier, executor)
+        return Futures.loop(() -> taken.size() < LIST_STREAM_LIMIT && set.get() < SET_COUNT, supplier, executor)
                       .thenApply(v -> {
                           List<String> list = taken.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList());
                           // set next continuation token as the last element in this list or the original token received 
