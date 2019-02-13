@@ -104,6 +104,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         String readerGroup = UUID.randomUUID().toString().replace("-", "");
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                     .stream(Stream.of(scope, streamName))
+                    .disableAutomaticCheckpoints()
                     .build();
 
         @Cleanup
@@ -117,15 +118,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        long readTimeOut = 10000;
-
-        EventRead<String> event = reader.readNextEvent(readTimeOut);
-        if (event.isCheckpoint()) {
-            log.info("Encountered a checkpoint event. Reading next event again.");
-            event = reader.readNextEvent(readTimeOut);
-        }
-
-        String readMessage = event.getEvent();
+        String readMessage = reader.readNextEvent(10000).getEvent();
         log.info("Done reading event [{}]", readMessage);
 
         assertEquals(message, readMessage);
