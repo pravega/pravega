@@ -17,13 +17,13 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
+import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
@@ -582,7 +582,7 @@ public class StreamTransactionMetadataTasksTest {
         EventProcessorConfig<T> config = EventProcessorConfig.<T>builder()
                 .config(eventProcessorConfig)
                 .decider(ExceptionHandler.DEFAULT_EXCEPTION_HANDLER)
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .supplier(factory)
                 .build();
 
