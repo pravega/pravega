@@ -9,6 +9,9 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -27,8 +30,12 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
     private final Object lock = new Object();
 
     @GuardedBy("lock")
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final Queue<U> queue;
     @GuardedBy("lock")
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<T> token;
     private final Function<T, CompletableFuture<Map.Entry<T, Collection<U>>>> function;
 
@@ -57,14 +64,25 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
             }
         }
 
-        return function.apply(continuationToken).thenApply(resultPair -> {
+        return function.apply(continuationToken).thenCompose(resultPair -> {
+            U polled;
             synchronized (lock) {
                 if (token.get().equals(continuationToken)) {
                     log.debug("Received the following data after calling the function {}", resultPair);
                     queue.addAll(resultPair.getValue());
                     token.set(resultPair.getKey());
                 }
-                return queue.poll();
+                polled = queue.poll();
+            }
+            
+            if (resultPair.getValue() != null && !resultPair.getValue().isEmpty() && polled == null) {
+                // If concurrent getNext calls were received, and we only add results once, it could so happen that 
+                // number of elements returned was less than number of outstanding calls. This could mean we return 
+                // "null" for some of the calls even though the "function" may have returned a continuation token and 
+                // non empty collection. So in this case, instead of returning null, we will call getNext recursively.
+                return getNext();
+            } else {
+                return CompletableFuture.completedFuture(polled);
             }
         }).whenComplete((x, e) -> {
             if (e != null) {

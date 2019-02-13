@@ -22,12 +22,16 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 public class IteratorTest {
-    @Test
+    @Test(timeout = 10000L)
     public void testContinuationTokenIterator() {
         List<Integer> toReturn = IntStream.range(0, 25).boxed().collect(Collectors.toList());
 
@@ -38,11 +42,11 @@ public class IteratorTest {
         Integer next = iterator.getNext().join();
         int found = 0;
         while(next != null) {
-            Assert.assertEquals(next.intValue(), found++);
+            assertEquals(next.intValue(), found++);
             next = iterator.getNext().join();
         }
-        Assert.assertEquals(4, timesCalled.get());
-        Assert.assertEquals(25, found);
+        assertEquals(4, timesCalled.get());
+        assertEquals(25, found);
         // endregion
         
         // region concurrent calls
@@ -68,9 +72,58 @@ public class IteratorTest {
         Futures.allOf(futures).join();
         
         Assert.assertTrue(timesCalled.get() >= 4);
-        Assert.assertEquals(25, foundMap.size());
+        assertEquals(25, foundMap.size());
         Assert.assertTrue(foundMap.entrySet().stream().allMatch(x -> x.getValue() == 1));
         // endregion
+
+        // region concurrent calls
+        CompletableFuture<Void> latch = new CompletableFuture<>();
+        CompletableFuture<String> latch2 = new CompletableFuture<>();
+        CompletableFuture<String> latch3 = new CompletableFuture<>();
+        LinkedBlockingQueue<CompletableFuture<String>> queue = new LinkedBlockingQueue<>();
+        queue.add(latch2);
+        queue.add(latch3);
+        
+        List<Integer> list = Lists.newArrayList(1, 2, 3);
+        iterator = new ContinuationTokenAsyncIterator<>(s -> {
+            int startIndex = Strings.isNullOrEmpty(s) ? 0 : Integer.parseInt(s);
+            int endIndex = startIndex + 1;
+            if (!Strings.isNullOrEmpty(s)) {
+                CompletableFuture<String> poll = queue.poll();
+                if (poll != null) {
+                    poll.complete(s);
+                }
+                // block the call
+                return latch.thenApply(v -> new AbstractMap.SimpleEntry<>("" + endIndex, list.subList(startIndex, endIndex)));
+            }
+            
+            return CompletableFuture.completedFuture(
+                    new AbstractMap.SimpleEntry<>("" + endIndex, list.subList(startIndex, endIndex)));
+        }, "");
+
+        Integer next0 = iterator.getNext().join();
+        assertEquals(next0.intValue(), 1);
+        assertEquals(iterator.getToken().get(), "1");
+        
+        CompletableFuture<Integer> next1 = iterator.getNext();
+        // wait until first call is made.
+        String token1 = latch2.join();
+        CompletableFuture<Integer> next2 = iterator.getNext();
+        // wait until second call is made.
+        String token2 = latch3.join();
+        // now we have two concurrent calls with same continuation token
+        // verify that the continuation token is same
+        assertEquals(token1, token2);
+        assertEquals("1", iterator.getToken().get());
+        // now signal for both calls to be completed
+        latch.complete(null);
+
+        // since next1 and next2 are called concurrently, there is no guarantee on their order. 
+        assertEquals(next1.join() + next2.join(), 5);
+        assertEquals(iterator.getToken().get(), "3");
+        assertTrue(iterator.getQueue().isEmpty());
+        // endregion
+
     }
 
     private ContinuationTokenAsyncIterator<String, Integer> getIterator(List<Integer> toReturn, AtomicInteger timesCalled) {
@@ -86,7 +139,7 @@ public class IteratorTest {
         }, "");
     }
     
-    @Test
+    @Test(timeout = 10000L)
     public void testBlockingIterator() {
         List<Integer> toReturn = IntStream.range(0, 25).boxed().collect(Collectors.toList());
         AtomicInteger timesCalled = new AtomicInteger(0);
@@ -95,7 +148,7 @@ public class IteratorTest {
         int found = 0;
         while(iterator.hasNext()) {
             Integer i = iterator.next();
-            Assert.assertEquals(i.intValue(), found++);
+            assertEquals(i.intValue(), found++);
         }
 
         AssertExtensions.assertThrows(NoSuchElementException.class, iterator::next);
