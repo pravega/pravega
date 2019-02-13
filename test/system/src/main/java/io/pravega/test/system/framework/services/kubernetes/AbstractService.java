@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system.framework.services.kubernetes;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import io.kubernetes.client.models.V1Container;
