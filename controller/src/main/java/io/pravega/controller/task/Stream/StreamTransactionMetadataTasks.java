@@ -85,10 +85,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     protected final ScheduledExecutorService executor;
 
     private final StreamMetadataStore streamMetadataStore;
-    private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
-    private final ConnectionFactory connectionFactory;
-    private final AuthHelper authHelper;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -109,10 +106,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
-        this.authHelper = authHelper;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
@@ -127,11 +121,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
-        this.authHelper = authHelper;
         readyLatch = new CountDownLatch(1);
     }
 
@@ -662,9 +653,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentId,
-                txnId,
-                this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
+                txnId), executor);
     }
 
     private CompletableFuture<Void> checkReady() {
@@ -680,11 +669,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final OperationContext contextOpt) {
         return contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
     }
-
-    public String retrieveDelegationToken() {
-        return authHelper.retrieveMasterToken();
-    }
-
+    
     @Override
     public void close() throws Exception {
         timeoutService.stopAsync();

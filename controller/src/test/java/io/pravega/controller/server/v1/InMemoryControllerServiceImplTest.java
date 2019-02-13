@@ -96,7 +96,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      new SegmentHelper(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true);
+                                      new SegmentHelper(hostControllerStore, clientCF, authHelper), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true);
     }
 
     @Override

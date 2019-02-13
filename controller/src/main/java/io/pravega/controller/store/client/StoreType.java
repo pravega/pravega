@@ -15,5 +15,5 @@ package io.pravega.controller.store.client;
 public enum StoreType {
     InMemory,
     Zookeeper,
-    KVSTableSegment,
+    PravegaTable,
 }

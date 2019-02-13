@@ -14,7 +14,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 @Slf4j
-public class ZkBackedCounter {
+public class ZkInt96Counter {
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
      * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
@@ -39,7 +39,7 @@ public class ZkBackedCounter {
     private volatile CompletableFuture<Void> refreshFutureRef;
     private ZKStoreHelper storeHelper;
 
-    public ZkBackedCounter(ZKStoreHelper storeHelper) {
+    public ZkInt96Counter(ZKStoreHelper storeHelper) {
         this.lock = new Object();
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();

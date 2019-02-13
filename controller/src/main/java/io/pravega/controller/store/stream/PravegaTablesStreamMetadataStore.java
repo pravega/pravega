@@ -15,82 +15,37 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
-import io.pravega.controller.store.index.ZKHostIndex;
-import io.pravega.controller.util.Config;
-import lombok.AccessLevel;
-import lombok.Getter;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.index.PravegaTablesHostIndex;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.utils.ZKPaths;
 
-import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 /**
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
-    static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
-    private static final String TRANSACTION_ROOT_PATH = "/transactions";
-    private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
-    static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
-    static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
-    private ZKStoreHelper storeHelper;
-
-    private final ZKGarbageCollector completedTxnGC;
+class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     private final ZkInt96Counter counter;
+    private final ZKGarbageCollector completedTxnGC;
+    private final SegmentHelper segmentHelper;
     
     @VisibleForTesting
-    ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
-        this(client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, ZKGarbageCollector gc, ZkInt96Counter counter, Executor executor) {
+        super(new PravegaTablesHostIndex(segmentHelper, "/hostTxnIndex", executor));
+        this.counter = counter;
+        this.completedTxnGC = gc;
+        this.segmentHelper = segmentHelper;
     }
-
-    @VisibleForTesting
-    ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
-        super(new ZKHostIndex(client, "/hostTxnIndex", executor));
-        storeHelper = new ZKStoreHelper(client, executor);
-        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
-        this.completedTxnGC.startAsync();
-        this.completedTxnGC.awaitRunning();
-        this.counter = new ZkInt96Counter(storeHelper);    
-    }
-
-    private CompletableFuture<Void> gcCompletedTxn() {
-        return storeHelper.getChildren(COMPLETED_TX_BATCH_ROOT_PATH)
-                .thenApply(children -> {
-                            // retain latest two and delete remainder.
-                            List<Long> list = children.stream().map(Long::parseLong).sorted().collect(Collectors.toList());
-                            if (list.size() > 2) {
-                                return list.subList(0, list.size() - 2);
-                            } else {
-                                return new ArrayList<Long>();
-                            }
-                        }
-                )
-                .thenCompose(toDeleteList -> {
-                    log.debug("deleting batches {} on new scheme" + toDeleteList);
-
-                    // delete all those marked for toDelete.
-                    return Futures.allOf(toDeleteList.stream()
-                            .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
-                            .collect(Collectors.toList()));
-                });
-    }
-
+    
     @Override
-    ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
+    PravegaTablesStream newStream(final String scope, final String name) {
+        return new PravegaTablesStream(scope, name, segmentHelper, completedTxnGC::getLatestBatch);
     }
 
     @Override
@@ -110,13 +65,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     
     @Override
     ZKScope newScope(final String scopeName) {
-        return new ZKScope(scopeName, storeHelper);
+        return new ZKScope(scopeName, segmentHelper);
     }
 
     @Override
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
-        return storeHelper.checkExists(String.format("/store/%s", scopeName))
-                .thenApply(scopeExists -> {
+        return segmentHelper.checkExists(String.format("/store/%s", scopeName))
+                            .thenApply(scopeExists -> {
                     if (scopeExists) {
                         return scopeName;
                     } else {
@@ -127,20 +82,20 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return storeHelper.listScopes();
+        return segmentHelper.listScopes();
     }
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
         ZKStream stream = newStream(scopeName, streamName);
-        return storeHelper.checkExists(stream.getStreamPath());
+        return segmentHelper.checkExists(stream.getStreamPath());
     }
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
-                          .handleAsync((data, ex) -> {
+        return segmentHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
+                            .handleAsync((data, ex) -> {
                               if (ex == null) {
                                   return BitConverter.readInt(data.getData(), 0) + 1;
                               } else if (ex instanceof StoreException.DataNotFoundException) {
@@ -159,24 +114,24 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
-        return storeHelper.getData(deletePath)
-                          .exceptionally(e -> {
+        return segmentHelper.getData(deletePath)
+                            .exceptionally(e -> {
                               if (e instanceof StoreException.DataNotFoundException) {
                                   return null;
                               } else {
                                   throw new CompletionException(e);
                               }
                           })
-                          .thenCompose(data -> {
+                            .thenCompose(data -> {
                               log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
                               if (data == null) {
-                                  return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
+                                  return Futures.toVoid(segmentHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
                               } else {
                                   final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
                                   Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
                                           "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                           oldLastActiveSegment, scope, stream, lastActiveSegment);
-                                  return Futures.toVoid(storeHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
+                                  return Futures.toVoid(segmentHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
                               }
                           });
     }
@@ -195,10 +150,33 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         String[] splits = scopedStream.split("/");
         return new StreamImpl(splits[0], splits[1]);
     }
-    
+
+    // region getters and setters for testing
+    @VisibleForTesting
+    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
+        synchronized (lock) {
+            limit.set(limitMsb, limitLsb);
+            counter.set(counterMsb, counterLsb);
+        }
+    }
+
+    @VisibleForTesting
+    Int96 getLimitForTesting() {
+        synchronized (lock) {
+            return limit.get();
+        }
+    }
+
+    @VisibleForTesting
+    Int96 getCounterForTesting() {
+        synchronized (lock) {
+            return counter.get();
+        }
+    }
+
     @VisibleForTesting
     public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
-        this.storeHelper = storeHelper;
+        this.segmentHelper = storeHelper;
     }
 
     @Override

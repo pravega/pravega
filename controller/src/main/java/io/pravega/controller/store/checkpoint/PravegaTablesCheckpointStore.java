@@ -10,10 +10,17 @@
 package io.pravega.controller.store.checkpoint;
 
 import io.pravega.client.stream.Position;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.data.Stat;
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -25,30 +32,34 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import javafx.geometry.Pos;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.data.Stat;
-
 /**
  * Zookeeper based checkpoint store.
  */
 @Slf4j
-class ZKCheckpointStore implements CheckpointStore {
+class PravegaTablesCheckpointStore implements CheckpointStore {
 
     private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
     private final JavaSerializer<ReaderGroupData> groupDataSerializer;
 
-    ZKCheckpointStore(CuratorFramework client) {
+    PravegaTablesCheckpointStore(CuratorFramework client) {
         this.client = client;
         this.groupDataSerializer = new JavaSerializer<>();
     }
-    
+
+    // TODO: shivesh: change this to use custom serialization
+    @Data
+    @AllArgsConstructor
+    private static class ReaderGroupData implements Serializable {
+        enum State {
+            Active,
+            Sealed,
+        }
+
+        private final State state;
+        private final List<String> readerIds;
+    }
+
     @Override
     public void setPosition(String process, String readerGroup, String readerId, Position position) throws CheckpointStoreException {
         updateNode(getReaderPath(process, readerGroup, readerId), position.toBytes().array());

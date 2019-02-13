@@ -88,7 +88,7 @@ public class IntermittentCnxnFailureTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        segmentHelperMock = spy(new SegmentHelper());
+        segmentHelperMock = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
                 anyString(), anyString(), anyInt(), any());

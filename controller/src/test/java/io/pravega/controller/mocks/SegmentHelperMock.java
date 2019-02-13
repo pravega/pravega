@@ -25,7 +25,7 @@ public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
 
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper());
+        SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong(), any());
@@ -61,7 +61,7 @@ public class SegmentHelperMock {
     }
 
     public static SegmentHelper getFailingSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper());
+        SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong(), any());

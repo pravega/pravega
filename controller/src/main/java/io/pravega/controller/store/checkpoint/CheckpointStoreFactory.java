@@ -11,6 +11,7 @@ package io.pravega.controller.store.checkpoint;
 
 import io.pravega.controller.store.client.StoreClient;
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.controller.store.index.PravegaTablesHostIndex;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
@@ -24,6 +25,8 @@ public class CheckpointStoreFactory {
                 return new InMemoryCheckpointStore();
             case Zookeeper:
                 return new ZKCheckpointStore((CuratorFramework) storeClient.getClient());
+            case PravegaTable:
+                return new PravegaTablesCheckpointStore()
             default:
                 return null;
         }

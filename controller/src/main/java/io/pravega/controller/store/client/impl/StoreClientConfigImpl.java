@@ -49,6 +49,6 @@ public class StoreClientConfigImpl implements StoreClientConfig {
     
     public static StoreClientConfig withKvsClient(ZKClientConfig zkClientConfig) {
         Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
-        return new StoreClientConfigImpl(StoreType.KVSTableSegment, Optional.of(zkClientConfig));
+        return new StoreClientConfigImpl(StoreType.PravegaTable, Optional.of(zkClientConfig));
     }
 }

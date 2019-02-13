@@ -57,7 +57,7 @@ public class SegmentHelperTest {
 
     @Before
     public void setUp() throws Exception {
-        helper = new SegmentHelper();
+        helper = new SegmentHelper(hostControllerStore, clientCF, authHelper);
     }
 
     @After

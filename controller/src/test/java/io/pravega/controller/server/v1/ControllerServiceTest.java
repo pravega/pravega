@@ -98,7 +98,7 @@ public class ControllerServiceTest {
                 hostStore, segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(), executor, null);
+                new SegmentHelper(hostControllerStore, clientCF, authHelper), executor, null);
     }
 
     @Before
