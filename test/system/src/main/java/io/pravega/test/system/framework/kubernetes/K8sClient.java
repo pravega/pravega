@@ -196,6 +196,11 @@ public class K8sClient {
     @SneakyThrows(ApiException.class)
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
         CoreV1Api api = new CoreV1Api();
+
+        // Workaround for okhttp issue, tracked by https://github.com/pravega/pravega/issues/3361
+        log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
+        api.getApiClient().getHttpClient().networkInterceptors().clear();
+
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
         api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelName + "=" + labelValue, null,
                                    null, null, false, callback);
