@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class IteratorTest {
@@ -94,7 +95,11 @@ public class IteratorTest {
                     poll.complete(s);
                 }
                 // block the call
-                return latch.thenApply(v -> new AbstractMap.SimpleEntry<>("" + endIndex, list.subList(startIndex, endIndex)));
+                return latch.thenApply(v -> {
+                    List<Integer> tmp = (startIndex >= list.size()) ? Lists.newArrayList() : list.subList(startIndex, endIndex);
+                    
+                    return new AbstractMap.SimpleEntry<>("" + endIndex, tmp);
+                });
             }
             
             return CompletableFuture.completedFuture(
@@ -122,6 +127,8 @@ public class IteratorTest {
         assertEquals(next1.join() + next2.join(), 5);
         assertEquals(iterator.getToken().get(), "3");
         assertTrue(iterator.getQueue().isEmpty());
+        
+        assertNull(iterator.getNext().join());
         // endregion
 
     }
