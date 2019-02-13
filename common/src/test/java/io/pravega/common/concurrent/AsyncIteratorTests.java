@@ -15,7 +15,6 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -58,27 +57,25 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertListEquals("Unexpected result.", expected, result, Integer::equals);
     }
 
+
     /**
-     * Tests the {@link AsyncIterator#forEachRemaining(Predicate, Consumer, Executor)} method.
+     * Tests the {@link AsyncIterator#collectUntil(Consumer, Predicate)} method.
      */
     @Test
-    public void testForEachRemainingWithPredicate() {
+    public void testCollectRemaining() {
         val expected = IntStream.range(0, 10).boxed().collect(Collectors.toList());
+
         TestIterator<Integer> iterator = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
-        val result = new ArrayList<Integer>();
-        iterator.forEachRemaining(e -> Boolean.FALSE, result::add, executorService()).join();
+        ArrayList<Integer> result = new ArrayList<>();
+        iterator.collectUntil(result::add, e -> Boolean.TRUE).join();
         AssertExtensions.assertListEquals("Unexpected result.", expected, result, Integer::equals);
 
-        val emptyResult = new ArrayList<Integer>();
-        iterator = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
-        iterator.forEachRemaining(e -> Boolean.TRUE, emptyResult::add, executorService()).join();
-        AssertExtensions.assertListEquals("Unexpected result.", Collections.emptyList(), emptyResult, Integer::equals);
-
         val filteredResult = new ArrayList<Integer>();
+        result = new ArrayList<>();
         iterator = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
-        iterator.forEachRemaining(e -> e >= 5, filteredResult::add, executorService()).join();
+        iterator.collectUntil(result::add, e -> e < 5);
         AssertExtensions.assertListEquals("Unexpected result.", IntStream.range(0, 5).boxed().collect(Collectors.toList()),
-                                          filteredResult, Integer::equals);
+                                          result, Integer::equals);
     }
 
     /**

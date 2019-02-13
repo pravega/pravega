@@ -95,7 +95,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -159,7 +158,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
-    private final ScheduledExecutorService executor;
 
     //endregion
 
@@ -169,46 +167,42 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * Creates a new instance of the PravegaRequestProcessor class with no Metrics StatsRecorder.
      *
      * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore   The TableStore to attach to (and issue requests to).
+     * @param tableStore The TableStore to attach to (and issue requests to).
      * @param connection   The ServerConnection to attach to (and send responses to).
-     * @param executor     The executor to run processing tasks.
      */
     @VisibleForTesting
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                                   ScheduledExecutorService executor) {
-        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), MetricsProvider.getDynamicLogger(), false, executor);
+    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
+        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), MetricsProvider.getDynamicLogger(), false);
     }
 
     /**
      * Creates a new instance of the PravegaRequestProcessor class with metrics logger.
      *
-     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore    The TableStore to attach to (and issue requests to).
-     * @param connection    The ServerConnection to attach to (and send responses to).
-     * @param dynamicLogger The DynamicLogger to log metrics.
-     * @param executor      The executor to run processing tasks.
+     * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore The TableStore to attach to (and issue requests to).
+     * @param connection   The ServerConnection to attach to (and send responses to).
+     * @param dynamicLogger  The DynamicLogger to log metrics.
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                                   DynamicLogger dynamicLogger, ScheduledExecutorService executor) {
-        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), dynamicLogger, false, executor);
+                                   DynamicLogger dynamicLogger) {
+        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), dynamicLogger, false);
     }
 
     /**
      * Creates a new instance of the PravegaRequestProcessor class.
      *
-     * @param segmentStore               The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore                 The TableStore to attach to (and issue requests to).
-     * @param connection                 The ServerConnection to attach to (and send responses to).
-     * @param statsRecorder              (Optional) A StatsRecorder for Metrics.
-     * @param tokenVerifier              Verifier class that verifies delegation token.
-     * @param dynamicLogger              DynamicLogger to log metrics.
+     * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
+     * @param tableStore The TableStore to attach to (and issue requests to).
+     * @param connection    The ServerConnection to attach to (and send responses to).
+     * @param statsRecorder (Optional) A StatsRecorder for Metrics.
+     * @param tokenVerifier  Verifier class that verifies delegation token.
+     * @param dynamicLogger  DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
-     * @param executor                   The executor to run processing tasks.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
                             SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                            DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError, ScheduledExecutorService executor) {
+                            DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
@@ -216,7 +210,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         this.statsRecorder = statsRecorder;
         this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        this.executor = executor;
     }
 
     //endregion
@@ -746,8 +739,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final List<TableKey> keys = synchronizedList(new ArrayList<>());
 
         tableStore.keyIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> itr.forEachRemaining(
-                          e -> keys.size() >= suggestedKeyCount || msgSize.get() >= MAX_READ_SIZE,
+                  .thenCompose(itr -> itr.collectUntil(
                           e -> {
                               Collection<TableKey> tableKeys = e.getEntries();
                               ArrayView lastState = e.getState();
@@ -758,7 +750,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
                               // Update msgSize.
                               msgSize.addAndGet(getTableKeyBytes(segment, tableKeys, lastState.getLength()));
-                          }, executor))
+                          },
+                          e -> keys.size() < suggestedKeyCount && msgSize.get() < MAX_READ_SIZE))
                   .thenAccept(v -> {
                       log.debug(readTableKeys.getRequestId(), "{} keys obtained for ReadTableKeys request.", keys.size());
                       List<WireCommands.TableKey> wireCommandKeys = keys.stream()
@@ -796,8 +789,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableEntry> entries = synchronizedList(new ArrayList<>());
         tableStore.entryIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> itr.forEachRemaining(
-                          e -> entries.size() >= suggestedEntryCount || msgSize.get() >= MAX_READ_SIZE,
+                  .thenCompose(itr -> itr.collectUntil(
                           e -> {
                               final Collection<TableEntry> tableEntries = e.getEntries();
                               final ArrayView lastState = e.getState();
@@ -809,7 +801,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                               // Update message size.
                               msgSize.addAndGet(getTableEntryBytes(segment, tableEntries, lastState.getLength()));
 
-                          }, executor))
+                          },
+                          e -> entries.size() < suggestedEntryCount && msgSize.get() < MAX_READ_SIZE))
                   .thenAccept(v -> {
                       log.debug(readTableEntries.getRequestId(), "{} entries obtained for ReadTableEntries request.", entries.size());
                       List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries =

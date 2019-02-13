@@ -59,29 +59,6 @@ public interface AsyncIterator<T> {
     }
 
     /**
-     * Processes the remaining elements in the AsyncIterator until the specified {@link Predicate} returns true.
-     *
-     * @param until A Predicate that will be used to the decide the number of elements on which the Consumer will be invoked.
-     * @param consumer A Consumer that will be invoked for each remaining element. The consumer will be invoked using the
-     *                 given Executor, but any new invocation will wait for the previous invocation to complete.
-     * @param executor An Executor to run async tasks on.
-     * @return A CompletableFuture that, when completed, will indicate that the processing is complete.
-     */
-    default CompletableFuture<Void> forEachRemaining(Predicate<? super T> until, Consumer<? super T> consumer, Executor executor) {
-        AtomicBoolean canContinue = new AtomicBoolean(true);
-        return Futures.loop(
-                canContinue::get,
-                this::getNext,
-                e -> {
-                    if (e == null || until.test(e)) {
-                        canContinue.set(false);
-                    } else {
-                        consumer.accept(e);
-                    }
-                }, executor);
-    }
-
-    /**
      * Returns a new {@link AsyncIterator} that wraps this instance which serializes the execution of all calls to
      * {@link #getNext()} (no two executions of {@link #getNext()} will ever execute at the same time; they will be
      * run in the order of invocation, but only after the previous one completes).
@@ -100,5 +77,26 @@ public interface AsyncIterator<T> {
             });
             return result;
         };
+    }
+
+    /**
+     * Processes the remaining elements in the AsyncIterator until the specified {@link Predicate} returns false.
+     *
+     * @param until A Predicate that will be used to the decide the number of elements on which the Consumer will be invoked.
+     * @param consumer A Consumer that will be invoked for each remaining element. The consumer will be invoked by the same thread, hence
+     *                any new invocation will will wait until the previous invocation is complete.
+     *                 given Executor, but any new invocation will wait for the previous invocation to complete.
+     * @return A CompletableFuture that, when completed, will indicate that the processing is complete.
+     */
+    default CompletableFuture<Void> collectUntil(Consumer<? super T> consumer, Predicate<? super T> until) {
+        return getNext().thenCompose(e -> {
+            boolean canContinue = e != null && until.test(e);
+            if (canContinue) {
+                consumer.accept(e);
+                return collectUntil(consumer, until);
+            } else {
+                return CompletableFuture.completedFuture(null);
+            }
+        });
     }
 }
