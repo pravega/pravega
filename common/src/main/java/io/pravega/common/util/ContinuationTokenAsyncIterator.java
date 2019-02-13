@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +69,8 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
                 continuationToken = token.get();
                 // make the function call if previous outstanding call completed.
                 if (outstanding.isDone()) {
-                    outstanding = outstanding.thenComposeAsync(v -> function.apply(continuationToken)
+                    // We are making this call under the lock!
+                    outstanding = function.apply(continuationToken)
                             .thenAccept(resultPair -> {
                                 synchronized (lock) {
                                     if (token.get().equals(continuationToken)) {
@@ -79,11 +81,10 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
                                         token.set(resultPair.getKey());
                                     }
                                 }
-                            }).whenComplete((x, e) -> {
-                                              if (e != null) {
-                                                  log.warn("Async iteration failed: ", e);
-                                              }
-                                          }));
+                            }).exceptionally(e -> {
+                                log.warn("Async iteration failed: ", e);
+                                throw new CompletionException(e);
+                            });
                 }
             }
         }
