@@ -40,7 +40,11 @@ echo "wait for zookeeper"
 until zk-shell --run-once "ls /" ${BK_zkServers}; do sleep 5; done
 
 echo "delete bookie cookie"
-sed -i "s|metadataServiceUri=.*\$|metadataServiceUri=${BK_metadataServiceUri}|" /opt/bookkeeper/conf/bk_server.conf
+# We need to update the metadata endpoint and Bookie ID before attempting delete the cookie
+sed -i "s|.*metadataServiceUri=.*\$|metadataServiceUri=${BK_metadataServiceUri}|" /opt/bookkeeper/conf/bk_server.conf
+if [ ! -z "$BK_useHostNameAsBookieID" ]; then
+  sed -i "s|.*useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
+fi
 /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
 
 echo "start bookie"
