@@ -113,11 +113,6 @@ public class IteratorTest {
 
         CompletableFuture<Integer> next2 = iterator.getNext();
         // this should keep calling getNext in a loop until it gets the value. 
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
         // verify that iterator.getNext is called multiple times.
         verify(iterator, atLeast(3)).getNext();
         

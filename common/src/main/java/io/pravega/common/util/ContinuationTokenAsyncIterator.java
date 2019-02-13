@@ -48,6 +48,7 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
     @GuardedBy("lock")
     private CompletableFuture<Void> outstanding;
     private final AtomicBoolean canContinue;
+    private final AtomicBoolean makeCall;
     
     public ContinuationTokenAsyncIterator(Function<T, CompletableFuture<Map.Entry<T, Collection<U>>>> function, T tokenIdentity) {
         this.function = function;
@@ -55,6 +56,7 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
         this.queue = new LinkedBlockingQueue<>();
         this.outstanding = CompletableFuture.completedFuture(null);
         this.canContinue = new AtomicBoolean(true);
+        this.makeCall = new AtomicBoolean(false);
     }
 
     @Override
@@ -67,8 +69,9 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
             } else {
                 continuationToken = token.get();
                 // make the function call if previous outstanding call completed.
+                makeCall.compareAndSet(false, outstanding.isDone());
                 if (outstanding.isDone()) {
-                    outstanding = function.apply(continuationToken)
+                    outstanding = outstanding.thenComposeAsync(v -> function.apply(continuationToken)
                             .thenAccept(resultPair -> {
                                 synchronized (lock) {
                                     if (token.get().equals(continuationToken)) {
@@ -83,7 +86,7 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
                                               if (e != null) {
                                                   log.warn("Async iteration failed: ", e);
                                               }
-                                          });
+                                          }));
                 }
             }
         }
