@@ -28,7 +28,6 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.EventRead;
 
 import java.net.URI;
 import java.util.UUID;
