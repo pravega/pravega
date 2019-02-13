@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-public interface SegmentStatsRecorder {
+public interface SegmentStatsRecorder extends AutoCloseable {
 
     /**
      * Method to notify segment create events.
@@ -54,4 +54,7 @@ public interface SegmentStatsRecorder {
      * @param txnCreationTime   transaction creation time.
      */
     void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime);
+
+    @Override
+    void close();
 }

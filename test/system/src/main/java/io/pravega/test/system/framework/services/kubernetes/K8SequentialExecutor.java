@@ -55,8 +55,9 @@ public class K8SequentialExecutor implements TestExecutor {
                      .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                      .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
                      .thenCompose(v -> {
-                         client.downloadLogs(pod, "./build/test-results/" + podName + ".log"); //start background log download.
-                         return client.waitUntilPodCompletes(NAMESPACE, podName);
+                         // start download of logs.
+                         CompletableFuture<Void> logDownload = client.downloadLogs(pod, "./build/test-results/" + podName);
+                         return client.waitUntilPodCompletes(NAMESPACE, podName).thenCombine(logDownload, (status, v1) -> status);
                      }).handle((s, t) -> {
                          if (t == null) {
                              log.info("Test execution completed with status {}", s);

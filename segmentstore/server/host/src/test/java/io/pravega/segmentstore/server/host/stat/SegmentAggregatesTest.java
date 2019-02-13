@@ -9,41 +9,23 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
-import io.pravega.shared.protocol.netty.WireCommands;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.time.Clock;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.concurrent.atomic.AtomicLong;
+import org.junit.Test;
 
 public class SegmentAggregatesTest {
-    private Clock clock;
-
-    @Before
-    public void setUp() {
-        clock = mock(Clock.class);
-        SegmentAggregates.setClock(clock);
-    }
-
-    @After
-    public void teardown() {
-        SegmentAggregates.setClock(Clock.systemDefaultZone());
-    }
+    private final AtomicLong currentTime = new AtomicLong();
 
     private void setClock(long time) {
-        when(clock.millis()).thenReturn(time);
+        currentTime.set(time);
     }
 
     @Test
     public void aggregate() {
         setClock(0);
-        SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+        SegmentAggregates aggregates = new TestSegmentAggregatesEvents(100);
 
         aggregates.update(0, 100);
         setClock(5001);
@@ -55,7 +37,7 @@ public class SegmentAggregatesTest {
 
         setClock(0);
         // test bytes per second
-        aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_KBYTES_PER_SEC, 1);
+        aggregates = new TestSegmentAggregatesThroughput(1);
 
         aggregates.update(100000, 0);
         setClock(5001);
@@ -69,7 +51,7 @@ public class SegmentAggregatesTest {
     @Test
     public void aggregateTxn() {
         setClock(Duration.ofMinutes(10).toMillis() - Duration.ofSeconds(5).toMillis());
-        SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+        SegmentAggregates aggregates = new TestSegmentAggregatesEvents(100);
 
         // add transaction. Approximately 10 events per second.
         aggregates.updateTx(0, 6500, 0L);
@@ -79,10 +61,10 @@ public class SegmentAggregatesTest {
         assert aggregates.getTwoMinuteRate() > 10;
 
         setClock(0);
-        aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+        aggregates = new TestSegmentAggregatesEvents(100);
         aggregates.updateTx(0, 100, 0L);
         assert aggregates.getTwoMinuteRate() == 0;
-        assert aggregates.getCurrentCount().get() == 100;
+        assert aggregates.getCurrentCount() == 100;
         setClock(Duration.ofSeconds(5).toMillis() + 1);
         aggregates.updateTx(0, 1000, 0L);
         assert aggregates.getTwoMinuteRate() > 219;
@@ -95,7 +77,7 @@ public class SegmentAggregatesTest {
     @Test
     public void parallel() throws ExecutionException, InterruptedException {
         setClock(0L);
-        SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+        SegmentAggregates aggregates = new TestSegmentAggregatesEvents(100);
         CompletableFuture.allOf(CompletableFuture.runAsync(() -> write(aggregates, 100)),
                 CompletableFuture.runAsync(() -> write(aggregates, 100)),
                 CompletableFuture.runAsync(() -> write(aggregates, 100))).get();
@@ -112,7 +94,7 @@ public class SegmentAggregatesTest {
     @Test
     public void parallelTx() throws ExecutionException, InterruptedException {
         setClock(Duration.ofSeconds(10).toMillis());
-        SegmentAggregates aggregates = new SegmentAggregates(WireCommands.CreateSegment.IN_EVENTS_PER_SEC, 100);
+        SegmentAggregates aggregates = new TestSegmentAggregatesEvents(100);
         CompletableFuture.allOf(CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0)),
                 CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0)),
                 CompletableFuture.runAsync(() -> writeTx(aggregates, 100, 0))).get();
@@ -121,5 +103,27 @@ public class SegmentAggregatesTest {
         aggregates.update(0, 0);
 
         assert aggregates.getTwoMinuteRate() > 29;
+    }
+
+    private class TestSegmentAggregatesEvents extends SegmentAggregates.ByEventCount {
+        TestSegmentAggregatesEvents(int targetRate) {
+            super(targetRate);
+        }
+
+        @Override
+        protected long getTimeMillis() {
+            return currentTime.get();
+        }
+    }
+
+    private class TestSegmentAggregatesThroughput extends SegmentAggregates.ByThroughput {
+        TestSegmentAggregatesThroughput(int targetRate) {
+            super(targetRate);
+        }
+
+        @Override
+        protected long getTimeMillis() {
+            return currentTime.get();
+        }
     }
 }

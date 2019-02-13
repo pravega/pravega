@@ -9,8 +9,8 @@
  */
 package io.pravega.test.common;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
@@ -26,7 +26,7 @@ public abstract class ThreadPooledTestSuite {
     @Before
     public void before() {
         int threadPoolSize = getThreadPoolSize();
-        this.executorService = threadPoolSize == INLINE_THREAD_COUNT ? new InlineExecutor() : Executors.newScheduledThreadPool(threadPoolSize);
+        this.executorService = threadPoolSize == INLINE_THREAD_COUNT ? new InlineExecutor() : createExecutorService(threadPoolSize);
     }
 
     @After
@@ -48,5 +48,20 @@ public abstract class ThreadPooledTestSuite {
      */
     protected int getThreadPoolSize() {
         return INLINE_THREAD_COUNT;
+    }
+
+    /**
+     * Creates a new {@link ScheduledExecutorService} that automatically cancels ongoing tasks when shut down.
+     * This is the same as ExecutorServiceHelpers.newScheduledThreadPool, however that class is not accessible from here.
+     *
+     * @param threadPoolSize Maximum number of threads in the pool.
+     * @return A new {@link ScheduledExecutorService} instance.
+     */
+    static ScheduledExecutorService createExecutorService(int threadPoolSize) {
+        ScheduledThreadPoolExecutor es = new ScheduledThreadPoolExecutor(threadPoolSize);
+        es.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        es.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        es.setRemoveOnCancelPolicy(true);
+        return es;
     }
 }
