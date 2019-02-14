@@ -139,7 +139,7 @@ public interface ReaderGroup extends ReaderGroupNotificationListener, AutoClosea
 
     /**
      * Returns a {@link StreamCut} for each stream that this reader group is reading from.
-     * The stream cut corresponds to the last updated read offsets of the readers, and
+     * The stream cut corresponds to the last checkpointed read offsets of the readers, and
      * it can be used by the application as reference to such a position.
      * A more precise {@link StreamCut}, with the latest read offsets can be obtained using
      * {@link ReaderGroup#generateStreamCuts(ScheduledExecutorService)} API.

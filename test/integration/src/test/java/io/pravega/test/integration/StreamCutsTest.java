@@ -14,6 +14,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -44,8 +45,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -57,6 +60,7 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -103,7 +107,7 @@ public class StreamCutsTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 40000)
+    @Test//(timeout = 40000)
     public void testReaderGroupCuts() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
@@ -125,18 +129,21 @@ public class StreamCutsTest {
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
                 connectionFactory);
         groupManager.createReaderGroup("cuts", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream("test/test").build());
+                .builder().disableAutomaticCheckpoints().stream("test/test").groupRefreshTimeMillis(0).build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("cuts");
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "cuts", new JavaSerializer<>(),
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().initialAllocationDelay(0).build());
 
-        EventRead<String> firstEvent = reader.readNextEvent(15000);
-        EventRead<String> secondEvent = reader.readNextEvent(15000);
-        assertNotNull(firstEvent);
+        EventRead<String> firstEvent = reader.readNextEvent(5000);
+        assertNotNull(firstEvent.getEvent());
         assertEquals("fpj was here", firstEvent.getEvent());
-        assertNotNull(secondEvent);
+        readerGroup.initiateCheckpoint("cp1", executor);
+        EventRead<String> cpEvent = reader.readNextEvent(5000);
+        assertEquals("cp1", cpEvent.getCheckpointName());
+        EventRead<String> secondEvent = reader.readNextEvent(5000);
+        assertNotNull(secondEvent.getEvent());
         assertEquals("fpj was here again", secondEvent.getEvent());
 
         Map<Stream, StreamCut> cuts = readerGroup.getStreamCuts();
@@ -150,11 +157,15 @@ public class StreamCutsTest {
         Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 1st scaling");
-        writer.writeEvent("0", "fpj was here again").get();
-        writer.writeEvent("1", "fpj was here again").get();
-
-        reader.readNextEvent(15000);
-        cuts = readerGroup.getStreamCuts();
+        writer.writeEvent("0", "fpj was here again0").get();
+        writer.writeEvent("1", "fpj was here again1").get();
+        EventRead<String> eosEvent = reader.readNextEvent(100);
+        assertNull(eosEvent.getEvent());
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp2", executor);
+        cpEvent = reader.readNextEvent(100);
+        EventRead<String> event0 = reader.readNextEvent(100);
+        EventRead<String> event1 = reader.readNextEvent(100);
+        cuts = checkpoint.get(5, TimeUnit.SECONDS).asImpl().getPositions();
         HashSet<String> segmentNames = new HashSet<>();
         long one = computeSegmentId(1, 1);
         segmentNames.add(getQualifiedStreamSegmentName("test", "test", one));
@@ -162,6 +173,11 @@ public class StreamCutsTest {
         segmentNames.add(getQualifiedStreamSegmentName("test", "test", two));
         validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
 
+        CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
+        EventRead<String> emptyEvent = reader.readNextEvent(100);
+        cuts = futureCuts.get();
+        validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
+        
         // Scale down to verify that the number drops back.
         map = new HashMap<>();
         map.put(0.0, 1.0);
@@ -171,10 +187,15 @@ public class StreamCutsTest {
         result = controller.scaleStream(stream, Collections.unmodifiableList(toSeal), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 2nd scaling");
-        writer.writeEvent("0", "fpj was here again").get();
+        writer.writeEvent("0", "fpj was here again2").get();
 
-        reader.readNextEvent(15000);
-        reader.readNextEvent(15000);
+        emptyEvent = reader.readNextEvent(100);
+        assertNull(emptyEvent.getEvent());
+        checkpoint = readerGroup.initiateCheckpoint("cp3", executor);
+        cpEvent = reader.readNextEvent(100);
+        assertEquals("cp3", cpEvent.getCheckpointName());
+        event0 = reader.readNextEvent(5000);
+        assertTrue(event0.getEvent().endsWith("2"));
 
         cuts = readerGroup.getStreamCuts();
         long three = computeSegmentId(3, 2);
@@ -189,9 +210,15 @@ public class StreamCutsTest {
         result = controller.scaleStream(stream, Collections.singletonList(three), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 3rd scaling");
-        writer.writeEvent("0", "fpj was here again").get();
-
-        reader.readNextEvent(15000);
+        writer.writeEvent("0", "fpj was here again3").get();
+        
+        emptyEvent = reader.readNextEvent(100);
+        assertNull(emptyEvent.getEvent());
+        readerGroup.initiateCheckpoint("cp4", executor);
+        cpEvent = reader.readNextEvent(1000);
+        assertEquals("cp4", cpEvent.getCheckpointName());
+        event0 = reader.readNextEvent(5000);
+        assertNotNull(event0.getEvent());
 
         cuts = readerGroup.getStreamCuts();
         segmentNames = new HashSet<>();
