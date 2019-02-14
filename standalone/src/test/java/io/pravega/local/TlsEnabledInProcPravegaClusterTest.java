@@ -9,6 +9,10 @@
  */
 package io.pravega.local;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -17,28 +21,24 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.EventRead;
 
 import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import lombok.Cleanup;
-
 import lombok.extern.slf4j.Slf4j;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
 
 /**
  * Tests for TLS enabled standalone cluster.
@@ -68,7 +68,6 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
 
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                 .trustStore("../config/cert.pem")
                 .validateHostName(false)
                 .build();
@@ -102,6 +101,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         String readerGroup = UUID.randomUUID().toString().replace("-", "");
         ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                     .stream(Stream.of(scope, streamName))
+                    .disableAutomaticCheckpoints()
                     .build();
 
         @Cleanup
@@ -115,9 +115,9 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        EventRead<String> event = reader.readNextEvent(50000);
-        String readMessage = event.getEvent();
-        log.debug("Read event '{}", readMessage);
+        String readMessage = reader.readNextEvent(10000).getEvent();
+        log.info("Done reading event [{}]", readMessage);
+
         assertEquals(message, readMessage);
     }
 

@@ -124,7 +124,7 @@ public class AutoScaleProcessor {
                 .runAsync(() -> {
                     if (clientFactory.get() == null) {
                         ClientFactory factory = null;
-                        if (configuration.isAuthEnabled()) {
+                        if (configuration.isTlsEnabled()) {
                             factory = ClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
                                                 .trustStore(configuration.getTlsCertFile())
