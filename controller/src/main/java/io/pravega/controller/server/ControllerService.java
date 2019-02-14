@@ -443,9 +443,9 @@ public class ControllerService {
      * @param token continuation token
      * @return List of streams in scope.
      */
-    public CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(final String scope, final String token) {
+    public CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(final String scope, final String token, final int limit) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
-        return streamStore.listStreamNamesInScope(scope, token, executor);
+        return streamStore.listStreamNamesInScope(scope, token, limit, executor);
     }
 
     /**

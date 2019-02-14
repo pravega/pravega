@@ -69,6 +69,7 @@ import org.slf4j.LoggerFactory;
 public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServiceImplBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerServiceImpl.class));
+    public static final int LIST_STREAMS_IN_SCOPE_LIMIT = 1000;
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
@@ -77,7 +78,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
+    private final int listStreamsInScopeLimit;
 
+    public ControllerServiceImpl(ControllerService controllerService, AuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT);
+    }
 
     @Override
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
@@ -364,7 +369,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStreamNamesInScope", scope);
         log.info(requestTag.getRequestId(), "listStreamNamesInScope called for scope {}.", scope);
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope, AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listStreamNamesInScope(scope, request.getContinuationToken().getToken())
+                delegationToken -> controllerService.listStreamNamesInScope(scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
                                                     .thenApply(response -> {
                                                         List<StreamInfo> streams = response.getKey().stream()
                                                                                     .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())

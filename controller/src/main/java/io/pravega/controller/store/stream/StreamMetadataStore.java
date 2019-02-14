@@ -195,12 +195,13 @@ public interface StreamMetadataStore {
      * and returns a count limited list of streams and a new continuation token.
      *
      * @param scopeName Name of the scope
-     * @param continuationToken con
+     * @param continuationToken continuation token
+     * @param limit limit on number of streams to return.
      * @param executor 
      * @return A map of streams in scope to their configurations
      */
     CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(final String scopeName, final String continuationToken,
-                                                                         final Executor executor);
+                                                                         final int limit, final Executor executor);
 
     /**
      * List Scopes in cluster.
