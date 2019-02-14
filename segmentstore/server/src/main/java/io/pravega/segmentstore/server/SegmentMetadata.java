@@ -43,7 +43,7 @@ public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating whether this StreamSegment has been deleted in Storage.
      * This is different from isDeleted(), which returns true if the StreamSegment has been deleted in the Metadata or in Storage.
-     * @return true if this StreamSegment has been deleted in Storage, false otherwise
+     * @return true if this StreamSegment has been deleted in Storage, false otherwise.
      */
     boolean isDeletedInStorage();
 

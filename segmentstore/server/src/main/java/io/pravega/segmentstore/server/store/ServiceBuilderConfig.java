@@ -111,7 +111,7 @@ public class ServiceBuilderConfig {
 
     /**
      * Represents a Builder for the ServiceBuilderConfig.
-     * @return The new instance of a Configuration
+     * @return The new instance of a Configuration.
      */
     public static class Builder {
         private final Properties properties;
