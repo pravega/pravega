@@ -659,8 +659,12 @@ public class ReaderGroupStateManagerTest {
         StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, config);
         Map<Segment, Long> segments = new HashMap<>();
         segments.put(initialSegment, 1L);
-        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder().stream(Stream.of(scope, stream)).build(),
-                segments, Collections.emptyMap()));
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(ReaderGroupConfig.builder()
+                                                                                                .stream(Stream.of(scope,
+                                                                                                                  stream))
+                                                                                                .disableAutomaticCheckpoints()
+                                                                                                .build(),
+                                                                               segments, Collections.emptyMap()));
         val readerState = new ReaderGroupStateManager("testReader", stateSynchronizer, controller, null);
         readerState.initializeReader(0);
         assertNull(readerState.getCheckpoint());
