@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.util.Config;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
