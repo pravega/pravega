@@ -94,20 +94,7 @@ public class BookkeeperK8sService extends AbstractService {
                                       currentControllerCount, currentSegmentStoreCount);
                             if (currentBookkeeperCount != newInstanceCount) {
                                 return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount)
-                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount))
-                                        .thenRun(() -> {
-                                            if (currentBookkeeperCount > newInstanceCount) {
-                                                // we are scaling down bookkepeer instances.
-                                                // delete pvc is a workaround for issue pravega/pravega-operator/issues/100
-                                                int bookieIndex = currentBookkeeperCount - 1;
-                                                while (bookieIndex > newInstanceCount - 1) {
-                                                    log.debug("delete Persistent Volume claims for bookie {}", bookieIndex);
-                                                    k8sClient.deletePVC(NAMESPACE, "journal-pravega-bookie-" + bookieIndex);
-                                                    k8sClient.deletePVC(NAMESPACE, "ledger-pravega-bookie-" + bookieIndex);
-                                                    bookieIndex--;
-                                                }
-                                            }
-                                        });
+                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
                             } else {
                                 return CompletableFuture.completedFuture(null);
                             }
