@@ -117,6 +117,9 @@ public class StoreClientFactory {
             } else {
                 //Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
                 log.info("Connection Strings: {} vs {}", this.connectString, connectString);
+                log.info("canBeReadOnly: {} vs {}", this.canBeReadOnly, canBeReadOnly);
+                log.info("sessionTimeout: {} vs {}", this.sessionTimeout, sessionTimeout);
+                log.info("watcher is null: {}", watcher == null);
                 Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
                 Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
                 Preconditions.checkNotNull(watcher, "watcher");
