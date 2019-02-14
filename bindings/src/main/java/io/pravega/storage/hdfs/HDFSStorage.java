@@ -259,7 +259,7 @@ public class HDFSStorage implements SyncStorage {
                         throw new StorageNotPrimaryException(handle.getSegmentName());
                     }
                     if (fileEpoch < this.epoch) {
-                        throw new DataCorruptionException(handle.getSegmentName());
+                        throw new DataCorruptionException(handle.getSegmentName(), String.format("Expecting epoch %d, but found epoch %d", this.epoch, fileEpoch));
                     }
                     Path sealedPath = getSealedFilePath(handle.getSegmentName());
                     this.fileSystem.rename(status.getPath(), sealedPath);
@@ -296,7 +296,7 @@ public class HDFSStorage implements SyncStorage {
                         throw new StorageNotPrimaryException(handle.getSegmentName());
                     }
                     if (fileEpoch < this.epoch) {
-                        throw new DataCorruptionException(handle.getSegmentName());
+                        throw new DataCorruptionException(handle.getSegmentName(), String.format("Expecting epoch %d, but found epoch %d", this.epoch, fileEpoch));
                     }
                 }
             } catch (IOException ex) {
@@ -441,7 +441,7 @@ public class HDFSStorage implements SyncStorage {
                     throw new StorageNotPrimaryException(handle.getSegmentName());
                 }
                 if (fileEpoch < this.epoch) {
-                    throw new DataCorruptionException(handle.getSegmentName());
+                    throw new DataCorruptionException(handle.getSegmentName(), String.format("Expecting epoch %d, but found epoch %d", this.epoch, fileEpoch));
                 }
             } catch (IOException ex) {
                 throw HDFSExceptionHelpers.convertException(handle.getSegmentName(), ex);
@@ -635,8 +635,7 @@ public class HDFSStorage implements SyncStorage {
         if (statuses.length > 1) {
             throw new IllegalArgumentException("More than one file");
         }
-
-        return statuses[statuses.length -1];
+        return statuses[0];
     }
 
     /**
@@ -692,16 +691,6 @@ public class HDFSStorage implements SyncStorage {
         } catch (NumberFormatException nfe) {
             throw new FileNameFormatException(fileName, "Could not extract offset or epoch.", nfe);
         }
-    }
-
-    /**
-     * Determines whether the given FileStatus indicates the file is read-only.
-     *
-     * @param fs The FileStatus to check.
-     * @return True or false.
-     */
-    private boolean isReadOnly(FileStatus fs) {
-        return fs.getPermission().getUserAction() == FsAction.READ;
     }
 
     /**

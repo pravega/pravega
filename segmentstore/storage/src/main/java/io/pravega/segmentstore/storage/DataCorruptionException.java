@@ -56,7 +56,7 @@ public class DataCorruptionException extends StreamSegmentException {
      */
 
     public DataCorruptionException(String streamSegmentName, String message, Throwable cause) {
-        super(streamSegmentName, "The non primary writer detected for this StreamSegment.There is a possibility of data corruption." + (message == null ? "" : " " + message),
+        super(streamSegmentName, "The non primary writer detected for this StreamSegment. There is a possibility of data corruption." + (message == null ? "" : " " + message),
                 cause);
     }
 }

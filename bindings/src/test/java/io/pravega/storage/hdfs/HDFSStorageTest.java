@@ -387,6 +387,32 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
+    @Test
+    public void testTruncationNotSupported() throws StreamSegmentException {
+
+        try (val storage = createSyncStorage();) {
+            storage.initialize(11);
+
+            Assert.assertFalse("supportsTruncation should return false", storage.supportsTruncation());
+
+            SegmentHandle handle = storage.create("segment");
+            AssertExtensions.assertThrows(
+                    "truncate should throw UnsupportedOperationException",
+                    () -> storage.truncate(handle, 0),
+                    ex -> ex instanceof UnsupportedOperationException);
+        }
+    }
+
+    @Test
+    public void testStorageNotInitialized() throws StreamSegmentException {
+
+        try (val storage = createSyncStorage();) {
+            AssertExtensions.assertThrows(
+                    "Any operation on unitialized Storage throws IllegalStateException",
+                    () -> storage.create("segment"),
+                    ex -> ex instanceof IllegalStateException);
+        }
+    }
     //endregion
 
     @Override
