@@ -10,7 +10,6 @@
 package io.pravega.controller.task;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -65,7 +64,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -94,7 +92,6 @@ public class TaskTest {
     private final StreamMetadataTasks streamMetadataTasks;
     private final SegmentHelper segmentHelperMock;
     private final CuratorFramework cli;
-    private Map<Long, Map.Entry<Double, Double>> segmentsCreated;
     private final RequestTracker requestTracker = new RequestTracker(true);
 
     public TaskTest() throws Exception {
@@ -106,13 +103,12 @@ public class TaskTest {
         streamStore = StreamStoreFactory.createZKStore(cli, executor);
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
-        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                          .controllerURI(URI.create("tcp://localhost"))
-                                                                          .build()),
-                AuthHelper.getDisabledAuthHelper(), requestTracker);
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                                        .build());
+        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
+                executor, HOSTNAME, requestTracker);
     }
 
     @Before
@@ -139,7 +135,7 @@ public class TaskTest {
         List<Long> sealedSegments = Collections.singletonList(1L);
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore.submitScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, null, executor).get();
         EpochTransitionRecord response = versioned.getObject();
-        segmentsCreated = response.getNewSegmentsWithRange();
+        Map<Long, Map.Entry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         VersionedMetadata<State> state = streamStore.getVersionedState(SCOPE, stream1, null, executor).join();
         state = streamStore.updateVersionedState(SCOPE, stream1, State.SCALING, state, null, executor).get();
         versioned = streamStore.startScale(SCOPE, stream1, false, versioned, state, null, executor).join();
@@ -235,8 +231,8 @@ public class TaskTest {
 
         // Create objects.
         @Cleanup
-        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore, segmentHelperMock,
-                executor, deadHost, Mockito.mock(ConnectionFactory.class),  AuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
+                executor, deadHost, requestTracker);
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 

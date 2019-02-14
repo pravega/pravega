@@ -44,6 +44,8 @@ public class StoreClientFactory {
                 return new ZKStoreClient(createZKClient(storeClientConfig.getZkClientConfig().get()));
             case InMemory:
                 return new InMemoryStoreClient();
+            case PravegaTable:
+                return new PravegaTableStoreClient(createZKClient(storeClientConfig.getZkClientConfig().get()));
             default:
                 throw new NotImplementedException(storeClientConfig.getStoreType().toString());
         }

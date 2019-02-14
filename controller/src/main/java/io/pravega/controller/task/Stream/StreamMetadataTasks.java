@@ -748,7 +748,7 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public CompletableFuture<Void> notifyPolicyUpdates(String scope, String stream, List<Segment> activeSegments,
-                                                       ScalingPolicy policy, String delegationToken, long requestId) {
+                                                       ScalingPolicy policy, long requestId) {
         return Futures.toVoid(Futures.allOfWithResults(activeSegments
                 .stream()
                 .parallel()

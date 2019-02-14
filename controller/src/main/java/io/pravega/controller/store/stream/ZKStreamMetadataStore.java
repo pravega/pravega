@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+    static final String SCOPE_ROOT_PATH = "/store";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
@@ -99,6 +100,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    CompletableFuture<Boolean> checkScopeExists(String scope) {
+        String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
+        return storeHelper.checkExists(scopePath);
+    }
+
+    @Override
     Version getEmptyVersion() {
         return Version.IntVersion.EMPTY;
     }
@@ -127,7 +134,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return storeHelper.listScopes();
+        return storeHelper.getChildren(SCOPE_ROOT_PATH);
     }
 
     @Override

@@ -9,20 +9,22 @@
  */
 package io.pravega.controller.store.stream;
 
+import org.apache.curator.utils.ZKPaths;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-public class ZKScope implements Scope {
+import static io.pravega.controller.store.stream.ZKStreamMetadataStore.SCOPE_ROOT_PATH;
 
-    private static final String SCOPE_PATH = "/store/%s";
+public class ZKScope implements Scope {
     private final String scopePath;
     private final String scopeName;
     private final ZKStoreHelper store;
 
-    protected ZKScope(final String scopeName, ZKStoreHelper store) {
+    ZKScope(final String scopeName, ZKStoreHelper store) {
         this.scopeName = scopeName;
         this.store = store;
-        scopePath = String.format(SCOPE_PATH, scopeName);
+        scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scopeName);
     }
 
     @Override

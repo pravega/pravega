@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.client.StoreClient;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.util.Config;
@@ -18,14 +19,14 @@ import org.apache.curator.framework.CuratorFramework;
 import java.util.concurrent.Executor;
 
 public class StreamStoreFactory {
-    public static StreamMetadataStore createStore(final StoreClient storeClient, final Executor executor) {
+    public static StreamMetadataStore createStore(final StoreClient storeClient, SegmentHelper segmentHelper, final Executor executor) {
         switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryStreamMetadataStore(executor);
             case Zookeeper:
                 return new ZKStreamMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             case PravegaTable:
-                return new PravegaTablesStreamMetadataStore();
+                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }

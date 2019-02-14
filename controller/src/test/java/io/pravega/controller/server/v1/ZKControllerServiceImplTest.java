@@ -93,13 +93,14 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelper,
-                executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
+        segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
+                executorService, "host", requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
+                executorService, "host");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
@@ -121,8 +122,8 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(hostControllerStore, clientCF, authHelper), executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), requestTracker, true);
+                streamTransactionMetadataTasks, new SegmentHelper(hostStore, connectionFactory, disabledAuthHelper), executorService, cluster);
+        controllerService = new ControllerServiceImpl(controller, disabledAuthHelper, requestTracker, true);
     }
 
     @Override

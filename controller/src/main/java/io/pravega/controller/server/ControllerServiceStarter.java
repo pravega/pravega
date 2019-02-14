@@ -131,10 +131,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
-
-            log.info("Creating the stream store");
-            streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
-
+            
             log.info("Creating the bucket store");
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
 
@@ -146,7 +143,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
-
+            
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
             String hostName = getHostName();
@@ -177,11 +174,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
             SegmentHelper segmentHelper = new SegmentHelper(hostStore, connectionFactory, authHelper);
 
+            log.info("Creating the stream store");
+            streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, controllerExecutor);
+
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, host.getHostId(), requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
-                    connectionFactory, authHelper);
+                    segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig());
             
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000, retentionExecutor);
             Duration executionDuration = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);

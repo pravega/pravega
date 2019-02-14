@@ -17,18 +17,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SYSTEM_SCOPE;
+
 public class PravegaTableScope implements Scope {
-    private static final String SYSTEM = "_system";
-    private static final String SCOPE_TABLE = "scopes";
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope-%s";
     private final String streamsInScopeTable;
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicBoolean scopesTableCreated;
-    protected PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
+    private final Executor executor;
+    PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper, Executor executor) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName);
+        this.executor = executor;
         this.scopesTableCreated = new AtomicBoolean(false);
     }
 
@@ -41,27 +44,25 @@ public class PravegaTableScope implements Scope {
     public CompletableFuture<Void> createScope() {
         CompletableFuture<Void> future;
         if (!scopesTableCreated.get()) {
-            future = storeHelper.createTable(SYSTEM, SCOPE_TABLE)
+            future = storeHelper.createTable(SYSTEM_SCOPE, SCOPES_TABLE)
                     .thenAccept(x -> scopesTableCreated.set(true));
         } else {
             future = CompletableFuture.completedFuture(null);
         }
         // add entry to scopes table followed by creating scope specific table
-        return future.thenCompose(tableCreated -> storeHelper.addNewEntry(SYSTEM, SCOPE_TABLE, scopeName, null))
+        return future.thenCompose(tableCreated -> storeHelper.addNewEntry(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, null))
                 .thenCompose(entryAdded -> storeHelper.createTable(scopeName, streamsInScopeTable));
     }
 
     @Override
     public CompletableFuture<Void> deleteScope() {
         return Futures.toVoid(storeHelper.deleteTable(scopeName, streamsInScopeTable, true))
-                .thenCompose(deleted -> storeHelper.removeEntry(SYSTEM, SCOPE_TABLE, scopeName));
+                .thenCompose(deleted -> storeHelper.removeEntry(SYSTEM_SCOPE, SCOPES_TABLE, scopeName));
     }
 
     @Override
     public CompletableFuture<List<String>> listStreamsInScope() {
         List<String> result = new LinkedList<>();
-        // TODO: shivesh
-        Executor executor = null;
         return storeHelper.getAllKeys(scopeName, streamsInScopeTable).forEachRemaining(result::add, executor)
                 .thenApply(v -> result);
     }

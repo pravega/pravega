@@ -24,8 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import javafx.geometry.Pos;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -42,16 +40,40 @@ class ZKCheckpointStore implements CheckpointStore {
 
     private static final String ROOT = "eventProcessors";
     private final CuratorFramework client;
+    private final Serializer<Position> positionSerializer;
     private final JavaSerializer<ReaderGroupData> groupDataSerializer;
 
     ZKCheckpointStore(CuratorFramework client) {
         this.client = client;
+        this.positionSerializer = new Serializer<Position>() {
+            @Override
+            public ByteBuffer serialize(Position value) {
+                return value.toBytes();
+            }
+            
+            @Override
+            public Position deserialize(ByteBuffer serializedValue) {
+                return Position.fromBytes(serializedValue);
+            }
+        };
         this.groupDataSerializer = new JavaSerializer<>();
     }
-    
+
+    @Data
+    @AllArgsConstructor
+    private static class ReaderGroupData implements Serializable {
+        enum State {
+            Active,
+            Sealed,
+        }
+
+        private final State state;
+        private final List<String> readerIds;
+    }
+
     @Override
     public void setPosition(String process, String readerGroup, String readerId, Position position) throws CheckpointStoreException {
-        updateNode(getReaderPath(process, readerGroup, readerId), position.toBytes().array());
+        updateNode(getReaderPath(process, readerGroup, readerId), positionSerializer.serialize(position).array());
     }
 
     @Override
@@ -62,7 +84,7 @@ class ZKCheckpointStore implements CheckpointStore {
             Position position = null;
             byte[] data = getData(path + "/" + child);
             if (data != null && data.length > 0) {
-                position = Position.fromBytes(ByteBuffer.wrap(data));
+                position = positionSerializer.deserialize(ByteBuffer.wrap(data));
             }
             map.put(child, position);
         }

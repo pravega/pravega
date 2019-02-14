@@ -125,9 +125,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor));
+                    withCompletion(checkScopeExists(scope)
+                            .thenCompose(exists -> {
+                                if (exists) {
+                                    return getStream(scope, name, context)
+                                            .create(configuration, createTimestamp, startingSegmentNumber);
+                                } else {
+                                    return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                                }
+                            }), executor));
     }
-
+    
     @Override
     public CompletableFuture<Void> deleteStream(final String scope,
                                                 final String name,
@@ -799,6 +807,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Stream newStream(final String scope, final String name);
 
     abstract CompletableFuture<Int96> getNextCounter();
+
+    abstract CompletableFuture<Boolean> checkScopeExists(String scope);
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);

@@ -75,7 +75,6 @@ class ZKStream extends PersistentStreamBase {
     private final String waitingRequestProcessorPath;
     private final String activeTxRoot;
     private final String markerPath;
-    private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
     private final String retentionSetPath;
@@ -109,7 +108,6 @@ class ZKStream extends PersistentStreamBase {
              int chunkSize, int shardSize) {
         super(scopeName, streamName, chunkSize, shardSize);
         store = storeHelper;
-        scopePath = String.format(SCOPE_PATH, scopeName);
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
@@ -173,6 +171,11 @@ class ZKStream extends PersistentStreamBase {
         });
     }
 
+    @Override
+    CompletableFuture<Void> createStreamMetadata() {
+        return Futures.toVoid(store.createZNodeIfNotExist(streamPath));
+    }
+
     private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, int startingSegmentNumber, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
@@ -199,7 +202,7 @@ class ZKStream extends PersistentStreamBase {
         return cache.getCachedData(creationPath)
                     .thenApply(data -> BitConverter.readLong(data.getData(), 0));
     }
-    
+
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(byte[] data) {
         return Futures.toVoid(store.createZNodeIfNotExist(retentionSetPath, data));

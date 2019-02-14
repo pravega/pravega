@@ -16,48 +16,40 @@
 package io.pravega.controller.store.index;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.tables.impl.KeyVersion;
-import io.pravega.client.tables.impl.TableEntry;
-import io.pravega.client.tables.impl.TableEntryImpl;
-import io.pravega.client.tables.impl.TableKeyImpl;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.RequestTag;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.stream.Data;
 import io.pravega.controller.store.stream.PravegaTablesStoreHelper;
-import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.api.BackgroundCallback;
-import org.apache.curator.framework.api.CuratorEvent;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
 
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 /**
  * Zookeeper based host index.
  */
 @Slf4j
 public class PravegaTablesHostIndex implements HostIndex {
-    public static final String SYSTEM = "_system";
+    private static final String SYSTEM_SCOPE = "_system";
+    private static final String HOSTS_ROOT_TABLE_FORMAT = "hostsTable-%s";
+    private static final String HOST_TABLE_FORMAT = "host-%s-%s";
     private final PravegaTablesStoreHelper storeHelper;
     private final Executor executor;
-    private final String hostRoot;
-    private final Map<String, Boolean> hostIdMap;
+    private final String hostsTable;
+    private final String indexName;
+    private final ConcurrentHashMap<String, Boolean> hostIdMap;
     
-    public PravegaTablesHostIndex(SegmentHelper segmentHelper, String hostRoot, Executor executor) {
+    public PravegaTablesHostIndex(SegmentHelper segmentHelper, String indexName, Executor executor) {
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper);
         this.executor = executor;
-        this.hostRoot = hostRoot;
+        this.indexName = indexName;
+        this.hostsTable = String.format(HOSTS_ROOT_TABLE_FORMAT, this.indexName);
         hostIdMap = new ConcurrentHashMap<>();
     }
 
@@ -70,46 +62,45 @@ public class PravegaTablesHostIndex implements HostIndex {
     public CompletableFuture<Void> addEntity(String hostId, String entity, byte[] entityData) {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
-        String table = getTable(hostId);
+        String table = getHostEntityTableName(hostId);
 
-        // 1. create table with name hostId
-        CompletableFuture<Boolean> createTableFuture; 
+        // 1. Add host to hosts table first. create table with name hostId
+        CompletableFuture<Void> createTableFuture; 
         if (Optional.of(hostIdMap.get(hostId)).orElse(false)) {
-            createTableFuture = segmentHelper.createTableSegment()
-            segmentHelper.createTableSegment(SYSTEM, table, RequestTag.NON_EXISTENT_ID);
+            createTableFuture = storeHelper.createTable(SYSTEM_SCOPE, hostsTable)
+                    .thenCompose(x -> storeHelper.addNewEntry(SYSTEM_SCOPE, hostsTable, hostId, new byte[0]))
+                    .thenAccept(x -> hostIdMap.put(hostId, true));
         } else {
-            createTableFuture = CompletableFuture.completedFuture(true);
+            createTableFuture = CompletableFuture.completedFuture(null);
         }
         
         return createTableFuture.thenCompose(x -> {
-            // TODO: shivesh:: 
-            TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(entity.getBytes(), KeyVersion.NOT_EXISTS), entityData);
-            return Futures.toVoid(segmentHelper.createTableEntryIfAbsent(SYSTEM, table, entry, RequestTag.NON_EXISTENT_ID));
+            return Futures.toVoid(storeHelper.addNewEntry(SYSTEM_SCOPE, table, entity, entityData));
         });
     }
 
-    private String getTable(String hostId) {
-        return hostRoot + hostId;
+    private String getHostEntityTableName(String hostId) {
+        return String.format(HOST_TABLE_FORMAT, indexName, hostId);
     }
 
     @Override
     public CompletableFuture<byte[]> getEntityData(String hostId, String entity) {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
-        String table = getTable(hostId);
-        return segmentHelper.readKey(SYSTEM, table, entity.getBytes(), RequestTag.NON_EXISTENT_ID)
-                .thenApply(TableEntry::getValue);
+        String table = getHostEntityTableName(hostId);
+        return storeHelper.getEntry(SYSTEM_SCOPE, table, entity)
+                .thenApply(Data::getData);
     }
 
     @Override
     public CompletableFuture<Void> removeEntity(final String hostId, final String entity, final boolean deleteEmptyHost) {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
-        String table = getTable(hostId);
-        return segmentHelper.removeTableKey(SYSTEM, table, entity.getBytes(), RequestTag.NON_EXISTENT_ID)
+        String table = getHostEntityTableName(hostId);
+        return storeHelper.removeEntry(SYSTEM_SCOPE, table, entity)
                 .thenCompose(e -> {
                     if (deleteEmptyHost) {
-                        return Futures.toVoid(segmentHelper.deleteTableSegment(SYSTEM, table, true, RequestTag.NON_EXISTENT_ID));
+                        return removeHost(hostId);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -119,11 +110,11 @@ public class PravegaTablesHostIndex implements HostIndex {
     @Override
     public CompletableFuture<Void> removeHost(final String hostId) {
         Preconditions.checkNotNull(hostId);
-        String table = getTable(hostId);
-        return segmentHelper.deleteTableSegment(SYSTEM, table, true, RequestTag.NON_EXISTENT_ID)
+        String table = getHostEntityTableName(hostId);
+        return storeHelper.deleteTable(SYSTEM_SCOPE, table, true)
                 .thenCompose(deleted -> {
                     if (deleted) {
-                        return segmentHelper.removeTableKey(SYSTEM, hostsTable, )     
+                        return storeHelper.removeEntry(SYSTEM_SCOPE, hostsTable, hostId);     
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -133,12 +124,18 @@ public class PravegaTablesHostIndex implements HostIndex {
     @Override
     public CompletableFuture<List<String>> getEntities(final String hostId) {
         Preconditions.checkNotNull(hostId);
-        // TODO: shivesh
-        return getChildren(getHostPath(hostId));
+        String table = getHostEntityTableName(hostId);
+        List<String> entries = new LinkedList<>();
+        return storeHelper.getAllKeys(SYSTEM_SCOPE, table)
+                .forEachRemaining(entries::add, executor)
+                .thenApply(x -> entries);
     }
 
     @Override
     public CompletableFuture<Set<String>> getHosts() {
-        return getChildren(hostRoot).thenApply(list -> list.stream().collect(Collectors.toSet()));
+        Set<String> hosts = new ConcurrentSkipListSet<>();
+        return storeHelper.getAllKeys(SYSTEM_SCOPE, hostsTable)
+                          .forEachRemaining(hosts::add, executor)
+                          .thenApply(v -> hosts);
     }
 }

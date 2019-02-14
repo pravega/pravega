@@ -1,17 +1,22 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.framework.CuratorFramework;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
 
 @Slf4j
 public class ZkInt96Counter {
@@ -26,9 +31,9 @@ public class ZkInt96Counter {
      * Since we use a 96 bit number for our counter, so
      */
     @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
-    private static final int COUNTER_RANGE = 10000;
-    private static final String COUNTER_PATH = "/counter";
+    static final int COUNTER_RANGE = 10000;
+    @VisibleForTesting
+    static final String COUNTER_PATH = "/counter";
 
     private final Object lock;
     @GuardedBy("lock")
@@ -44,7 +49,7 @@ public class ZkInt96Counter {
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
         this.refreshFutureRef = null;
-        storeHelper = storeHelper;
+        this.storeHelper = storeHelper;
     }
 
     CompletableFuture<Int96> getNextCounter() {

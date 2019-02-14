@@ -129,14 +129,14 @@ public class RequestHandlersTest {
 
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
         clientFactory = mock(EventStreamClientFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
+                executor, hostId, requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, hostId);
 
         long createTimestamp = System.currentTimeMillis();
 

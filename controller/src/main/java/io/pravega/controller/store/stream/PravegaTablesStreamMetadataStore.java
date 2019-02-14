@@ -11,41 +11,93 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.index.PravegaTablesHostIndex;
+import io.pravega.controller.util.Config;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.utils.ZKPaths;
+import org.apache.curator.framework.CuratorFramework;
 
-import java.util.Base64;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * ZK stream metadata store.
  */
 @Slf4j
 class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
+    public static final String SYSTEM_SCOPE = "_system";
+    static final String SCOPES_TABLE = "scopes";
+    static final String DELETED_STREAMS_TABLE = "deletedStreams";
+    static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "completedTransactionsBatches";
+    static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "completedTransactionsBatch-%d";
+    static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+
+    private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
+
     private final ZkInt96Counter counter;
     private final ZKGarbageCollector completedTxnGC;
     private final PravegaTablesStoreHelper storeHelper;
-    
+    private final Executor executor;
+
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, ZKGarbageCollector gc, ZkInt96Counter counter, Executor executor) {
-        super(new PravegaTablesHostIndex(segmentHelper, "/hostTxnIndex", executor));
-        this.counter = counter;
-        this.completedTxnGC = gc;
-        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper);
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, Executor executor) {
+        this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
     }
-    
+
+    @VisibleForTesting
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, Executor executor, Duration gcPeriod) {
+        super(new PravegaTablesHostIndex(segmentHelper, "hostTxnIndex", executor));
+        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
+        this.completedTxnGC.startAsync();
+        this.completedTxnGC.awaitRunning();
+        this.counter = new ZkInt96Counter(zkStoreHelper);
+        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper);
+        this.executor = executor;
+    }
+
+    private CompletableFuture<Void> gcCompletedTxn() {
+        List<String> batches = new LinkedList<>();
+        return storeHelper.getAllKeys(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
+                          .forEachRemaining(batches::add, executor)
+                          .thenApply(v -> {
+                                      // retain latest two and delete remainder.
+                                      if (batches.size() > 2) {
+                                          return batches.subList(0, batches.size() - 2);
+                                      } else {
+                                          return new ArrayList<String>();
+                                      }
+                                  }
+                          )
+                          .thenCompose(toDeleteList -> {
+                              log.debug("deleting batches {} on new scheme" + toDeleteList);
+
+                              // delete all those marked for toDelete.
+                              return Futures.allOf(
+                                      toDeleteList.stream()
+                                                  .map(toDelete -> {
+                                                      String table = String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, Long.parseLong(toDelete));
+                                                      return storeHelper.deleteTable(SYSTEM_SCOPE, table, false);
+                                                  })
+                                                  .collect(Collectors.toList()))
+                                      .thenCompose(v -> storeHelper.removeEntries(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE, toDeleteList));
+                          });
+    }
+
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
-        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
+        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor);
     }
 
     @Override
@@ -54,8 +106,14 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    CompletableFuture<Boolean> checkScopeExists(String scope) {
+        return Futures.exceptionallyExpecting(storeHelper.getEntry(SYSTEM_SCOPE, SCOPES_TABLE, scope).thenApply(v -> true), 
+                DATA_NOT_FOUND_PREDICATE, false);
+    }
+
+    @Override
     Version getEmptyVersion() {
-        return Version.IntVersion.EMPTY;
+        return Version.LongVersion.EMPTY;
     }
 
     @Override
@@ -65,37 +123,33 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     
     @Override
     PravegaTableScope newScope(final String scopeName) {
-        return new PravegaTableScope(scopeName, storeHelper);
+        return new PravegaTableScope(scopeName, storeHelper, executor);
     }
 
     @Override
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
-        return segmentHelper.checkExists(String.format("/store/%s", scopeName))
-                            .thenApply(scopeExists -> {
-                    if (scopeExists) {
-                        return scopeName;
-                    } else {
-                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName);
-                    }
-                });
+        return storeHelper.getEntry(SYSTEM_SCOPE, SCOPES_TABLE, scopeName)
+                .thenApply(x -> scopeName);
     }
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return segmentHelper.listScopes();
+        List<String> scopes = new LinkedList<>();
+        return storeHelper.getAllKeys(SYSTEM_SCOPE, SCOPES_TABLE).forEachRemaining(scopes::add, executor)
+                          .thenApply(v -> scopes);
     }
 
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
-        ZKStream stream = newStream(scopeName, streamName);
-        return segmentHelper.checkExists(stream.getStreamPath());
+        return Futures.exceptionallyExpecting(getStream(scopeName, streamName, null)
+                .getState(true).thenApply(v -> true), DATA_NOT_FOUND_PREDICATE, false);
     }
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return segmentHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
-                            .handleAsync((data, ex) -> {
+        return storeHelper.getEntry(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName))
+                            .handle((data, ex) -> {
                               if (ex == null) {
                                   return BitConverter.readInt(data.getData(), 0) + 1;
                               } else if (ex instanceof StoreException.DataNotFoundException) {
@@ -111,78 +165,33 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     CompletableFuture<Void> recordLastStreamSegment(final String scope, final String stream, final int lastActiveSegment,
                                                     OperationContext context, final Executor executor) {
-        final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
+        final String key = getScopedStreamName(scope, stream);
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
-        return segmentHelper.getData(deletePath)
-                            .exceptionally(e -> {
-                              if (e instanceof StoreException.DataNotFoundException) {
-                                  return null;
-                              } else {
-                                  throw new CompletionException(e);
-                              }
-                          })
-                            .thenCompose(data -> {
-                              log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
-                              if (data == null) {
-                                  return Futures.toVoid(segmentHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
-                              } else {
-                                  final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
-                                  Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
-                                          "Old last active segment ({}) for {}/{} is higher than current one {}.",
-                                          oldLastActiveSegment, scope, stream, lastActiveSegment);
-                                  return Futures.toVoid(segmentHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
-                              }
-                          });
+        return storeHelper.createTable(SYSTEM_SCOPE, DELETED_STREAMS_TABLE)
+                .thenCompose(created -> {
+                    return Futures.exceptionallyExpecting(storeHelper.getEntry(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, key),
+                            DATA_NOT_FOUND_PREDICATE, null)
+                            .thenCompose(existing -> {
+                                log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
+                                if (existing != null) {
+                                    final int oldLastActiveSegment = BitConverter.readInt(existing.getData(), 0);
+                                    Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
+                                            "Old last active segment ({}) for {}/{} is higher than current one {}.",
+                                            oldLastActiveSegment, scope, stream, lastActiveSegment);
+                                    return Futures.toVoid(storeHelper.updateEntry(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, 
+                                            key, new Data(maxSegmentNumberBytes, existing.getVersion())));
+                                } else {
+                                    return Futures.toVoid(storeHelper.addNewEntry(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, 
+                                            key, maxSegmentNumberBytes));
+                                }
+                            });
+                });
     }
-
-    private String encodedScopedStreamName(String scope, String stream) {
-        String scopedStreamName = getScopedStreamName(scope, stream);
-        return Base64.getEncoder().encodeToString(scopedStreamName.getBytes());
-    }
-
-    private String decodedScopedStreamName(String encodedScopedStreamName) {
-        return new String(Base64.getDecoder().decode(encodedScopedStreamName));
-    }
-
-    private StreamImpl getStreamFromPath(String path) {
-        String scopedStream = decodedScopedStreamName(ZKPaths.getNodeFromPath(path));
-        String[] splits = scopedStream.split("/");
-        return new StreamImpl(splits[0], splits[1]);
-    }
-
-    // region getters and setters for testing
-    @VisibleForTesting
-    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
-        synchronized (lock) {
-            limit.set(limitMsb, limitLsb);
-            counter.set(counterMsb, counterLsb);
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getLimitForTesting() {
-        synchronized (lock) {
-            return limit.get();
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getCounterForTesting() {
-        synchronized (lock) {
-            return counter.get();
-        }
-    }
-
-    @VisibleForTesting
-    public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
-        this.segmentHelper = storeHelper;
-    }
-
+    
     @Override
     public void close() {
         completedTxnGC.stopAsync();
         completedTxnGC.awaitTerminated();
     }
-    // endregion
 }

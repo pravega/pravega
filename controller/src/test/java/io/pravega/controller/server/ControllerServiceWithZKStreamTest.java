@@ -104,14 +104,14 @@ public class ControllerServiceWithZKStreamTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
+        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host");
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),

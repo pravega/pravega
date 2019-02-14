@@ -39,7 +39,6 @@ import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

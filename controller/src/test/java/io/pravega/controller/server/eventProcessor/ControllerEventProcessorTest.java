@@ -103,12 +103,12 @@ public class ControllerEventProcessorTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
-                segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
+                segmentHelperMock, executor, "1", requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
+                executor, "host");
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
                 new EventStreamWriterMock<>());
 
