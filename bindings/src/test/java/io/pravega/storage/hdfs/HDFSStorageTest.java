@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
@@ -22,6 +23,7 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.StorageTestBase;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayInputStream;
@@ -279,6 +281,112 @@ public class HDFSStorageTest extends StorageTestBase {
         }
     }
 
+    /**
+     * Tests fencing abilities escpecially in case of possible data corruption. We create three different Storage objects with different owner ids.
+     * The test setup is very specific for HDFS and may not be relevant in case of other storages.
+     *  Create segment with epoch 1
+     *  Create write with epoch 2
+     *  Delete segment with epoch 3 and recreate using epoch 1 again simulating possible data corruption.
+     */
+    @Test
+    public void testFencingWithSyncStorage() throws StreamSegmentException {
+        final long epoch1 = 1;
+        final long epoch2 = 2;
+        final long epoch3 = 3;
+        final String segmentName = "segment";
+        try (val storage1 = createSyncStorage();
+             val storage2 = createSyncStorage();
+             val storage3 = createSyncStorage();
+        ) {
+            storage1.initialize(epoch1);
+            storage2.initialize(epoch2);
+            storage3.initialize(epoch3);
+
+            final byte[] data = "hello".getBytes();
+
+            // Create segment in Storage1,
+            SegmentHandle handle1 = storage1.create(segmentName);
+            storage1.write(handle1, 0, new ByteArrayInputStream(data), data.length);
+
+            // Open in storage 2, file should be renamed successfully, Write should succeed
+            SegmentHandle handle2 = storage2.openWrite(segmentName);
+            storage2.write(handle2, data.length, new ByteArrayInputStream(data), data.length);
+            storage2.seal(handle2);
+            storage2.unseal(handle2);
+
+            // Delete it using higher epoch and recreate it using lower epoch
+            // The handle2 is untouched.
+            SegmentHandle handle3 = storage3.openWrite(segmentName);
+            storage3.delete(handle3);
+            handle1 = storage1.create(segmentName);
+
+            // Write and seal should fail.
+            AssertExtensions.assertThrows(
+                    "write was not fenced out for possible data corruption.",
+                    () -> storage2.write(handle2, 0, new ByteArrayInputStream(data), data.length),
+                    ex -> ex instanceof DataCorruptionException);
+
+            AssertExtensions.assertThrows(
+                    "seal was not fenced out for possible data corruption.",
+                    () -> storage2.seal(handle2),
+                    ex -> ex instanceof DataCorruptionException);
+
+            AssertExtensions.assertThrows(
+                    "seal was not fenced out for possible data corruption.",
+                    () -> storage2.unseal(handle2),
+                    ex -> ex instanceof DataCorruptionException);
+
+            // Delete should succeed.
+            storage2.delete(handle2);
+
+            // Recreate the segment.
+            handle1 = storage1.create(segmentName);
+
+            // Seal should work.
+            storage1.seal(handle1);
+            storage1.unseal(handle1);
+            storage1.seal(handle1);
+            storage2.seal(handle2);
+
+            // Write after seal should continue to fail.
+            AssertExtensions.assertThrows(
+                    "write was not fenced out after seal.",
+                    () -> storage2.write(handle2, 0, new ByteArrayInputStream(data), data.length),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
+            // Seal-unseal should work.
+            storage3.unseal(handle1);
+
+            // Lower epoch instance should fail to seal.
+            AssertExtensions.assertThrows(
+                    "Lower epoch instance should fail to seal.",
+                    () -> storage2.seal(handle2),
+                    ex -> ex instanceof StorageNotPrimaryException);
+
+            // Lower epoch instance should fail to write.
+            AssertExtensions.assertThrows(
+                    "Lower epoch instance should fail to write.",
+                    () -> storage2.write(handle2, 0, new ByteArrayInputStream(data), data.length),
+                    ex -> ex instanceof StorageNotPrimaryException);
+
+            // Redo above
+            storage3.delete(handle3);
+            handle3 = storage3.create(segmentName);
+
+            // Lower epoch instance should fail to seal.
+            AssertExtensions.assertThrows(
+                    "ower epoch instance should fail to seal.",
+                    () -> storage2.seal(handle2),
+                    ex -> ex instanceof StorageNotPrimaryException);
+
+            // Lower epoch instance should fail to write.
+            AssertExtensions.assertThrows(
+                    "ower epoch instance should fail to write.",
+                    () -> storage2.write(handle2, 0, new ByteArrayInputStream(data), data.length),
+                    ex -> ex instanceof StorageNotPrimaryException);
+        }
+    }
+
     //endregion
 
     @Override
@@ -286,6 +394,14 @@ public class HDFSStorageTest extends StorageTestBase {
         return new AsyncStorageWrapper(new TestHDFSStorage(this.adapterConfig), executorService());
     }
 
+
+    /**
+     * Create SyncStorage only.
+     * @return
+     */
+    protected SyncStorage createSyncStorage() {
+        return new TestHDFSStorage(this.adapterConfig);
+    }
     // region HDFS specific tests
 
     /**

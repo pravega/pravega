@@ -394,7 +394,7 @@ public class HDFSStorage implements SyncStorage {
 
         // The writer SHOULD NEVER write to the file with epoch different that this.epoch.
         // If this.epoch is lower than that of file then it means this instance is no longer the owner.
-        // If this.epoch is greater than that of file then it means there is a possble data corruption.
+        // If this.epoch is greater than that of file then it means there is a possible data corruption.
         // In normal conditions, openWrite first renames file to current epoch. So at this point epoch of file should never be lower that this.epoch.
         // Even in this condition write SHOULD NOT write to avoid data corruption.
         // In other words - write ONLY IF this.epoch matches, epoch of the file in file system.
@@ -474,7 +474,7 @@ public class HDFSStorage implements SyncStorage {
             try {
                 Path targetPath = getFilePath(streamSegmentName, this.epoch);
                 FileStatus[] allFileStatuses = findAllStatusForSegment(streamSegmentName, true);
-                FileStatus fileStatus = allFileStatuses[0];
+                FileStatus fileStatus = allFileStatuses[allFileStatuses.length -1];
 
                 // This instance is already owner.
                 if (targetPath.equals(fileStatus.getPath())) {
@@ -493,7 +493,8 @@ public class HDFSStorage implements SyncStorage {
                 try {
                     if (this.fileSystem.rename(fileStatus.getPath(), targetPath)) {
                         // If there is a race during creation and failure there might be zombie stray files, delete them.
-                        for (int i = 1; i < allFileStatuses.length; i++) {
+                        // Do not delete the last file - that is the one that this instance owns!
+                        for (int i = 0; i < allFileStatuses.length-1; i++) {
                             this.fileSystem.delete(allFileStatuses[i].getPath(), true);
                         }
                         return;
