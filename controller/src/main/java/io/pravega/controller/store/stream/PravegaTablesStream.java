@@ -85,7 +85,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String STREAM_TABLE_PREFIX = "%s.#.%s"; // scoped stream name
     private static final String METADATA_TABLE = STREAM_TABLE_PREFIX + "metadata"; 
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = STREAM_TABLE_PREFIX + "epochsWithTransactions"; 
-    private static final String ACTIVE_TRANSACTIONS_IN_EPOCH_TABLE_FORMAT = STREAM_TABLE_PREFIX + "transactionsInEpoch-%d";
+    private static final String EPOCH_TRANSACTIONS_TABLE_FORMAT = STREAM_TABLE_PREFIX + "transactionsInEpoch-%d";
     
     // metadata keys
     private static final String CREATION_TIME_KEY = "creationTime";
@@ -112,7 +112,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private final PravegaTablesStoreHelper storeHelper;
     private final String metadataTableName;
     private final String epochsWithTransactionsTableName;
-    private final String activeTransactionsFormat;
+    private final String epochTransactionsTableFormat;
 
     private final Cache cache;
     private final Supplier<Integer> currentBatchSupplier;
@@ -141,7 +141,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         this.executor = executor;
         this.metadataTableName = String.format(METADATA_TABLE, scopeName, streamName);
         this.epochsWithTransactionsTableName = String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, scopeName, streamName);
-        this.activeTransactionsFormat = String.format(ACTIVE_TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, scopeName, streamName);
+        this.epochTransactionsTableFormat = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scopeName, streamName);
     }
 
     // region overrides
@@ -159,7 +159,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
         String scope = getScope();
-        String epochTableName = String.format(ACTIVE_TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, scope, getName(), epoch);
+        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), epoch);
         AtomicInteger count = new AtomicInteger(0);
         return storeHelper.getAllKeys(scope, epochTableName).forEachRemaining(x -> count.incrementAndGet(), executor)
                           .thenApply(x -> count.get());
@@ -178,7 +178,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         List<CompletableFuture<Boolean>> futures = new LinkedList<>();
         return storeHelper.getAllKeys(getScope(), epochsWithTransactionsTableName)
                           .forEachRemaining(x -> {
-                              String epochTableName = String.format(ACTIVE_TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, scope, getName(), Integer.parseInt(x));
+                              String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), Integer.parseInt(x));
                               futures.add(storeHelper.deleteTable(scope, epochTableName, false));
                           }, executor)
                           .thenCompose(x -> Futures.allOfWithResults(futures))
@@ -461,7 +461,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Map<String, Data>> getTxnInEpoch(int epoch) {
         String scope = getScope();
-        String epochTableName = String.format(ACTIVE_TRANSACTIONS_IN_EPOCH_TABLE_FORMAT, scope, getName(), epoch);
+        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), epoch);
         AtomicInteger count = new AtomicInteger(0);
         Map<String, Data> result = new ConcurrentHashMap<>();
         return storeHelper.getAllEntries(scope, epochTableName)
@@ -473,29 +473,27 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final byte[] txnRecord) {
-        String tableName = String.format(activeTransactionsFormat, epoch);
+        String epochTable = String.format(epochTransactionsTableFormat, epoch);
         String scope = getScope();
-        // TODO: shivesh
-        // Note: this can fail with DataNotFoundException!!!
-        return storeHelper.createTable(scope, tableName)
-            .thenCompose(x -> storeHelper.addNewEntry(scope, tableName, txId.toString(), txnRecord));
+        return storeHelper.createTable(scope, epochTable)
+            .thenCompose(x -> storeHelper.addNewEntry(scope, epochTable, txId.toString(), txnRecord));
     }
 
     @Override
     CompletableFuture<Data> getActiveTx(final int epoch, final UUID txId) {
-        String tableName = String.format(activeTransactionsFormat, epoch);
+        String tableName = String.format(epochTransactionsTableFormat, epoch);
         return storeHelper.getEntry(getScope(), tableName, txId.toString());
     }
 
     @Override
     CompletableFuture<Version> updateActiveTx(final int epoch, final UUID txId, final Data data) {
-        String tableName = String.format(activeTransactionsFormat, epoch);
+        String tableName = String.format(epochTransactionsTableFormat, epoch);
         return storeHelper.updateEntry(getScope(), tableName, txId.toString(), data);
     }
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
-        String tableName = String.format(activeTransactionsFormat, epoch);
+        String tableName = String.format(epochTransactionsTableFormat, epoch);
         return storeHelper.removeEntry(getScope(), tableName, txId.toString())
                 .thenCompose(v -> storeHelper.deleteTable(getScope(), tableName, true)
                         .thenCompose(deleted -> {

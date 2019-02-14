@@ -61,6 +61,7 @@ public final class Config {
     private static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
     private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR = CONFIG.getBoolean("config.controller.server.replyWithStackTraceOnError");
     private static final boolean REQUEST_TRACING_ENABLED = CONFIG.getBoolean("config.controller.server.requestTracingEnabled");
+    public static final boolean USE_PRAVEGA_TABLES = CONFIG.getBoolean("config.controller.server.usePravegaTables");
 
     //Zookeeper configuration.
     public static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
@@ -84,8 +85,6 @@ public final class Config {
 
     // Completed Transaction TTL
     public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS = CONFIG.getInt("config.controller.server.transaction.completed.ttlInHours");
-    public static final boolean DISABLE_COMPLETED_TXN_BACKWARD_COMPATIBILITY =
-            CONFIG.getBoolean("config.controller.server.transaction.completed.disableBackwardCompatiblity");
 
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");

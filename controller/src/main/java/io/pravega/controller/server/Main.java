@@ -52,8 +52,12 @@ public class Main {
                     .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
                     .build();
 
-            // TODO: shivesh: either zookeeper or kvs based on config
-            StoreClientConfig storeClientConfig = StoreClientConfigImpl.withKvsClient(zkClientConfig);
+            StoreClientConfig storeClientConfig;
+            if (Config.USE_PRAVEGA_TABLES) {
+              storeClientConfig = StoreClientConfigImpl.withKvsClient(zkClientConfig);
+            } else {
+                storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+            }
 
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(Config.HOST_MONITOR_ENABLED)
