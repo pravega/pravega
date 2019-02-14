@@ -91,10 +91,10 @@ public class ReaderGroupStateManager {
         if (nanoClock == null) {
             nanoClock = System::nanoTime;
         }
-        releaseTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
+        releaseTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
         acquireTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
         fetchStateTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
-        checkpointTimer = new TimeoutTimer(Duration.ZERO, nanoClock);
+        checkpointTimer = new TimeoutTimer(TIME_UNIT, nanoClock);
     }
 
     /**

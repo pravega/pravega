@@ -81,7 +81,11 @@ public class TransactionTest {
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
-        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
+        streamManager.createReaderGroup(groupName,
+                                        ReaderGroupConfig.builder()
+                                                         .stream(Stream.of("scope", streamName))
+                                                         .disableAutomaticCheckpoints()
+                                                         .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
@@ -176,7 +180,11 @@ public class TransactionTest {
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
-        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
+        streamManager.createReaderGroup(groupName,
+                                        ReaderGroupConfig.builder()
+                                                         .stream(Stream.of("scope", streamName))
+                                                         .disableAutomaticCheckpoints()
+                                                         .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
