@@ -115,7 +115,8 @@ public class StoreClientFactory {
                 this.client = new ZooKeeper(connectString, sessionTimeout, watcher, canBeReadOnly);
                 return this.client;
             } else {
-                Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
+                //Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
+                log.info("Connection Strings: {} vs {}", this.connectString, connectString);
                 Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
                 Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
                 Preconditions.checkNotNull(watcher, "watcher");
