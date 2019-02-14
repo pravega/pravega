@@ -171,6 +171,7 @@ public class StreamTransactionMetadataTasksTest {
     @After
     public void teardown() throws Exception {
         streamMetadataTasks.close();
+        streamStore.close();
         txnTasks.close();
         zkClient.close();
         zkServer.close();

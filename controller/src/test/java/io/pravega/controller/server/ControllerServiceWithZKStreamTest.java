@@ -85,7 +85,7 @@ public class ControllerServiceWithZKStreamTest {
 
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
-
+    private StreamMetadataStore streamStore;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
@@ -99,7 +99,7 @@ public class ControllerServiceWithZKStreamTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -133,6 +133,7 @@ public class ControllerServiceWithZKStreamTest {
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
+        streamStore.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

@@ -143,52 +143,53 @@ public class StreamTest {
     public void testConcurrentGetSuccessorScale() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
-        final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor);
-        final String streamName = "test";
-        String scopeName = "test";
-        store.createScope(scopeName).get();
+        try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor)) {
+            final String streamName = "test";
+            String scopeName = "test";
+            store.createScope(scopeName).get();
 
-        ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
+            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
 
-        StreamConfiguration streamConfig = StreamConfiguration.builder()
-                .scalingPolicy(policy)
-                .build();
+            StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                                  .scalingPolicy(policy)
+                                                                  .build();
 
-        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-        store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
+            store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+            store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
 
-        ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
+            ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
 
-        List<Map.Entry<Double, Double>> newRanges;
+            List<Map.Entry<Double, Double>> newRanges;
 
-        newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
+            newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
 
-        long scale = System.currentTimeMillis();
-        ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
-        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
-        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale, null).join();
-        Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
-        VersionedMetadata<State> state = zkStream.getVersionedState().join();
-        state = zkStream.updateVersionedState(state, State.SCALING).join();
-        zkStream.startScale(false, response, state).join();
-        zkStream.scaleCreateNewEpoch(response).get();
-        // history table has a partial record at this point.
-        // now we could have sealed the segments so get successors could be called.
-        
-        Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get()
-                .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+            long scale = System.currentTimeMillis();
+            ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
+            long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+            long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
+            VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale, null).join();
+            Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
+            VersionedMetadata<State> state = zkStream.getVersionedState().join();
+            state = zkStream.updateVersionedState(state, State.SCALING).join();
+            zkStream.startScale(false, response, state).join();
+            zkStream.scaleCreateNewEpoch(response).get();
+            // history table has a partial record at this point.
+            // now we could have sealed the segments so get successors could be called.
 
-        assertTrue(successors.containsKey(one) && successors.containsKey(two));
+            Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get()
+                                                       .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
-        // reset mock so that we can resume scale operation
+            assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
-        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
-        zkStream.completeScale(response).join();
+            // reset mock so that we can resume scale operation
 
-        successors = zkStream.getSuccessorsWithPredecessors(0).get()
-                                                   .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+            zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
+            zkStream.completeScale(response).join();
 
-        assertTrue(successors.containsKey(one) && successors.containsKey(two));
+            successors = zkStream.getSuccessorsWithPredecessors(0).get()
+                                 .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+
+            assertTrue(successors.containsKey(one) && successors.containsKey(two));
+        }
     }
 }

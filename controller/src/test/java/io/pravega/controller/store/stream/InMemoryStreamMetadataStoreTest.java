@@ -24,5 +24,6 @@ public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
     public void cleanupTaskStore() throws IOException {
+        store.close();
     }
 }

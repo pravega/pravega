@@ -174,6 +174,7 @@ public class ScaleRequestHandlerTest {
         connectionFactory.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
@@ -462,7 +463,7 @@ public class ScaleRequestHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentIdempotentManualScaleRequest() {
+    public void testConcurrentIdempotentManualScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -493,7 +494,7 @@ public class ScaleRequestHandlerTest {
     
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentIdempotentAutoScaleRequest() {
+    public void testConcurrentIdempotentAutoScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -539,7 +540,7 @@ public class ScaleRequestHandlerTest {
                                              Predicate<Throwable> firstExceptionPredicate,
                                              boolean expectFailureOnSecondJob,
                                              Predicate<Throwable> secondExceptionPredicate,
-                                             Map<String, Integer> invocationCount) {
+                                             Map<String, Integer> invocationCount) throws Exception {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
@@ -593,6 +594,8 @@ public class ScaleRequestHandlerTest {
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
 
     private void setMockLatch(StreamMetadataStore store, StreamMetadataStore spied, 
@@ -641,7 +644,7 @@ public class ScaleRequestHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentDistinctManualScaleRequest() {
+    public void testConcurrentDistinctManualScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -668,7 +671,7 @@ public class ScaleRequestHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentDistinctAutoScaleRequest() {
+    public void testConcurrentDistinctAutoScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -696,7 +699,7 @@ public class ScaleRequestHandlerTest {
     // concurrent run of scale 1 intermixed with scale 2 
     private void concurrentDistinctScaleRun(String stream, String funcToWaitOn, boolean isManual,
                                     Predicate<Throwable> firstExceptionPredicate,
-                                    Map<String, Integer> invocationCount) {
+                                    Map<String, Integer> invocationCount) throws Exception {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
@@ -754,6 +757,8 @@ public class ScaleRequestHandlerTest {
         assertEquals(4, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(2, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
 
     @Test

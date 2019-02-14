@@ -109,5 +109,6 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
+        streamStore.close();
     }
 }

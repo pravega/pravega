@@ -72,10 +72,10 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
+    private StreamMetadataStore streamStore;
 
     @Override
     public void setup() throws Exception {
-        final StreamMetadataStore streamStore;
         final HostControllerStore hostStore;
         final TaskMetadataStore taskMetadataStore;
         final SegmentHelper segmentHelper;
@@ -137,6 +137,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
+        streamStore.close();
         if (cluster != null) {
             cluster.close();
         }

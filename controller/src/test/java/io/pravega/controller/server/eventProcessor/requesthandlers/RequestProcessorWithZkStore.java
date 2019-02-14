@@ -37,7 +37,8 @@ public class RequestProcessorWithZkStore extends RequestProcessorTest {
     }
 
     @After
-    public void tearDown() throws IOException {
+    public void tearDown() throws Exception {
+        store.close();
         client.close();
         zkServer.close();
     }

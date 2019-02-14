@@ -82,6 +82,7 @@ public abstract class BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
+        streamMetadataStore.close();
         service.stopAsync();
         service.awaitTerminated();
         connectionFactory.close();

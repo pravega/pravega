@@ -164,6 +164,7 @@ public class ControllerServiceTest {
         streamTransactionMetadataTasks.close();
         streamMetadataTasks.close();
         connectionFactory.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);

@@ -128,6 +128,7 @@ public class ControllerEventProcessorTest {
         zkServer.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 

@@ -77,6 +77,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
+    private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -118,7 +119,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
-        final StreamMetadataStore streamStore;
         final BucketStore bucketStore;
         final TaskMetadataStore taskMetadataStore;
         final HostControllerStore hostStore;
@@ -370,6 +370,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
+            
+            log.info("Closing store");
+            streamStore.close();
 
             // Close metrics.
             if (streamMetrics != null) {

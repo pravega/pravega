@@ -152,6 +152,7 @@ public class RequestHandlersTest {
         connectionFactory.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
@@ -159,7 +160,7 @@ public class RequestHandlersTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
-    public void testConcurrentIdempotentCommitTxnRequest() {
+    public void testConcurrentIdempotentCommitTxnRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startRollingTxn", 0);
         map.put("rollingTxnCreateDuplicateEpochs", 0);
@@ -179,7 +180,7 @@ public class RequestHandlersTest {
     private void concurrentTxnCommit(String stream, String func,
                                      boolean expectFailureOnFirstJob,
                                      Predicate<Throwable> firstExceptionPredicate,
-                                     Map<String, Integer> invocationCount, int expectedVersion) {
+                                     Map<String, Integer> invocationCount, int expectedVersion) throws Exception {
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
@@ -240,6 +241,8 @@ public class RequestHandlersTest {
         assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
         assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
 
 
@@ -406,7 +409,7 @@ public class RequestHandlersTest {
     // concurrent update stream
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
-    public void concurrentUpdateStream() {
+    public void concurrentUpdateStream() throws Exception {
         String stream = "update";
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
@@ -447,12 +450,14 @@ public class RequestHandlersTest {
         assertFalse(versioned.getObject().isUpdating());
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
 
     // concurrent truncate stream
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
-    public void concurrentTruncateStream() {
+    public void concurrentTruncateStream() throws Exception {
         String stream = "update";
         StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
         StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
@@ -496,6 +501,8 @@ public class RequestHandlersTest {
         assertFalse(versioned.getObject().isUpdating());
         assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
     
     @Test

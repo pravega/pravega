@@ -75,6 +75,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        streamMetadataStore.close();
         zkClient.close();
         zkServer.close();
     }

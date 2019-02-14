@@ -193,6 +193,7 @@ public class StreamMetadataTasksTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStorePartialMock.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();

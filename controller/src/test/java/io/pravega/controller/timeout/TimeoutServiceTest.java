@@ -137,6 +137,7 @@ public class TimeoutServiceTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         ExecutorServiceHelpers.shutdown(executor);
         client.close();
         storeClient.close();
