@@ -69,7 +69,7 @@ import org.slf4j.LoggerFactory;
 public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServiceImplBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerServiceImpl.class));
-    public static final int LIST_STREAMS_IN_SCOPE_LIMIT = 1000;
+    private static final int LIST_STREAMS_IN_SCOPE_LIMIT = 1000;
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
