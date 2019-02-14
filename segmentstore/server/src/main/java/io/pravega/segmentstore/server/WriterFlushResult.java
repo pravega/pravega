@@ -81,6 +81,7 @@ public class WriterFlushResult {
 
     /**
      * Gets a value indicating the total amount of data flushed, in bytes.
+     * @return The total amount (byte) of data flushed.
      */
     public long getFlushedBytes() {
         return this.flushedBytes.get();
@@ -88,6 +89,7 @@ public class WriterFlushResult {
 
     /**
      * Gets a value indicating the total amount of data that was merged, in bytes.
+     * @return The total amount (byte) of data merged.
      */
     public long getMergedBytes() {
         return this.mergedBytes.get();
@@ -95,6 +97,7 @@ public class WriterFlushResult {
 
     /**
      * Gets a value indicating the number of attributes flushed.
+     * @return The number of attributes flushed.
      */
     public int getFlushedAttributes() {
         return this.flushedAttributes.get();
