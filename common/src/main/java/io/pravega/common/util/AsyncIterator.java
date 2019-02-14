@@ -82,18 +82,14 @@ public interface AsyncIterator<T> {
     /**
      * Processes the remaining elements in the AsyncIterator until the specified {@link Predicate} returns false.
      *
-     * @param until A Predicate that will be used to the decide the number of elements on which the Consumer will be invoked.
-     * @param consumer A Consumer that will be invoked for each remaining element. The consumer will be invoked by the same thread, hence
-     *                any new invocation will will wait until the previous invocation is complete.
-     *                 given Executor, but any new invocation will wait for the previous invocation to complete.
+     * @param collector A {@link Predicate} that decides if iterating over the collection can continue.
      * @return A CompletableFuture that, when completed, will indicate that the processing is complete.
      */
-    default CompletableFuture<Void> collectUntil(Consumer<? super T> consumer, Predicate<? super T> until) {
+    default CompletableFuture<Void> collectRemaining(Predicate<? super T> collector) {
         return getNext().thenCompose(e -> {
-            boolean canContinue = e != null && until.test(e);
+            boolean canContinue = e != null && collector.test(e);
             if (canContinue) {
-                consumer.accept(e);
-                return collectUntil(consumer, until);
+                return collectRemaining(collector);
             } else {
                 return CompletableFuture.completedFuture(null);
             }

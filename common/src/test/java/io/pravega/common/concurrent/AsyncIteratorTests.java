@@ -59,23 +59,29 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
 
 
     /**
-     * Tests the {@link AsyncIterator#collectUntil(Consumer, Predicate)} method.
+     * Tests the {@link AsyncIterator#collectRemaining(Predicate)} method.
      */
     @Test
     public void testCollectRemaining() {
         val expected = IntStream.range(0, 10).boxed().collect(Collectors.toList());
 
-        TestIterator<Integer> iterator = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
-        ArrayList<Integer> result = new ArrayList<>();
-        iterator.collectUntil(result::add, e -> Boolean.TRUE).join();
-        AssertExtensions.assertListEquals("Unexpected result.", expected, result, Integer::equals);
+        val iterator1 = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
+        val result1 = new ArrayList<Integer>();
+        iterator1.collectRemaining(result1::add).join();
+        AssertExtensions.assertListEquals("Unexpected result.", expected, result1, Integer::equals);
 
-        val filteredResult = new ArrayList<Integer>();
-        result = new ArrayList<>();
-        iterator = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
-        iterator.collectUntil(result::add, e -> e < 5);
+        val iterator2 = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
+        val result2 = new ArrayList<Integer>();
+        iterator2.collectRemaining(e -> {
+            if (e < 5) {
+                result2.add(e);
+                return true;
+            } else {
+                return false;
+            }
+        });
         AssertExtensions.assertListEquals("Unexpected result.", IntStream.range(0, 5).boxed().collect(Collectors.toList()),
-                                          result, Integer::equals);
+                                          result2, Integer::equals);
     }
 
     /**

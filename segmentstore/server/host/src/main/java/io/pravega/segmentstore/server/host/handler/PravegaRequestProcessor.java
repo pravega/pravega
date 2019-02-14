@@ -131,7 +131,6 @@ import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.util.Collections.synchronizedList;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -736,32 +735,41 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final List<TableKey> keys = synchronizedList(new ArrayList<>());
+        final List<TableKey> keys = new ArrayList<>();
 
         tableStore.keyIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> itr.collectUntil(
+                  .thenCompose(itr -> itr.collectRemaining(
                           e -> {
-                              Collection<TableKey> tableKeys = e.getEntries();
-                              ArrayView lastState = e.getState();
+                              synchronized (keys) {
+                                  if (keys.size() < suggestedKeyCount && msgSize.get() < MAX_READ_SIZE) {
+                                      Collection<TableKey> tableKeys = e.getEntries();
+                                      ArrayView lastState = e.getState();
 
-                              // Store all tableKeys.
-                              keys.addAll(tableKeys);
-                              // update the continuation token.
-                              continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
-                              // Update msgSize.
-                              msgSize.addAndGet(getTableKeyBytes(segment, tableKeys, lastState.getLength()));
-                          },
-                          e -> keys.size() < suggestedKeyCount && msgSize.get() < MAX_READ_SIZE))
+                                      // Store all tableKeys.
+                                      keys.addAll(tableKeys);
+                                      // update the continuation token.
+                                      continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                      // Update msgSize.
+                                      msgSize.addAndGet(getTableKeyBytes(segment, tableKeys, lastState.getLength()));
+                                      return true;
+                                  } else {
+                                      return false;
+                                  }
+                              }
+                          }))
                   .thenAccept(v -> {
-                      log.debug(readTableKeys.getRequestId(), "{} keys obtained for ReadTableKeys request.", keys.size());
-                      List<WireCommands.TableKey> wireCommandKeys = keys.stream()
-                                                                        .map(k -> {
-                                                                            ArrayView keyArray = k.getKey();
-                                                                            return new WireCommands.TableKey(wrappedBuffer(keyArray.array(),
-                                                                                                                           keyArray.arrayOffset(),
-                                                                                                                           keyArray.getLength()), k.getVersion());
-                                                                        })
-                                                                        .collect(toList());
+                      final List<WireCommands.TableKey> wireCommandKeys;
+                      synchronized (keys) {
+                          log.debug(readTableKeys.getRequestId(), "{} keys obtained for ReadTableKeys request.", keys.size());
+                          wireCommandKeys = keys.stream()
+                                                .map(k -> {
+                                                    ArrayView keyArray = k.getKey();
+                                                    return new WireCommands.TableKey(wrappedBuffer(keyArray.array(),
+                                                                                                   keyArray.arrayOffset(),
+                                                                                                   keyArray.getLength()), k.getVersion());
+                                                })
+                                                .collect(toList());
+                      }
                       connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
                   }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
     }
@@ -787,37 +795,44 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
-        final List<TableEntry> entries = synchronizedList(new ArrayList<>());
+        final List<TableEntry> entries = new ArrayList<>();
         tableStore.entryIterator(segment, state, TIMEOUT)
-                  .thenCompose(itr -> itr.collectUntil(
+                  .thenCompose(itr -> itr.collectRemaining(
                           e -> {
-                              final Collection<TableEntry> tableEntries = e.getEntries();
-                              final ArrayView lastState = e.getState();
+                              synchronized (entries) {
+                                  if (entries.size() < suggestedEntryCount && msgSize.get() < MAX_READ_SIZE) {
+                                      final Collection<TableEntry> tableEntries = e.getEntries();
+                                      final ArrayView lastState = e.getState();
 
-                              // Store all TableEntrys.
-                              entries.addAll(tableEntries);
-                              // Update the continuation token.
-                              continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
-                              // Update message size.
-                              msgSize.addAndGet(getTableEntryBytes(segment, tableEntries, lastState.getLength()));
-
-                          },
-                          e -> entries.size() < suggestedEntryCount && msgSize.get() < MAX_READ_SIZE))
+                                      // Store all TableEntrys.
+                                      entries.addAll(tableEntries);
+                                      // Update the continuation token.
+                                      continuationToken.set(wrappedBuffer(lastState.array(), lastState.arrayOffset(), lastState.getLength()));
+                                      // Update message size.
+                                      msgSize.addAndGet(getTableEntryBytes(segment, tableEntries, lastState.getLength()));
+                                      return true;
+                                  } else {
+                                      return false;
+                                  }
+                              }
+                          }))
                   .thenAccept(v -> {
-                      log.debug(readTableEntries.getRequestId(), "{} entries obtained for ReadTableEntries request.", entries.size());
-                      List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries =
-                              entries.stream()
-                                     .map(e -> {
-                                         TableKey k = e.getKey();
-                                         val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
-                                                                                                      k.getKey().getLength()),
-                                                                                        k.getVersion());
-                                         ArrayView value = e.getValue();
-                                         val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(value.array(), value.arrayOffset(),
-                                                                                                          value.getLength()));
-                                         return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
-                                     })
-                                     .collect(toList());
+                      final List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries;
+                      synchronized (entries) {
+                          log.debug(readTableEntries.getRequestId(), "{} entries obtained for ReadTableEntries request.", entries.size());
+                          wireCommandEntries = entries.stream()
+                                                      .map(e -> {
+                                                          TableKey k = e.getKey();
+                                                          val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.getKey().array(), k.getKey().arrayOffset(),
+                                                                                                                       k.getKey().getLength()),
+                                                                                                         k.getVersion());
+                                                          ArrayView value = e.getValue();
+                                                          val valueWireCommand = new WireCommands.TableValue(wrappedBuffer(value.array(), value.arrayOffset(),
+                                                                                                                           value.getLength()));
+                                                          return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, valueWireCommand);
+                                                      })
+                                                      .collect(toList());
+                      }
 
                       connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
                                                                         new WireCommands.TableEntries(wireCommandEntries),
