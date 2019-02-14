@@ -2135,6 +2135,30 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Merge was not ack-ed for deleted source segment.", mergeAcked.get());
     }
 
+    /**
+     * Tests a scenario where an empty, sealed segment has one or more UpdateAttributesOperations that needs to be processed
+     * or reconciled.
+     */
+    @Test
+    public void testRecoverySealEmptySegmentWithAttributes() throws Exception {
+        @Cleanup
+        TestContext context = new TestContext(DEFAULT_CONFIG);
+
+        // Do not create the segment in Storage, but mark its metadata as sealed.
+        val sm = (UpdateableSegmentMetadata) context.segmentAggregator.getMetadata();
+        sm.markSealed();
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        Assert.assertTrue("Expected isSealedInStorage to be true after initialization.", sm.isSealedInStorage());
+        val updateOp = generateUpdateAttributesAndUpdateMetadata(SEGMENT_ID, context);
+        val sealOp = generateSealAndUpdateMetadata(SEGMENT_ID, context);
+        context.segmentAggregator.add(updateOp);
+        context.segmentAggregator.add(sealOp);
+        Assert.assertEquals("Expected Attribute Operation to have been ignored.",
+                Long.MIN_VALUE, context.segmentAggregator.getLowestUncommittedSequenceNumber());
+        Assert.assertFalse("Not expecting anything to flush.", context.segmentAggregator.mustFlush());
+    }
+
     //endregion
 
     //region Helpers

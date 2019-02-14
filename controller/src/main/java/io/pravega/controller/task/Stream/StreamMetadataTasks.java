@@ -63,7 +63,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.Serializable;
 import java.time.Duration;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -488,7 +487,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @return returns the newly created segments.
      */
     public CompletableFuture<ScaleResponse> manualScale(String scope, String stream, List<Long> segmentsToSeal,
-                                                        List<AbstractMap.SimpleEntry<Double, Double>> newRanges, long scaleTimestamp,
+                                                        List<Map.Entry<Double, Double>> newRanges, long scaleTimestamp,
                                                         OperationContext context) {
         final long requestId = requestTracker.getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, requestId);
