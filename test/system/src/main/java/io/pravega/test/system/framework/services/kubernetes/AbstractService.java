@@ -77,8 +77,6 @@ public abstract class AbstractService implements Service {
     private static final String PRAVEGA_OPERATOR_VERSION = System.getProperty("pravegaOperatorVersion", "latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     private static final String TIER2_NFS = "nfs";
-    private static final String TIER2_ECS = "ecs";
-    private static final String TIER2_HDFS = "hdfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
 
     final K8sClient k8sClient;
@@ -148,7 +146,7 @@ public abstract class AbstractService implements Service {
                                                                                       .put("options", options)
                                                                                       .put("image",
                                                                                            getImageSpec(DOCKER_REGISTRY + PREFIX + "/pravega", PRAVEGA_VERSION))
-                                                                                      .put("tier2", tier2Spec("pravega-tier2"))
+                                                                                      .put("tier2", tier2Spec())
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
                 .put("apiVersion", "pravega.pravega.io/v1alpha1")
@@ -168,17 +166,14 @@ public abstract class AbstractService implements Service {
                                                      .build();
     }
 
-    private Map<String, Object> tier2Spec(String tier2ClaimName) {
+    private Map<String, Object> tier2Spec() {
         final Map<String, Object> spec;
         if (TIER2_TYPE.equalsIgnoreCase(TIER2_NFS)) {
             spec = ImmutableMap.of("filesystem", ImmutableMap.of("persistentVolumeClaim",
-                                                                 ImmutableMap.of("claimName", tier2ClaimName)));
-        } else if (TIER2_TYPE.equalsIgnoreCase(TIER2_ECS)) {
-            spec = ImmutableMap.of(TIER2_ECS, getTier2Config());
-        } else if (TIER2_TYPE.equalsIgnoreCase(TIER2_HDFS)) {
-            spec = ImmutableMap.of(TIER2_HDFS, getTier2Config());
+                                                                 ImmutableMap.of("claimName", "pravega-tier2")));
         } else {
-            throw new UnsupportedOperationException("Unsupported tier2Type specified, nfs, ecs and hdfs are currently supported");
+            // handle other types of tier2 like HDFS and Extended S3 Object Store.
+            spec = ImmutableMap.of(TIER2_TYPE, getTier2Config());
         }
         return spec;
     }
