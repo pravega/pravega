@@ -12,9 +12,12 @@ package io.pravega.controller.store.stream;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import lombok.Getter;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 public class Cache {
@@ -34,18 +37,16 @@ public class Cache {
                     @ParametersAreNonnullByDefault
                     @Override
                     public CompletableFuture<Data> load(final String key) {
-                        CompletableFuture<Data> result = loader.get(key);
-                        result.exceptionally(ex -> {
-                            invalidateCache(key);
-                            return null;
-                        });
-                        return result;
+                        return loader.get(key);
                     }
                 });
     }
 
     public CompletableFuture<Data> getCachedData(final String key) {
-        return cache.getUnchecked(key);
+        return cache.getUnchecked(key).exceptionally(ex -> {
+            invalidateCache(key);
+            throw new CompletionException(ex);
+        });
     }
 
     public Void invalidateCache(final String key) {

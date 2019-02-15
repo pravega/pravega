@@ -82,7 +82,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         1. get all epochs with transactions from `transactions-epochs-table`
         2. call list transactions in epoch
      */
-    private static final String STREAM_TABLE_PREFIX = "%s.#.%s"; // scoped stream name
+    private static final String STREAM_TABLE_PREFIX = "%s.#-#.%s"; // scoped stream name
     private static final String METADATA_TABLE = STREAM_TABLE_PREFIX + "metadata"; 
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = STREAM_TABLE_PREFIX + "epochsWithTransactions"; 
     private static final String EPOCH_TRANSACTIONS_TABLE_FORMAT = "transactionsInEpoch-%d";
@@ -107,7 +107,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     // completed transactions key
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_TABLE_PREFIX + "/%s";
 
-    private static final String CACHE_KEY_DELIMITER = "#.#";
+    private static final String CACHE_KEY_DELIMITER = ".#cacheKey#.";
 
     private final PravegaTablesStoreHelper storeHelper;
     private final String metadataTableName;
@@ -331,7 +331,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Data> getEpochRecordData(int epoch) {
         String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-        return cache.getCachedData(getCacheEntryKey(metadataTableName, key));
+        String cacheEntryKey = getCacheEntryKey(metadataTableName, key);
+        return cache.getCachedData(cacheEntryKey);
     }
 
     @Override
@@ -461,8 +462,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Map<String, Data>> getTxnInEpoch(int epoch) {
         String scope = getScope();
-        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), epoch);
-        AtomicInteger count = new AtomicInteger(0);
+        String epochTableName = getEpochTable(epoch);
         Map<String, Data> result = new ConcurrentHashMap<>();
         return storeHelper.getAllEntries(scope, epochTableName)
                           .forEachRemaining(x -> {
@@ -473,31 +473,31 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final byte[] txnRecord) {
-        String epochTable = getEpochTable(String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, epoch));
+        String epochTable = getEpochTable(epoch);
         String scope = getScope();
         return storeHelper.createTable(scope, epochTable)
             .thenCompose(x -> storeHelper.addNewEntry(scope, epochTable, txId.toString(), txnRecord));
     }
 
-    private String getEpochTable(String format) {
-        return streamTablePrefix + format;
+    private String getEpochTable(int epoch) {
+        return streamTablePrefix + String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, epoch);
     }
 
     @Override
     CompletableFuture<Data> getActiveTx(final int epoch, final UUID txId) {
-        String epochTable = getEpochTable(String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, epoch));
+        String epochTable = getEpochTable(epoch);
         return storeHelper.getEntry(getScope(), epochTable, txId.toString());
     }
 
     @Override
     CompletableFuture<Version> updateActiveTx(final int epoch, final UUID txId, final Data data) {
-        String epochTable = getEpochTable(String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, epoch));
+        String epochTable = getEpochTable(epoch);
         return storeHelper.updateEntry(getScope(), epochTable, txId.toString(), data);
     }
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
-        String epochTable = getEpochTable(String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, epoch));
+        String epochTable = getEpochTable(epoch);
         return storeHelper.removeEntry(getScope(), epochTable, txId.toString())
                 .thenCompose(v -> storeHelper.deleteTable(getScope(), epochTable, true)
                         .thenCompose(deleted -> {
