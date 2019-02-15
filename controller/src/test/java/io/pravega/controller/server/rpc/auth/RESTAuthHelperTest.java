@@ -49,8 +49,11 @@ public class RESTAuthHelperTest {
 
     @Test
     public void testAuthOkForPrivilegedUserWhenCredentialsAreValid() throws AuthException {
-        authHelper.isAuthorized(createAuthHeader("privilegedUser", "whatever"), "/",
-                new UserPrincipal("privilegedUser"),  READ_UPDATE);
+        String username = FakeAuthHandler.PRIVILEGED_USER;
+        String password = "whatever";
+
+        assertTrue(authHelper.isAuthorized(createAuthHeader(username, password), "/",
+                new UserPrincipal(username),  READ_UPDATE));
     }
 
     @Test
@@ -68,7 +71,7 @@ public class RESTAuthHelperTest {
 
     @Test
     public void testAuthOkForUnprivilegedUserForAssignedPermission() throws AuthException {
-        String username = "unPrivilegedUser";
+        String username = FakeAuthHandler.UNPRIVILEGED_USER;
         String password = "whatever";
 
         boolean authorized = authHelper.isAuthorized(
@@ -81,7 +84,7 @@ public class RESTAuthHelperTest {
 
     @Test
     public void testAuthFailsForUnprivilegedUserForUnassignedPermission() throws AuthException {
-        String username = "unPrivilegedUser";
+        String username = FakeAuthHandler.UNPRIVILEGED_USER;
         String password = "whatever";
 
         boolean authorized = authHelper.isAuthorized(
