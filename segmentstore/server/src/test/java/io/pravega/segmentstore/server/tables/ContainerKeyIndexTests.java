@@ -17,9 +17,9 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -276,7 +276,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
-        context.segment.updateAttributes(TableStore.getInitialTableAttributes(), TIMEOUT).join();
+        context.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
 
         // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
         val keys = generateUnversionedKeys(BATCH_SIZE, context);
@@ -308,7 +308,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                 })
                 .collect(Collectors.toList());
 
-        iw.updateBuckets(context.segment, bucketUpdates, 0L, 1L, TIMEOUT).join();
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, 1L, 0, TIMEOUT).join();
 
         // First lookup should go directly to the index. The cache should be empty.
         val result1 = context.index.getBucketOffsets(context.segment, hashes, context.timer).join();
@@ -331,7 +331,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Setup the segment with initial attributes.
         val iw = new IndexWriter(HASHER, executorService());
-        context.segment.updateAttributes(TableStore.getInitialTableAttributes(), TIMEOUT).join();
+        context.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
 
         // Generate keys and index them by Hashes and assign offsets. Only half the keys exist; the others do not.
         val keys = generateUnversionedKeys(BATCH_SIZE, context);
@@ -356,7 +356,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                                    .collect(Collectors.toList());
 
         // We leave the IndexOffset unchanged for now.
-        iw.updateBuckets(context.segment, bucketUpdates, 0L, 0L, TIMEOUT).join();
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, 0L, 0, TIMEOUT).join();
 
         // Simulate writing the data to the segment by increasing its length.
         context.segment.append(new byte[segmentLength], null, TIMEOUT).join();
