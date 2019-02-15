@@ -60,9 +60,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables();
         store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1));
         bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }

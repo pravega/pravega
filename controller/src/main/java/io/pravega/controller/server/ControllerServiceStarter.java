@@ -60,6 +60,9 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -101,12 +104,19 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private StreamMetrics streamMetrics;
     private TransactionMetrics transactionMetrics;
-
+    private final AtomicReference<SegmentHelper> segmentHelperRef;
+    
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
+        this(serviceConfig, storeClient, null);
+    }
+
+    @VisibleForTesting
+    ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
         this.controllerReadyLatch = new CountDownLatch(1);
+        this.segmentHelperRef = new AtomicReference<>(segmentHelper);
     }
 
     @Override
@@ -172,8 +182,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
-            SegmentHelper segmentHelper = new SegmentHelper(hostStore, connectionFactory, authHelper);
-
+            
+            segmentHelperRef.compareAndSet(null, new SegmentHelper(hostStore, connectionFactory, authHelper));
+            SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, controllerExecutor);
 

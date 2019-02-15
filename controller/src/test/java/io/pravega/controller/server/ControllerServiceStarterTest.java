@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.store.client.StoreClient;
@@ -57,7 +58,8 @@ public abstract class ControllerServiceStarterTest {
     @Test
     public void testStartStop() {
         Assert.assertNotNull(storeClient);
-        ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient);
+        ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient, 
+                SegmentHelperMock.getSegmentHelperMockForTables());
         starter.startAsync();
 
         try {

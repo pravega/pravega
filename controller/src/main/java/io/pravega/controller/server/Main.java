@@ -54,7 +54,7 @@ public class Main {
 
             StoreClientConfig storeClientConfig;
             if (Config.USE_PRAVEGA_TABLES) {
-              storeClientConfig = StoreClientConfigImpl.withKvsClient(zkClientConfig);
+              storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
             } else {
                 storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
             }

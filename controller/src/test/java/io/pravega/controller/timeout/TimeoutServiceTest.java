@@ -60,13 +60,14 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
  * Test class for TimeoutService.
  */
 @Slf4j
-public class TimeoutServiceTest {
+public abstract class TimeoutServiceTest {
 
     private final static String SCOPE = "SCOPE";
     private final static String STREAM = "STREAM";
@@ -74,18 +75,19 @@ public class TimeoutServiceTest {
     private final static long LEASE = 2000;
     private final static int RETRY_DELAY = 1000;
 
-    private final StreamMetadataStore streamStore;
-    private final TimerWheelTimeoutService timeoutService;
-    private final ControllerService controllerService;
-    private final ScheduledExecutorService executor;
-    private final TestingServer zkTestServer;
-    private final CuratorFramework client;
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final StoreClient storeClient;
-    private final RequestTracker requestTracker = new RequestTracker(true);
+    private StreamMetadataStore streamStore;
+    private TimerWheelTimeoutService timeoutService;
+    private ControllerService controllerService;
+    protected ScheduledExecutorService executor;
+    private TestingServer zkTestServer;
+    protected CuratorFramework client;
+    private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private StoreClient storeClient;
+    private RequestTracker requestTracker = new RequestTracker(true);
 
-    public TimeoutServiceTest() throws Exception {
+    @Before
+    public void setUp() throws Exception {
 
         final String hostId = "host";
 
@@ -102,7 +104,7 @@ public class TimeoutServiceTest {
 
         // Create STREAM store, host store, and task metadata store.
         storeClient = StoreClientFactory.createZKStoreClient(client);
-        streamStore = StreamStoreFactory.createZKStore(client, executor);
+        streamStore = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
@@ -132,6 +134,8 @@ public class TimeoutServiceTest {
         streamStore.createStream(SCOPE, STREAM, streamConfiguration, System.currentTimeMillis(), null, executor)
                    .thenCompose(x -> streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor)).join();
     }
+
+    protected abstract StreamMetadataStore getStore();
 
     @After
     public void tearDown() throws Exception {

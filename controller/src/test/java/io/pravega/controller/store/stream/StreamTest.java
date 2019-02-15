@@ -13,6 +13,8 @@ import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
@@ -34,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -61,6 +64,13 @@ public class StreamTest {
     }
 
     @Test(timeout = 10000)
+    public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
+        PravegaTablesStream stream = new PravegaTablesStream("test", "test", 
+                new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables()), () -> 0, executor);
+        testStream(stream);
+    }
+    
+    @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
         ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper);
@@ -84,6 +94,7 @@ public class StreamTest {
 
         CreateStreamResponse response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
+        stream.createStreamMetadata().join();
         stream.storeCreationTimeIfAbsent(creationTime1).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
@@ -140,56 +151,69 @@ public class StreamTest {
     }
 
     @Test(timeout = 10000)
-    public void testConcurrentGetSuccessorScale() throws Exception {
+    public void testConcurrentGetSuccessorScaleZk() throws Exception {
+        try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor)) {
+            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
+            testConcurrentGetSuccessorScale(store, (x, y) -> new ZKStream(x, y, zkStoreHelper));
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void testConcurrentGetSuccessorScalePravegaTables() throws Exception {
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+        try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
+                segmentHelper, cli, executor)) {
+            testConcurrentGetSuccessorScale(store, (x, y) -> new PravegaTablesStream(x, y, 
+                    new PravegaTablesStoreHelper(segmentHelper), () -> 0, executor));
+        }
+    }
+    
+    private void testConcurrentGetSuccessorScale(StreamMetadataStore store, BiFunction<String, String, Stream> createStream) throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
-        try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor)) {
-            final String streamName = "test";
-            String scopeName = "test";
-            store.createScope(scopeName).get();
+        final String streamName = "test";
+        String scopeName = "test";
+        store.createScope(scopeName).get();
+        
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scalingPolicy(policy)
+                                                              .build();
 
-            ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
+        store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
+        store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
 
-            StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                                  .scalingPolicy(policy)
-                                                                  .build();
+        Stream zkStream = spy(createStream.apply("test", "test"));
 
-            store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
-            store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
+        List<Map.Entry<Double, Double>> newRanges;
 
-            ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
+        newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
 
-            List<Map.Entry<Double, Double>> newRanges;
+        long scale = System.currentTimeMillis();
+        ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
+        long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
+        VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale, null).join();
+        Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
+        VersionedMetadata<State> state = zkStream.getVersionedState().join();
+        state = zkStream.updateVersionedState(state, State.SCALING).join();
+        zkStream.startScale(false, response, state).join();
+        zkStream.scaleCreateNewEpoch(response).get();
+        // history table has a partial record at this point.
+        // now we could have sealed the segments so get successors could be called.
 
-            newRanges = Arrays.asList(new AbstractMap.SimpleEntry<>(0.0, 0.5), new AbstractMap.SimpleEntry<>(0.5, 1.0));
+        Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get()
+                                                   .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
-            long scale = System.currentTimeMillis();
-            ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
-            long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
-            long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-            VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale, null).join();
-            Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
-            VersionedMetadata<State> state = zkStream.getVersionedState().join();
-            state = zkStream.updateVersionedState(state, State.SCALING).join();
-            zkStream.startScale(false, response, state).join();
-            zkStream.scaleCreateNewEpoch(response).get();
-            // history table has a partial record at this point.
-            // now we could have sealed the segments so get successors could be called.
+        assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
-            Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get()
-                                                       .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
+        // reset mock so that we can resume scale operation
 
-            assertTrue(successors.containsKey(one) && successors.containsKey(two));
+        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
+        zkStream.completeScale(response).join();
 
-            // reset mock so that we can resume scale operation
+        successors = zkStream.getSuccessorsWithPredecessors(0).get()
+                             .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
-            zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
-            zkStream.completeScale(response).join();
-
-            successors = zkStream.getSuccessorsWithPredecessors(0).get()
-                                 .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
-
-            assertTrue(successors.containsKey(one) && successors.containsKey(two));
-        }
+        assertTrue(successors.containsKey(one) && successors.containsKey(two));
     }
 }

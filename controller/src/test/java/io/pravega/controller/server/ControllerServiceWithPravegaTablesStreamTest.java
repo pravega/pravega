@@ -65,13 +65,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.*;
 
-/**
- * Tests for ControllerService With ZK Stream Store
- */
-@Slf4j
-public class ControllerServiceWithZKStreamTest extends ControllerServiceWithStreamTest {
+@Slf4j 
+public class ControllerServiceWithPravegaTablesStreamTest extends ControllerServiceWithStreamTest {
     @Override
     StreamMetadataStore getStore() {
-        return StreamStoreFactory.createZKStore(zkClient, executor);
+        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(), zkClient, executor);
     }
 }

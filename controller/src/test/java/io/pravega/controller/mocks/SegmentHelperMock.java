@@ -21,6 +21,8 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -36,16 +38,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
-
-    private static final Object lock = new Object();
-    @GuardedBy("lock")
-    private static final Map<String, Map<ByteBuffer, TableEntry<byte[], byte[]>>> mapOfTables = new HashMap<>();
     
     public static SegmentHelper getSegmentHelperMock(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
         SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
@@ -113,8 +109,16 @@ public class SegmentHelperMock {
         return helper;
     }
 
+    public static SegmentHelper getSegmentHelperMockForTables() {
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+        return getSegmentHelperMockForTables(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+    }
+    
     public static SegmentHelper getSegmentHelperMockForTables(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
         SegmentHelper helper = getSegmentHelperMock(hostControllerStore, clientCF, authHelper);
+        final Object lock = new Object();
+        final Map<String, Map<ByteBuffer, TableEntry<byte[], byte[]>>> mapOfTables = new HashMap<>();
 
         // region create table
         doAnswer(x -> {

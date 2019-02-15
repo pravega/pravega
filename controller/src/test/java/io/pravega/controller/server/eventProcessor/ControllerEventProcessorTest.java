@@ -75,11 +75,11 @@ import static org.mockito.Mockito.mock;
 /**
  * Controller Event ProcessorTests.
  */
-public class ControllerEventProcessorTest {
+public abstract class ControllerEventProcessorTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
 
-    private ScheduledExecutorService executor;
+    protected ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
@@ -87,7 +87,7 @@ public class ControllerEventProcessorTest {
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
-    private CuratorFramework zkClient;
+    protected CuratorFramework zkClient;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
@@ -100,7 +100,7 @@ public class ControllerEventProcessorTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         zkClient.start();
 
-        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = createStore();
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
@@ -121,6 +121,8 @@ public class ControllerEventProcessorTest {
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
         // endregion
     }
+
+    abstract StreamMetadataStore createStore();
 
     @After
     public void tearDown() throws Exception {

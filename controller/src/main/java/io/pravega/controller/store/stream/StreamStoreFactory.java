@@ -33,6 +33,12 @@ public class StreamStoreFactory {
     }
 
     @VisibleForTesting
+    public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, 
+                                                               final CuratorFramework client, final Executor executor) {
+        return new PravegaTablesStreamMetadataStore(segmentHelper, client, executor);
+    }
+    
+    @VisibleForTesting
     public static StreamMetadataStore createZKStore(final CuratorFramework client, final Executor executor) {
         return new ZKStreamMetadataStore(client, executor);
     }

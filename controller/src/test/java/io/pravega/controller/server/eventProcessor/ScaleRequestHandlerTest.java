@@ -102,10 +102,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ScaleRequestHandlerTest {
+public abstract class ScaleRequestHandlerTest {
     private final String scope = "scope";
     private final String stream = "stream";
-    private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
@@ -115,7 +115,7 @@ public class ScaleRequestHandlerTest {
 
     private TestingServer zkServer;
 
-    private CuratorFramework zkClient;
+    protected CuratorFramework zkClient;
     private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 
@@ -140,7 +140,7 @@ public class ScaleRequestHandlerTest {
             hostId = UUID.randomUUID().toString();
         }
 
-        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        streamStore = spy(getStore());
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
@@ -541,8 +541,8 @@ public class ScaleRequestHandlerTest {
                                              boolean expectFailureOnSecondJob,
                                              Predicate<Throwable> secondExceptionPredicate,
                                              Map<String, Integer> invocationCount) throws Exception {
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
@@ -558,7 +558,7 @@ public class ScaleRequestHandlerTest {
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
         
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
         ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
@@ -597,6 +597,8 @@ public class ScaleRequestHandlerTest {
         streamStore1.close();
         streamStore2.close();
     }
+
+    abstract StreamMetadataStore getStore();
 
     private void setMockLatch(StreamMetadataStore store, StreamMetadataStore spied, 
                              String func, CompletableFuture<Void> signal, CompletableFuture<Void> waitOn) {
@@ -642,6 +644,7 @@ public class ScaleRequestHandlerTest {
         }
     }
 
+    // todo: shivesh timed out
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
     public void testConcurrentDistinctManualScaleRequest() throws Exception {
@@ -700,8 +703,8 @@ public class ScaleRequestHandlerTest {
     private void concurrentDistinctScaleRun(String stream, String funcToWaitOn, boolean isManual,
                                     Predicate<Throwable> firstExceptionPredicate,
                                     Map<String, Integer> invocationCount) throws Exception {
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
@@ -717,7 +720,7 @@ public class ScaleRequestHandlerTest {
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
 
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
         ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);

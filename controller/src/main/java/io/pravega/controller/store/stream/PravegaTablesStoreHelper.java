@@ -38,19 +38,22 @@ public class PravegaTablesStoreHelper {
     }
     
     public CompletableFuture<Void> createTable(String scope, String tableName) {
-        return Futures.toVoid(segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID));
+        return Futures.toVoid(translateException(segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID), 
+                "create table: " + scope + "/" + tableName));
     }
 
     public CompletableFuture<Boolean> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
-        return Futures.exceptionallyExpecting(handleException(segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID)),
-                            e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, false);
+        return Futures.exceptionallyExpecting(translateException(segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID),
+                "delete table: " + scope + "/" + tableName),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, false);
     }
 
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
         List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
-        return handleException(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID))
+        return translateException(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
+                "addNewEntry: key:"+ key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
                     return new Version.LongVersion(first.getSegmentVersion());
@@ -69,7 +72,8 @@ public class PravegaTablesStoreHelper {
                 new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), version), value.getData());
         entries.add(entry);
-        return handleException(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID))
+        return translateException(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
+                "updateEntry: key:"+ key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
                     return new Version.LongVersion(first.getSegmentVersion());
@@ -79,7 +83,8 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Data> getEntry(String scope, String tableName, String key) {
         List<TableKey<byte[]>> keys = new LinkedList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
-        return handleException(segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID))
+        return translateException(segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
+                "get entry: key:"+ key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
                     return new Data(first.getValue(), new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
@@ -89,12 +94,14 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> removeEntry(String scope, String tableName, String key) {
         List<TableKey<byte[]>> keys = new LinkedList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
-        return handleException(segmentHelper.removeTableKeys(scope, tableName, keys, 0L));
+        return translateException(segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
+                "remove entry: key:"+ key + " table: " + scope + "/" + tableName);
     }
     
     public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> key) {
         List<TableKey<byte[]>> keys = key.stream().map(x -> new TableKeyImpl<>(x.getBytes(), null)).collect(Collectors.toList());
-        return handleException(segmentHelper.removeTableKeys(scope, tableName, keys, 0L));
+        return translateException(segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
+                "remove entries: keys:"+ keys + " table: " + scope + "/" + tableName);
     }
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
@@ -105,7 +112,7 @@ public class PravegaTablesStoreHelper {
         throw new UnsupportedOperationException();
     }
 
-    private <T> CompletableFuture<T> handleException(CompletableFuture<T> future) {
+    private <T> CompletableFuture<T> translateException(CompletableFuture<T> future, String entity) {
         return future.exceptionally(e -> {
             Throwable cause = Exceptions.unwrap(e);
             Throwable toThrow;
@@ -115,31 +122,31 @@ public class PravegaTablesStoreHelper {
                     case ConnectionDropped:
                     case ConnectionFailed:
                     case UnknownHost:
-                        toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, entity);
                         break;
                     case PreconditionFailed:
-                        toThrow = StoreException.create(StoreException.Type.ILLEGAL_STATE, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.ILLEGAL_STATE, wcfe, entity);
                         break;
                     case AuthFailed:
-                        toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, entity);
                         break;
                     case SegmentDoesNotExist:
-                        toThrow = StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, entity);
                         break;
                     case TableSegmentNotEmpty:
-                        toThrow = StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.DATA_CONTAINS_ELEMENTS, wcfe, entity);
                         break;
                     case TableKeyDoesNotExist:
-                        toThrow = StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.DATA_NOT_FOUND, wcfe, entity);
                         break;
                     case TableKeyBadVersion:
-                        toThrow = StoreException.create(StoreException.Type.WRITE_CONFLICT, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.WRITE_CONFLICT, wcfe, entity);
                         break;
                     default:
-                        toThrow = StoreException.create(StoreException.Type.UNKNOWN, wcfe, "");
+                        toThrow = StoreException.create(StoreException.Type.UNKNOWN, wcfe, entity);
                 }
             } else {
-                toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, "");
+                toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, entity);
             }
 
             throw new CompletionException(toThrow);

@@ -49,13 +49,11 @@ public class Cache {
         });
     }
 
-    public Void invalidateCache(final String key) {
+    public void invalidateCache(final String key) {
         cache.invalidate(key);
-        return null;
     }
 
-    public Void invalidateAll() {
+    public void invalidateAll() {
         cache.invalidateAll();
-        return null;
     }
 }
