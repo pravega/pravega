@@ -30,6 +30,7 @@ public abstract class PositionInternal implements Position {
 
     /**
      * Gets the set of segments currently being read, i.e., ownedSegments set.
+     * @return The set of segments currently being read
      */
     abstract Set<Segment> getOwnedSegments();
 
@@ -42,6 +43,7 @@ public abstract class PositionInternal implements Position {
 
     /**
      * Gets the set of completely read segments.
+     * @return The set of completely read segments.
      */
     abstract Set<Segment> getCompletedSegments();
 
@@ -49,6 +51,7 @@ public abstract class PositionInternal implements Position {
      * Gets the offset for a specified the segment.
      *
      * @param segmentId input segment
+     * @return The offset for a specified the segment.
      */
     abstract Long getOffsetForOwnedSegment(Segment segmentId);
     

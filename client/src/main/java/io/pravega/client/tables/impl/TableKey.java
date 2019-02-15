@@ -17,11 +17,13 @@ package io.pravega.client.tables.impl;
 public interface TableKey<KeyT> {
     /**
      * The Key.
+     * @return The Key.
      */
     KeyT getKey();
 
     /**
      * The Version. If null, any updates for this Key will be unconditional.
+     * @return The Version.
      */
     KeyVersion getVersion();
 }

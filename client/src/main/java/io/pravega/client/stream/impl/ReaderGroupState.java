@@ -211,6 +211,7 @@ public class ReaderGroupState implements Revisioned {
 
     /**
      * Returns the number of segments currently being read from and that are unassigned within the reader group.
+     * @return The number of segments currently being read from and that are unassigned within the reader group.
      */
     @Synchronized
     public int getNumberOfSegments() {

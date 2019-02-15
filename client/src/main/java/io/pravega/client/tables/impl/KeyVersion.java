@@ -46,11 +46,13 @@ public interface KeyVersion extends Serializable {
 
     /**
      * Gets a value representing the internal version inside the Table Segment for this Key.
+     * @return The internal version inside the Table Segment for this Key.
      */
     long getSegmentVersion();
 
     /**
      * Serializes the KeyVersion instance to a compact byte array.
+     * @return The compact byte array of serialized KeyVersion instance.
      */
     ByteBuffer toBytes();
 
