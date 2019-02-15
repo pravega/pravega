@@ -9,11 +9,7 @@
  */
 package io.pravega.controller.server.rest.resources;
 
-import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthException;
-import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthenticationException;
-import io.pravega.auth.AuthorizationException;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
