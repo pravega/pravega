@@ -14,6 +14,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
@@ -217,7 +218,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
-        return getScope(scopeName).deleteScope().handle((result, ex) -> {
+        return getScope(scopeName).deleteScope().handle((result, e) -> {
+            Throwable ex = Exceptions.unwrap(e);
             if (ex == null) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
             }
@@ -739,7 +741,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         cache.put(new ImmutablePair<>(stream.getScope(), stream.getName()), stream);
     }
 
-    private Scope getScope(final String scopeName) {
+    protected Scope getScope(final String scopeName) {
         Scope scope = scopeCache.getUnchecked(scopeName);
         scope.refresh();
         return scope;

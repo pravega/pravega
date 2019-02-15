@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -50,7 +51,7 @@ public class PravegaTableScope implements Scope {
             future = CompletableFuture.completedFuture(null);
         }
         // add entry to scopes table followed by creating scope specific table
-        return future.thenCompose(tableCreated -> storeHelper.addNewEntry(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, null))
+        return future.thenCompose(tableCreated -> storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, new byte[0]))
                 .thenCompose(entryAdded -> storeHelper.createTable(scopeName, streamsInScopeTable));
     }
 
@@ -71,4 +72,11 @@ public class PravegaTableScope implements Scope {
     public void refresh() {
     }
 
+    public CompletableFuture<Void> addStreamToScope(String stream) {
+        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(scopeName, streamsInScopeTable, stream, new byte[0]));
+    }
+
+    public CompletableFuture<Void> removeStreamFromScope(String stream) {
+        return Futures.toVoid(storeHelper.removeEntry(scopeName, streamsInScopeTable, stream));
+    }
 }

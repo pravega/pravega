@@ -21,6 +21,7 @@ import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
+import lombok.NonNull;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.LinkedList;
@@ -45,7 +46,7 @@ public class PravegaTablesStoreHelper {
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, false);
     }
 
-    public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, byte[] value) {
+    public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
         List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
@@ -55,10 +56,17 @@ public class PravegaTablesStoreHelper {
                     return new Version.LongVersion(first.getSegmentVersion());
                 });
     }
+
+    public CompletableFuture<Version> addNewEntryIfAbsent(String scope, String tableName, String key, @NonNull byte[] value) {
+        // if entry exists, we will get write conflict in attempting to create it again. 
+        return Futures.exceptionallyExpecting(addNewEntry(scope, tableName, key, value), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null);
+    }
     
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, Data value) {
         List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
-        KeyVersionImpl version = new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
+        KeyVersionImpl version = value.getVersion() == null ? null : 
+                new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), version), value.getData());
         entries.add(entry);
         return handleException(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID))

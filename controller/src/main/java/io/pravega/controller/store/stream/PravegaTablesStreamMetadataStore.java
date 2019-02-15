@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -18,7 +19,10 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.index.PravegaTablesHostIndex;
 import io.pravega.controller.util.Config;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
@@ -36,7 +40,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
-    public static final String SYSTEM_SCOPE = "_system";
+    static final String SYSTEM_SCOPE = "_system";
     static final String SCOPES_TABLE = "scopes";
     static final String DELETED_STREAMS_TABLE = "deletedStreams";
     static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "completedTransactionsBatches";
@@ -47,6 +51,8 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final ZkInt96Counter counter;
     private final ZKGarbageCollector completedTxnGC;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final PravegaTablesStoreHelper storeHelper;
     private final Executor executor;
 
@@ -54,7 +60,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, Executor executor) {
         this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
     }
-
+    
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, Executor executor, Duration gcPeriod) {
         super(new PravegaTablesHostIndex(segmentHelper, "hostTxnIndex", executor));
@@ -112,6 +118,26 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     }
 
     @Override
+    public CompletableFuture<CreateStreamResponse> createStream(final String scope,
+                                                                final String name,
+                                                                final StreamConfiguration configuration,
+                                                                final long createTimestamp,
+                                                                final OperationContext context,
+                                                                final Executor executor) {
+        return super.createStream(scope, name, configuration, createTimestamp, context, executor)
+                .thenCompose(status -> ((PravegaTableScope)getScope(scope)).addStreamToScope(name).thenApply(v -> status));
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteStream(final String scope,
+                                                final String name,
+                                                final OperationContext context,
+                                                final Executor executor) {
+        return super.deleteStream(scope, name, context, executor)
+                    .thenCompose(status -> ((PravegaTableScope)getScope(scope)).removeStreamFromScope(name).thenApply(v -> status));
+    }
+
+    @Override
     Version getEmptyVersion() {
         return Version.LongVersion.EMPTY;
     }
@@ -152,7 +178,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
                             .handle((data, ex) -> {
                               if (ex == null) {
                                   return BitConverter.readInt(data.getData(), 0) + 1;
-                              } else if (ex instanceof StoreException.DataNotFoundException) {
+                              } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
                                   log.error("Problem found while getting a safe starting segment number for {}.",
@@ -182,7 +208,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
                                     return Futures.toVoid(storeHelper.updateEntry(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, 
                                             key, new Data(maxSegmentNumberBytes, existing.getVersion())));
                                 } else {
-                                    return Futures.toVoid(storeHelper.addNewEntry(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, 
+                                    return Futures.toVoid(storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, DELETED_STREAMS_TABLE, 
                                             key, maxSegmentNumberBytes));
                                 }
                             });

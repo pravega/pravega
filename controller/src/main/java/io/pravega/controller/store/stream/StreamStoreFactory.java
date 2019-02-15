@@ -47,6 +47,7 @@ public class StreamStoreFactory {
             case InMemory: 
                 return createInMemoryBucketStore();
             case Zookeeper: 
+            case PravegaTable:
                 return createZKBucketStore((CuratorFramework) storeClient.getClient(), executor);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());

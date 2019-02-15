@@ -9,18 +9,26 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TxnResource;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
+import org.mockito.Mock;
 
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
@@ -33,14 +41,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Zookeeper based stream metadata store tests.
  */
-public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
+public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     private TestingServer zkServer;
     private CuratorFramework cli;
@@ -53,7 +60,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+        SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1));
         bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }
 
@@ -63,22 +73,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         zkServer.close();
         store.close();
     }
-
-    @Test
-    public void listStreamsWithInactiveStream() throws Exception {
-        // list stream in scope
-        store.createScope("Scope").get();
-        store.createStream("Scope", stream1, configuration1, System.currentTimeMillis(), null, executor).get();
-        store.setState("Scope", stream1, State.ACTIVE, null, executor).get();
-
-        store.createStream("Scope", stream2, configuration2, System.currentTimeMillis(), null, executor).get();
-
-        Map<String, StreamConfiguration> streamInScope = store.listStreamsInScope("Scope").get();
-        assertEquals("List streams in scope", 2, streamInScope.size());
-        assertTrue("List streams in scope", streamInScope.containsKey(stream1));
-        assertTrue("List streams in scope", streamInScope.containsKey(stream2));
-    }
-
+    
     @Test
     public void testInvalidOperation() throws Exception {
         // Test operation when stream is not in active state
@@ -90,40 +85,11 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
                 store.getActiveSegments(scope, stream1, null, executor),
                 (Throwable t) -> t instanceof StoreException.IllegalStateException);
     }
-
-    @Test(timeout = 5000)
-    public void testError() throws Exception {
-        String host = "host";
-        TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
-        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.UnknownException;
-
-        cli.close();
-        testFailure(host, txn, checker);
-    }
-
-    @Test
-    public void testConnectionLoss() throws Exception {
-        String host = "host";
-        TxnResource txn = new TxnResource("SCOPE", "STREAM1", UUID.randomUUID());
-        Predicate<Throwable> checker = (Throwable ex) -> ex instanceof StoreException.StoreConnectionException;
-
-        zkServer.close();
-        AssertExtensions.assertFutureThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
-    }
-
-    private void testFailure(String host, TxnResource txn, Predicate<Throwable> checker) {
-        AssertExtensions.assertFutureThrows("Add txn to index fails", store.addTxnToIndex(host, txn, new Version.IntVersion(0)), checker);
-        AssertExtensions.assertFutureThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
-        AssertExtensions.assertFutureThrows("Remove host fails", store.removeHostFromIndex(host), checker);
-        AssertExtensions.assertFutureThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
-        AssertExtensions.assertFutureThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
-        AssertExtensions.assertFutureThrows("List hosts fails", store.listHostsOwningTxn(), checker);
-    }
-
+    
     @Test
     public void testScaleMetadata() throws Exception {
         String scope = "testScopeScale";
-        String stream = "testStreamScale";
+        String stream = "testStreamScale1";
         ScalingPolicy policy = ScalingPolicy.fixed(3);
         StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
         SimpleEntry<Double, Double> segment1 = new SimpleEntry<>(0.0, 0.5);
@@ -243,78 +209,78 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
     }
 
-    @Test
-    public void testCommittedTxnGc() {
-        String scope = "scopeGC";
-        String stream = "stream";
-        store.createScope(scope).join();
-        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
-                                                        .build();
-        store.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
-        store.setState(scope, stream, State.ACTIVE, null, executor).join();
-
-        ZKStreamMetadataStore zkStore = (ZKStreamMetadataStore) store;
-        ZKStoreHelper storeHelper = zkStore.getStoreHelper();
-        
-        UUID txnId = new UUID(0L, 0L);
-        createAndCommitTxn(txnId, scope, stream).join();
-        
-        // getTxnStatus
-        TxnStatus status = store.transactionStatus(scope, stream, txnId, null, executor).join();
-        assertEquals(TxnStatus.COMMITTED, status);
-        // verify txns are created in a new batch
-        List<Integer> batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                                        .stream().map(Integer::parseInt).collect(Collectors.toList());
-        assertEquals(1, batches.size());
-        int firstBatch = batches.get(0);
-
-        // create another transaction after introducing a delay greater than gcperiod so that it gets created in a new batch 
-        Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 1L), scope, stream), 
-                Duration.ofSeconds(2).toMillis(), executor).join();
-        // verify that this gets created in a new batch
-        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
-        assertEquals(2, batches.size());
-        assertTrue(batches.contains(firstBatch));
-        int secondBatch = batches.stream().max(Integer::compare).get();
-        assertTrue(secondBatch > firstBatch);
-        
-        // let one more gc cycle run and verify that these two batches are not cleaned up. 
-        batches = Futures.delayedFuture(() -> storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH),
-                Duration.ofSeconds(2).toMillis(), executor).join()
-                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
-        assertEquals(2, batches.size());
-
-        // create third transaction after introducing a delay greater than gcperiod so that it gets created in a new batch
-        Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 2L), scope, stream), 
-                Duration.ofSeconds(2).toMillis(), executor).join();
-        // Verify that a new batch is created here. 
-        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
-
-        int thirdBatch = batches.stream().max(Long::compare).get();
-        assertTrue(thirdBatch > secondBatch);
-        
-        // wait for more than TTL, then do another getTxnStatus
-        status = Futures.delayedFuture(() -> store.transactionStatus(scope, stream, txnId, null, executor), 
-                Duration.ofSeconds(2).toMillis(), executor).join();
-        assertEquals(TxnStatus.UNKNOWN, status);
-
-        // verify that only 2 latest batches remain and that firstBatch has been GC'd
-        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
-                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
-        assertEquals(2, batches.size());
-        assertFalse(batches.contains(firstBatch));
-        assertTrue(batches.contains(secondBatch));
-        assertTrue(batches.contains(thirdBatch));
-    }
+//    @Test
+//    public void testCommittedTxnGc() {
+//        String scope = "scopeGC";
+//        String stream = "stream";
+//        store.createScope(scope).join();
+//        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+//                                                        .build();
+//        store.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
+//        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+//
+//        PravegaTablesStreamMetadataStore kvsStore = (PravegaTablesStreamMetadataStore) store;
+//        PravegaTablesStoreHelper storeHelper = kvsStore.getStoreHelper();
+//        
+//        UUID txnId = new UUID(0L, 0L);
+//        createAndCommitTxn(txnId, scope, stream).join();
+//        
+//        // getTxnStatus
+//        TxnStatus status = store.transactionStatus(scope, stream, txnId, null, executor).join();
+//        assertEquals(TxnStatus.COMMITTED, status);
+//        // verify txns are created in a new batch
+//        List<Integer> batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+//                                        .stream().map(Integer::parseInt).collect(Collectors.toList());
+//        assertEquals(1, batches.size());
+//        int firstBatch = batches.get(0);
+//
+//        // create another transaction after introducing a delay greater than gcperiod so that it gets created in a new batch 
+//        Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 1L), scope, stream), 
+//                Duration.ofSeconds(2).toMillis(), executor).join();
+//        // verify that this gets created in a new batch
+//        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+//                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+//        assertEquals(2, batches.size());
+//        assertTrue(batches.contains(firstBatch));
+//        int secondBatch = batches.stream().max(Integer::compare).get();
+//        assertTrue(secondBatch > firstBatch);
+//        
+//        // let one more gc cycle run and verify that these two batches are not cleaned up. 
+//        batches = Futures.delayedFuture(() -> storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH),
+//                Duration.ofSeconds(2).toMillis(), executor).join()
+//                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+//        assertEquals(2, batches.size());
+//
+//        // create third transaction after introducing a delay greater than gcperiod so that it gets created in a new batch
+//        Futures.delayedFuture(() -> createAndCommitTxn(new UUID(0L, 2L), scope, stream), 
+//                Duration.ofSeconds(2).toMillis(), executor).join();
+//        // Verify that a new batch is created here. 
+//        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+//                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+//
+//        int thirdBatch = batches.stream().max(Long::compare).get();
+//        assertTrue(thirdBatch > secondBatch);
+//        
+//        // wait for more than TTL, then do another getTxnStatus
+//        status = Futures.delayedFuture(() -> store.transactionStatus(scope, stream, txnId, null, executor), 
+//                Duration.ofSeconds(2).toMillis(), executor).join();
+//        assertEquals(TxnStatus.UNKNOWN, status);
+//
+//        // verify that only 2 latest batches remain and that firstBatch has been GC'd
+//        batches = storeHelper.getChildren(ZKStreamMetadataStore.COMPLETED_TX_BATCH_ROOT_PATH).join()
+//                             .stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+//        assertEquals(2, batches.size());
+//        assertFalse(batches.contains(firstBatch));
+//        assertTrue(batches.contains(secondBatch));
+//        assertTrue(batches.contains(thirdBatch));
+//    }
     
-    private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
-        return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
-             .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
-             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor))
-             .thenCompose(x -> store.commitTransaction(scope, stream, txnId, null, executor));
-    }
+//    private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
+//        return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
+//             .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
+//             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor))
+//             .thenCompose(x -> store.commitTransaction(scope, stream, txnId, null, executor));
+//    }
 
     private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {
         return store.getScaleMetadata(scope, stream, 0, Long.MAX_VALUE, null, executor).get()

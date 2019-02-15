@@ -62,20 +62,22 @@ public class PravegaTablesHostIndex implements HostIndex {
     public CompletableFuture<Void> addEntity(String hostId, String entity, byte[] entityData) {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
-        String table = getHostEntityTableName(hostId);
+        String hostEntityTable = getHostEntityTableName(hostId);
 
         // 1. Add host to hosts table first. create table with name hostId
         CompletableFuture<Void> createTableFuture; 
-        if (Optional.of(hostIdMap.get(hostId)).orElse(false)) {
+        if (!Optional.ofNullable(hostIdMap.get(hostId)).orElse(false)) {
             createTableFuture = storeHelper.createTable(SYSTEM_SCOPE, hostsTable)
-                    .thenCompose(x -> storeHelper.addNewEntry(SYSTEM_SCOPE, hostsTable, hostId, new byte[0]))
+                    .thenCompose(x -> storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, hostsTable, hostId, new byte[0]))
+                    .thenCompose(x -> storeHelper.createTable(SYSTEM_SCOPE, hostEntityTable))
+                                           
                     .thenAccept(x -> hostIdMap.put(hostId, true));
         } else {
             createTableFuture = CompletableFuture.completedFuture(null);
         }
         
         return createTableFuture.thenCompose(x -> {
-            return Futures.toVoid(storeHelper.addNewEntry(SYSTEM_SCOPE, table, entity, entityData));
+            return Futures.toVoid(storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, hostEntityTable, entity, entityData));
         });
     }
 
