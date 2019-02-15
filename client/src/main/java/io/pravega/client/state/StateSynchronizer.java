@@ -69,8 +69,10 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     /**
      * Similar to {@link UpdateGenerator} but it also returns a result for the caller.
      * For example:
+
      * <pre><code>
      * boolean updated = stateSynchronizer.updateState((state, updates) {@literal ->} {
+
      *      if (!shouldUpdate(state)) {
      *          return false;
      *      }

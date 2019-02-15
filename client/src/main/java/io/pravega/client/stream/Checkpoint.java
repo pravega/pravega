@@ -28,9 +28,7 @@ public interface Checkpoint {
     
     /**
      * Serializes the checkpoint to a compact byte array.
-     *
-     * @return ByteBuffer
-     *
+     * @return A serialized version of this checkpoint.
      */
     ByteBuffer toBytes();
     

@@ -94,8 +94,7 @@ public abstract class ByteStreamWriter extends OutputStream {
      * to the segment in its history. This is the sum total of the bytes written in all calls to
      * {@link #write(byte[])} that have been flushed. It does not include data that was passed to
      * {@link #write(byte[])} but which has not yet been persisted.
-     *
-     * @return asucj return of total number of bytes written to segment in history from server
+     * @return The tail offset
      */
     public abstract long fetchTailOffset();
     
