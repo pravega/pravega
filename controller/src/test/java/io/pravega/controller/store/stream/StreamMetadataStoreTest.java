@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
@@ -26,6 +27,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.test.common.AssertExtensions;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -229,6 +231,45 @@ public abstract class StreamMetadataStoreTest {
             assertTrue("List streams in non-existent scope Scope1",
                     ce.getCause() instanceof StoreException.DataNotFoundException);
         }
+    }
+
+    @Test
+    public void listStreamsInScopePaginated() throws Exception {
+        // list stream in scope
+        String scope = "scopeList";
+        store.createScope(scope).get();
+        String stream1 = "stream1";
+        String stream2 = "stream2";
+        String stream3 = "stream3";
+
+        store.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream1, State.ACTIVE, null, executor).get();
+        store.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream2, State.ACTIVE, null, executor).get();
+        store.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
+        store.setState(scope, stream3, State.ACTIVE, null, executor).get();
+        
+        Pair<List<String>, String> streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 0, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+        
+        store.deleteStream(scope, stream1, null, executor).join();
+        
+        streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 0, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
 
     @Test

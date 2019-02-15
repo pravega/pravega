@@ -24,9 +24,12 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.BlockingAsyncIterator;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -108,6 +111,14 @@ public class StreamManagerImpl implements StreamManager {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Creating scope: {}", scopeName);
         return  Futures.getThrowingException(controller.createScope(scopeName));
+    }
+
+    @Override
+    public Iterator<Stream> listStreamsInScope(String scopeName) {
+        NameUtils.validateUserScopeName(scopeName);
+        log.info("Listing streams in scope: {}", scopeName);
+        AsyncIterator<Stream> asyncIterator = controller.listStreamsInScope(scopeName);
+        return new BlockingAsyncIterator<>(asyncIterator);
     }
 
     @Override

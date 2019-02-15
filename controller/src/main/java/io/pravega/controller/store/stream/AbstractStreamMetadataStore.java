@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
-    
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
@@ -125,7 +125,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor));
+                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber)
+                            .thenCompose(status -> getScope(scope).addStreamToScope(name, status.getTimestamp()).thenApply(x -> status)), executor));
     }
 
     @Override
@@ -138,6 +139,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                 .thenApply(activeSegments -> activeSegments.stream().map(Segment::getNumber)
                                                                     .reduce(Integer::max).get())
                 .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
+                .thenCompose(v -> s.getCreationTime().thenCompose(time -> getScope(scope).removeStreamFromScope(name, time)))
                 .thenCompose(v -> withCompletion(s.delete(), executor))
                 .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
     }
@@ -252,6 +254,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(String scopeName, String continuationToken,
+                                                                                int limit, Executor executor) {
+        return getScope(scopeName).listStreamsInScope(limit, continuationToken, executor);
+    }
 
     @Override
     public CompletableFuture<Void> startTruncation(final String scope,

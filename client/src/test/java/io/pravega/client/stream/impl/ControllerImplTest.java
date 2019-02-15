@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Strings;
 import io.grpc.Server;
 import io.grpc.Status;
 import io.grpc.netty.GrpcSslContexts;
@@ -18,11 +19,13 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -61,6 +64,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -690,6 +694,34 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+
+            @Override
+            public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+                if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
+                    List<StreamInfo> list1 = new LinkedList<>();
+                    list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream1").build());
+                    list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream2").build());
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().addAllStreams(list1)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken")) {
+                    List<StreamInfo> list2 = new LinkedList<>();
+                    list2.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream3").build());
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().addAllStreams(list2)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
+                    responseObserver.onCompleted();
+                } else if (request.getContinuationToken().getToken().equals("myToken2")) {
+                    List<StreamInfo> list3 = new LinkedList<>();
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().addAllStreams(list3)
+                            .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("").build()).build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
         };
 
         serverPort = TestUtils.getAvailableListenPort();
@@ -1146,6 +1178,19 @@ public class ControllerImplTest {
 
         scopeStatus = controllerClient.createScope("scope5");
         AssertExtensions.assertFutureThrows("Should throw Exception", scopeStatus, throwable -> true);
+    }
+    
+    @Test
+    public void testStreamsInScope() {
+        String scope = "scopeList";
+        AsyncIterator<Stream> iterator = controllerClient.listStreamsInScope(scope);
+
+        Stream m = iterator.getNext().join();
+        assertEquals("stream1", m.getStreamName());
+        m = iterator.getNext().join();
+        assertEquals("stream2", m.getStreamName());
+        m = iterator.getNext().join();
+        assertEquals("stream3", m.getStreamName());
     }
 
     @Test

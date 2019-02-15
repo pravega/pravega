@@ -437,6 +437,19 @@ public class ControllerService {
     }
 
     /**
+     * List existing streams in scopes.
+     *
+     * @param scope Name of the scope.
+     * @param token continuation token
+     * @param limit limit for number of streams to return. 
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(final String scope, final String token, final int limit) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return streamStore.listStreamNamesInScope(scope, token, limit, executor);
+    }
+
+    /**
      * List Scopes in cluster.
      *
      * @return List of scopes.
