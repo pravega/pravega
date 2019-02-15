@@ -36,7 +36,6 @@ import java.util.function.Function;
  */
 public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
     private final Object lock = new Object();
-
     @GuardedBy("lock")
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -49,6 +48,7 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
     @GuardedBy("lock")
     private CompletableFuture<Void> outstanding;
     private final AtomicBoolean canContinue;
+    private final AtomicBoolean isOutstanding;
     
     public ContinuationTokenAsyncIterator(Function<T, CompletableFuture<Map.Entry<T, Collection<U>>>> function, T tokenIdentity) {
         this.function = function;
@@ -56,11 +56,13 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
         this.queue = new LinkedBlockingQueue<>();
         this.outstanding = CompletableFuture.completedFuture(null);
         this.canContinue = new AtomicBoolean(true);
+        this.isOutstanding = new AtomicBoolean(false);
     }
 
     @Override
     public CompletableFuture<U> getNext() {
         final T continuationToken;
+        boolean toCall = false;
         synchronized (lock) {
             // if the result is available, return it without making function call
             if (!queue.isEmpty()) {
@@ -68,25 +70,33 @@ public class ContinuationTokenAsyncIterator<T, U> implements AsyncIterator<U> {
             } else {
                 continuationToken = token.get();
                 // make the function call if previous outstanding call completed.
-                if (outstanding.isDone()) {
-                    // We are making this call under the lock!
-                    outstanding = function.apply(continuationToken)
-                            .thenAccept(resultPair -> {
-                                synchronized (lock) {
-                                    if (token.get().equals(continuationToken)) {
-                                        log.debug("Received the following collection after calling the function: {} with continuation token: {}",
-                                                resultPair.getValue(), resultPair.getKey());
-                                        canContinue.set(resultPair.getValue() != null && !resultPair.getValue().isEmpty());
-                                        queue.addAll(resultPair.getValue());
-                                        token.set(resultPair.getKey());
-                                    }
-                                }
-                            }).exceptionally(e -> {
-                                log.warn("Async iteration failed: ", e);
-                                throw new CompletionException(e);
-                            });
+                if (outstanding.isDone() && !isOutstanding.get()) {
+                    // only one getNext will be able to issue a new outstanding call.
+                    // everyone else will see isOutstanding as `true` when they acquire the lock. 
+                    toCall = true;
+                    isOutstanding.set(true);
                 }
             }
+        }
+
+        if (toCall) {
+            outstanding = function.apply(continuationToken)
+                                  .thenAccept(resultPair -> {
+                                      synchronized (lock) {
+                                          if (token.get().equals(continuationToken)) {
+                                              log.debug("Received the following collection after calling the function: {} with continuation token: {}",
+                                                      resultPair.getValue(), resultPair.getKey());
+                                              canContinue.set(resultPair.getValue() != null && !resultPair.getValue().isEmpty());
+                                              queue.addAll(resultPair.getValue());
+                                              token.set(resultPair.getKey());
+                                              // reset isOutstanding to false because this outstanding call is complete. 
+                                              isOutstanding.set(false);
+                                          }
+                                      }
+                                  }).exceptionally(e -> {
+                        log.warn("Async iteration failed: ", e);
+                        throw new CompletionException(e);
+                    });
         }
 
         return outstanding.thenCompose(v -> {
