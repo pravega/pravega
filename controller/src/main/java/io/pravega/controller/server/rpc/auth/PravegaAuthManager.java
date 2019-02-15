@@ -127,6 +127,11 @@ public class PravegaAuthManager {
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
+    // For enabling unit testing
+    public void registerHandler(AuthHandler authHandler) {
+        this.handlerMap.put(authHandler.getHandlerName(), authHandler);
+    }
+
     /**
      * Loads the custom implementations of the AuthHandler interface dynamically. Registers the interceptors with grpc.
      * Stores the implementation in a local map for routing the REST auth request.
