@@ -261,6 +261,14 @@ public interface Controller extends AutoCloseable {
     // Controller Apis that are called by writers and readers
 
     /**
+     * API to to verify the stream cut keyspace
+     *
+     * @param streamCut StreamCut
+     * @return True if the keyspace of the given stream cut is valid
+     */
+    CompletableFuture<Boolean> isStreamCutValid(final StreamCut streamCut);
+
+    /**
      * Checks to see if a segment exists and is not sealed.
      * 
      * @param segment The segment to verify.

@@ -59,6 +59,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityRespon
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutValidityResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -661,6 +662,26 @@ public class ControllerImpl implements Controller {
             }
             LoggerHelpers.traceLeave(log, "getSuccessors", traceId);
         });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> isStreamCutValid(final StreamCut streamCut) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "isStreamCutValid", streamCut);
+
+        final CompletableFuture<StreamCutValidityResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamCutValidityResponse> callback = new RPCAsyncCallback<>(traceId, "isStreamCutValid");
+            client.isStreamCutValid(io.pravega.controller.stream.api.grpc.v1.Controller.StreamCut.newBuilder().putAllCut(getStreamCutMap(streamCut)).build(),
+                    callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(StreamCutValidityResponse::getResponse)
+                .whenComplete((x, e) -> {
+                    if (e != null) {
+                        log.warn("isStreamCutValid failed: ", e);
+                    }
+                    LoggerHelpers.traceLeave(log, "isStreamCutValid", traceId);
+                });
     }
 
     @Override

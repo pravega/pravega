@@ -374,6 +374,12 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<StreamSegments> isStreamCutValid(final StreamCut streamCut) {
+        return controller.isStreamCutValid(streamCut)
+                .thenApply(this::isStreamCutValid);
+    }
+
+    @Override
     public void close() {
     }
 
