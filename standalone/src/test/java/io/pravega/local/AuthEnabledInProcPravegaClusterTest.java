@@ -22,10 +22,7 @@ import java.util.UUID;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -51,7 +48,7 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
     // Note: Strictly speaking, this test is really an "integration test" and is a little
     // time consuming. For now, its intended to run as a unit test, but it could be moved
     // to an integration test suite if and when necessary.
-    @Test //(timeout = 50000)
+    @Test (timeout = 50000)
     public void testWriteAndReadEventWhenConfigIsProper() throws ReinitializationRequiredException {
         String scope = "org.example.auth";
         String streamName = "stream1";
@@ -121,22 +118,16 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
         assertEquals(writeEvent2, readEvent2);
     }
 
-    /**
-     * Create the test stream.
-     *
-     * @throws Exception on any errors.
-     */
     @Test
-    public void failingCreateTestStream() throws Exception {
+    public void testCreateStreamFailsWhenCredentialsAreInvalid() {
         Assert.assertNotNull("Pravega not initialized", localPravega);
         String scope = "Scope";
-        String streamName = "Stream";
-        int numSegments = 10;
 
         ClientConfig clientConfig = ClientConfig.builder()
-                                                .credentials(new DefaultCredentials("", ""))
-                                                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                                                .build();
+                .credentials(new DefaultCredentials("", ""))
+                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+                .build();
+
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
 
