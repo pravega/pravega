@@ -591,12 +591,14 @@ public abstract class ScaleRequestHandlerTest {
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
         assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(2, getVersionNumber(versioned));
         assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
         streamStore1.close();
         streamStore2.close();
     }
+
+    abstract <T> Number getVersionNumber(VersionedMetadata<T> versioned); 
 
     abstract StreamMetadataStore getStore();
 
@@ -644,7 +646,6 @@ public abstract class ScaleRequestHandlerTest {
         }
     }
 
-    // todo: shivesh timed out
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
     public void testConcurrentDistinctManualScaleRequest() throws Exception {
@@ -757,7 +758,7 @@ public abstract class ScaleRequestHandlerTest {
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
         assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
-        assertEquals(4, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(4, getVersionNumber(versioned));
         assertEquals(2, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
         streamStore1.close();

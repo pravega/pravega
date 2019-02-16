@@ -22,7 +22,6 @@ import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
@@ -69,7 +68,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
         this.counter = new ZkInt96Counter(zkStoreHelper);
-        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper);
+        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
         this.executor = executor;
     }
 

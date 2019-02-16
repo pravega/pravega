@@ -11,8 +11,14 @@ package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.VersionedMetadata;
 
 public class ZkScaleRequestHandlerTest extends ScaleRequestHandlerTest {
+    @Override
+    <T> Number getVersionNumber(VersionedMetadata<T> versioned) {
+        return versioned.getVersion().asIntVersion().getIntValue();
+    }
+
     @Override
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(zkClient, executor);

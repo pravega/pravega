@@ -66,7 +66,7 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
         PravegaTablesStream stream = new PravegaTablesStream("test", "test", 
-                new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables()), () -> 0, executor);
+                new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables(), executor), () -> 0, executor);
         testStream(stream);
     }
     
@@ -164,7 +164,7 @@ public class StreamTest {
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
                 segmentHelper, cli, executor)) {
             testConcurrentGetSuccessorScale(store, (x, y) -> new PravegaTablesStream(x, y, 
-                    new PravegaTablesStoreHelper(segmentHelper), () -> 0, executor));
+                    new PravegaTablesStoreHelper(segmentHelper, executor), () -> 0, executor));
         }
     }
     

@@ -9,20 +9,19 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-
-import static org.mockito.Mockito.mock;
+import io.pravega.controller.store.stream.VersionedMetadata;
 
 public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTest {
     SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+
+    @Override
+    <T> Number getVersionNumber(VersionedMetadata<T> versioned) {
+        return (int) versioned.getVersion().asLongVersion().getLongValue();
+    }
 
     @Override
     StreamMetadataStore getStore() {

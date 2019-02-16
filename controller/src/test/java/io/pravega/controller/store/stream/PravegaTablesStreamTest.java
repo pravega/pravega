@@ -9,13 +9,8 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -42,7 +37,7 @@ public class PravegaTablesStreamTest extends StreamTestBase {
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
-        storeHelper = new PravegaTablesStoreHelper(segmentHelper);
+        storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
         store = new PravegaTablesStreamMetadataStore(segmentHelper, cli, executor, Duration.ofSeconds(1));
     }
 

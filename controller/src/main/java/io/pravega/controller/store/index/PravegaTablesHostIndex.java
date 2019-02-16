@@ -46,7 +46,7 @@ public class PravegaTablesHostIndex implements HostIndex {
     private final ConcurrentHashMap<String, Boolean> hostIdMap;
     
     public PravegaTablesHostIndex(SegmentHelper segmentHelper, String indexName, Executor executor) {
-        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper);
+        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
         this.executor = executor;
         this.indexName = indexName;
         this.hostsTable = String.format(HOSTS_ROOT_TABLE_FORMAT, this.indexName);
