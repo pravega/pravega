@@ -29,7 +29,7 @@ public interface SegmentMetadata extends SegmentProperties {
 
     /**
      * Gets a value indicating whether this StreamSegment has been merged into another.
-     * @return true if StreamSegment merged, false otherwise.
+     * @return true if StreamSegment is merged, false otherwise.
      */
     boolean isMerged();
 
@@ -49,7 +49,7 @@ public interface SegmentMetadata extends SegmentProperties {
 
     /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
-     * @return The lenght of the StreamSegment.
+     * @return The length of the StreamSegment.
      */
     long getStorageLength();
 

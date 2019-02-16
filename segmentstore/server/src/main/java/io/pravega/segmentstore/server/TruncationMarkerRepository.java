@@ -58,7 +58,7 @@ public interface TruncationMarkerRepository {
      * setValidTruncationPoint().
      *
      * @param operationSequenceNumber The Sequence number to query.
-     * @return true if the given Operation Sequence Number is valid, false otherwise.
+     * @return true if the given Operation Sequence Number is a valid Truncation Point, false otherwise.
      */
     boolean isValidTruncationPoint(long operationSequenceNumber);
 

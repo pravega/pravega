@@ -20,7 +20,7 @@ public interface ReadIndexFactory extends AutoCloseable {
      *
      * @param containerMetadata A Container Metadata for this ReadIndex.
      * @param storage           A ReadOnlyStorage to use for reading data that is not in the cache.
-     * @return The ReadIndex object for StreamSegments.
+     * @return The ReadIndex instance.
      */
     ReadIndex createReadIndex(ContainerMetadata containerMetadata, ReadOnlyStorage storage);
 
