@@ -36,52 +36,6 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 
 @Slf4j
 class PravegaTablesStream extends PersistentStreamBase {
-    // <scoped-stream-name>_streamMetadata
-    // 1. Key: creation time  // never deleted
-    // 2. Key: configuration record // never deleted
-    // 3. key: truncation record // never deleted
-    // 4. key: state record // never deleted
-    // 5. key: epoch transition record // never deleted
-    // 6. key: committing-transaction-record // never deleted
-    // 7. key: current epoch record // never deleted
-    // 8. key: retention set record // never deleted
-    // 9. key: epoch record <epoch number>  // never deleted
-    // 10. key: history time series <chunk> // never deleted O(number of epochs / 1000)
-    // 11. key: segment sealed size map <shard-number> // never deleted O(number of epochs / 1000)
-    // 12. key: <segment number> // never deleted O(number of segments)
-    // 13. key: markers_<segment-number> // deletable entries
-    // 14. key: stream-cut-<reference> // deletable entries
-    // 15. key: waitingRequestProcessor // deletable entry
-    // <scoped-stream-name>_transactions_in_epochs
-    // 1. key: epoch Value: null
-    
-    // <scoped-stream-name>_transactions_<epoch>
-    // key: txnId value: active txn record
-    
-    // <scoped-stream-name>_completed_transactions_<batch>
-    // key: txnId 
-    
-    /*
-        create transaction: 
-        0. add transaction key in `transactions-epochs-table`
-        if (table does not exist) --> 
-        1. add epoch key in transactions-epochs-table --> create epoch specific table
-        try step 0 again
-        
-        complete txn:
-        1. write completed txn record to new batch.
-        2. remove transaction key from the table
-        3. delete empty table --> delete epoch from transactions-epochs-table
-        
-        
-        list transactions in epoch:
-        1. list all entries in epoch specific transaction table. (this can also throw table not exists which would be transalated to DataNotFoundException)
-        
-        
-        list all transactions:
-        1. get all epochs with transactions from `transactions-epochs-table`
-        2. call list transactions in epoch
-     */
     private static final String STREAM_TABLE_PREFIX = "%s.#-#.%s"; // scoped stream name
     private static final String METADATA_TABLE = STREAM_TABLE_PREFIX + "metadata"; 
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = STREAM_TABLE_PREFIX + "epochsWithTransactions"; 

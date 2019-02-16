@@ -152,7 +152,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Creating the checkpoint store");
             checkpointStore = CheckpointStoreFactory.create(storeClient);
-            
+
             // On each controller process restart, we use a fresh hostId,
             // which is a combination of hostname and random GUID.
             String hostName = getHostName();

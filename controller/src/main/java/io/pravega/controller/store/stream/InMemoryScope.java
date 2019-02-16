@@ -41,7 +41,7 @@ public class InMemoryScope implements Scope {
         this.streamsInScope = new ArrayList<>();
         return CompletableFuture.completedFuture(null);
     }
-    
+
     @Override
     @Synchronized
     public CompletableFuture<Void> deleteScope() {
