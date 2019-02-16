@@ -169,7 +169,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofAStream(request.getScope(), request.getStream()),
-                AuthHandler.Permissions.READ),
+                AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
                                        .thenApply(segmentRanges -> SegmentRanges.newBuilder()
                                                                                 .addAllSegmentRanges(segmentRanges)
