@@ -35,13 +35,14 @@ import java.util.stream.Collectors;
 public class PravegaTablesStoreHelper {
     private final SegmentHelper segmentHelper;
     private final Executor executor;
+
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, Executor executor) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
     }
-    
+
     public CompletableFuture<Void> createTable(String scope, String tableName) {
-        return Futures.toVoid(runOnExecutorWithExceptionHandling(() -> segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID), 
+        return Futures.toVoid(runOnExecutorWithExceptionHandling(() -> segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID),
                 "create table: " + scope + "/" + tableName));
     }
 
@@ -57,7 +58,7 @@ public class PravegaTablesStoreHelper {
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
-                "addNewEntry: key:"+ key + " table: " + scope + "/" + tableName)
+                "addNewEntry: key:" + key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
                     return new Version.LongVersion(first.getSegmentVersion());
@@ -66,18 +67,18 @@ public class PravegaTablesStoreHelper {
 
     public CompletableFuture<Version> addNewEntryIfAbsent(String scope, String tableName, String key, @NonNull byte[] value) {
         // if entry exists, we will get write conflict in attempting to create it again. 
-        return Futures.exceptionallyExpecting(addNewEntry(scope, tableName, key, value), 
+        return Futures.exceptionallyExpecting(addNewEntry(scope, tableName, key, value),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null);
     }
-    
+
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, Data value) {
         List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
-        KeyVersionImpl version = value.getVersion() == null ? null : 
+        KeyVersionImpl version = value.getVersion() == null ? null :
                 new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), version), value.getData());
         entries.add(entry);
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
-                "updateEntry: key:"+ key + " table: " + scope + "/" + tableName)
+                "updateEntry: key:" + key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
                     return new Version.LongVersion(first.getSegmentVersion());
@@ -88,7 +89,7 @@ public class PravegaTablesStoreHelper {
         List<TableKey<byte[]>> keys = new LinkedList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
-                "get entry: key:"+ key + " table: " + scope + "/" + tableName)
+                "get entry: key:" + key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
                     return new Data(first.getValue(), new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
@@ -99,13 +100,13 @@ public class PravegaTablesStoreHelper {
         List<TableKey<byte[]>> keys = new LinkedList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
-                "remove entry: key:"+ key + " table: " + scope + "/" + tableName);
+                "remove entry: key:" + key + " table: " + scope + "/" + tableName);
     }
-    
+
     public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> key) {
         List<TableKey<byte[]>> keys = key.stream().map(x -> new TableKeyImpl<>(x.getBytes(), null)).collect(Collectors.toList());
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
-                "remove entries: keys:"+ keys + " table: " + scope + "/" + tableName);
+                "remove entries: keys:" + keys + " table: " + scope + "/" + tableName);
     }
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
@@ -156,7 +157,7 @@ public class PravegaTablesStoreHelper {
             throw new CompletionException(toThrow);
         });
     }
-    
+
     private <T> CompletableFuture<T> runOnExecutorWithExceptionHandling(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
         return CompletableFuture.completedFuture(null)
                                 .thenComposeAsync(v -> translateException(futureSupplier.get(), errorMessage), executor);

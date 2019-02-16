@@ -79,6 +79,7 @@ public abstract class ControllerEventProcessorTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
 
+    protected CuratorFramework zkClient;
     protected ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
@@ -87,7 +88,6 @@ public abstract class ControllerEventProcessorTest {
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
-    protected CuratorFramework zkClient;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before

@@ -75,10 +75,10 @@ public abstract class ControllerServiceWithStreamTest {
     private static final String STREAM = "stream";
     private static final String STREAM1 = "stream1";
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected CuratorFramework zkClient;
 
     private ControllerService consumer;
 
-    protected CuratorFramework zkClient;
     private TestingServer zkServer;
 
     private StreamMetadataTasks streamMetadataTasks;

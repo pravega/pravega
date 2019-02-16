@@ -9,18 +9,11 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import org.apache.curator.framework.CuratorFramework;
@@ -28,21 +21,16 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
-import org.mockito.Mock;
 
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.mock;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Zookeeper based stream metadata store tests.

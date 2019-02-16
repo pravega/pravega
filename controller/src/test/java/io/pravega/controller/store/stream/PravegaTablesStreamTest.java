@@ -19,8 +19,6 @@ import org.apache.curator.test.TestingServer;
 
 import java.time.Duration;
 
-import static org.mockito.Mockito.mock;
-
 public class PravegaTablesStreamTest extends StreamTestBase {
 
     private TestingServer zkServer;

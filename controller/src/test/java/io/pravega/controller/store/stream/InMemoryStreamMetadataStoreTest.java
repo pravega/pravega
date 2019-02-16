@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.store.stream;
 
-import java.io.IOException;
-
 /**
  * In-memory stream metadata store tests.
  */

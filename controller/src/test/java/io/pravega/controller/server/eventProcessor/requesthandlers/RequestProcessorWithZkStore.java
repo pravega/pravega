@@ -19,8 +19,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-
 public class RequestProcessorWithZkStore extends RequestProcessorTest {
     private StreamMetadataStore store;
     private CuratorFramework client;

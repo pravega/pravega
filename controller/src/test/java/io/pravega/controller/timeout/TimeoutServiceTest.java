@@ -75,12 +75,13 @@ public abstract class TimeoutServiceTest {
     private final static long LEASE = 2000;
     private final static int RETRY_DELAY = 1000;
 
+    protected ScheduledExecutorService executor;
+    protected CuratorFramework client;
+
     private StreamMetadataStore streamStore;
     private TimerWheelTimeoutService timeoutService;
     private ControllerService controllerService;
-    protected ScheduledExecutorService executor;
     private TestingServer zkTestServer;
-    protected CuratorFramework client;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StoreClient storeClient;

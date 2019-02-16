@@ -124,7 +124,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
                                                                 final OperationContext context,
                                                                 final Executor executor) {
         return super.createStream(scope, name, configuration, createTimestamp, context, executor)
-                .thenCompose(status -> ((PravegaTableScope)getScope(scope)).addStreamToScope(name).thenApply(v -> status));
+                    .thenCompose(status -> ((PravegaTableScope) getScope(scope)).addStreamToScope(name).thenApply(v -> status));
     }
 
     @Override
@@ -133,7 +133,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
                                                 final OperationContext context,
                                                 final Executor executor) {
         return super.deleteStream(scope, name, context, executor)
-                    .thenCompose(status -> ((PravegaTableScope)getScope(scope)).removeStreamFromScope(name).thenApply(v -> status));
+                    .thenCompose(status -> ((PravegaTableScope) getScope(scope)).removeStreamFromScope(name).thenApply(v -> status));
     }
 
     @Override

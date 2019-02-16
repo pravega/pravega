@@ -103,9 +103,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public abstract class ScaleRequestHandlerTest {
+    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected CuratorFramework zkClient;
+
     private final String scope = "scope";
     private final String stream = "stream";
-    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
@@ -114,8 +116,6 @@ public abstract class ScaleRequestHandlerTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
-
-    protected CuratorFramework zkClient;
     private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 

@@ -27,7 +27,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,12 +38,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
-    private static final Executor executor = Executors.newScheduledThreadPool(10);
+    private static final Executor EXECUTOR = Executors.newScheduledThreadPool(10);
     
     public static SegmentHelper getSegmentHelperMock(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
         SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
@@ -131,7 +136,7 @@ public class SegmentHelperMock {
                     String tableName = x.getArgument(1);
                     mapOfTables.putIfAbsent(scope + "/" + tableName, new HashMap<>());
                 }
-            }, executor);
+            }, EXECUTOR);
         }).when(helper).createTableSegment(anyString(), anyString(), anyLong());
         // endregion
         
@@ -155,7 +160,7 @@ public class SegmentHelperMock {
                         }
                     }
                 }
-            }, executor);
+            }, EXECUTOR);
         }).when(helper).deleteTableSegment(anyString(), anyString(), anyBoolean(), anyLong());
         // endregion
         
@@ -207,7 +212,7 @@ public class SegmentHelperMock {
                             }
                         }
                     }
-            }, executor);
+            }, EXECUTOR);
         }).when(helper).updateTableEntries(anyString(), anyString(), any(), anyLong());
         // endregion
     
@@ -243,7 +248,7 @@ public class SegmentHelperMock {
                         }
                     }
                 }
-            }, executor);
+            }, EXECUTOR);
         }).when(helper).removeTableKeys(anyString(), anyString(), any(), anyLong());
         // endregion
 
@@ -283,7 +288,7 @@ public class SegmentHelperMock {
                         }
                     }
                 }
-            }, executor);
+            }, EXECUTOR);
         }).when(helper).readTable(anyString(), anyString(), any(), anyLong());
         // endregion
         
