@@ -53,7 +53,7 @@ public interface DirectSegmentAccess {
     /**
      * Performs an attribute update operation on the Segment.
      *
-     * @see <a href="StreamSegmentStore#updateAttributes(String, Collection, Duration).</a>
+     *  @see StreamSegmentStore#append(String, byte[], Collection, Duration).
      *
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.
