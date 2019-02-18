@@ -33,8 +33,16 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             String passwd = passwordEncryptor.encryptPassword("1111_aaaa");
+
+            // Admin has READ_WRITE permission to everything
             writer.write("admin:" + passwd + ":*,READ_UPDATE\n");
-            writer.write("user1:" + passwd + ":/,READ;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
+
+            // User "user1" can:
+            //    - list, create and delete scopes
+            //    - Create and delete streams within scopes "scope1" and "scope2". Also if "user1" lists scopes,
+            //      she'll see those scopes, but not "scope3".
+            writer.write("user1:" + passwd + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
+
             writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
             writer.close();
         }
