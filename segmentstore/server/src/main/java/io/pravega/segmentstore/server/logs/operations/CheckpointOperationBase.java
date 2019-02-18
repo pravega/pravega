@@ -40,6 +40,7 @@ abstract class CheckpointOperationBase extends MetadataOperation {
 
     /**
      * Gets the contents of this CheckpointOperationBase.
+     * @return the contents of this CheckpointOperationBase.
      */
     public ByteArraySegment getContents() {
         return this.contents;

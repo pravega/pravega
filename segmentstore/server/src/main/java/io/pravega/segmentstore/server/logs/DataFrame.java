@@ -103,6 +103,7 @@ public class DataFrame {
      * When creating new frames (write mode), this value may be less than the 'maxLength' provided in the constructor.
      * When reading frames from a source (read mode), this value may be less than the size of the source.
      * This value is serialized with the frame.
+     * @return The length (bytes) of the frame, including the header, contents and other control structures needed to serialize the frame.
      */
     public int getLength() {
         return this.header.getSerializationLength() + this.header.getContentLength();
