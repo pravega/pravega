@@ -13,16 +13,28 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.*;
-import io.pravega.client.stream.impl.DefaultCredentials;
+
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import java.util.UUID;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
@@ -48,7 +60,7 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
     // Note: Strictly speaking, this test is really an "integration test" and is a little
     // time consuming. For now, its intended to run as a unit test, but it could be moved
     // to an integration test suite if and when necessary.
-    @Test (timeout = 50000)
+    @Test(timeout = 50000)
     public void testWriteAndReadEventWhenConfigIsProper() throws ReinitializationRequiredException {
         String scope = "org.example.auth";
         String streamName = "stream1";
