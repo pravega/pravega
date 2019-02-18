@@ -31,6 +31,7 @@ public class AutoScalerConfig {
     public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
     public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", true);
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 10);
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -103,6 +104,12 @@ public class AutoScalerConfig {
     @Getter
     private final boolean validateHostName;
 
+    /**
+     * The number of threads for the {@link AutoScaleMonitor}.
+     */
+    @Getter
+    private final int threadPoolSize;
+
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
         this.cooldownDuration = Duration.ofSeconds(properties.getInt(COOLDOWN_IN_SECONDS));
@@ -115,6 +122,10 @@ public class AutoScalerConfig {
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
         this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
         this.validateHostName = properties.getBoolean(VALIDATE_HOSTNAME);
+        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        if (this.threadPoolSize <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", THREAD_POOL_SIZE));
+        }
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {

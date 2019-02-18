@@ -25,24 +25,34 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
-import io.pravega.shared.metrics.DynamicLogger;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsData;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import io.pravega.test.common.TestUtils;
+import java.io.ByteArrayInputStream;
+import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Random;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -51,33 +61,18 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import java.io.ByteArrayInputStream;
-import java.nio.ByteBuffer;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -274,10 +269,12 @@ public class PravegaRequestProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
+        val recorderMock = mock(SegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock, new PassingTokenVerifier(), false);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        verify(recorderMock).createSegment(eq(streamSegmentName), eq(WireCommands.CreateSegment.NO_SCALE), eq(0), any());
         assertTrue(append(streamSegmentName, 1, store));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(1, streamSegmentName, ""));
         assertTrue(append(streamSegmentName, 2, store));
@@ -286,9 +283,6 @@ public class PravegaRequestProcessorTest {
 
         // TestCreateSealDelete may executed before this test case,
         // so createSegmentStats may record 1 or 2 createSegment operation here.
-        OpStatsData createSegmentStats = processor.getCreateStreamSegment().toOpStatsData();
-        assertNotEquals(0, createSegmentStats.getNumSuccessfulEvents());
-        assertEquals(0, createSegmentStats.getNumFailedEvents());
     }
 
     @Test(timeout = 20000)
@@ -419,37 +413,21 @@ public class PravegaRequestProcessorTest {
         //test txn segment merge
         CompletableFuture<SegmentProperties> txnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, txnId));
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        DynamicLogger mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, mockedDynamicLogger);
+        SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock, new PassingTokenVerifier(), false);
 
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
-                WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnId);
         processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
-        verify(mockedDynamicLogger).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 100);
-        verify(mockedDynamicLogger).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 10);
-
-        //test non-txn segment merge
-        CompletableFuture<SegmentProperties> nonTxnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, null));
-        doReturn(nonTxnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
-        mockedDynamicLogger = Mockito.mock(DynamicLogger.class);
-        processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, mockedDynamicLogger);
-
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
-                WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnId);
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
-        verify(mockedDynamicLogger, never()).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 100);
-        verify(mockedDynamicLogger, never()).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 10);
+        verify(recorderMock).merge(streamSegmentName, 100L, 10, (long) streamSegmentName.hashCode());
     }
 
     private SegmentProperties createSegmentProperty(String streamSegmentName, UUID txnId) {
 
         Map<UUID, Long> attributes = new HashMap<>();
         attributes.put(Attributes.EVENT_COUNT, 10L);
-        attributes.put(Attributes.CREATION_TIME, System.currentTimeMillis());
+        attributes.put(Attributes.CREATION_TIME, (long) streamSegmentName.hashCode());
 
         return StreamSegmentInformation.builder()
                 .name(txnId == null ? streamSegmentName + "#." : streamSegmentName + "#transaction." + txnId)

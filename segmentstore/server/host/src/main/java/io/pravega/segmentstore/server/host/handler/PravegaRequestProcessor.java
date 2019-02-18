@@ -45,10 +45,6 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -62,7 +58,6 @@ import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.MergeSegments;
 import io.pravega.shared.protocol.netty.WireCommands.MergeTableSegments;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
-import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
@@ -78,6 +73,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.TableSegmentNotEmpty;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentPolicy;
@@ -95,12 +91,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
-
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.slf4j.LoggerFactory;
@@ -108,7 +100,6 @@ import org.slf4j.LoggerFactory;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.common.function.Callbacks.invokeSafely;
 import static io.pravega.segmentstore.contracts.Attributes.CREATION_TIME;
-import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_RATE;
 import static io.pravega.segmentstore.contracts.Attributes.SCALE_POLICY_TYPE;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
@@ -116,13 +107,6 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamS
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
 import static io.pravega.segmentstore.contracts.tables.TableEntry.versioned;
-import static io.pravega.shared.MetricsNames.SEGMENT_CREATE_LATENCY;
-import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
-import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -138,14 +122,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PravegaRequestProcessor.class));
     private static final int MAX_READ_SIZE = 2 * 1024 * 1024;
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final String EMPTY_STACK_TRACE = "";
-    private final DynamicLogger dynamicLogger;
-    @VisibleForTesting
-    @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
-    private final OpStatsLogger readStreamSegment = STATS_LOGGER.createStats(SEGMENT_READ_LATENCY);
     private final StreamSegmentStore segmentStore;
     private final TableStore tableStore;
     private final ServerConnection connection;
@@ -166,43 +144,27 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
-        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), MetricsProvider.getDynamicLogger(), false);
-    }
-
-    /**
-     * Creates a new instance of the PravegaRequestProcessor class with metrics logger.
-     *
-     * @param segmentStore The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore The TableStore to attach to (and issue requests to).
-     * @param connection   The ServerConnection to attach to (and send responses to).
-     * @param dynamicLogger  The DynamicLogger to log metrics.
-     */
-    @VisibleForTesting
-    public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                                   DynamicLogger dynamicLogger) {
-        this(segmentStore, tableStore, connection, null, new PassingTokenVerifier(), dynamicLogger, false);
+        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
     }
 
     /**
      * Creates a new instance of the PravegaRequestProcessor class.
      *
      * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
-     * @param tableStore The TableStore to attach to (and issue requests to).
+     * @param tableStore    The TableStore to attach to (and issue requests to).
      * @param connection    The ServerConnection to attach to (and send responses to).
-     * @param statsRecorder (Optional) A StatsRecorder for Metrics.
+     * @param statsRecorder A StatsRecorder for Metrics.
      * @param tokenVerifier  Verifier class that verifies delegation token.
-     * @param dynamicLogger  DynamicLogger to log metrics.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
                             SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                            DynamicLogger dynamicLogger, boolean replyWithStackTraceOnError) {
+                            boolean replyWithStackTraceOnError) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.tokenVerifier = Preconditions.checkNotNull(tokenVerifier, "tokenVerifier");
-        this.statsRecorder = statsRecorder;
-        this.dynamicLogger = Preconditions.checkNotNull(dynamicLogger, "dynamicLogger");
+        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
@@ -226,7 +188,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .thenAccept(readResult -> {
                     LoggerHelpers.traceLeave(log, operation, trace, readResult);
                     handleReadResult(readSegment, readResult);
-                    readStreamSegment.reportSuccessEvent(timer.getElapsed());
+                    this.statsRecorder.readComplete(timer.getElapsed());
                 })
                 .exceptionally(ex -> handleException(readSegment.getOffset(), segment, operation, wrapCancellationException(ex)));
     }
@@ -262,8 +224,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             ByteBuffer data = copyData(cachedEntries);
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
-            dynamicLogger.incCounterValue(globalMetricName(SEGMENT_READ_BYTES), reply.getData().array().length);
-            dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
+            this.statsRecorder.read(segment, reply.getData().array().length);
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -279,8 +240,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         ByteBuffer data = copyData(Collections.singletonList(contents));
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
                         connection.send(reply);
-                        dynamicLogger.incCounterValue(globalMetricName(SEGMENT_READ_BYTES), reply.getData().array().length);
-                        dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
+                        this.statsRecorder.read(segment, reply.getData().array().length);
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
@@ -457,18 +417,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
        log.info(createStreamSegment.getRequestId(), "Creating stream segment {}.", createStreamSegment);
        segmentStore.createStreamSegment(createStreamSegment.getSegment(), attributes, TIMEOUT)
-                .thenAccept(v -> {
-                    this.createStreamSegment.reportSuccessEvent(timer.getElapsed());
-                    connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment()));
-                })
-                .whenComplete((res, e) -> {
+                   .thenAccept(v -> connection.send(new SegmentCreated(createStreamSegment.getRequestId(), createStreamSegment.getSegment())))
+                   .whenComplete((res, e) -> {
                     if (e == null) {
-                        if (statsRecorder != null) {
-                            statsRecorder.createSegment(createStreamSegment.getSegment(),
-                                    createStreamSegment.getScaleType(), createStreamSegment.getTargetRate());
-                        }
+                        statsRecorder.createSegment(createStreamSegment.getSegment(),
+                                createStreamSegment.getScaleType(), createStreamSegment.getTargetRate(), timer.getElapsed());
                     } else {
-                        this.createStreamSegment.reportFailEvent(timer.getElapsed());
                         handleException(createStreamSegment.getRequestId(), createStreamSegment.getSegment(), operation, e);
                     }
                 });
@@ -516,11 +470,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (e != null) {
                         handleException(sealSegment.getRequestId(), segment, operation, e);
                     } else {
-                        dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
-                        dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
-                        if (statsRecorder != null) {
-                            statsRecorder.sealSegment(sealSegment.getSegment());
-                        }
+                        statsRecorder.sealSegment(sealSegment.getSegment());
                     }
                 });
     }
@@ -555,9 +505,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
-                    dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
-                    dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
-                    dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
+                    this.statsRecorder.deleteSegment(segment);
                 })
                 .exceptionally(e -> handleException(deleteSegment.getRequestId(), segment, operation, e));
     }
@@ -582,10 +530,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (e != null) {
                         handleException(updateSegmentPolicy.getRequestId(), updateSegmentPolicy.getSegment(), operation, e);
                     } else {
-                        if (statsRecorder != null) {
-                            statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
-                                    updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
-                        }
+                        statsRecorder.policyUpdate(updateSegmentPolicy.getSegment(),
+                                updateSegmentPolicy.getScaleType(), updateSegmentPolicy.getTargetRate());
                     }
                 });
     }
@@ -813,17 +759,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 long creationTime = sourceInfo.getAttributes().get(Attributes.CREATION_TIME);
                 int numOfEvents = sourceInfo.getAttributes().get(Attributes.EVENT_COUNT).intValue();
                 long len = sourceInfo.getLength();
-
-                if (statsRecorder != null) {
-                    statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
-                }
-
-                // If source segment is a transaction, add its length and event count onto metrics of target segment
-                if (StreamSegmentNameUtils.isTransactionSegment(sourceInfo.getName())) {
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, targetSegmentName), sourceInfo.getLength());
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetSegmentName), sourceInfo.getAttributes().get(EVENT_COUNT));
-                }
-
+                statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
             }
         } catch (Exception ex) {
             // gobble up any errors from stat recording so we do not affect rest of the flow.
@@ -834,7 +770,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     /**
      * Custom exception to indicate a {@link CancellationException} during a Read segment operation.
      */
-    private class ReadCancellationException extends RuntimeException {
+    private static class ReadCancellationException extends RuntimeException {
         ReadCancellationException(Throwable wrappedException) {
             super("CancellationException during operation Read segment", wrappedException);
         }
