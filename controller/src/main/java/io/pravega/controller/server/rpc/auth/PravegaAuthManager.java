@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
 import javax.annotation.concurrent.GuardedBy;
+
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -128,6 +130,7 @@ public class PravegaAuthManager {
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
+    @Synchronized
     @VisibleForTesting
     public void registerHandler(AuthHandler authHandler) {
         this.handlerMap.put(authHandler.getHandlerName(), authHandler);
