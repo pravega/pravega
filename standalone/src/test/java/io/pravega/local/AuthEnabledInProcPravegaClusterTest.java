@@ -53,13 +53,19 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
 
     @Override
     public void createTestStream() {
-        // his test from the base is unnecessary in this class as that and more is already being
+        // This test from the base is unnecessary in this class as that and more is already being
         // tested in another test method.
     }
 
-    // Note: Strictly speaking, this test is really an "integration test" and is a little
-    // time consuming. For now, its intended to run as a unit test, but it could be moved
-    // to an integration test suite if and when necessary.
+    /**
+     * Compares reads and writes to verify that an in-process Pravega cluster runs properly with
+     * with valid auth (authentication and authorization) configuration.
+     *
+     * Note:
+     * Strictly speaking, this test is really an "integration test" and is a little time consuming. For now, its
+     * intended to run as a unit test, but it could be moved to an integration test suite if and when necessary.
+     *
+     */
     @Test(timeout = 50000)
     public void testWriteAndReadEventWhenConfigIsProper() throws ReinitializationRequiredException {
         String scope = "org.example.auth";
@@ -120,10 +126,10 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
 
         // Keeping the read timeout large so that there is ample time for reading the event even in
         // case of abnormal delays in test environments.
-        String readEvent1 = reader.readNextEvent(20000).getEvent();
+        String readEvent1 = reader.readNextEvent(10000).getEvent();
         log.info("Done reading event [{}]", readEvent1);
 
-        String readEvent2 = reader.readNextEvent(20000).getEvent();
+        String readEvent2 = reader.readNextEvent(10000).getEvent();
         log.info("Done reading event [{}]", readEvent2);
 
         assertEquals(writeEvent1, readEvent1);
