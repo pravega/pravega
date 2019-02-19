@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -107,7 +108,7 @@ public class StreamCutsTest {
         zkTestServer.close();
     }
 
-    @Test//(timeout = 40000)
+    @Test(timeout = 40000)
     public void testReaderGroupCuts() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
@@ -166,24 +167,27 @@ public class StreamCutsTest {
         EventRead<String> event0 = reader.readNextEvent(100);
         EventRead<String> event1 = reader.readNextEvent(100);
         cuts = checkpoint.get(5, TimeUnit.SECONDS).asImpl().getPositions();
-        HashSet<String> segmentNames = new HashSet<>();
-        long one = computeSegmentId(1, 1);
-        segmentNames.add(getQualifiedStreamSegmentName("test", "test", one));
-        long two = computeSegmentId(2, 1);
-        segmentNames.add(getQualifiedStreamSegmentName("test", "test", two));
-        validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
+        //Validate the reader did not release the segments before the checkpoint.
+        //This is important because it means that once the checkpoint is initiated no segments change readers.
+        Set<String> segmentNames = ImmutableSet.of(getQualifiedStreamSegmentName("test", "test",
+                                                                                 computeSegmentId(0, 0)));
+        validateCuts(readerGroup, cuts, segmentNames);
 
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
         EventRead<String> emptyEvent = reader.readNextEvent(100);
         cuts = futureCuts.get();
-        validateCuts(readerGroup, cuts, Collections.unmodifiableSet(segmentNames));
+        segmentNames = ImmutableSet.of(getQualifiedStreamSegmentName("test", "test",
+                                                                     computeSegmentId(1, 1)),
+                                       getQualifiedStreamSegmentName("test", "test",
+                                                                     computeSegmentId(2, 1)));
+        validateCuts(readerGroup, cuts, segmentNames);
         
         // Scale down to verify that the number drops back.
         map = new HashMap<>();
         map.put(0.0, 1.0);
         ArrayList<Long> toSeal = new ArrayList<>();
-        toSeal.add(one);
-        toSeal.add(two);
+        toSeal.add(computeSegmentId(1, 1));
+        toSeal.add(computeSegmentId(2, 1));
         result = controller.scaleStream(stream, Collections.unmodifiableList(toSeal), map, executor).getFuture().get();
         assertTrue(result);
         log.info("Finished 2nd scaling");

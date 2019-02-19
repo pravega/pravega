@@ -59,6 +59,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -231,7 +232,7 @@ public class BoundedStreamReaderTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
 
-        ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+        ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                 .stream(Stream.of(SCOPE, STREAM1),
                         //startStreamCut points to the current HEAD of stream
                         StreamCut.UNBOUNDED,
@@ -250,7 +251,7 @@ public class BoundedStreamReaderTest {
         //The following read should not return events 3, 4 due to the endStreamCut configuration.
         Assert.assertNull("Null is expected", reader1.readNextEvent(2000).getEvent());
 
-        final ReaderGroupConfig readerGroupCfg2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+        final ReaderGroupConfig readerGroupCfg2 = ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                                              .stream(Stream.of(SCOPE, STREAM1),
                                                                      getStreamCut(STREAM1, 60L, 0),
                                                                      //endStreamCut points to the offset after two events.(i.e 2 * 30(event size) = 60)
@@ -263,6 +264,8 @@ public class BoundedStreamReaderTest {
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", "group", serializer,
                 ReaderConfig.builder().build());
+        assertNull(reader2.readNextEvent(100).getEvent());
+        readerGroup.initiateCheckpoint("c1", executor);
         readAndVerify(reader2, 3, 4, 5);
         Assert.assertNull("Null is expected", reader2.readNextEvent(2000).getEvent());
     }
@@ -346,9 +349,9 @@ public class BoundedStreamReaderTest {
     private void readAndVerify(final EventStreamReader<String> reader, int...index) throws ReinitializationRequiredException {
         ArrayList<String> results = new ArrayList<>(index.length);
         for (int i = 0; i < index.length; i++) {
-            String event = reader.readNextEvent(15000).getEvent();
+            String event = reader.readNextEvent(1000).getEvent();
             while (event == null) { //try until a non null event is read.
-                event = reader.readNextEvent(15000).getEvent();
+                event = reader.readNextEvent(1000).getEvent();
             }
             results.add(event);
         }

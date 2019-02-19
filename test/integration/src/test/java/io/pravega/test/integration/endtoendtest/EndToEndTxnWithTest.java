@@ -56,6 +56,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -140,15 +141,19 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction.commit();
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        EventRead<String> event = reader.readNextEvent(10000);
-        assertNotNull(event);
+        EventRead<String> event = reader.readNextEvent(5000);
+        assertNotNull(event.getEvent());
         assertEquals("txntest1", event.getEvent());
-        event = reader.readNextEvent(10000);
-        assertNotNull(event);
+        assertNull(reader.readNextEvent(100).getEvent());
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp", executorService());
+        event = reader.readNextEvent(5000);
+        assertEquals("cp", event.getCheckpointName());
+        event = reader.readNextEvent(5000);
+        assertNotNull(event.getEvent());
         assertEquals("txntest2", event.getEvent());
     }
 

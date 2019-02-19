@@ -55,6 +55,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -124,8 +125,13 @@ public class StreamSeekTest {
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
-        groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1)).stream(Stream.of(SCOPE, STREAM2)).build());
+        groupManager.createReaderGroup("group",
+                                       ReaderGroupConfig.builder()
+                                                        .disableAutomaticCheckpoints()
+                                                        .groupRefreshTimeMillis(0)
+                                                        .stream(Stream.of(SCOPE, STREAM1))
+                                                        .stream(Stream.of(SCOPE, STREAM2))
+                                                        .build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
@@ -154,6 +160,8 @@ public class StreamSeekTest {
         //Offset of a streamCut is always set to zero.
         Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
         readAndVerify(reader, 1, 2);
+        assertNull(reader.readNextEvent(100).getEvent());
+        readerGroup.initiateCheckpoint("cp1", executor);
         readAndVerify(reader, 3, 4, 5);
         Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
