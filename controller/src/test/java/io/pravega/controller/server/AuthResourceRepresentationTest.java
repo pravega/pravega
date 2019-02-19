@@ -29,44 +29,44 @@ public class AuthResourceRepresentationTest {
     }
 
     @Test
-    public void testOfStreamsReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName", AuthResourceRepresentation.ofStreams("testScopeName"));
+    public void testOfStreamsInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("testScopeName", AuthResourceRepresentation.ofStreamsInScope("testScopeName"));
     }
 
     @Test (expected = NullPointerException.class)
-    public void testOfStreamsThrowsExceptionWhenInputIsNull() {
-        AuthResourceRepresentation.ofStreams(null);
+    public void testOfStreamsInScopeThrowsExceptionWhenInputIsNull() {
+        AuthResourceRepresentation.ofStreamsInScope(null);
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void testOfStreamsThrowsExceptionWhenInputIsEmpty() {
-        AuthResourceRepresentation.ofStreams("");
+    public void testOfStreamsInScopeThrowsExceptionWhenInputIsEmpty() {
+        AuthResourceRepresentation.ofStreamsInScope("");
     }
 
     @Test
-    public void testOfAStreamReturnsValidResourceStrWhenInputIsLegal() {
+    public void testOfAStreamInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("testScopeName/testStreamName",
-                AuthResourceRepresentation.ofAStream("testScopeName", "testStreamName"));
+                AuthResourceRepresentation.ofAStreamInScope("testScopeName", "testStreamName"));
     }
 
     @Test (expected = NullPointerException.class)
-    public void testOfAStreamThrowsExceptionWhenStreamNameIsNull() {
-        AuthResourceRepresentation.ofAStream("testScopeName", null);
+    public void testOfAStreamInScopeThrowsExceptionWhenStreamNameIsNull() {
+        AuthResourceRepresentation.ofAStreamInScope("testScopeName", null);
     }
 
     @Test (expected = IllegalArgumentException.class)
-    public void testOfAStreamThrowsExceptionWhenStreamNameIsEmpty() {
-        AuthResourceRepresentation.ofAStream("testScopeName", "");
+    public void testOfAStreamInScopeThrowsExceptionWhenStreamNameIsEmpty() {
+        AuthResourceRepresentation.ofAStreamInScope("testScopeName", "");
     }
 
     @Test
-    public void testOfReaderGroupsReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("scopeName", AuthResourceRepresentation.ofReaderGroups("scopeName"));
+    public void testOfReaderGroupsInScopeReturnsValidResourceStrWhenInputIsLegal() {
+        assertEquals("scopeName", AuthResourceRepresentation.ofReaderGroupsInScope("scopeName"));
     }
 
     @Test
-    public void testOfAReaderGroupReturnsValidResourceStrWhenInputIsLegal() {
+    public void testOfAReaderGroupInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("scopeName/readerGroupName",
-                AuthResourceRepresentation.ofAReaderGroup("scopeName", "readerGroupName"));
+                AuthResourceRepresentation.ofAReaderGroupInScope("scopeName", "readerGroupName"));
     }
 }

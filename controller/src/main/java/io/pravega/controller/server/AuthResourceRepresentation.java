@@ -60,7 +60,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public static String ofStreams(String scopeName) {
+    public static String ofStreamsInScope(String scopeName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         return scopeName;
     }
@@ -75,9 +75,9 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
      */
-    public static String ofAStream(String scopeName, String streamName) {
+    public static String ofAStreamInScope(String scopeName, String streamName) {
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
-        return String.format("%s/%s", ofStreams(scopeName), streamName);
+        return String.format("%s/%s", ofStreamsInScope(scopeName), streamName);
     }
 
     /**
@@ -89,7 +89,7 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} is null
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
-    public static String ofReaderGroups(String scopeName) {
+    public static String ofReaderGroupsInScope(String scopeName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         return scopeName;
     }
@@ -104,8 +104,8 @@ public final class AuthResourceRepresentation {
      * @throws NullPointerException if {@code scopeName} or {@code streamName} are null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} are empty
      */
-    public static String ofAReaderGroup(String scopeName, String readerGroupName) {
+    public static String ofAReaderGroupInScope(String scopeName, String readerGroupName) {
         Exceptions.checkNotNullOrEmpty(readerGroupName, "readerGroupName");
-        return String.format("%s/%s", ofReaderGroups(scopeName), readerGroupName);
+        return String.format("%s/%s", ofReaderGroupsInScope(scopeName), readerGroupName);
     }
 }
