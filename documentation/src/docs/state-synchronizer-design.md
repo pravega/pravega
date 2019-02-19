@@ -9,17 +9,17 @@ You may obtain a copy of the License at
 -->
 # State Synchronizer Design
 
-A State Synchronizer allows data written and read by multiple processes, while consistency is guaranteed using optimistic checks. State Synchronizer provides the abstraction of a user defined `Java Object` which is kept in-sync consistently across multiple machines. All hosts would see the same object even as it is modified.
+In a State Synchronizer data can be written and read by multiple processes, and the consistency is guaranteed using optimistic checks. State Synchronizer provides the abstraction of a user defined `Java Object` which is kept in-sync consistently across the multiple machines. All the hosts would see the same object even as it is modified.
 
-The [State Synchronizer API](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java) can be used to perform updates to the state `Object`. This can be used to implement things such as replicated state machines, schema distribution, and leader election.
+The [State Synchronizer API](https://github.com/pravega/pravega/blob/master/client/src/main/java/io/pravega/client/state/StateSynchronizer.java) can be used to perform updates to the state `Object`. This can be used to implement replicated state machines, schema distribution, and leader election.
 
 State Synchronizer works by storing a consistent history of updates to the state `Object`. The updates are stored in a Pravega Stream. Pravega ensures that every process that is performing an update on the latest version of that `Object`. Thus the `Object` is coordinated across a fleet and everyone sees the same sequence of updates on the same `Object`.
-
-In Pravega Stream, a Segment is always owned by a single server. This allows it to provide atomic compare-and-set operation on the Segments. This primitive is used to build a higher level abstraction at the application layer while maintaining strong consistency.
 
 The idea is to use a Stream to persist a sequence of changes for a shared state. And allow various applications to use the [Pravega Java Client Library](http://pravega.io/docs/latest/state-synchronizer/#shared-state-and-pravega) to concurrently read and write the shared state in a consistent fashion.
 
 This works by having each process keep a copy of the data. All the updates are written through the State Synchronizer which appends them to the Pravega Stream Segment. Latest updates can be incorporated to the data by consuming from the Stream Segment. To provide consistency a conditional append is used. This ensures that the updates can only proceed if the process performing them has the most recent data. To avoid the unbounded data in the Stream Segment, a compact operation is involved which re-writes the latest data and truncates the old data.
+
+In Pravega Stream, a Segment is always owned by a single server. This allows it to provide atomic compare-and-set operation on the Segments. This primitive is used to build a higher level abstraction at the application layer while maintaining strong consistency.
 
 This model works well when most of the updates are small in comparison to the total data size being stored, as they can be written as small deltas. As with any optimistic concurrency system it would work worst when many processes contend and try to update the same information at the same time.
 
