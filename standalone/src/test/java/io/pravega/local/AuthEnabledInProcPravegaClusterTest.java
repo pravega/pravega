@@ -63,14 +63,14 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
      *
      * Note:
      * Strictly speaking, this test is really an "integration test" and is a little time consuming. For now, its
-     * intended to run as a unit test, but it could be moved to an integration test suite if and when necessary.
+     * intended to also run as a unit test, but it could be moved to an integration test suite if and when necessary.
      *
      */
     @Test(timeout = 50000)
     public void testWriteAndReadEventWhenConfigIsProper() throws ReinitializationRequiredException {
         String scope = "org.example.auth";
         String streamName = "stream1";
-        int numSegments = 10;
+        int numSegments = 1;
 
         ClientConfig clientConfig = ClientConfig.builder()
                 .credentials(new DefaultCredentials("1111_aaaa", "admin"))
