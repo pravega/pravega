@@ -35,6 +35,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -167,10 +168,6 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
         if (atCheckpoint != null) {
             groupState.checkpoint(atCheckpoint, getPosition());
-            for (Segment oldSegment : sealedSegments) {
-                groupState.handleEndOfSegment(oldSegment);
-            }
-            sealedSegments.clear();
             releaseSegmentsIfNeeded();
         }
         atCheckpoint = groupState.getCheckpoint();
@@ -191,6 +188,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @GuardedBy("readers")
     private void releaseSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
+        for (Iterator<Segment> iterator = sealedSegments.iterator(); iterator.hasNext();) {
+            Segment oldSegment = iterator.next();
+            if (groupState.handleEndOfSegment(oldSegment)) {
+                iterator.remove();
+            } else {
+                break;
+            }
+        }     
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
@@ -210,10 +215,14 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<Segment, Long> newSegment : newSegments.entrySet()) {
-                final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(newSegment.getKey(),
-                        groupState.getEndOffsetForSegment(newSegment.getKey()));
-                in.setOffset(newSegment.getValue());
-                readers.add(in);
+                if (newSegment.getValue() < 0) {
+                    sealedSegments.add(newSegment.getKey());
+                } else {
+                    final EventSegmentReader in = inputStreamFactory.createEventReaderForSegment(newSegment.getKey(),
+                                                                                                 groupState.getEndOffsetForSegment(newSegment.getKey()));
+                    in.setOffset(newSegment.getValue());
+                    readers.add(in);
+                }
             }
         }
     }

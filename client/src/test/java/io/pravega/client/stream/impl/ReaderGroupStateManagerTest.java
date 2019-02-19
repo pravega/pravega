@@ -887,7 +887,7 @@ public class ReaderGroupStateManagerTest {
         ReaderGroupStateManager.readerShutdown("testReader", pos, stateSynchronizer);
 
         newSegments = readerState2.acquireNewSegmentsIfNeeded(0);
-        assertEquals(1, newSegments.size());
+        assertEquals(2, newSegments.size());
         assertEquals(Long.valueOf(789L), newSegments.get(new Segment(scope, stream, 1)));
         assertEquals(0, stateSynchronizer.getState().getNumberOfUnassignedSegments());
         AssertExtensions.assertThrows(ReaderNotInReaderGroupException.class,

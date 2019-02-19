@@ -147,9 +147,13 @@ public class ReaderGroupStateManager {
     }
 
     /**
-     * Handles a segment being completed by calling the controller to gather all successors to the completed segment.
+     * Handles a segment being completed by calling the controller to gather all successors to the
+     * completed segment. To ensure consistent checkpoints, a segment cannot be released while a
+     * checkpoint for the reader is pending, so it may or may not succeed.
+     * 
+     * @return true if the completed segment was released successfully.
      */
-    void handleEndOfSegment(Segment segmentCompleted) throws ReaderNotInReaderGroupException {
+    boolean handleEndOfSegment(Segment segmentCompleted) throws ReaderNotInReaderGroupException {
         final Map<Segment, List<Long>> segmentToPredecessor;
         if (sync.getState().getEndSegments().containsKey(segmentCompleted)) {
             segmentToPredecessor = Collections.emptyMap();
@@ -159,19 +163,24 @@ public class ReaderGroupStateManager {
         }
 
         AtomicBoolean reinitRequired = new AtomicBoolean(false);
-        sync.updateState((state, updates) -> {
+        boolean result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
             } else {
                 log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
                 reinitRequired.set(false);
-                updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
+                if (state.getCheckpointForReader(readerId) == null) {
+                    updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
+                    return true;
+                }
             }
+            return false;
         });
         if (reinitRequired.get()) {
             throw new ReaderNotInReaderGroupException(readerId);
         }
         acquireTimer.zero();
+        return result;
     }
 
     /**
@@ -268,15 +277,7 @@ public class ReaderGroupStateManager {
     Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReaderNotInReaderGroupException {
         fetchUpdatesIfNeeded();
         if (shouldAcquireSegment()) {
-            Map<Segment, Long> aquiredSegments = new HashMap<>();
-            for (Entry<Segment, Long> entry : acquireSegment(timeLag).entrySet()) {
-                if (entry.getValue() < 0) {
-                    handleEndOfSegment(entry.getKey());
-                } else {
-                    aquiredSegments.put(entry.getKey(), entry.getValue());
-                }
-            }
-            return aquiredSegments;
+            return acquireSegment(timeLag);
         } else {
             return Collections.emptyMap();
         }
