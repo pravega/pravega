@@ -166,12 +166,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
         if (atCheckpoint != null) {
+            groupState.checkpoint(atCheckpoint, getPosition());
             for (Segment oldSegment : sealedSegments) {
                 groupState.handleEndOfSegment(oldSegment);
             }
             sealedSegments.clear();
             releaseSegmentsIfNeeded();
-            groupState.checkpoint(atCheckpoint, getPosition());
         }
         atCheckpoint = groupState.getCheckpoint();
         if (atCheckpoint != null) {
