@@ -67,7 +67,7 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
      *
      */
     @Test(timeout = 50000)
-    public void testWriteAndReadEventWhenConfigIsProper() throws ReinitializationRequiredException {
+    public void testWriteAndReadEventsWhenConfigIsProper() throws ReinitializationRequiredException {
         String scope = "org.example.auth";
         String streamName = "stream1";
         int numSegments = 1;

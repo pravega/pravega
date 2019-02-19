@@ -25,36 +25,66 @@ import java.util.List;
  */
 public class RESTAuthHelper {
 
+    /**
+     * The delegate used for performing authentication and authorization.
+     */
     private final PravegaAuthManager pravegaAuthManager;
 
     public RESTAuthHelper(PravegaAuthManager pravegaAuthManager) {
         this.pravegaAuthManager = pravegaAuthManager;
     }
 
-    public boolean isAuthorized(List<String> authHeader, String resourceName, Principal principal,
-                                AuthHandler.Permissions permissionLevel)
+    /**
+     * Determines whether the given {@code principal} has specified {@code permission} on the given {@code resource}.
+     *
+     * @param authHeader contents of an HTTP Authorization header
+     * @param resource   representation of the resource being accessed
+     * @param principal  the identity of the subject accessing the resource
+     * @param permission the permission
+     * @return {@code true} if either auth is disabled or authorization is granted, and  {@code false}
+     *         if auth is enabled and authorization is not granted
+     * @throws AuthException if either authentication or authorization fails
+     */
+    public boolean isAuthorized(List<String> authHeader, String resource, Principal principal,
+                                AuthHandler.Permissions permission)
             throws AuthException {
         if (isAuthEnabled()) {
-            return pravegaAuthManager.authorize(resourceName,
+            return pravegaAuthManager.authorize(resource,
                     principal,
                     parseCredentials(authHeader),
-                    permissionLevel);
+                    permission);
         } else {
             // Since auth is disabled, every request is deemed to have been authorized.
             return true;
         }
     }
 
-    public void authorize(List<String> authHeader, String resourceName, Principal principal,
-                          AuthHandler.Permissions permissionLevel) throws AuthException {
-        if (!isAuthorized(authHeader, resourceName, principal, permissionLevel)) {
+    /**
+     * Ensures that the given {@code principal} has specified {@code permission} on the given {@code resource}.
+     *
+     * @param authHeader contents of an HTTP Authorization header
+     * @param resource   representation of the resource being accessed
+     * @param principal  the identity of the subject accessing the resource
+     * @param permission the permission
+     * @throws AuthException if authentication or authorization fails
+     */
+    public void authorize(List<String> authHeader, String resource, Principal principal,
+                          AuthHandler.Permissions permission) throws AuthException {
+        if (!isAuthorized(authHeader, resource, principal, permission)) {
             throw new AuthorizationException(
-                    String.format("Failed to authorize for resource [%s]", resourceName),
+                    String.format("Failed to authorize for resource [%s]", resource),
                     Response.Status.FORBIDDEN.getStatusCode());
         }
     }
 
-    public  Principal authenticate(List<String> authHeader) throws AuthException {
+    /**
+     * Authenticates the subject represented by the specified HTTP Authorization Header value.
+     *
+     * @param authHeader contents of an HTTP Authorization header
+     * @return a {@code principal} representing the identity of the subject if auth is enabled; otherwise {@code null}
+     * @throws AuthException if authentication fails
+     */
+    public Principal authenticate(List<String> authHeader) throws AuthException {
         if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
             return pravegaAuthManager.authenticate(credentials);
@@ -62,13 +92,22 @@ public class RESTAuthHelper {
         return null;
     }
 
-    public void authenticateAuthorize(List<String> authHeader, String resourceName, AuthHandler.Permissions level)
+    /**
+     * Ensures that the subject represented by the given {@code authHeader} is authenticated and that the subject is
+     * authorized for the specified {@code permission} on the given {@code resource}.
+     *
+     * @param authHeader contents of an HTTP Authorization header
+     * @param resource   representation of the resource being accessed
+     * @param permission the permission
+     * @throws AuthException if authentication/authorization fails
+     */
+    public void authenticateAuthorize(List<String> authHeader, String resource, AuthHandler.Permissions permission)
             throws AuthException {
         if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
-            if (!pravegaAuthManager.authenticateAndAuthorize(resourceName, credentials, level)) {
+            if (!pravegaAuthManager.authenticateAndAuthorize(resource, credentials, permission)) {
                 throw new AuthException(
-                        String.format("Failed to authenticate or authorize for resource [%s]", resourceName),
+                        String.format("Failed to authenticate or authorize for resource [%s]", resource),
                         Response.Status.FORBIDDEN.getStatusCode());
             }
         }

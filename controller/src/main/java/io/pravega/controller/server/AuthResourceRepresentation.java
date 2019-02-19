@@ -61,8 +61,7 @@ public final class AuthResourceRepresentation {
      * @throws IllegalArgumentException if {@code scopeName} is empty
      */
     public static String ofStreamsInScope(String scopeName) {
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        return scopeName;
+        return Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
     }
 
     /**
