@@ -95,6 +95,17 @@ public class RESTAuthHelperTest {
         assertFalse(authorized);
     }
 
+    @Test
+    public void testAuthIsEnabledWhenPravegaAuthManagerIsNonNull() {
+        RESTAuthHelper sut = new RESTAuthHelper(new PravegaAuthManager(null));
+        assertTrue(sut.isAuthEnabled());
+    }
+
+    @Test
+    public void testAuthIsDisabledWhenPravegaAuthManagerIsNull() {
+        RESTAuthHelper sut = new RESTAuthHelper(null);
+        assertFalse(sut.isAuthEnabled());
+    }
 
     private List<String> createAuthHeader(String username, String password)  {
         String value = String.format("%s:%s", username, password);
