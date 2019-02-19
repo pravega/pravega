@@ -21,13 +21,14 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
+import io.pravega.shared.controller.event.ControllerEventSerializer;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
 public class AutoScaleProcessor implements AutoCloseable {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(AutoScaleProcessor.class));
+    private static final EventSerializer SERIALIZER = new EventSerializer();
 
     private static final long TWO_MINUTES = Duration.ofMinutes(2).toMillis();
     private static final long FIVE_MINUTES = Duration.ofMinutes(5).toMillis();
@@ -57,7 +59,6 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     private final EventStreamClientFactory clientFactory;
     private final Cache<String, Pair<Long, Long>> cache;
-    private final Serializer<AutoScaleEvent> serializer;
     private final AtomicReference<EventStreamWriter<AutoScaleEvent>> writer;
     private final AutoScalerConfig configuration;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
@@ -99,7 +100,6 @@ public class AutoScaleProcessor implements AutoCloseable {
     AutoScaleProcessor(@NonNull AutoScalerConfig configuration, EventStreamClientFactory clientFactory,
                        @NonNull ScheduledExecutorService executor) {
         this.configuration = configuration;
-        this.serializer = new JavaSerializer<>();
         this.writer = new AtomicReference<>();
         this.clientFactory = clientFactory;
 
@@ -152,12 +152,12 @@ public class AutoScaleProcessor implements AutoCloseable {
 
     private void bootstrapOnce(EventStreamClientFactory clientFactory) {
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
-        this.writer.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(), serializer, writerConfig));
+        this.writer.set(clientFactory.createEventWriter(configuration.getInternalRequestStream(), SERIALIZER, writerConfig));
         log.info("AutoScale Processor Initialized. RequestStream={}", configuration.getInternalRequestStream());
     }
 
     private static EventStreamClientFactory createFactory(AutoScalerConfig configuration) {
-        if (configuration.isAuthEnabled()) {
+        if (configuration.isTlsEnabled()) {
             return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
                                 .trustStore(configuration.getTlsCertFile())
@@ -290,6 +290,20 @@ public class AutoScaleProcessor implements AutoCloseable {
     @VisibleForTesting
     Pair<Long, Long> get(String streamSegmentName) {
         return cache.getIfPresent(streamSegmentName);
+    }
+
+    private static class EventSerializer implements Serializer<AutoScaleEvent> {
+        private final ControllerEventSerializer baseSerializer = new ControllerEventSerializer();
+
+        @Override
+        public ByteBuffer serialize(AutoScaleEvent value) {
+            return this.baseSerializer.toByteBuffer(value);
+        }
+
+        @Override
+        public AutoScaleEvent deserialize(ByteBuffer serializedValue) {
+            return (AutoScaleEvent) this.baseSerializer.fromByteBuffer(serializedValue);
+        }
     }
 }
 
