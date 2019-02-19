@@ -48,7 +48,8 @@ public class RESTAuthHelper {
     public void authorize(List<String> authHeader, String resourceName, Principal principal,
                           AuthHandler.Permissions permissionLevel) throws AuthException {
         if (!isAuthorized(authHeader, resourceName, principal, permissionLevel)) {
-            throw new AuthorizationException("Authorization failed for " + resourceName,
+            throw new AuthorizationException(
+                    String.format("Failed to authorize for resource [%s]", resourceName),
                     Response.Status.FORBIDDEN.getStatusCode());
         }
     }
@@ -67,7 +68,7 @@ public class RESTAuthHelper {
             String credentials = parseCredentials(authHeader);
             if (!pravegaAuthManager.authenticateAndAuthorize(resourceName, credentials, level)) {
                 throw new AuthException(
-                        String.format("Failed to authenticate and authorize for resource [%s]", resourceName),
+                        String.format("Failed to authenticate or authorize for resource [%s]", resourceName),
                         Response.Status.FORBIDDEN.getStatusCode());
             }
         }
