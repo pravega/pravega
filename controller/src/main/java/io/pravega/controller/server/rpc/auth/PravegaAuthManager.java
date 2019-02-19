@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthException;
@@ -127,7 +128,7 @@ public class PravegaAuthManager {
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
-    // For enabling unit testing
+    @VisibleForTesting
     public void registerHandler(AuthHandler authHandler) {
         this.handlerMap.put(authHandler.getHandlerName(), authHandler);
     }
