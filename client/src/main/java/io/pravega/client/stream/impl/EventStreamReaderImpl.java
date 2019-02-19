@@ -170,20 +170,27 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             groupState.checkpoint(atCheckpoint, getPosition());
             releaseSegmentsIfNeeded();
         }
-        atCheckpoint = groupState.getCheckpoint();
-        if (atCheckpoint != null) {
-            log.info("{} at checkpoint {}", this, atCheckpoint);
-            if (groupState.isCheckpointSilent(atCheckpoint)) {
+        String checkpoint = groupState.getCheckpoint();
+        if (checkpoint != null) {
+            log.info("{} at checkpoint {}", this, checkpoint);
+            if (groupState.isCheckpointSilent(checkpoint)) {
                 // Checkpoint the reader immediately with the current position. Checkpoint Event is not generated.
-                groupState.checkpoint(atCheckpoint, getPosition());
-                atCheckpoint = null;
+                groupState.checkpoint(checkpoint, getPosition());
+                if (atCheckpoint != null) {
+                    //In case the silent checkpoint held up releasing segments
+                    releaseSegmentsIfNeeded();
+                    atCheckpoint = null;
+                }
                 return null;
             } else {
+                atCheckpoint = checkpoint;
                 return atCheckpoint;
             }
+        } else {
+            atCheckpoint = null;
+            acquireSegmentsIfNeeded();
+            return null;
         }
-        acquireSegmentsIfNeeded();
-        return null;
     }
 
     @GuardedBy("readers")
