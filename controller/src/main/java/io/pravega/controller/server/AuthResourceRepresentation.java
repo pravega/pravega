@@ -22,7 +22,7 @@ import io.pravega.common.Exceptions;
  * In Pravega,
  * <ul>
  *     <li>A subject is represented as an instance of type {@link java.security.Principal}.</li>
- *     <li>An action is represented as an element of enum type {@Link io.pravega.auth.AuthHandler.Permissions}.</li>
+ *     <li>An action is represented as an element of enum type {@link io.pravega.auth.AuthHandler.Permissions}.</li>
  *     <li>An object is represented by an instance of <i>this</i> class.</li>
  * </ul>
  */
