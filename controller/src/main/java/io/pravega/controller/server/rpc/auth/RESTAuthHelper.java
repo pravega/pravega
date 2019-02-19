@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
@@ -33,14 +34,14 @@ public class RESTAuthHelper {
     public boolean isAuthorized(List<String> authHeader, String resourceName, Principal principal,
                                 AuthHandler.Permissions permissionLevel)
             throws AuthException {
-        if (pravegaAuthManager == null ) {
-            // Implies auth is disabled. Since auth is disabled, every request is deemed to have been authorized.
-            return true;
-        } else {
+        if (isAuthEnabled()) {
             return pravegaAuthManager.authorize(resourceName,
                     principal,
                     parseCredentials(authHeader),
                     permissionLevel);
+        } else {
+            // Since auth is disabled, every request is deemed to have been authorized.
+            return true;
         }
     }
 
@@ -53,7 +54,7 @@ public class RESTAuthHelper {
     }
 
     public  Principal authenticate(List<String> authHeader) throws AuthException {
-        if (pravegaAuthManager != null ) {
+        if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
             return pravegaAuthManager.authenticate(credentials);
         }
@@ -62,11 +63,11 @@ public class RESTAuthHelper {
 
     public void authenticateAuthorize(List<String> authHeader, String resourceName, AuthHandler.Permissions level)
             throws AuthException {
-        if (pravegaAuthManager != null) {
+        if (isAuthEnabled()) {
             String credentials = parseCredentials(authHeader);
-
             if (!pravegaAuthManager.authenticateAndAuthorize(resourceName, credentials, level)) {
-                throw new AuthorizationException("Auth failed for " + resourceName,
+                throw new AuthException(
+                        String.format("Failed to authenticate and authorize for resource [%s]", resourceName),
                         Response.Status.FORBIDDEN.getStatusCode());
             }
         }
@@ -81,5 +82,10 @@ public class RESTAuthHelper {
         String credentials = authHeader.get(0);
         Preconditions.checkNotNull(credentials, "Missing credentials.");
         return credentials;
+    }
+
+    @VisibleForTesting
+    boolean isAuthEnabled() {
+        return pravegaAuthManager != null;
     }
 }
