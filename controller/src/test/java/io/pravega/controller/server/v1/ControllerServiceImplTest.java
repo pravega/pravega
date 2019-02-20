@@ -72,7 +72,8 @@ public abstract class ControllerServiceImplTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    public final Timeout globalTimeout = new Timeout(10, TimeUnit.SECONDS);
+    // TODO: shivesh
+    public final Timeout globalTimeout = new Timeout(100, TimeUnit.SECONDS);
 
     ControllerServiceImpl controllerService;
 

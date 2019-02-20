@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ZKScope implements Scope {
@@ -41,6 +43,7 @@ public class ZKScope implements Scope {
     private static final String STREAMS_IN_SCOPE_ROOT_PATH = "/store/streamsinscope/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH_FORMAT = STREAMS_IN_SCOPE_ROOT_PATH + "/streams";
     private static final String COUNTER_PATH = STREAMS_IN_SCOPE_ROOT_PATH + "/counter";
+    private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
 
     private final String scopePath;
     private final String counterPath;
@@ -53,7 +56,7 @@ public class ZKScope implements Scope {
         this.store = store;
         this.scopePath = String.format(SCOPE_PATH, scopeName);
         this.counterPath = String.format(COUNTER_PATH, scopeName);
-        this.streamsInScopePath = String.format(STREAMS_IN_SCOPE_ROOT_PATH, scopeName);
+        this.streamsInScopePath = String.format(STREAMS_IN_SCOPE_ROOT_PATH_FORMAT, scopeName);
     }
 
     @Override
@@ -69,7 +72,8 @@ public class ZKScope implements Scope {
     @Override
     public CompletableFuture<Void> deleteScope() {
         return store.deleteNode(scopePath)
-                    .thenCompose(v -> store.deleteTree(streamsInScopePath));
+                    .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(counterPath), DATA_NOT_FOUND_PREDICATE, null))
+                    .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(streamsInScopePath), DATA_NOT_FOUND_PREDICATE, null));
     }
 
     CompletableFuture<Void> addStreamToScope(String name, int streamPosition) {

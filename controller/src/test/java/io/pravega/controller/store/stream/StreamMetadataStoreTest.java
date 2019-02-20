@@ -72,8 +72,7 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule
-    // TODO: shivesh
-    public Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
+    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
