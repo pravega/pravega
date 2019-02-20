@@ -203,7 +203,7 @@ public final class MetricsNames {
         return escapeSpecialChar(name);
     }
 
-    public static String nameFromHost(String metric, String hostId) {
+    public static String  nameFromHost(String metric, String hostId) {
         String name = metric + "." + hostId;
         return escapeSpecialChar(name);
     }

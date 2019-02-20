@@ -91,7 +91,7 @@ public class ControllerMetricsTest {
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
 
         executor = Executors.newSingleThreadScheduledExecutor();

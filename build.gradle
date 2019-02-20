@@ -179,17 +179,6 @@ project ('shared:metrics') {
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/1.1.2
         compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
         // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/1.1.2
-        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
-        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
-        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
-        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
-        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
-        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
         compile project(':common')
     }
 

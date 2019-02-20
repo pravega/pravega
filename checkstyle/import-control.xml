@@ -24,10 +24,8 @@
     <allow pkg="io.netty"/>
     <allow pkg="org.apache"/>
     <allow pkg="org.rocksdb"/>
-    <allow pkg="com.codahale"/>
     <allow pkg="io.micrometer"/>
     <allow pkg="com.emc.object"/>
-    <allow pkg="com.readytalk"/>
     <allow pkg="com.sun.security"/>
     <allow pkg="org.glassfish.jersey"/>
     <allow pkg="javax.ws.rs"/>
