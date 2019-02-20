@@ -144,9 +144,9 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             assertEquals("txntest1" + i, event.getEvent());
             event = reader.readNextEvent(100);
             assertNull(event.getEvent());
-            groupManager.getReaderGroup("reader" +i).initiateCheckpoint("cp"+i, executorService());
+            groupManager.getReaderGroup("reader" + i).initiateCheckpoint("cp" + i, executorService());
             event = reader.readNextEvent(10000);
-            assertEquals("cp"+i, event.getCheckpointName());
+            assertEquals("cp" + i, event.getCheckpointName());
             event = reader.readNextEvent(10000);
             assertEquals("txntest2" + i, event.getEvent());
             assertTrue(controller.sealStream(scope, streamName).join());

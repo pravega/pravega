@@ -609,7 +609,7 @@ public class EndToEndTruncationTest {
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().automaticCheckpointIntervalMillis(500).stream(Stream.of(scope, streamName)).build());
         EventStreamReader<String> reader = clientFactory.createReader(String.valueOf(0), readerGroup, new UTF8StringSerializer(), ReaderConfig.builder().build());
-        assertEquals(totalEvents/2, ReadWriteUtils.readEvents(reader, totalEvents/2, 0));
+        assertEquals(totalEvents / 2, ReadWriteUtils.readEvents(reader, totalEvents / 2, 0));
         reader.close();
         
         assertTrue(streamManager.sealStream(scope, streamName));
@@ -619,7 +619,8 @@ public class EndToEndTruncationTest {
         EventStreamReader<Serializable> readerRecreated = clientFactory.createReader(String.valueOf(0), readerGroup, new JavaSerializer<>(), ReaderConfig.builder().build());
 
         // At the control plane, we expect a RetriesExhaustedException as readers try to get successor segments from a deleted stream.
-        assertThrows(TruncatedDataException.class, () -> ReadWriteUtils.readEvents(readerRecreated, totalEvents/2, 0));
+        assertThrows(TruncatedDataException.class,
+                     () -> ReadWriteUtils.readEvents(readerRecreated, totalEvents / 2, 0));
         assertTrue(!streamManager.deleteStream(scope, streamName));
     }
 }
