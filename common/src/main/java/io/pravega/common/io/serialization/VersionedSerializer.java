@@ -453,7 +453,7 @@ public abstract class VersionedSerializer<T> {
      *    // Deserializes V1.0 into target; this will only be invoked for V1.
      *    private void read10(RevisionDataInput input, Segment target) throws IOException { ... }
      * }
-     * }F
+     * }
      * </code></pre>
      *
      * @param <TargetType> Type of the object to serialize from and deserialize into.

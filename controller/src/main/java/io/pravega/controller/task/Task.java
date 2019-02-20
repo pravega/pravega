@@ -37,16 +37,16 @@ import java.lang.annotation.Target;
  * The method
  * <pre><code>
  * {@literal @}Task(name = "a", version="0.1")
- * CompletableFuture<T> method(Object... params) {
+ * CompletableFuture{@literal <T>} method(Object... params) {
  *     body;
  * }
  * </code></pre>
  *
  * is replaced with the following method
  * <pre><code>
- * CompletableFuture<T> method (Object... params) {
+ * CompletableFuture{@literal <T>} method (Object... params) {
  *   try {
- *     CompletableFuture<Boolean> lock = this.lock();
+ *     CompletableFuture{@literal <Boolean>} lock = this.lock();
  *     if (lock.get()) {
  *       TaskData data = new TaskData("a", "0.1", params);
  *       persist(data);

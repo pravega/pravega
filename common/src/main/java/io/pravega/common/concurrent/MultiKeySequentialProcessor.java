@@ -85,7 +85,7 @@ public class MultiKeySequentialProcessor<KeyType> implements AutoCloseable {
      * In addition, no subsequent task for any of the given dependency Keys will begin executing until this task has
      * finished executing.
      *
-     * @param keys         A Collection of {@literal {@link KeyType}} objects representing the Keys that this task is dependent on.
+     * @param keys         A Collection of KeyType objects representing the Keys that this task is dependent on.
      * @param toRun        A Supplier that will be invoked when it is this task's turn to run. It will return a
      *                     CompletableFuture that will complete when this task completes.
      * @param <ReturnType> Return type.
