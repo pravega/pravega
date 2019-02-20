@@ -38,6 +38,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
         this.successName = baseName + "." + statName;
         this.failName = baseName + "." + failMetricName(statName);
+        //This will publish additional percentile metrics
         this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
                 .register(this.metricRegistry);
         this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
@@ -96,7 +97,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         long numFailed = fail.count();
         long numSuccess = success.count();
         HistogramSnapshot snapshot = success.takeSnapshot();
-        double avgLatencyMillis = success.mean(TimeUnit.SECONDS);
+        double avgLatencyMillis = snapshot.mean();
 
         EnumMap<OpStatsData.Percentile, Long> percentileLongMap  =
                 new EnumMap<>(OpStatsData.Percentile.class);

@@ -9,12 +9,8 @@
  */
 package io.pravega.shared.metrics;
 
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Metrics;
-
 public class MetricsProvider {
 
-    static final MeterRegistry METRIC_REGISTRY = Metrics.globalRegistry;
     private static final StatsProviderProxy STATS_PROVIDER = new StatsProviderProxy();
     private static final DynamicLoggerProxy DYNAMIC_LOGGER = new DynamicLoggerProxy(STATS_PROVIDER.createDynamicLogger());
 

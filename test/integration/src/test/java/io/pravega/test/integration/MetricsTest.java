@@ -124,7 +124,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
     }
 

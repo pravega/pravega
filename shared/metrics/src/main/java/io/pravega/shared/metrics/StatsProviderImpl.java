@@ -10,7 +10,6 @@
 package io.pravega.shared.metrics;
 
 import com.google.common.base.Preconditions;
-import java.time.Duration;
 
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -19,10 +18,8 @@ import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics;
 import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
-import io.micrometer.influx.InfluxConfig;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
-import io.micrometer.statsd.StatsdConfig;
-import io.micrometer.statsd.StatsdFlavor;
 import io.micrometer.statsd.StatsdMeterRegistry;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -31,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class StatsProviderImpl implements StatsProvider {
     @Getter
-    private final MeterRegistry metrics = MetricsProvider.METRIC_REGISTRY;
+    private final MeterRegistry metrics = Metrics.globalRegistry;
     private final MetricsConfig conf;
 
     StatsProviderImpl(MetricsConfig conf) {
@@ -53,86 +50,25 @@ class StatsProviderImpl implements StatsProvider {
         log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
         if (conf.isEnableStatsdReporter()) {
-            log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
-            StatsdConfig config = new StatsdConfig() {
-                @Override
-                public Duration step() {
-                    return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
-                }
-
-                @Override
-                public String prefix() {
-                    return conf.getMetricsPrefix();
-                }
-
-                @Override
-                public String host() {
-                    return conf.getStatsDHost();
-                }
-
-                @Override
-                public int port() {
-                    return conf.getStatsDPort();
-                }
-
-                @Override
-                public StatsdFlavor flavor() {
-                    return StatsdFlavor.TELEGRAF; //Dimension supported
-                }
-
-                @Override
-                public String get(String key) {
-                    return null;
-                }
-            };
-
-            MeterRegistry registry = new StatsdMeterRegistry(config, Clock.SYSTEM);
-            Metrics.addRegistry(registry);
+            Metrics.addRegistry(new StatsdMeterRegistry(RegistryConfigUtil.createStatsdConfig(conf), Clock.SYSTEM));
         }
 
         if (conf.isEnableInfluxDBReporter()) {
-            log.info("Configuring stats with direct InfluxDB at {}", conf.getInfluxDBUri());
-            InfluxConfig config = new InfluxConfig() {
-                @Override
-                public Duration step() {
-                    return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
-                }
-                
-                @Override
-                public String prefix() {
-                    return conf.getMetricsPrefix();
-                }
-
-                @Override
-                public String uri() {
-                    return conf.getInfluxDBUri();
-                }
-
-                @Override
-                public String db() {
-                    return conf.getInfluxDBName();
-                }
-
-                @Override
-                public String userName() {
-                    return conf.getInfluxDBUserName();
-                }
-
-                @Override
-                public String password() {
-                    return conf.getInfluxDBPassword();
-                }
-
-                @Override
-                public String get(String k) {
-                    return null;
-                }
-            };
-
-            MeterRegistry registry = new InfluxMeterRegistry(config, Clock.SYSTEM);
-            Metrics.addRegistry(registry);
+            Metrics.addRegistry(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
-        //TODO: add more registries
+
+        if (Metrics.globalRegistry.getRegistries().size() == 0) {
+            log.error("Error! No concrete metrics register bound, the composite registry runs as no-op!");
+        }
+    }
+
+    @Synchronized
+    @Override
+    public void startWithoutExporting() {
+        for (MeterRegistry registry : Metrics.globalRegistry.getRegistries()) {
+            Metrics.globalRegistry.remove(registry);
+        }
+        Metrics.addRegistry(new SimpleMeterRegistry());
     }
 
     @Synchronized

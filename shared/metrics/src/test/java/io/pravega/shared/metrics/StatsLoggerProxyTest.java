@@ -139,7 +139,6 @@ public class StatsLoggerProxyTest {
         }
     }
 
-    //TODO: get rid of this class.
     private static class TestMetric implements OpStatsLogger, Counter, Meter, Gauge {
         @Getter
         private final io.micrometer.core.instrument.Meter.Id id;
