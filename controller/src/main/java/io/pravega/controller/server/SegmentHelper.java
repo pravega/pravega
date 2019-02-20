@@ -10,6 +10,7 @@
 package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -1005,8 +1006,10 @@ public class SegmentHelper {
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> {
                                                                              WireCommands.TableKey k = e.getKey();
-                                                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(k.getData().array(), new KeyVersionImpl(k.getKeyVersion()));
-                                                                             return new TableEntryImpl<>(tableKey, e.getValue().getData().array());
+                                                                             TableKey<byte[]> tableKey =
+                                                                                     new TableKeyImpl<>(getArray(k.getData()),
+                                                                                                        new KeyVersionImpl(k.getKeyVersion()));
+                                                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                                                          }).collect(Collectors.toList());
                 result.complete(tableEntries);
             }
@@ -1097,7 +1100,7 @@ public class SegmentHelper {
                     log.info(requestId, "readTableKeys {} successful.", qualifiedName);
                     final IteratorState state = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
                     final List<TableKey<byte[]>> keys =
-                            tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(k.getData().array(),
+                            tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(getArray(k.getData()),
                                                                                          new KeyVersionImpl(k.getKeyVersion()))).collect(Collectors.toList());
                     result.complete(new AbstractMap.SimpleImmutableEntry<>(state, singletonList(new TableSegment.IteratorItem<>(state,
                                                                                                                                 keys))));
@@ -1189,12 +1192,12 @@ public class SegmentHelper {
                     final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
                     final List<TableEntry<byte[], byte[]>> entries =
                             tableEntriesRead.getEntries().getEntries().stream()
-                                                                       .map(e -> {
-                                                                           WireCommands.TableKey k = e.getKey();
-                                                                           TableKey<byte[]> tableKey = new TableKeyImpl<>(k.getData().array(),
-                                                                                                                          new KeyVersionImpl(k.getKeyVersion()));
-                                                                           return new TableEntryImpl<>(tableKey, e.getValue().getData().array());
-                                                                       }).collect(Collectors.toList());
+                                            .map(e -> {
+                                                WireCommands.TableKey k = e.getKey();
+                                                TableKey<byte[]> tableKey = new TableKeyImpl<>(getArray(k.getData()),
+                                                                                               new KeyVersionImpl(k.getKeyVersion()));
+                                                return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
+                                            }).collect(Collectors.toList());
                     result.complete(new AbstractMap.SimpleImmutableEntry<>(state, singletonList(new TableSegment.IteratorItem<>(state,
                                                                                                                                 entries))));
                 }
@@ -1225,6 +1228,13 @@ public class SegmentHelper {
             return result;
 
         }, state);
+    }
+
+    private byte[] getArray(ByteBuf buf) {
+        final byte[] bytes = new byte[buf.readableBytes()];
+        final int readerIndex = buf.readerIndex();
+        buf.getBytes(readerIndex, bytes);
+        return bytes;
     }
 
     private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {

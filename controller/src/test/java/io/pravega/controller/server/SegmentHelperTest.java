@@ -53,6 +53,7 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -372,14 +373,14 @@ public class SegmentHelperTest {
         factory.rp.tableKeysRead(getTableKeysRead(keys1, token1));
         assertTrue(Futures.await(value));
         Assert.assertEquals(value.join().getItems(), keys1);
-        assertEquals(token1.array(), value.join().getState().toBytes().array());
+        assertArrayEquals(token1.array(), value.join().getState().toBytes().array());
 
         value = result.getNext();
         assertFalse(value.isDone());
         factory.rp.tableKeysRead(getTableKeysRead(keys2, token2));
         assertTrue(Futures.await(value));
         assertEquals(value.join().getItems(), keys2);
-        assertEquals(token2, value.join().getState().toBytes());
+        assertArrayEquals(token2.array(), value.join().getState().toBytes().array());
 
     }
 
@@ -408,14 +409,14 @@ public class SegmentHelperTest {
         factory.rp.tableEntriesRead(getTableEntriesRead(entries1, token1));
         assertTrue(Futures.await(value));
         Assert.assertEquals(value.join().getItems(), entries1);
-        assertEquals(token1.array(), value.join().getState().toBytes().array());
+        assertArrayEquals(token1.array(), value.join().getState().toBytes().array());
 
         value = result.getNext();
         assertFalse(value.isDone());
         factory.rp.tableEntriesRead(getTableEntriesRead(entries2, token2));
         assertTrue(Futures.await(value));
         assertEquals(value.join().getItems(), entries2);
-        assertEquals(token2, value.join().getState().toBytes());
+        assertArrayEquals(token2.array(), value.join().getState().toBytes().array());
 
     }
 
