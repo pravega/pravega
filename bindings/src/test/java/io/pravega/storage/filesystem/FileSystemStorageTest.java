@@ -47,7 +47,7 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
         StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        statsProvider.startWithoutExporting();
         this.adapterConfig = FileSystemStorageConfig
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())

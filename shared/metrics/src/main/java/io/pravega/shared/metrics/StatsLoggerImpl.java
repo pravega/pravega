@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.shared.metrics;
 
@@ -85,7 +85,7 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     private class CounterImpl implements Counter {
-        private io.micrometer.core.instrument.Counter counter; //TODO: mutability issue to be discussed
+        private io.micrometer.core.instrument.Counter counter;
         private final io.micrometer.core.instrument.Tags tags;
         @Getter
         private final Id id;
@@ -101,7 +101,6 @@ public class StatsLoggerImpl implements StatsLogger {
         @Override
         public synchronized void close() {
             metrics.remove(counter);
-            counter = null;
         }
 
         @Override
@@ -133,10 +132,9 @@ public class StatsLoggerImpl implements StatsLogger {
         GaugeImpl(String statName, Supplier<T> value, String... tagPairs) {
             String name = basename + "." + statName;
             io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.id = new Id(name, tags, null, null,
-                    io.micrometer.core.instrument.Meter.Type.GAUGE);
+            this.id = new Id(name, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
             metrics.remove(this.id);
-            metrics.gauge(name, tags, value.get());
+            metrics.gauge(name, tags, value, obj -> obj.get().doubleValue());
         }
 
         @Override
@@ -147,21 +145,21 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     private class MeterImpl implements Meter {
-        private io.micrometer.core.instrument.DistributionSummary summary; //TODO: mutable, strong reference
+        private final io.micrometer.core.instrument.DistributionSummary summary;
         @Getter
         private final Id id;
 
         MeterImpl(String statName, String... tagPairs) {
-            String name = basename + "." + statName;
-            io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.summary = metrics.summary(name, tags);
-            this.id = summary.getId();
+            this.summary = io.micrometer.core.instrument.DistributionSummary
+                    .builder(basename + "." + statName)
+                    .tags(tagPairs)
+                    .register(metrics);
+            this.id = summary == null ? null : summary.getId();
         }
 
         @Override
         public void close() {
             metrics.remove(summary);
-            summary = null;
         }
 
         @Override
@@ -176,7 +174,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
         @Override
         public long getCount() {
-            return (long) summary.count();
+            return (long) summary.totalAmount();
         }
     }
 }

@@ -20,6 +20,12 @@ public interface StatsProvider extends AutoCloseable {
     void start();
 
     /**
+     * Initialize the stats provider without exporting functionality.
+     * In other words, starts with Micrometer SimpleMeterRegistry only.
+     */
+    void startWithoutExporting();
+
+    /**
      * Close the stats provider.
      */
     @Override

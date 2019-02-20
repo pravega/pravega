@@ -30,8 +30,8 @@ public class MetricsConfig {
     public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
-    public final static Property<String> INFLUXDB_URI = Property.named("influxDBURI", "localhost:8086");
-    public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "influxdb");
+    public final static Property<String> INFLUXDB_URI = Property.named("influxDBURI", "http://localhost:8086");
+    public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "pravega");
     public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
     public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDBPassword", "");
     public final static Property<String> GRAPHITE_HOST = Property.named("graphiteHost", "localhost");
