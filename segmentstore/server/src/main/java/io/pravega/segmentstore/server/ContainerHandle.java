@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 public interface ContainerHandle {
     /**
      * Gets a value indicating the Id of the container.
+     * @return The Id of the container.
      */
     int getContainerId();
 

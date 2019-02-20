@@ -43,16 +43,16 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -153,37 +153,38 @@ public class ReaderGroupNotificationTest {
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().initialAllocationDelay(0).build());
 
-        final CountDownLatch latch = new CountDownLatch(2);
-        final ArrayDeque<SegmentNotification> notificationResults = new ArrayDeque<>();
+        val notificationResults = new ArrayBlockingQueue<SegmentNotification>(2);
 
         //Add segment event listener
         Listener<SegmentNotification> l1 = notification -> {
-            log.info("Number of Segments{}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
-            notificationResults.offer(notification);
-            latch.countDown();
+            log.info("Number of Segments: {}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
+            notificationResults.add(notification);
         };
         SegmentNotifier segmentNotifier = (SegmentNotifier) readerGroup.getSegmentNotifier(executor);
         segmentNotifier.registerListener(l1);
 
-        EventRead<String> event1 = reader1.readNextEvent(1000);
+        // Read first event and validate notification.
+        EventRead<String> event1 = reader1.readNextEvent(5000);
         assertEquals("data1", event1.getEvent());
+
+        segmentNotifier.pollNow();
+        SegmentNotification initialSegmentNotification = notificationResults.take();
+        assertNotNull(initialSegmentNotification);
+        assertEquals(1, initialSegmentNotification.getNumOfReaders());
+        assertEquals(1, initialSegmentNotification.getNumOfSegments());
+        
         EventRead<String> emptyEvent = reader1.readNextEvent(0);
         assertNull(emptyEvent.getEvent());
         assertFalse(emptyEvent.isCheckpoint());
         readerGroup.initiateCheckpoint("cp", executor);
         EventRead<String> cpEvent = reader1.readNextEvent(1000);
         assertTrue(cpEvent.isCheckpoint());
+        
+        // Read second event and validate notification.
         EventRead<String> event2 = reader1.readNextEvent(1000);
         assertEquals("data2", event2.getEvent());
         segmentNotifier.pollNow();
-        latch.await(); // await two invocations.
-
-        SegmentNotification initialSegmentNotification = notificationResults.poll();
-        assertNotNull(initialSegmentNotification);
-        assertEquals(1, initialSegmentNotification.getNumOfReaders());
-        assertEquals(1, initialSegmentNotification.getNumOfSegments());
-
-        SegmentNotification segmentNotificationPostScale = notificationResults.poll();
+        SegmentNotification segmentNotificationPostScale = notificationResults.take();
         assertEquals(1, segmentNotificationPostScale.getNumOfReaders());
         assertEquals(2, segmentNotificationPostScale.getNumOfSegments());
     }
@@ -229,11 +230,10 @@ public class ReaderGroupNotificationTest {
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().initialAllocationDelay(0).build());
 
-        final CountDownLatch latch = new CountDownLatch(1);
         //Add segment event listener
         Listener<EndOfDataNotification> l1 = notification -> {
             listenerInvoked.set(true);
-            latch.countDown();
+            listenerLatch.release();
         };
         EndOfDataNotifier endOfDataNotifier = (EndOfDataNotifier) readerGroup.getEndOfDataNotifier(executor);
         endOfDataNotifier.registerListener(l1);
@@ -262,7 +262,7 @@ public class ReaderGroupNotificationTest {
         assertFalse(emptyEvent.isCheckpoint());
 
         endOfDataNotifier.pollNow();
-        latch.await();
+        listenerLatch.await();
         assertTrue("Listener invoked", listenerInvoked.get());
     }
 

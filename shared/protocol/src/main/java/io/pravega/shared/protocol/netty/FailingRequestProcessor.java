@@ -100,6 +100,16 @@ public class FailingRequestProcessor implements RequestProcessor {
     }
 
     @Override
+    public void readTableKeys(WireCommands.ReadTableKeys readTableKeys) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
+    public void readTableEntries(WireCommands.ReadTableEntries readTableEntries) {
+        throw new IllegalStateException("Unexpected operation");
+    }
+
+    @Override
     public void mergeSegments(WireCommands.MergeSegments mergeSegments) {
         throw new IllegalStateException("Unexpected operation");
     }

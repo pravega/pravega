@@ -21,6 +21,7 @@ public interface OperationLogFactory {
      * @param readIndex         A ReadIndex that can be used to store new appends in.
      * @throws NullPointerException     If any of the arguments are null.
      * @throws IllegalArgumentException If the metadata is already in recovery mode.
+     * @return The OperationLog instance.
      */
     OperationLog createDurableLog(UpdateableContainerMetadata containerMetadata, ReadIndex readIndex);
 }
