@@ -97,7 +97,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         zkTestServer.close();
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testScale() throws Exception {
         final String scope = "test";
         final String streamName = "test";
