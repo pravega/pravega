@@ -36,7 +36,6 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +48,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
@@ -844,7 +844,7 @@ public class SegmentHelper {
 
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
-            final WireCommands.TableValue value = new WireCommands.TableValue(ByteBuffer.wrap(te.getValue()));
+            final WireCommands.TableValue value = new WireCommands.TableValue(wrappedBuffer(te.getValue()));
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
@@ -1026,7 +1026,8 @@ public class SegmentHelper {
         };
 
         // the version is always NO_VERSION as read returns the latest version of value.
-        List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(ByteBuffer.wrap(k.getKey()), WireCommands.TableKey.NO_VERSION))
+        List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(wrappedBuffer(k.getKey()),
+                                                                                               WireCommands.TableKey.NO_VERSION))
                                                   .collect(Collectors.toList());
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
@@ -1038,9 +1039,9 @@ public class SegmentHelper {
         WireCommands.TableKey key;
         if (k.getVersion() == null) {
             // unconditional update.
-            key = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey()), WireCommands.TableKey.NO_VERSION);
+            key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), WireCommands.TableKey.NO_VERSION);
         } else {
-            key = new WireCommands.TableKey(ByteBuffer.wrap(k.getKey()), k.getVersion().getSegmentVersion());
+            key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), k.getVersion().getSegmentVersion());
         }
         return key;
     }
