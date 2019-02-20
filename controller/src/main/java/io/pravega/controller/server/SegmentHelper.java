@@ -1054,7 +1054,7 @@ public class SegmentHelper {
      * @param clientCF Client connection factory.
      * @param delegationToken The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
-     * @return An {@link AsyncIterator} that will return the next set of {@link TableKey<>}s returned from the SegmentStore.
+     * @return An {@link AsyncIterator} that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
     public AsyncIterator<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String scope,
                                                                                     final String stream,
@@ -1145,7 +1145,7 @@ public class SegmentHelper {
      * @param clientCF Client connection factory.
      * @param delegationToken The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
-     * @return An {@link AsyncIterator} that will return the next set of {@link TableKey<>}s returned from the SegmentStore.
+     * @return An {@link AsyncIterator} that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
     public AsyncIterator<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> readTableEntries(final String scope,
                                                                                final String stream,

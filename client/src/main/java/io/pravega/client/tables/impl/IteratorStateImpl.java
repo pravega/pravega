@@ -10,14 +10,15 @@
 package io.pravega.client.tables.impl;
 
 import io.netty.buffer.ByteBuf;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 
+/**
+ * Implementation of {@link KeyVersion}.
+ */
 @Data
-@AllArgsConstructor
 public class IteratorStateImpl implements IteratorState {
 
-    private ByteBuf token;
+    private final ByteBuf token;
 
     @Override
     public ByteBuf toBytes() {

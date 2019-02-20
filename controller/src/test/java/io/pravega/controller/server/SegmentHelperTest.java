@@ -47,11 +47,11 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.val;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.common.Exceptions.unwrap;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -61,6 +61,13 @@ import static org.junit.Assert.assertTrue;
 public class SegmentHelperTest {
 
     private SegmentHelper helper;
+    private final byte[] key0 = "k".getBytes();
+    private final byte[] key1 = "k1".getBytes();
+    private final byte[] key2 = "k2".getBytes();
+    private final byte[] key3 = "k3".getBytes();
+    private final byte[] value = "v".getBytes();
+    private final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
+    private final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
 
     @Before
     public void setUp() throws Exception {
@@ -323,17 +330,23 @@ public class SegmentHelperTest {
     @Test
     public void testReadTable() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        List<TableKey<byte[]>> keys = Arrays.asList(new TableKeyImpl<>("k".getBytes(), KeyVersion.NOT_EXISTS),
-                                                    new TableKeyImpl<>("k1".getBytes(), KeyVersion.NOT_EXISTS));
+        List<TableKey<byte[]>> keys = Arrays.asList(new TableKeyImpl<>(key0, KeyVersion.NOT_EXISTS),
+                                                    new TableKeyImpl<>(key1, KeyVersion.NOT_EXISTS));
 
-        List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
+        List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0, new KeyVersionImpl(10L)), value),
+                                                                 new TableEntryImpl<>(new TableKeyImpl<>(key1, new KeyVersionImpl(10L)), value));
 
         // On receiving TableKeysRemoved.
         CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keys, new MockHostControllerStore(),
                                                                                       factory, "", System.nanoTime());
         factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(entries)));
-        assertEquals(entries, result.join());
+        List<TableEntry<byte[], byte[]>> readResult = result.join();
+        assertArrayEquals(key0, readResult.get(0).getKey().getKey());
+        assertEquals(10L, readResult.get(0).getKey().getVersion().getSegmentVersion());
+        assertArrayEquals(value, readResult.get(0).getValue());
+        assertArrayEquals(key1, readResult.get(1).getKey().getKey());
+        assertEquals(10L, readResult.get(1).getKey().getVersion().getSegmentVersion());
+        assertArrayEquals(value, readResult.get(1).getValue());
 
         // On receiving TableKeyDoesNotExist.
         result = helper.readTable("", "", keys, new MockHostControllerStore(), factory, "", System.nanoTime());
@@ -354,14 +367,12 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        final List<TableKey<byte[]>> keys1 = Arrays.asList(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(2L)),
-                                                    new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)));
 
-        final List<TableKey<byte[]>> keys2 = Arrays.asList(new TableKeyImpl<>("k2".getBytes(), new KeyVersionImpl(2L)),
-                                                     new TableKeyImpl<>("k3".getBytes(), new KeyVersionImpl(10L)));
+        final List<TableKey<byte[]>> keys1 = Arrays.asList(new TableKeyImpl<>(key0, new KeyVersionImpl(2L)),
+                                                           new TableKeyImpl<>(key1, new KeyVersionImpl(10L)));
 
-        final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
-        final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
+        final List<TableKey<byte[]>> keys2 = Arrays.asList(new TableKeyImpl<>(key2, new KeyVersionImpl(2L)),
+                                                           new TableKeyImpl<>(key3, new KeyVersionImpl(10L)));
 
         AsyncIterator<TableSegment.IteratorItem<TableKey<byte[]>>> result = helper.readTableKeys("", "", 3,
                                                                                                  new IteratorStateImpl(wrappedBuffer(new byte[0])),
@@ -372,52 +383,89 @@ public class SegmentHelperTest {
         assertFalse(value.isDone());
         factory.rp.tableKeysRead(getTableKeysRead(keys1, token1));
         assertTrue(Futures.await(value));
-        Assert.assertEquals(value.join().getItems(), keys1);
+        // Validate the results.
+        List<TableKey<byte[]>> iterationResult = value.join().getItems();
+        assertArrayEquals(key0, iterationResult.get(0).getKey());
+        assertEquals(2L, iterationResult.get(0).getVersion().getSegmentVersion());
+        assertArrayEquals(key1, iterationResult.get(1).getKey());
+        assertEquals(10L, iterationResult.get(1).getVersion().getSegmentVersion());
         assertArrayEquals(token1.array(), value.join().getState().toBytes().array());
 
+        // fetch the next value
         value = result.getNext();
         assertFalse(value.isDone());
         factory.rp.tableKeysRead(getTableKeysRead(keys2, token2));
         assertTrue(Futures.await(value));
-        assertEquals(value.join().getItems(), keys2);
+        // Validate the results.
+        iterationResult = value.join().getItems();
+        assertArrayEquals(key2, iterationResult.get(0).getKey());
+        assertEquals(2L, iterationResult.get(0).getVersion().getSegmentVersion());
+        assertArrayEquals(key3, iterationResult.get(1).getKey());
+        assertEquals(10L, iterationResult.get(1).getVersion().getSegmentVersion());
         assertArrayEquals(token2.array(), value.join().getState().toBytes().array());
 
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableKeys("", "", 1,
+                                                                                    new IteratorStateImpl(wrappedBuffer(new byte[0])),
+                                                                                   new MockHostControllerStore(),
+                                                                                   factory, "", System.nanoTime()).getNext();
+        validateAuthTokenCheckFailed(factory, futureSupplier);
+        validateWrongHost(factory, futureSupplier);
+        validateConnectionDropped(factory, futureSupplier);
+        validateProcessingFailure(factory, futureSupplier);
+        validateNoSuchSegment(factory, futureSupplier);
     }
 
     @Test
     public void testReadTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        List<TableEntry<byte[], byte[]>> entries1 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(),
-                                                                                                          new KeyVersionImpl(10L)), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
+        List<TableEntry<byte[], byte[]>> entries1 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0,
+                                                                                                          new KeyVersionImpl(10L)), value),
+                                                                  new TableEntryImpl<>(new TableKeyImpl<>(key1, new KeyVersionImpl(10L)),
+                                                                                       value));
 
-        List<TableEntry<byte[], byte[]>> entries2 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k3".getBytes(),
-                                                                                                          new KeyVersionImpl(10L)), "v".getBytes()),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k4".getBytes(),
-                                                                                                         new KeyVersionImpl(10L)), "v".getBytes()));
-
-        final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
-        final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
+        List<TableEntry<byte[], byte[]>> entries2 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key2,
+                                                                                                          new KeyVersionImpl(10L)), value),
+                                                                  new TableEntryImpl<>(new TableKeyImpl<>(key3,
+                                                                                                          new KeyVersionImpl(10L)), value));
 
         AsyncIterator<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = helper.readTableEntries("", "", 3,
                                                                                                               new IteratorStateImpl(wrappedBuffer(new byte[0])),
                                                                                                               new MockHostControllerStore(),
                                                                                                               factory, "", System.nanoTime());
 
-        CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> value = result.getNext();
-        assertFalse(value.isDone());
+        CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> iterationFuture = result.getNext();
+        assertFalse(iterationFuture.isDone());
         factory.rp.tableEntriesRead(getTableEntriesRead(entries1, token1));
-        assertTrue(Futures.await(value));
-        Assert.assertEquals(value.join().getItems(), entries1);
-        assertArrayEquals(token1.array(), value.join().getState().toBytes().array());
+        assertTrue(Futures.await(iterationFuture));
+        List<TableEntry<byte[], byte[]>> iterationResult = iterationFuture.join().getItems();
+        assertArrayEquals(key0, iterationResult.get(0).getKey().getKey());
+        assertEquals(10L, iterationResult.get(0).getKey().getVersion().getSegmentVersion());
+        assertArrayEquals(value, iterationResult.get(0).getValue());
+        assertArrayEquals(key1, iterationResult.get(1).getKey().getKey());
+        assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
+        assertArrayEquals(token1.array(), iterationFuture.join().getState().toBytes().array());
 
-        value = result.getNext();
-        assertFalse(value.isDone());
+        iterationFuture = result.getNext();
+        assertFalse(iterationFuture.isDone());
         factory.rp.tableEntriesRead(getTableEntriesRead(entries2, token2));
-        assertTrue(Futures.await(value));
-        assertEquals(value.join().getItems(), entries2);
-        assertArrayEquals(token2.array(), value.join().getState().toBytes().array());
+        assertTrue(Futures.await(iterationFuture));
+        iterationResult = iterationFuture.join().getItems();
+        assertArrayEquals(key2, iterationResult.get(0).getKey().getKey());
+        assertEquals(10L, iterationResult.get(0).getKey().getVersion().getSegmentVersion());
+        assertArrayEquals(value, iterationResult.get(0).getValue());
+        assertArrayEquals(key3, iterationResult.get(1).getKey().getKey());
+        assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
+        assertArrayEquals(token2.array(), iterationFuture.join().getState().toBytes().array());
 
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableEntries("", "", 1,
+                                                                                      new IteratorStateImpl(wrappedBuffer(new byte[0])),
+                                                                                      new MockHostControllerStore(),
+                                                                                      factory, "", System.nanoTime()).getNext();
+        validateAuthTokenCheckFailed(factory, futureSupplier);
+        validateWrongHost(factory, futureSupplier);
+        validateConnectionDropped(factory, futureSupplier);
+        validateProcessingFailure(factory, futureSupplier);
+        validateNoSuchSegment(factory, futureSupplier);
     }
 
     private WireCommands.TableEntries getTableEntries(List<TableEntry<byte[], byte[]>> entries) {
@@ -444,37 +492,49 @@ public class SegmentHelperTest {
         CompletableFuture<?> future = futureSupplier.get();
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("", future::join,
-                                      ex -> ex instanceof WireCommandFailedException && ex.getCause() instanceof AuthenticationException);
+                                      t -> {
+                                          Throwable ex = unwrap(t);
+                                          return ex instanceof WireCommandFailedException && ex.getCause() instanceof AuthenticationException;
+                                      });
     }
 
     private void validateNoSuchSegment(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
         factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, "segment", "SomeException"));
         AssertExtensions.assertThrows("", future::join,
-                                      ex -> ex instanceof WireCommandFailedException &&
-                                              (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.SegmentDoesNotExist));
+                                      t -> {
+                                          Throwable ex = unwrap(t);
+                                          return ex instanceof WireCommandFailedException &&
+                                                  (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.SegmentDoesNotExist);
+                                      });
     }
 
     private void validateWrongHost(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
         factory.rp.wrongHost(new WireCommands.WrongHost(0, "segment", "correctHost", "SomeException"));
         AssertExtensions.assertThrows("", future::join,
-                                      ex -> ex instanceof WireCommandFailedException &&
-                                              (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.UnknownHost));
+                                      t -> {
+                                          Throwable ex = unwrap(t);
+                                          return ex instanceof WireCommandFailedException &&
+                                                  (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.UnknownHost);
+                                      });
     }
 
     private void validateConnectionDropped(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
         factory.rp.connectionDropped();
         AssertExtensions.assertThrows("", future::join,
-                                      ex -> ex instanceof WireCommandFailedException &&
-                                              (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.ConnectionDropped));
+                                      t -> {
+                                          Throwable ex = unwrap(t);
+                                          return ex instanceof WireCommandFailedException &&
+                                                  (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.ConnectionDropped);
+                                      });
     }
 
     private void validateProcessingFailure(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
         factory.rp.processingFailure(new RuntimeException());
-        AssertExtensions.assertThrows("", future::join, ex -> ex instanceof RuntimeException);
+        AssertExtensions.assertThrows("", future::join, ex -> unwrap(ex) instanceof RuntimeException);
     }
 
     private static class MockHostControllerStore implements HostControllerStore {

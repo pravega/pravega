@@ -18,6 +18,7 @@ public interface IteratorState {
 
     /**
      * Serializes the IteratorState instance to a compact byte array.
+     * @return byte representation..
      */
     ByteBuf toBytes();
 
