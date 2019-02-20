@@ -9,6 +9,25 @@
  */
 package io.pravega.client.stream.notifications;
 
+import io.pravega.client.state.StateSynchronizer;
+import io.pravega.client.stream.impl.ReaderGroupState;
+import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import java.util.HashSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
+
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -18,28 +37,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import java.util.HashSet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.Spy;
-import org.mockito.junit.MockitoJUnitRunner;
-
-import io.pravega.client.state.StateSynchronizer;
-import io.pravega.client.stream.impl.ReaderGroupState;
-import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
-import io.pravega.test.common.InlineExecutor;
-import lombok.extern.slf4j.Slf4j;
-
 @RunWith(MockitoJUnitRunner.class)
 @Slf4j
 public class SegmentNotifierTest {
@@ -47,7 +44,7 @@ public class SegmentNotifierTest {
     @Spy
     private NotificationSystem system = new NotificationSystem();
     @Spy
-    private ScheduledExecutorService executor = new InlineExecutor();
+    private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "SegmentNotifierTest");
     @Mock
     private StateSynchronizer<ReaderGroupState> sync;
     @Mock
@@ -58,7 +55,7 @@ public class SegmentNotifierTest {
         System.setProperty("pravega.client.segmentNotification.poll.interval.seconds", String.valueOf(1));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void segmentNotifierTest() throws Exception {
         AtomicBoolean listenerInvoked = new AtomicBoolean();
         CountDownLatch latch = new CountDownLatch(2);
