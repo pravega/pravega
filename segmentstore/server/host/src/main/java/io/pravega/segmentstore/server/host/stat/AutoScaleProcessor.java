@@ -226,15 +226,15 @@ public class AutoScaleProcessor implements AutoCloseable {
     private void writeRequest(AutoScaleEvent event, Runnable successCallback) {
         val writer = this.writer.get();
         if (writer == null) {
-            log.warn("Writer not bootstrapped; unable to post Scale Event ''.", event);
+            log.warn(event.getRequestId(), "Writer not bootstrapped; unable to post Scale Event {}.", event);
         } else {
             writer.writeEvent(event.getKey(), event)
                     .whenComplete((r, e) -> {
                         if (e != null) {
-                            log.error(event.getTimestamp(), "Unable to post Scale Event to RequestStream '{}'.",
+                            log.error(event.getRequestId(), "Unable to post Scale Event to RequestStream '{}'.",
                                     this.configuration.getInternalRequestStream(), e);
                         } else {
-                            log.debug(event.getTimestamp(), "Scale Event posted successfully: ", event);
+                            log.debug(event.getRequestId(), "Scale Event posted successfully: {}.", event);
                             successCallback.run();
                         }
                     });
