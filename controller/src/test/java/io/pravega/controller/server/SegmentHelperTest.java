@@ -9,18 +9,22 @@
  */
 package io.pravega.controller.server;
 
+import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.KeyVersion;
 import io.pravega.client.tables.impl.KeyVersionImpl;
 import io.pravega.client.tables.impl.TableEntry;
 import io.pravega.client.tables.impl.TableEntryImpl;
 import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
+import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.Append;
@@ -43,12 +47,14 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.val;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SegmentHelperTest {
@@ -322,16 +328,10 @@ public class SegmentHelperTest {
         List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()),
                                                                  new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
 
-        WireCommands.TableEntries resultData = new WireCommands.TableEntries(entries.stream().map(e -> {
-            val k = new WireCommands.TableKey(wrappedBuffer(e.getKey().getKey()), e.getKey().getVersion().getSegmentVersion());
-            val v = new WireCommands.TableValue(wrappedBuffer(e.getValue()));
-            return new AbstractMap.SimpleImmutableEntry<>(k, v);
-        }).collect(Collectors.toList()));
-
         // On receiving TableKeysRemoved.
         CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keys, new MockHostControllerStore(),
                                                                                       factory, "", System.nanoTime());
-        factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), resultData));
+        factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(entries)));
         assertEquals(entries, result.join());
 
         // On receiving TableKeyDoesNotExist.
@@ -348,6 +348,95 @@ public class SegmentHelperTest {
         validateConnectionDropped(factory, futureSupplier);
         validateProcessingFailure(factory, futureSupplier);
         validateNoSuchSegment(factory, futureSupplier);
+    }
+
+    @Test
+    public void testReadTableKeys() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        final List<TableKey<byte[]>> keys1 = Arrays.asList(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(2L)),
+                                                    new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)));
+
+        final List<TableKey<byte[]>> keys2 = Arrays.asList(new TableKeyImpl<>("k2".getBytes(), new KeyVersionImpl(2L)),
+                                                     new TableKeyImpl<>("k3".getBytes(), new KeyVersionImpl(10L)));
+
+        final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
+        final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
+
+        AsyncIterator<TableSegment.IteratorItem<TableKey<byte[]>>> result = helper.readTableKeys("", "", 3,
+                                                                                                 new IteratorStateImpl(wrappedBuffer(new byte[0])),
+                                                                                                 new MockHostControllerStore(),
+                                                                                                 factory, "", System.nanoTime());
+
+        CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> value = result.getNext();
+        assertFalse(value.isDone());
+        factory.rp.tableKeysRead(getTableKeysRead(keys1, token1));
+        assertTrue(Futures.await(value));
+        Assert.assertEquals(value.join().getItems(), keys1);
+        assertEquals(token1.array(), value.join().getState().toBytes().array());
+
+        value = result.getNext();
+        assertFalse(value.isDone());
+        factory.rp.tableKeysRead(getTableKeysRead(keys2, token2));
+        assertTrue(Futures.await(value));
+        assertEquals(value.join().getItems(), keys2);
+        assertEquals(token2, value.join().getState().toBytes());
+
+    }
+
+    @Test
+    public void testReadTableEntries() {
+        MockConnectionFactory factory = new MockConnectionFactory();
+        List<TableEntry<byte[], byte[]>> entries1 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(),
+                                                                                                          new KeyVersionImpl(10L)), "v".getBytes()),
+                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
+
+        List<TableEntry<byte[], byte[]>> entries2 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k3".getBytes(),
+                                                                                                          new KeyVersionImpl(10L)), "v".getBytes()),
+                                                                 new TableEntryImpl<>(new TableKeyImpl<>("k4".getBytes(),
+                                                                                                         new KeyVersionImpl(10L)), "v".getBytes()));
+
+        final ByteBuf token1 = wrappedBuffer(new byte[]{0x01});
+        final ByteBuf token2 = wrappedBuffer(new byte[]{0x02});
+
+        AsyncIterator<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = helper.readTableEntries("", "", 3,
+                                                                                                              new IteratorStateImpl(wrappedBuffer(new byte[0])),
+                                                                                                              new MockHostControllerStore(),
+                                                                                                              factory, "", System.nanoTime());
+
+        CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> value = result.getNext();
+        assertFalse(value.isDone());
+        factory.rp.tableEntriesRead(getTableEntriesRead(entries1, token1));
+        assertTrue(Futures.await(value));
+        Assert.assertEquals(value.join().getItems(), entries1);
+        assertEquals(token1.array(), value.join().getState().toBytes().array());
+
+        value = result.getNext();
+        assertFalse(value.isDone());
+        factory.rp.tableEntriesRead(getTableEntriesRead(entries2, token2));
+        assertTrue(Futures.await(value));
+        assertEquals(value.join().getItems(), entries2);
+        assertEquals(token2, value.join().getState().toBytes());
+
+    }
+
+    private WireCommands.TableEntries getTableEntries(List<TableEntry<byte[], byte[]>> entries) {
+        return new WireCommands.TableEntries(entries.stream().map(e -> {
+            val k = new WireCommands.TableKey(wrappedBuffer(e.getKey().getKey()), e.getKey().getVersion().getSegmentVersion());
+            val v = new WireCommands.TableValue(wrappedBuffer(e.getValue()));
+            return new AbstractMap.SimpleImmutableEntry<>(k, v);
+        }).collect(Collectors.toList()));
+    }
+
+    private WireCommands.TableKeysRead getTableKeysRead(List<TableKey<byte[]>> keys, ByteBuf continuationToken) {
+        return new WireCommands.TableKeysRead(0L, getQualifiedStreamSegmentName("", "", 0L),
+                                              keys.stream().map(e -> new WireCommands.TableKey(wrappedBuffer(e.getKey()), e.getVersion().getSegmentVersion()))
+                                                  .collect(Collectors.toList()),
+                                              continuationToken);
+    }
+
+    private WireCommands.TableEntriesRead getTableEntriesRead(List<TableEntry<byte[], byte[]>> entries, ByteBuf continuationToken) {
+        return new WireCommands.TableEntriesRead(0L, getQualifiedStreamSegmentName("", "", 0L),
+                                                 getTableEntries(entries), continuationToken);
     }
 
     private void validateAuthTokenCheckFailed(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
