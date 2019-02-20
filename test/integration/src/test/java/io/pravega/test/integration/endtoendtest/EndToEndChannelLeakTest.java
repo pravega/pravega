@@ -13,11 +13,13 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
+import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
@@ -40,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -51,6 +54,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -120,8 +124,12 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
-        groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().
-                stream(Stream.of(SCOPE, STREAM_NAME)).build());
+        groupManager.createReaderGroup(READER_GROUP,
+                                       ReaderGroupConfig.builder()
+                                                        .disableAutomaticCheckpoints()
+                                                        .groupRefreshTimeMillis(0)
+                                                        .stream(Stream.of(SCOPE, STREAM_NAME))
+                                                        .build());
 
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, new JavaSerializer<>(),
@@ -131,7 +139,6 @@ public class EndToEndChannelLeakTest {
 
         //Read an event.
         EventRead<String> event = reader1.readNextEvent(10000);
-        assertNotNull(event);
         assertEquals("zero", event.getEvent());
 
         // scale
@@ -142,7 +149,17 @@ public class EndToEndChannelLeakTest {
         map.put(0.66, 1.0);
         Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
+        
+        event = reader1.readNextEvent(0);
+        assertNull(event.getEvent());
 
+        @Cleanup
+        ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
+        readerGroup.initiateCheckpoint("cp", executor);
+        
+        event = reader1.readNextEvent(5000);
+        assertEquals("cp", event.getCheckpointName());
+        
         //Write more events.
         writer.writeEvent("0", "one").get();
         writer.writeEvent("0", "two").get();
@@ -152,18 +169,28 @@ public class EndToEndChannelLeakTest {
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
-        //Number of sockets will increase by 2 ( +3 for the new segments -1 since the older segment is sealed).
-        assertEventuallyEquals(channelCount + 2, () -> connectionFactory.getActiveChannelCount());
+        //Number of sockets will increase by 3 for the new segments.
+        channelCount += 3;
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
         //no changes to socket count.
-        assertEventuallyEquals(channelCount + 2, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
         //no changes to socket count.
-        assertEventuallyEquals(channelCount + 2, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
+        
+        reader1.close();
+        //3 from segements 4 from group state.
+        channelCount -= 7;
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
+        readerGroup.close();
+        groupManager.close();
+        writer.close();
+        assertEventuallyEquals(0, () -> connectionFactory.getActiveChannelCount());
     }
 
     @Test(timeout = 30000)
@@ -208,11 +235,12 @@ public class EndToEndChannelLeakTest {
         //reader creates a new connection to the segment 0;
         expectedChannelCount += 1;
 
-        assertNotNull(event);
         assertEquals("zero", event.getEvent());
         //+1 socket to segment 0 of the stream.
         assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
-
+        event = reader1.readNextEvent(0);
+        assertNull(event.getEvent());
+        
         // scale
         Stream stream = new StreamImpl(SCOPE, STREAM_NAME);
         Map<Double, Double> map = new HashMap<>();
@@ -222,8 +250,46 @@ public class EndToEndChannelLeakTest {
         Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
         //No changes to the channel count.
+        assertEquals(expectedChannelCount, connectionFactory.getActiveChannelCount());
+        
+        event = reader1.readNextEvent(0);
+        assertNull(event.getEvent());
+        event = reader1.readNextEvent(0);
+        assertNull(event.getEvent());
+        //should decrease channel count from close connection
+        expectedChannelCount -= 1;
         assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
 
+        ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
+        CompletableFuture<Checkpoint> future = readerGroup.initiateCheckpoint("cp1", executor);
+        //4 more from the state synchronizer
+        expectedChannelCount += 4;
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        event = reader1.readNextEvent(5000);
+        assertEquals("cp1", event.getCheckpointName());
+
+        //Add a new reader
+        @Cleanup
+        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", READER_GROUP, serializer,
+                ReaderConfig.builder().build());
+        //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
+        expectedChannelCount += 4;
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+             
+        event = reader1.readNextEvent(0);
+        assertNull(event.getEvent());
+        future.join();
+        
+        //2 new connections are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
+        // -1 connection to segment 0 which is sealed.)
+        expectedChannelCount += 2;
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        
+        //Checkpoint should close connections back down
+        readerGroup.close();
+        expectedChannelCount -= 4;
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        
         //Write more events.
         writer.writeEvent("1", "one").get();
         writer.writeEvent("2", "two").get();
@@ -232,24 +298,9 @@ public class EndToEndChannelLeakTest {
         writer.writeEvent("5", "five").get();
         writer.writeEvent("6", "six").get();
 
-        //2 new connections are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
-        // -1 connection to segment 0 which is sealed.)
-        expectedChannelCount += 2;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
-
-        //Add a new reader
-        @Cleanup
-        EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", READER_GROUP, serializer,
-                ReaderConfig.builder().build());
-        //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
-        expectedChannelCount += 4;
-
-        event = reader1.readNextEvent(10000);
-        assertNotNull(event.getEvent());
-
         //+1 connection (-1 since segment 0 of stream is sealed + 2 connections to two segments of stream (there are
         // 2 readers and 3 segments and the reader1 will be assigned 2 segments))
-        expectedChannelCount += 1;
+        expectedChannelCount += 2;
         assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
 
         event = reader2.readNextEvent(10000);
