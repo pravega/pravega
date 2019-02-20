@@ -169,6 +169,7 @@ public class ReaderGroupStateManager {
             } else {
                 log.debug("Marking segment {} as completed in reader group. CurrentState is: {}", segmentCompleted, state);
                 reinitRequired.set(false);
+                //This check guards against another checkpoint having started.
                 if (state.getCheckpointForReader(readerId) == null) {
                     updates.add(new SegmentCompleted(readerId, segmentCompleted, segmentToPredecessor));
                     return true;

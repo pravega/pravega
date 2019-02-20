@@ -16,10 +16,17 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A position has ownedSegments -- segments that can be read currently. Each ownedSegment also has an offset indicating the
- * point until which events have been read from that segment. Completely read segments have offset of -1.
+ * A position has ownedSegments -- segments that can be read currently (or have been completed and
+ * not yet replaced).
+ * 
+ * A Position obtained at at any given point will return a segment for all of the keyspace owned by
+ * the reader.
+ * 
+ * Each ownedSegment also has an offset indicating the point until which events have been read from
+ * that segment. Completely read segments have offset of -1.
  * <p>
- * Well-formed position object. A position is called well-formed iff each segment s in ownedSegment, s.previous does not belongs to ownedSegments
+ * Well-formed position object. A position is called well-formed iff each segment s in ownedSegment,
+ * s.previous does not belongs to ownedSegments.
  */
 public abstract class PositionInternal implements Position {
 
