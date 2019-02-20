@@ -60,6 +60,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
+    private static final String ID_PATH = STREAM_PATH + "/id";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
 
@@ -75,6 +76,7 @@ class ZKStream extends PersistentStreamBase {
     private final String waitingRequestProcessorPath;
     private final String activeTxRoot;
     private final String markerPath;
+    private final String idPath;
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
@@ -122,6 +124,7 @@ class ZKStream extends PersistentStreamBase {
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
+        idPath = String.format(ID_PATH, scopeName, streamName);
         currentEpochRecordPath = String.format(CURRENT_EPOCH_RECORD, scopeName, streamName);
         epochRecordPathFormat = String.format(EPOCH_RECORD, scopeName, streamName) + "/%d";
         historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERES_CHUNK_PATH, scopeName, streamName) + "/%d";
@@ -621,5 +624,17 @@ class ZKStream extends PersistentStreamBase {
 
     private String getEpochPath(final int epoch) {
         return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
+    }
+
+    CompletableFuture<Void> createStreamIdIfAbsent(int id) {
+        byte[] b = new byte[Integer.BYTES];
+        BitConverter.writeInt(b, 0, id);
+
+        return Futures.toVoid(store.createZNodeIfNotExist(idPath, b));
+    }
+    
+    CompletableFuture<Integer> getStreamId() {
+        return store.getData(idPath)
+                .thenApply(data -> BitConverter.readInt(data.getData(), 0));
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Strings;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
@@ -17,6 +18,7 @@ import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -31,15 +33,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.store.stream.ZKStreamMetadataStore.COUNTER_PATH;
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -176,6 +176,87 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals("List streams in scope", 2, streamInScope.size());
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
         assertTrue("List streams in scope", streamInScope.containsKey(stream2));
+    }
+
+    @Test
+    public void listStreamsInScopes() throws Exception {
+        // list stream in scope
+        String scope = "scopeList";
+        ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) store);
+        
+        store.createScope(scope).get();
+
+        LinkedBlockingQueue<Integer> nextPositionList = new LinkedBlockingQueue<>();
+        nextPositionList.put(0);
+        nextPositionList.put(2);
+        nextPositionList.put(10000);
+        nextPositionList.put((int) Math.pow(10, 8));
+        ZKScope myScope = spy((ZKScope) zkStore.getScope(scope));
+        doAnswer(x -> CompletableFuture.completedFuture(nextPositionList.poll())).when(myScope).getNextStreamPosition();
+        doAnswer(x -> myScope).when(zkStore).getScope(scope);
+        
+        String stream1 = "stream1";
+        String stream2 = "stream2";
+        String stream3 = "stream3";
+        String stream4 = "stream4";
+
+        // add three streams and then list them. We should get 2 + 1 + 0
+        zkStore.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream1, State.ACTIVE, null, executor).get();
+        zkStore.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream2, State.ACTIVE, null, executor).get();
+        zkStore.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream3, State.ACTIVE, null, executor).get();
+        
+        Pair<List<String>, String> streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream1));
+        assertTrue(streamInScope.getKey().contains(stream2));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream3));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 0, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        // add 4th stream
+        zkStore.createStream(scope, stream4, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream4, State.ACTIVE, null, executor).get();
+
+        // list on previous token we should get 1 entry
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream4));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        // delete stream 1
+        store.deleteStream(scope, stream1, null, executor).join();
+
+        // start listing with empty/default continuation token
+        streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream2));
+        assertTrue(streamInScope.getKey().contains(stream3));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream4));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        // delete stream 3
+        store.deleteStream(scope, stream3, null, executor).join();
+        
+        // start listing with empty/default continuation token
+        streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream2));
+        assertTrue(streamInScope.getKey().contains(stream4));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
 
     @Test

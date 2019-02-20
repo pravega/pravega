@@ -10,14 +10,16 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.util.HashMap;
 import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -30,7 +32,8 @@ public class InMemoryScope implements Scope {
     private final String scopeName;
 
     @GuardedBy("$lock")
-    private SortedSet<String> sortedStreamsInScope;
+    private TreeMap<Integer, String> sortedStreamsInScope;
+    private HashMap<String, Integer> streamsPositionMap;
 
     InMemoryScope(String scopeName) {
         this.scopeName = scopeName;
@@ -44,7 +47,8 @@ public class InMemoryScope implements Scope {
     @Override
     @Synchronized
     public CompletableFuture<Void> createScope() {
-        this.sortedStreamsInScope = new TreeSet<>(Scope::compareStreamInScope);
+        this.sortedStreamsInScope = new TreeMap<>(Integer::compare);
+        this.streamsPositionMap = new HashMap<>();
         return CompletableFuture.completedFuture(null);
     }
 
@@ -55,53 +59,56 @@ public class InMemoryScope implements Scope {
         return CompletableFuture.completedFuture(null);
     }
 
-    @Override
     @Synchronized
-    public CompletableFuture<Void> addStreamToScope(String stream, long creationTime) {
-        sortedStreamsInScope.add(Scope.encodeStreamInScope(stream, creationTime));
-        
+    public CompletableFuture<Void> addStreamToScope(String stream) {
+        int next = streamsPositionMap.size();
+        streamsPositionMap.putIfAbsent(stream, next);
+        Integer position = streamsPositionMap.get(stream);
+        sortedStreamsInScope.put(position, stream);
+
         return CompletableFuture.completedFuture(null);
     }
 
-    @Override
     @Synchronized
-    public CompletableFuture<Void> removeStreamFromScope(String stream, long creationTime) {
-        this.sortedStreamsInScope.remove(Scope.encodeStreamInScope(stream, creationTime));
+    public CompletableFuture<Void> removeStreamFromScope(String stream) {
+        Integer position = streamsPositionMap.get(stream);
+        if (position != null) {
+            this.sortedStreamsInScope.remove(position);
+            this.streamsPositionMap.remove(stream);
+        }
+
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     @Synchronized
     public CompletableFuture<List<String>> listStreamsInScope() {
-        return CompletableFuture.completedFuture(this.sortedStreamsInScope.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList()));
+        return CompletableFuture.completedFuture(Lists.newArrayList(this.sortedStreamsInScope.values()));
     }
-    
+
     @Override
     @Synchronized
     public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(int limit, String continuationToken, Executor executor) {
         String newContinuationToken;
-        List<String> limited;
+        List<Map.Entry<Integer, String>> limited;
         synchronized (this) {
             if (Strings.isNullOrEmpty(continuationToken)) {
-                limited = sortedStreamsInScope.stream().limit(limit).collect(Collectors.toList());
+                limited = sortedStreamsInScope.entrySet().stream().limit(limit).collect(Collectors.toList());
             } else {
-                // find in list based on time
-                limited = sortedStreamsInScope.tailSet(continuationToken)
+                int lastPos = Strings.isNullOrEmpty(continuationToken) ? 0 : Integer.parseInt(continuationToken);
+                limited = sortedStreamsInScope.tailMap(lastPos, false).entrySet()
                                               .stream().limit(limit).collect(Collectors.toList());
-                if (!limited.isEmpty() && limited.get(0).equals(continuationToken)) {
-                    limited.remove(0);
-                }
             }
-            
+
             if (limited.isEmpty()) {
                 newContinuationToken = continuationToken;
             } else {
-                newContinuationToken = limited.get(limited.size() - 1);      
+                newContinuationToken = limited.get(limited.size() - 1).getKey().toString();
             }
         }
 
-        List<String> result = limited.stream().map(x -> Scope.decodeStreamInScope(x).getKey()).collect(Collectors.toList());
-        
+        List<String> result = limited.stream().map(Map.Entry::getValue).collect(Collectors.toList());
+
         return CompletableFuture.completedFuture(new ImmutablePair<>(result, newContinuationToken));
     }
 
