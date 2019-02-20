@@ -294,9 +294,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         ZKScope zkScope = (ZKScope) getScope(scope);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
         return Futures.exceptionallyExpecting(zkStream.getStreamId()
-                .thenCompose(id -> zkScope.removeStreamFromScope(name, id))
-                .thenCompose(v -> super.deleteStream(scope, name, context, executor)), 
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null); 
+                .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                .thenCompose(v -> super.deleteStream(scope, name, context, executor)); 
                 
     }
 
