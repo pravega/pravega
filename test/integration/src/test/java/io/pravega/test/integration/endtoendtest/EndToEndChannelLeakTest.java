@@ -41,7 +41,6 @@ import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -52,6 +51,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -171,26 +171,26 @@ public class EndToEndChannelLeakTest {
         assertNotNull(event.getEvent());
         //Number of sockets will increase by 3 for the new segments.
         channelCount += 3;
-        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
         //no changes to socket count.
-        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
         //no changes to socket count.
-        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         
         reader1.close();
         //3 from segements 4 from group state.
         channelCount -= 7;
-        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(channelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         readerGroup.close();
         groupManager.close();
         writer.close();
-        assertEventuallyEquals(0, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(0, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
     }
 
     @Test(timeout = 30000)
@@ -206,7 +206,7 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         int expectedChannelCount = 0; // open socket count.
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         
         //Create a writer and write an event.
         @Cleanup
@@ -215,12 +215,12 @@ public class EndToEndChannelLeakTest {
         writer.writeEvent("0", "zero").get();
 
         expectedChannelCount += 1; // connection to segment 0.
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
                 connectionFactory);
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount()); // no changes expected.
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT); // no changes expected.
       
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM_NAME)).build());
@@ -237,7 +237,7 @@ public class EndToEndChannelLeakTest {
 
         assertEquals("zero", event.getEvent());
         //+1 socket to segment 0 of the stream.
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         event = reader1.readNextEvent(0);
         assertNull(event.getEvent());
         
@@ -258,13 +258,13 @@ public class EndToEndChannelLeakTest {
         assertNull(event.getEvent());
         //should decrease channel count from close connection
         expectedChannelCount -= 1;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
 
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
         CompletableFuture<Checkpoint> future = readerGroup.initiateCheckpoint("cp1", executor);
         //4 more from the state synchronizer
         expectedChannelCount += 4;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         event = reader1.readNextEvent(5000);
         assertEquals("cp1", event.getCheckpointName());
 
@@ -274,7 +274,7 @@ public class EndToEndChannelLeakTest {
                 ReaderConfig.builder().build());
         //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
         expectedChannelCount += 4;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
              
         event = reader1.readNextEvent(0);
         assertNull(event.getEvent());
@@ -283,12 +283,12 @@ public class EndToEndChannelLeakTest {
         //2 new connections are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
         // -1 connection to segment 0 which is sealed.)
         expectedChannelCount += 2;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         
         //Checkpoint should close connections back down
         readerGroup.close();
         expectedChannelCount -= 4;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
         
         //Write more events.
         writer.writeEvent("1", "one").get();
@@ -301,24 +301,15 @@ public class EndToEndChannelLeakTest {
         //+1 connection (-1 since segment 0 of stream is sealed + 2 connections to two segments of stream (there are
         // 2 readers and 3 segments and the reader1 will be assigned 2 segments))
         expectedChannelCount += 2;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
 
         event = reader2.readNextEvent(10000);
         assertNotNull(event.getEvent());
 
         //+1 connection (a new connection to the remaining stream segment)
         expectedChannelCount += 1;
-        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount());
+        assertEventuallyEquals(expectedChannelCount, () -> connectionFactory.getActiveChannelCount(), ASSERT_TIMEOUT);
     }
     
-    private void assertEventuallyEquals(int expected, Callable<Integer> eval) throws Exception {
-        long endTime = System.currentTimeMillis() + ASSERT_TIMEOUT;
-        while (endTime > System.currentTimeMillis()) {
-            if (expected == eval.call()) {
-                return;
-            }
-            Thread.sleep(10);
-        }
-        assertEquals(expected, eval.call().intValue());
-    }
+
 }
