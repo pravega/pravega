@@ -55,4 +55,25 @@ public class MetricsNamesTest {
         assertEquals("write_latency", keys.getRegistryKey());
     }
 
+    @Test (expected = IllegalArgumentException.class)
+    public void testMetricKeyWithTagNameOnly() {
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", MetricsNames.COUNTER_SUFFIX, "tagName");
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void testMetricKeyWithOddNumber() {
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", MetricsNames.COUNTER_SUFFIX, "tag1", "value1", "tag2");
+    }
+
+    @Test
+    public void testMetricKeyWithSingleNull() {
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", MetricsNames.COUNTER_SUFFIX, null);
+        assertEquals("metric.Counter", keys.getCacheKey());
+        assertEquals("metric.Counter", keys.getRegistryKey());
+    }
+
+    @Test  (expected = IllegalArgumentException.class)
+    public void testMetricKeyWithDoubleNull() {
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", MetricsNames.COUNTER_SUFFIX, null, null);
+    }
 }

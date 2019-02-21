@@ -39,9 +39,9 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         this.successName = baseName + "." + statName;
         this.failName = baseName + "." + failMetricName(statName);
         //This will publish additional percentile metrics
-        this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
+        this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
                 .register(this.meterRegistry);
-        this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
+        this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
                 .register(this.meterRegistry);
     }
 
@@ -102,11 +102,12 @@ class OpStatsLoggerImpl implements OpStatsLogger {
         EnumMap<OpStatsData.Percentile, Long> percentileLongMap  =
                 new EnumMap<>(OpStatsData.Percentile.class);
 
-        //Snapshot percentileValues and sequence must match OpStatsData.PERCENTILEARRAY by definition
-        assert OpStatsData.PERCENTILEARRAY.length == snapshot.percentileValues().length;
-        int index = 0;
-        for (OpStatsData.Percentile percent : OpStatsData.PERCENTILESET) {
-            percentileLongMap.put(percent, (long) snapshot.percentileValues()[index++].value());
+        //Only add entries into percentile map when percentile values are not missing from snapshot.
+        if (OpStatsData.PERCENTILE_ARRAY.length == snapshot.percentileValues().length) {
+            int index = 0;
+            for (OpStatsData.Percentile percent : OpStatsData.PERCENTILE_SET) {
+                percentileLongMap.put(percent, (long) snapshot.percentileValues()[index++].value());
+            }
         }
         return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, percentileLongMap);
     }
