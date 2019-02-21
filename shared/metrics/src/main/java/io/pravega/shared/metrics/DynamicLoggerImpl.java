@@ -166,7 +166,9 @@ public class DynamicLoggerImpl implements DynamicLogger {
     public void freezeGaugeValue(String name, String... tags) {
         String gaugeName = nameFromTags(name, tags) + ".Gauge";
         Gauge gauge = gaugesCache.getIfPresent(gaugeName);
-        metrics.remove(gauge.getId());
+        if (gauge != null) {
+            metrics.remove(gauge.getId());
+        }
         gaugesCache.invalidate(gaugeName);
     }
 
