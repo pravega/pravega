@@ -51,6 +51,7 @@ package io.pravega.shared;
 
 import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
+import lombok.Getter;
 
 public final class MetricsNames {
     // Metrics in Segment Store Service
@@ -184,6 +185,11 @@ public final class MetricsNames {
     public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Per-stream Counter
     public static final String TRUNCATED_SIZE = "controller.retention.truncated_size";   // Per-stream Gauge
 
+    // Metric Type Suffix
+    public static final String COUNTER_SUFFIX = ".Counter";
+    public static final String GAUGE_SUFFIX = ".Gauge";
+    public static final String METER_SUFFIX = ".Meter";
+
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
     }
@@ -249,25 +255,51 @@ public final class MetricsNames {
     }
 
     /**
-     * Generate a dot separated combination of metric name and tag value[s].
-     * e.g. metric "pravega.segmentstore.container.append_count" with tag "container=6" will get:
-     * "pravega.segmentstore.container.append_count.6".
+     * Generate MetricKey holds cache lookup key and metric registry key.
+     *
+     * e.g.
+     * for flat metric name "append_count.6" (without tag), its cache key is:
+     *   "append_count.6.Counter", and its registry key is "append_count.6.Counter".
+     * for metric name "append_count" with tag "container=6", the cache key is:
+     *   "append_count.6.Counter", but the registry key is "append_count".
      *
      * @param metric the metric name.
+     * @param typeSuffix the metric type suffix, e.g. ".Counter", ".Gauge", ".Meter"
      * @param tags the tag(s) associated with the metric.
-     * @return the dot separated combination of metric name and tag value(s).
+     * @return the MetricKey object which holds both cache lookup key and metric registry key.
      */
-    public static String nameFromTags(String metric, String... tags) {
-        if (tags == null || tags.length == 0) {
-            return metric;
-        }
-        if (tags.length % 2 == 1) {
-            throw new IllegalArgumentException("tags size must be even, it is a set of key=value pairs");
-        }
+    public static MetricKey metricKey(String metric, String typeSuffix, String... tags) {
+
         StringBuilder sb = new StringBuilder(metric);
-        for (int i = 0; i < tags.length; i += 2) {
-            sb.append('.').append(tags[i + 1]);
+        if (tags == null || tags.length == 0) {  //no tags: append suffix to form cache & registry key
+            sb.append(typeSuffix);
+            String key = sb.toString();
+            return new MetricKey(key, key);
+        } else { //tags: append tag values and suffix to form cache key, original name is registry key
+            if (tags.length % 2 == 1) {
+                throw new IllegalArgumentException("tags size must be even, it is a set of key=value pairs");
+            }
+            for (int i = 0; i < tags.length; i += 2) {
+                sb.append('.').append(tags[i + 1]);
+            }
+            sb.append(typeSuffix);
+            return new MetricKey(escapeSpecialChar(sb.toString()), metric);
         }
-        return escapeSpecialChar(sb.toString());
+    }
+
+    /**
+     * MetricKey is a place holder to hold metric cache lookup key and registry key.
+     * This class is provided to keep the metric name convention backwards compatible.
+     *
+     */
+    public static class MetricKey {
+        @Getter
+        final private String cacheKey;
+        @Getter
+        final private String registryKey;
+        public MetricKey(String cacheKey, String registryKey) {
+            this.cacheKey = cacheKey;
+            this.registryKey = registryKey;
+        }
     }
 }

@@ -17,19 +17,42 @@ import static org.junit.Assert.assertEquals;
 @Slf4j
 public class MetricsNamesTest {
 
-  @Test
-  public void testFailMetricName() {
+    @Test
+    public void testFailMetricName() {
 
-    assertEquals(null, MetricsNames.failMetricName(null));
-    assertEquals("", MetricsNames.failMetricName(""));
-    assertEquals("tag_fail", MetricsNames.failMetricName("tag"));
-    assertEquals("0_fail", MetricsNames.failMetricName("0"));
-    assertEquals("tag1_fail", MetricsNames.failMetricName("tag1"));
-    assertEquals("tag.tag_fail", MetricsNames.failMetricName("tag.tag"));
-    assertEquals("tag_fail.1", MetricsNames.failMetricName("tag.1"));
-    assertEquals("tag.tag1_fail", MetricsNames.failMetricName("tag.tag1"));
-    assertEquals("tag1.tag2.tag3_fail", MetricsNames.failMetricName("tag1.tag2.tag3"));
-    assertEquals("tag1.tag2_fail.3", MetricsNames.failMetricName("tag1.tag2.3"));
-  }
+        assertEquals(null, MetricsNames.failMetricName(null));
+        assertEquals("", MetricsNames.failMetricName(""));
+        assertEquals("tag_fail", MetricsNames.failMetricName("tag"));
+        assertEquals("0_fail", MetricsNames.failMetricName("0"));
+        assertEquals("tag1_fail", MetricsNames.failMetricName("tag1"));
+        assertEquals("tag.tag_fail", MetricsNames.failMetricName("tag.tag"));
+        assertEquals("tag_fail.1", MetricsNames.failMetricName("tag.1"));
+        assertEquals("tag.tag1_fail", MetricsNames.failMetricName("tag.tag1"));
+        assertEquals("tag1.tag2.tag3_fail", MetricsNames.failMetricName("tag1.tag2.tag3"));
+        assertEquals("tag1.tag2_fail.3", MetricsNames.failMetricName("tag1.tag2.3"));
+    }
+
+    @Test
+    public void testMetricKey() {
+        MetricsNames.MetricKey keys = MetricsNames.metricKey("append_count.6", MetricsNames.COUNTER_SUFFIX);
+        assertEquals("append_count.6.Counter", keys.getCacheKey());
+        assertEquals("append_count.6.Counter", keys.getRegistryKey());
+
+        keys = MetricsNames.metricKey("append_count", MetricsNames.COUNTER_SUFFIX, "container", "7");
+        assertEquals("append_count.7.Counter", keys.getCacheKey());
+        assertEquals("append_count", keys.getRegistryKey());
+
+        keys = MetricsNames.metricKey("queue_size", MetricsNames.GAUGE_SUFFIX, "container", "8", "hostname", "localhost");
+        assertEquals("queue_size.8.localhost.Gauge", keys.getCacheKey());
+        assertEquals("queue_size", keys.getRegistryKey());
+
+        keys = MetricsNames.metricKey("write_latency.9", MetricsNames.METER_SUFFIX);
+        assertEquals("write_latency.9.Meter", keys.getCacheKey());
+        assertEquals("write_latency.9.Meter", keys.getRegistryKey());
+
+        keys = MetricsNames.metricKey("write_latency", MetricsNames.METER_SUFFIX, "container", "9");
+        assertEquals("write_latency.9.Meter", keys.getCacheKey());
+        assertEquals("write_latency", keys.getRegistryKey());
+    }
 
 }
