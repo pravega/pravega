@@ -51,12 +51,11 @@ public class PravegaTablesStoreHelper {
         return Futures.toVoid(runOnExecutorWithExceptionHandling(() -> segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID),
                 "create table: " + scope + "/" + tableName));
     }
-
-    public CompletableFuture<Boolean> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
-        return Futures.exceptionallyExpecting(runOnExecutorWithExceptionHandling(
-                () -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID),
-                "delete table: " + scope + "/" + tableName),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException, false);
+    
+    public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
+        return runOnExecutorWithExceptionHandling(
+                () -> Futures.toVoid(segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID)),
+                "delete table: " + scope + "/" + tableName);
     }
 
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
@@ -115,8 +114,8 @@ public class PravegaTablesStoreHelper {
                 "remove entries: keys:" + keys + " table: " + scope + "/" + tableName);
     }
 
-    public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken) {
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableKeys(scope, tableName, 1000, 
+    public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {
+        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableKeys(scope, tableName, limit, 
                 IteratorState.fromBytes(continuationToken), 0L)
                 .thenApply(result -> {
                     List<String> items = result.getItems().stream().map(x -> new String(x.getKey())).collect(Collectors.toList());
@@ -125,8 +124,8 @@ public class PravegaTablesStoreHelper {
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, Data>>>> getEntriesPaginated(String scope, String tableName, 
-                                                                                               ByteBuf continuationToken) {
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableEntries(scope, tableName, 1000, 
+                                                                                               ByteBuf continuationToken, int limit) {
+        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableEntries(scope, tableName, limit, 
                 IteratorState.fromBytes(continuationToken), 0L)
                 .thenApply(result -> {
                     List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
@@ -139,13 +138,13 @@ public class PravegaTablesStoreHelper {
     }
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
-        return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token)
+        return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token, 1000)
                 .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue())),
                 IteratorState.EMPTY.toBytes());
     }
 
     public AsyncIterator<Pair<String, Data>> getAllEntries(String scope, String tableName) {
-        return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(scope, tableName, token)
+        return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(scope, tableName, token, 100)
                 .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue())),
                 IteratorState.EMPTY.toBytes());
     }

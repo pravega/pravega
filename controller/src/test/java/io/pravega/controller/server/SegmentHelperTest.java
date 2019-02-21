@@ -63,7 +63,6 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentHelperTest {
 
-    private SegmentHelper helper;
     private final byte[] key0 = "k".getBytes();
     private final byte[] key1 = "k1".getBytes();
     private final byte[] key2 = "k2".getBytes();
@@ -82,7 +81,7 @@ public class SegmentHelperTest {
 
     @Test
     public void getSegmentUri() {
-        MockConnectionFactory factory = new MockConnectionFactory(); 
+        MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
 
         helper.getSegmentUri("", "", 0);
@@ -379,6 +378,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableKeys() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
 
         final List<TableKey<byte[]>> keys1 = Arrays.asList(new TableKeyImpl<>(key0, new KeyVersionImpl(2L)),
                                                            new TableKeyImpl<>(key1, new KeyVersionImpl(10L)));
@@ -426,6 +426,7 @@ public class SegmentHelperTest {
     @Test
     public void testReadTableEntries() {
         MockConnectionFactory factory = new MockConnectionFactory();
+        SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         List<TableEntry<byte[], byte[]>> entries1 = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0,
                                                                                                           new KeyVersionImpl(10L)), value),
                                                                   new TableEntryImpl<>(new TableKeyImpl<>(key1, new KeyVersionImpl(10L)),

@@ -20,7 +20,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SYSTEM_SCOPE;
 
@@ -29,14 +31,12 @@ public class PravegaTableScope implements Scope {
     private final String streamsInScopeTable;
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
-    private final AtomicBoolean scopesTableCreated;
     private final Executor executor;
     PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper, Executor executor) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName);
         this.executor = executor;
-        this.scopesTableCreated = new AtomicBoolean(false);
     }
 
     @Override
@@ -46,28 +46,38 @@ public class PravegaTableScope implements Scope {
 
     @Override
     public CompletableFuture<Void> createScope() {
-        CompletableFuture<Void> future;
-        if (!scopesTableCreated.get()) {
-            future = storeHelper.createTable(SYSTEM_SCOPE, SCOPES_TABLE)
-                    .thenAccept(x -> scopesTableCreated.set(true));
-        } else {
-            future = CompletableFuture.completedFuture(null);
-        }
         // add entry to scopes table followed by creating scope specific table
-        return future.thenCompose(tableCreated -> storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, new byte[0]))
-                .thenCompose(entryAdded -> storeHelper.createTable(scopeName, streamsInScopeTable));
+        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, new byte[0]),
+                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(SYSTEM_SCOPE, SCOPES_TABLE).thenCompose(v -> storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, new byte[0])))
+                      .thenCompose(entryAdded -> Futures.toVoid(storeHelper.createTable(scopeName, streamsInScopeTable)));
     }
 
     @Override
     public CompletableFuture<Void> deleteScope() {
-        return Futures.toVoid(storeHelper.deleteTable(scopeName, streamsInScopeTable, true))
+        return storeHelper.deleteTable(scopeName, streamsInScopeTable, true)
                 .thenCompose(deleted -> storeHelper.removeEntry(SYSTEM_SCOPE, SCOPES_TABLE, scopeName));
     }
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(int limit, String continuationToken, Executor executor) {
-        return storeHelper.getKeysPaginated(scopeName, streamsInScopeTable, Unpooled.wrappedBuffer(Base64.getDecoder().decode(continuationToken)))
-                .thenApply(result -> new ImmutablePair<>(result.getValue(), Base64.getEncoder().encodeToString(result.getKey().array())));
+        List<String> taken = new LinkedList<>();
+        AtomicReference<String> token = new AtomicReference<>(continuationToken);
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return Futures.loop(() -> taken.size() < limit && canContinue.get(), 
+                () -> storeHelper.getKeysPaginated(scopeName, streamsInScopeTable, 
+                        Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit - taken.size())
+                .thenAccept(result -> {
+                    if (result.getValue().isEmpty()) {
+                        canContinue.set(false);
+                    } else {
+                        taken.addAll(result.getValue());
+                    }
+                    token.set(Base64.getEncoder().encodeToString(result.getKey().array()));
+                }), executor)
+                .thenApply(v -> {
+                    List<String> result = taken.size() > limit ? taken.subList(0, limit) : taken;
+                    return new ImmutablePair<>(result, token.get());
+                });
     }
 
     @Override

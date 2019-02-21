@@ -26,6 +26,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -38,13 +39,14 @@ import java.util.stream.Collectors;
  * ZK stream metadata store.
  */
 @Slf4j
-class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
-    static final String SYSTEM_SCOPE = "_system";
+public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
+    public static final String SYSTEM_SCOPE = "_system";
+    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
     static final String SCOPES_TABLE = "scopes";
     static final String DELETED_STREAMS_TABLE = "deletedStreams";
     static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "completedTransactionsBatches";
     static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "completedTransactionsBatch-%d";
-    static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
 
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
 
@@ -160,8 +162,9 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<List<String>> listScopes() {
         List<String> scopes = new LinkedList<>();
-        return storeHelper.getAllKeys(SYSTEM_SCOPE, SCOPES_TABLE).forEachRemaining(scopes::add, executor)
-                          .thenApply(v -> scopes);
+        return Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(SYSTEM_SCOPE, SCOPES_TABLE).forEachRemaining(scopes::add, executor)
+                          .thenApply(v -> scopes), DATA_NOT_FOUND_PREDICATE, 
+                () -> storeHelper.createTable(SYSTEM_SCOPE, SCOPES_TABLE).thenApply(v -> Collections.emptyList()));
     }
 
     @Override

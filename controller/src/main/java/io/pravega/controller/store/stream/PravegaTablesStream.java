@@ -129,17 +129,18 @@ class PravegaTablesStream extends PersistentStreamBase {
         
         // delete stream in scope 
         String scope = getScope();
-        List<CompletableFuture<Boolean>> futures = new LinkedList<>();
+        List<CompletableFuture<Void>> futures = new LinkedList<>();
         return Futures.exceptionallyExpecting(storeHelper.getAllKeys(getScope(), epochsWithTransactionsTableName)
                           .forEachRemaining(x -> {
                               String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), Integer.parseInt(x));
                               futures.add(Futures.exceptionallyExpecting(storeHelper.deleteTable(scope, epochTableName, false), 
-                                      DATA_NOT_FOUND_PREDICATE, true));
+                                      DATA_NOT_FOUND_PREDICATE, null));
                           }, executor), DATA_NOT_FOUND_PREDICATE, null)
                           .thenCompose(x -> Futures.allOfWithResults(futures))
                           .thenCompose(x -> Futures.exceptionallyExpecting(
-                                  storeHelper.deleteTable(scope, epochsWithTransactionsTableName, false), DATA_NOT_FOUND_PREDICATE, true))
-                          .thenCompose(deleted -> Futures.toVoid(storeHelper.deleteTable(scope, metadataTableName, false)));
+                                  storeHelper.deleteTable(scope, epochsWithTransactionsTableName, false), 
+                                  DATA_NOT_FOUND_PREDICATE, null))
+                          .thenCompose(deleted -> storeHelper.deleteTable(scope, metadataTableName, false));
     }
 
     @Override
@@ -479,7 +480,8 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getActiveEpoch(true)
                 .thenCompose(activeEpoch -> {
                     if (epoch < activeEpoch.getReferenceEpoch()) {
-                        return storeHelper.deleteTable(getScope(), epochTable, true)
+                        return Futures.exceptionallyExpecting(storeHelper.deleteTable(getScope(), epochTable, true).thenApply(v -> true),
+                                   DATA_NOT_EMPTY_PREDICATE, false)
                                    .thenCompose(deleted -> {
                                        if (deleted) {
                                            return storeHelper.removeEntry(getScope(), epochsWithTransactionsTableName, "" + epoch);
