@@ -11,6 +11,7 @@ package io.pravega.controller.timeout;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.Version;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -25,5 +26,15 @@ public class TimeoutServiceZkStoreTest extends TimeoutServiceTest {
     @Override
     protected StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(client, executor);
+    }
+
+    @Override
+    Version getVersion(int i) {
+        return Version.IntVersion.builder().intValue(i).build();
+    }
+
+    @Override
+    Version getNextVersion(Version version) {
+        return Version.IntVersion.builder().intValue(version.asIntVersion().getIntValue() + 1).build();
     }
 }

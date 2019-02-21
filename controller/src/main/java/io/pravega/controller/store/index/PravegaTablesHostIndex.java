@@ -42,8 +42,8 @@ public class PravegaTablesHostIndex implements HostIndex {
     private static final String SYSTEM_SCOPE = "_system";
     private static final String HOSTS_ROOT_TABLE_FORMAT = "hostsTable-%s";
     private static final String HOST_TABLE_FORMAT = "host-%s-%s";
-    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
-    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataNotEmptyException;
+    private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    private static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataNotEmptyException;
     private final PravegaTablesStoreHelper storeHelper;
     private final Executor executor;
     private final String hostsTable;

@@ -278,7 +278,7 @@ public abstract class TimeoutServiceTest {
                 .join();
 
         VersionedTransactionData txnData = streamStore.getTransactionData(SCOPE, STREAM, ModelHelper.encode(txnId), null, executor).join();
-        Assert.assertEquals(txnData.getVersion().asIntVersion().getIntValue(), 0);
+        Assert.assertEquals(txnData.getVersion(), getVersion(0));
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (0.75 * LEASE), TimeUnit.MILLISECONDS);
         Assert.assertNull(result);
@@ -291,7 +291,7 @@ public abstract class TimeoutServiceTest {
         Assert.assertEquals(PingTxnStatus.Status.OK, pingStatus.getStatus());
 
         txnData = streamStore.getTransactionData(SCOPE, STREAM, ModelHelper.encode(txnId), null, executor).join();
-        Assert.assertEquals(txnData.getVersion().asIntVersion().getIntValue(), 1);
+        Assert.assertEquals(txnData.getVersion(), getVersion(1));
 
         // timeoutService1 should believe that LEASE has expired and should get non empty completion tasks
         result = timeoutService.getTaskCompletionQueue().poll((long) (1.3 * LEASE + RETRY_DELAY), TimeUnit.MILLISECONDS);
@@ -312,6 +312,8 @@ public abstract class TimeoutServiceTest {
         txnState = controllerService.checkTransactionStatus(SCOPE, STREAM, txnId).join();
         Assert.assertEquals(TxnState.State.ABORTING, txnState.getState());
     }
+
+    abstract Version getVersion(int i);
 
     @Test(timeout = 10000)
     public void testPingLeaseTooLarge() {
@@ -462,7 +464,7 @@ public abstract class TimeoutServiceTest {
                 10 * LEASE, null, executor).join();
 
         // Submit transaction to TimeoutService with incorrect tx version identifier.
-        timeoutService.addTxn(SCOPE, STREAM, txData.getId(), Version.IntVersion.builder().intValue(txData.getVersion().asIntVersion().getIntValue() + 1).build(), LEASE,
+        timeoutService.addTxn(SCOPE, STREAM, txData.getId(), getNextVersion(txData.getVersion()), LEASE,
                 txData.getMaxExecutionExpiryTime());
 
         Optional<Throwable> result = timeoutService.getTaskCompletionQueue().poll((long) (1.25 * LEASE + RETRY_DELAY), TimeUnit.MILLISECONDS);
@@ -474,6 +476,8 @@ public abstract class TimeoutServiceTest {
         Assert.assertEquals(TxnStatus.OPEN, status);
 
     }
+
+    abstract Version getNextVersion(Version version);
 
     @Test(timeout = 5000)
     public void testCloseUnknownTxn() {

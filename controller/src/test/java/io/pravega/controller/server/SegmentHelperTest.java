@@ -23,10 +23,12 @@ import io.pravega.client.tables.impl.TableEntryImpl;
 import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
 import io.pravega.client.tables.impl.TableSegment;
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -242,7 +244,8 @@ public class SegmentHelperTest {
         // On receiving NoSuchSegment true should be returned.
         CompletableFuture<Boolean> result = helper.deleteTableSegment("", "", true, System.nanoTime());
         factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, getQualifiedStreamSegmentName("", "", 0L), ""));
-        assertTrue(result.join());
+        AssertExtensions.assertFutureThrows("", result, e -> Exceptions.unwrap(e) instanceof WireCommandFailedException
+                && ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist));
 
         // On receiving SegmentDeleted true should be returned.
         result = helper.deleteTableSegment("", "", true, System.nanoTime());

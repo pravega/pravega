@@ -10,9 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.pravega.client.tables.impl.IteratorState;
-import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.KeyVersion;
 import io.pravega.client.tables.impl.KeyVersionImpl;
 import io.pravega.client.tables.impl.TableEntry;
@@ -31,15 +29,12 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
-import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 

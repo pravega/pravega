@@ -12,6 +12,7 @@ package io.pravega.controller.timeout;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.Version;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -27,5 +28,15 @@ public class TimeoutServicePravegaTableStoreTest extends TimeoutServiceTest {
     protected StreamMetadataStore getStore() {
         return StreamStoreFactory.createPravegaTablesStore(
                 SegmentHelperMock.getSegmentHelperMockForTables(), client, executor);
+    }
+
+    @Override
+    Version getVersion(int i) {
+        return Version.LongVersion.builder().longValue(i).build();
+    }
+
+    @Override
+    Version getNextVersion(Version version) {
+        return Version.LongVersion.builder().longValue(version.asLongVersion().getLongValue() + 1).build();
     }
 }
