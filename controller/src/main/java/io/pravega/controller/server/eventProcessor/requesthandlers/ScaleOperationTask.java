@@ -60,8 +60,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
         log.info(request.getRequestId(), "starting scale request for {}/{} segments {} to new ranges {}",
                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
 
-        runScale(request, request.isRunOnlyIfStarted(), context,
-                this.streamMetadataTasks.retrieveDelegationToken())
+        runScale(request, request.isRunOnlyIfStarted(), context)
                 .whenCompleteAsync((res, e) -> {
                     if (e != null) {
                         Throwable cause = Exceptions.unwrap(e);
@@ -88,7 +87,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     }
 
     @VisibleForTesting
-    public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context, String delegationToken) { // called upon event read from requeststream
+    public CompletableFuture<Void> runScale(ScaleOpEvent scaleInput, boolean isManualScale, OperationContext context) { // called upon event read from requeststream
         String scope = scaleInput.getScope();
         String stream = scaleInput.getStream();
         long requestId = scaleInput.getRequestId();
@@ -123,23 +122,23 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         
                         return future
                                 .thenCompose(versionedMetadata -> processScale(scope, stream, isManualScale, versionedMetadata, 
-                                        reference.get(), context, delegationToken, requestId));
+                                        reference.get(), context, requestId));
                     }));
     }
 
     private CompletableFuture<Void> processScale(String scope, String stream, boolean isManualScale,
                                                  VersionedMetadata<EpochTransitionRecord> metadata,
                                                  VersionedMetadata<State> state, OperationContext context,
-                                                 String delegationToken, long requestId) {
+                                                 long requestId) {
         return streamMetadataStore.updateVersionedState(scope, stream, State.SCALING, state, context, executor)
                 .thenCompose(updatedState -> streamMetadataStore.startScale(scope, stream, isManualScale, metadata, updatedState, context, executor)
                         .thenCompose(record -> {
                             List<Long> segmentIds = new ArrayList<>(record.getObject().getNewSegmentsWithRange().keySet());
                             List<Long> segmentsToSeal = new ArrayList<>(record.getObject().getSegmentsToSeal());
-                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
+                            return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, requestId)
                                     .thenCompose(x -> streamMetadataStore.scaleCreateNewEpochs(scope, stream, record, context, executor))
-                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken, requestId))
-                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
+                                    .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, requestId))
+                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal))
                                     .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, record, context, executor))
                                     .thenCompose(x -> streamMetadataStore.completeScale(scope, stream, record, context, executor))
                                     .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updatedState, context, executor))

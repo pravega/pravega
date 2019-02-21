@@ -148,6 +148,11 @@ public class InMemoryStream extends PersistentStreamBase {
         return result;
     }
 
+    @Override
+    CompletableFuture<Void> createStreamMetadata() {
+        return CompletableFuture.completedFuture(null);
+    }
+
     private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
                                             final int startingSegmentNumber, final StreamConfiguration config, Data currentState) {
         if (currentState != null) {
@@ -694,12 +699,7 @@ public class InMemoryStream extends PersistentStreamBase {
             return CompletableFuture.completedFuture(map);
         }
     }
-
-    @Override
-    CompletableFuture<Void> checkScopeExists() throws StoreException {
-        return CompletableFuture.completedFuture(null);
-    }
-
+    
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(byte[] retention) {
         Preconditions.checkNotNull(retention);

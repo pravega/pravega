@@ -85,7 +85,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         log.info(requestId, "{}/{} deleting segments", scope, stream);
         return streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
                 .thenComposeAsync(allSegments -> {
-                    return streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)
+                    return streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, requestId)
                             .thenComposeAsync(x -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 
                                     scope, stream, executor), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,

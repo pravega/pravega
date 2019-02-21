@@ -75,6 +75,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        streamMetadataStore.close();
         zkClient.close();
         zkServer.close();
     }
@@ -141,12 +142,12 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor2);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
-                hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), 
-                requestTracker);
+                taskMetadataStore, segmentHelper, executor2, hostId, requestTracker);
 
         String scope = "scope1";
         String streamName = "stream1";

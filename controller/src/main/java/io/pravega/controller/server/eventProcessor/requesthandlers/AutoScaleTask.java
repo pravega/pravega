@@ -9,30 +9,30 @@
  */
 package io.pravega.controller.server.eventProcessor.requesthandlers;
 
-import io.pravega.common.concurrent.Futures;
-import io.pravega.common.tracing.TagLogger;
-import io.pravega.shared.controller.event.AutoScaleEvent;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.concurrent.Futures;
+import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.withRetries;
@@ -101,7 +101,7 @@ public class AutoScaleTask {
                     int numOfSplits = Math.min(Math.max(2, request.getNumOfSplits()), Math.max(2, policy.getScaleFactor()));
                     double delta = (segment.getKeyEnd() - segment.getKeyStart()) / numOfSplits;
 
-                    final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
+                    final ArrayList<Map.Entry<Double, Double>> simpleEntries = new ArrayList<>();
                     for (int i = 0; i < numOfSplits - 1; i++) {
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(segment.getKeyStart() + delta * i,
                                 segment.getKeyStart() + (delta * (i + 1))));
@@ -174,7 +174,7 @@ public class AutoScaleTask {
                             log.debug(request.getRequestId(), "Merging stream segment {} ", segmentName);
                         });
 
-                        final ArrayList<AbstractMap.SimpleEntry<Double, Double>> simpleEntries = new ArrayList<>();
+                        final ArrayList<Map.Entry<Double, Double>> simpleEntries = new ArrayList<>();
                         double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
                         double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
@@ -196,7 +196,7 @@ public class AutoScaleTask {
      * @return CompletableFuture
      */
     private CompletableFuture<Void> postScaleRequest(final AutoScaleEvent request, final List<Long> segments,
-                                                     final List<AbstractMap.SimpleEntry<Double, Double>> newRanges,
+                                                     final List<Map.Entry<Double, Double>> newRanges,
                                                      final long requestId) {
         ScaleOpEvent event = new ScaleOpEvent(request.getScope(),
                 request.getStream(),

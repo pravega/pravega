@@ -273,7 +273,7 @@ public class ControllerService {
 
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                        segment.getSegmentId(), hostStore)
+                        segment.getSegmentId())
         );
     }
 

@@ -14,6 +14,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
@@ -125,9 +126,17 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor));
+                    withCompletion(checkScopeExists(scope)
+                            .thenCompose(exists -> {
+                                if (exists) {
+                                    return getStream(scope, name, context)
+                                            .create(configuration, createTimestamp, startingSegmentNumber);
+                                } else {
+                                    return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                                }
+                            }), executor));
     }
-
+    
     @Override
     public CompletableFuture<Void> deleteStream(final String scope,
                                                 final String name,
@@ -209,7 +218,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
-        return getScope(scopeName).deleteScope().handle((result, ex) -> {
+        return getScope(scopeName).deleteScope().handle((result, e) -> {
+            Throwable ex = Exceptions.unwrap(e);
             if (ex == null) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
             }
@@ -804,6 +814,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Stream newStream(final String scope, final String name);
 
     abstract CompletableFuture<Int96> getNextCounter();
+
+    abstract CompletableFuture<Boolean> checkScopeExists(String scope);
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);

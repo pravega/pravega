@@ -77,7 +77,6 @@ class ZKStream extends PersistentStreamBase {
     private final String activeTxRoot;
     private final String markerPath;
     private final String idPath;
-    private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
     private final String retentionSetPath;
@@ -111,7 +110,6 @@ class ZKStream extends PersistentStreamBase {
              int chunkSize, int shardSize) {
         super(scopeName, streamName, chunkSize, shardSize);
         store = storeHelper;
-        scopePath = String.format(SCOPE_PATH, scopeName);
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
@@ -176,6 +174,11 @@ class ZKStream extends PersistentStreamBase {
         });
     }
 
+    @Override
+    CompletableFuture<Void> createStreamMetadata() {
+        return Futures.toVoid(store.createZNodeIfNotExist(streamPath));
+    }
+
     private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, int startingSegmentNumber, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
@@ -201,21 +204,6 @@ class ZKStream extends PersistentStreamBase {
     public CompletableFuture<Long> getCreationTime() {
         return cache.getCachedData(creationPath)
                     .thenApply(data -> BitConverter.readLong(data.getData(), 0));
-    }
-
-    /**
-     * Method to check whether a scope exists before creating a stream under that scope.
-     *
-     * @return A future either returning a result or an exception.
-     */
-    @Override
-    public CompletableFuture<Void> checkScopeExists() {
-        return store.checkExists(scopePath)
-                    .thenAccept(x -> {
-                        if (!x) {
-                            throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopePath);
-                        }
-                    });
     }
 
     @Override

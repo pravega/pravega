@@ -146,14 +146,14 @@ public class StreamMetadataTasksTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+        AuthHelper authHelper = new AuthHelper(authEnabled, "key");
+        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, authHelper);
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key"), requestTracker));
+        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory,
-                new AuthHelper(authEnabled, "key"));
+                streamStorePartialMock, segmentHelperMock, executor, "host");
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor),
@@ -193,6 +193,7 @@ public class StreamMetadataTasksTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStorePartialMock.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
@@ -298,7 +299,7 @@ public class StreamMetadataTasksTest {
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 
-        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 0.75));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.75, 1.0));
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(1L),
@@ -426,9 +427,9 @@ public class StreamMetadataTasksTest {
         StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, Long.MIN_VALUE, map1);
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null, "").get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime1, null).get();
         // verify that one streamCut is generated and added.
 
         List<StreamCutRecord> list =
@@ -448,9 +449,9 @@ public class StreamMetadataTasksTest {
 
         StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, Long.MIN_VALUE, map2);
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
+                anyString(), anyString(), any(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime2, null, "").get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime2, null).get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -472,9 +473,9 @@ public class StreamMetadataTasksTest {
         long recordingTime3 = recordingTime1 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime3, Long.MIN_VALUE, map3);
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
+                anyString(), anyString(), any(), any()); //mock only isTransactionOngoing call.
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime3, null, "").get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime3, null).get();
         // verify two stream cuts are in retention set. Cut 1 and 3.
         // verify that Truncation not not happened.
         list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
@@ -497,9 +498,9 @@ public class StreamMetadataTasksTest {
         long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionParam() + 2;
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, map4);
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime4, null, "").get();
+        streamMetadataTasks.retention(SCOPE, "test", retentionPolicy, recordingTime4, null).get();
         // verify that only two stream cut are in retention set. streamcut 3 and 4
         // verify that truncation has started. verify that streamCut1 is removed from retention set as that has been used for truncation
         list = streamStorePartialMock.getRetentionSet(SCOPE, "test", null, executor)
@@ -549,9 +550,9 @@ public class StreamMetadataTasksTest {
         StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, size, map1);
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), any());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime1, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime1, null).get();
         // verify that one streamCut is generated and added.
         List<StreamCutRecord> list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                                            .thenCompose(retentionSet -> {
@@ -575,9 +576,9 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 100L);
         StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, size, map2);
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime2, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime2, null).get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -605,9 +606,9 @@ public class StreamMetadataTasksTest {
         long recordingTime3 = recordingTime2 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime3, size, map3);
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime3, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime3, null).get();
         // verify two stream cuts are in retention set. Cut 2 and 3.
         // verify that Truncation has happened.
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
@@ -654,9 +655,9 @@ public class StreamMetadataTasksTest {
         long recordingTime4 = recordingTime3 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, size, map4);
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime4, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime4, null).get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -686,9 +687,9 @@ public class StreamMetadataTasksTest {
         long recordingTime5 = recordingTime4 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime5, size, map5);
         doReturn(CompletableFuture.completedFuture(streamCut5)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime5, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime5, null).get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -734,9 +735,9 @@ public class StreamMetadataTasksTest {
         long recordingTime6 = recordingTime5 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut6 = new StreamCutRecord(recordingTime6, size, map6);
         doReturn(CompletableFuture.completedFuture(streamCut6)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime6, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime6, null).get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -777,10 +778,10 @@ public class StreamMetadataTasksTest {
         long recordingTime7 = recordingTime6 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut7 = new StreamCutRecord(recordingTime7, size, map7);
         doReturn(CompletableFuture.completedFuture(streamCut7)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
         // verify no new truncation.. streamcut5 should be chosen but discarded because it is not strictly-ahead-of-truncationRecord
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, null, "").join();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime7, null).join();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -810,9 +811,9 @@ public class StreamMetadataTasksTest {
         long recordingTime8 = recordingTime7 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         StreamCutRecord streamCut8 = new StreamCutRecord(recordingTime8, size, map8);
         doReturn(CompletableFuture.completedFuture(streamCut8)).when(streamMetadataTasks).generateStreamCut(
-                anyString(), anyString(), any(), any(), anyString());
+                anyString(), anyString(), any(), any());
 
-        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime8, null, "").get();
+        streamMetadataTasks.retention(SCOPE, streamName, retentionPolicy, recordingTime8, null).get();
         list = streamStorePartialMock.getRetentionSet(SCOPE, streamName, null, executor)
                                      .thenCompose(retentionSet -> {
                                          return Futures.allOfWithResults(retentionSet.getRetentionRecords().stream()
@@ -1054,7 +1055,7 @@ public class StreamMetadataTasksTest {
                 Arrays.asList(), 30, null).get(), e -> e instanceof TaskExceptions.ProcessingDisabledException);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
@@ -1083,7 +1084,7 @@ public class StreamMetadataTasksTest {
 
         WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
-        List<AbstractMap.SimpleEntry<Double, Double>> newRanges = new ArrayList<>();
+        List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
         newRanges.add(new AbstractMap.SimpleEntry<>(0.0, 0.5));
         newRanges.add(new AbstractMap.SimpleEntry<>(0.5, 1.0));
         ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
@@ -1105,7 +1106,7 @@ public class StreamMetadataTasksTest {
                 response, versionedState, context, executor).get(), ex -> Exceptions.unwrap(ex) instanceof IllegalArgumentException);
 
         ScaleOperationTask task = new ScaleOperationTask(streamMetadataTasks, streamStorePartialMock, executor);
-        task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context, "").get();
+        task.runScale((ScaleOpEvent) requestEventWriter.getEventQueue().take(), true, context).get();
         Map<Long, Map.Entry<Double, Double>> segments = response.getObject().getNewSegmentsWithRange();
         assertTrue(segments.entrySet().stream()
                 .anyMatch(x -> x.getKey() == computeSegmentId(1, 1)

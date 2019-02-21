@@ -67,11 +67,11 @@ public abstract class BucketServiceTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
 
-        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, hostStore, taskMetadataStore, 
-                segmentHelper, executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
+                segmentHelper, executor, hostId, requestTracker);
         BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, executor);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         service = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention);
@@ -82,6 +82,7 @@ public abstract class BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
+        streamMetadataStore.close();
         service.stopAsync();
         service.awaitTerminated();
         connectionFactory.close();

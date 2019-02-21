@@ -22,6 +22,7 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -73,6 +74,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     CompletableFuture<Int96> getNextCounter() {
         return CompletableFuture.completedFuture(counter.incrementAndGet());
+    }
+
+    @Override
+    @Synchronized
+    CompletableFuture<Boolean> checkScopeExists(String scope) {
+        return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 
     @Override
@@ -258,5 +265,10 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     
     private String scopedStreamName(final String scopeName, final String streamName) {
         return new StringBuilder(scopeName).append("/").append(streamName).toString();
+    }
+
+    @Override
+    public void close() throws IOException {
+        
     }
 }

@@ -204,7 +204,6 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
 
     private CompletionStage<Void> runRollingTxn(String scope, String stream, EpochRecord txnEpoch,
                                                 EpochRecord activeEpoch, VersionedMetadata<CommittingTransactionsRecord> existing, OperationContext context) {
-        String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         long timestamp = System.currentTimeMillis();
 
         int newTxnEpoch = existing.getObject().getNewTxnEpoch();
@@ -217,17 +216,15 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                                     .map(segment -> computeSegmentId(segment.getSegmentNumber(), newActiveEpoch)).collect(Collectors.toList());
         List<UUID> transactionsToCommit = existing.getObject().getTransactionsToCommit();
         return copyTxnEpochSegmentsAndCommitTxns(scope, stream, transactionsToCommit, txnEpochDuplicate)
-                .thenCompose(v -> streamMetadataTasks.notifyNewSegments(scope, stream, activeEpochDuplicate, context, delegationToken))
-                .thenCompose(v -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, txnEpochDuplicate, delegationToken))
+                .thenCompose(v -> streamMetadataTasks.notifyNewSegments(scope, stream, activeEpochDuplicate, context))
+                .thenCompose(v -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, txnEpochDuplicate))
                 .thenCompose(sealedSegmentsMap -> {
                     log.debug("Rolling transaction, created duplicate of active epoch {} for stream {}/{}", activeEpoch, scope, stream);
                     return streamMetadataStore.rollingTxnCreateDuplicateEpochs(scope, stream, sealedSegmentsMap,
                             timestamp, existing, context, executor);
                 })
-                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, activeEpochSegmentIds,
-                        delegationToken)
-                        .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, activeEpochSegmentIds,
-                                delegationToken))
+                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, activeEpochSegmentIds)
+                        .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, activeEpochSegmentIds))
                         .thenCompose(sealedSegmentsMap -> {
                             log.debug("Rolling transaction, sealed active epoch {} for stream {}/{}", activeEpoch, scope, stream);
                             return streamMetadataStore.completeRollingTxn(scope, stream, sealedSegmentsMap, existing,
@@ -245,11 +242,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         // 1. create duplicate segments
         // 2. merge transactions in those segments
         // 3. seal txn epoch segments
-        String delegationToken = streamMetadataTasks.retrieveDelegationToken();
         CompletableFuture<Void> createSegmentsFuture = Futures.allOf(segmentIds.stream().map(segment -> {
             // Use fixed scaling policy for these segments as they are created, merged into and sealed and are not
             // supposed to auto scale.
-            return streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1), delegationToken);
+            return streamMetadataTasks.notifyNewSegment(scope, stream, segment, ScalingPolicy.fixed(1));
         }).collect(Collectors.toList()));
 
         return createSegmentsFuture
@@ -258,7 +254,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // now commit transactions into these newly created segments
                     return commitTransactions(scope, stream, segmentIds, transactionsToCommit);
                 })
-                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds, delegationToken));
+                .thenCompose(v -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentIds));
     }
 
     /**

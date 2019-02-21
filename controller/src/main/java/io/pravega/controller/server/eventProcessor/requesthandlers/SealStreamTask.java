@@ -157,7 +157,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
         List<Long> segmentsToBeSealed = activeSegments.stream().map(Segment::segmentId).
                 collect(Collectors.toList());
         log.debug(requestId, "Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
-        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed, this.streamMetadataTasks.retrieveDelegationToken(), requestId)
+        return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed, requestId)
                                   .thenCompose(v -> setSealed(scope, stream, context));
     }
 

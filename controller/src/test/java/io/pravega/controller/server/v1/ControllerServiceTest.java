@@ -90,15 +90,15 @@ public class ControllerServiceTest {
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
+                segmentHelper, executor, "host", requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, "host");
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(), executor, null);
+                new SegmentHelper(hostStore, connectionFactory, disabledAuthHelper), executor, null);
     }
 
     @Before
@@ -164,6 +164,7 @@ public class ControllerServiceTest {
         streamTransactionMetadataTasks.close();
         streamMetadataTasks.close();
         connectionFactory.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);

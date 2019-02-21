@@ -60,6 +60,8 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -77,6 +79,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
+    private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -100,12 +103,19 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private StreamMetrics streamMetrics;
     private TransactionMetrics transactionMetrics;
-
+    private final AtomicReference<SegmentHelper> segmentHelperRef;
+    
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
+        this(serviceConfig, storeClient, null);
+    }
+
+    @VisibleForTesting
+    ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
         this.controllerReadyLatch = new CountDownLatch(1);
+        this.segmentHelperRef = new AtomicReference<>(segmentHelper);
     }
 
     @Override
@@ -118,7 +128,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
-        final StreamMetadataStore streamStore;
         final BucketStore bucketStore;
         final TaskMetadataStore taskMetadataStore;
         final HostControllerStore hostStore;
@@ -131,10 +140,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
-
-            log.info("Creating the stream store");
-            streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
-
+            
             log.info("Creating the bucket store");
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
 
@@ -172,15 +178,19 @@ public class ControllerServiceStarter extends AbstractIdleService {
                                                     .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
-            SegmentHelper segmentHelper = new SegmentHelper();
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
-            streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper, requestTracker);
+            
+            segmentHelperRef.compareAndSet(null, new SegmentHelper(hostStore, connectionFactory, authHelper));
+            SegmentHelper segmentHelper = segmentHelperRef.get();
+            log.info("Creating the stream store");
+            streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, controllerExecutor);
+
+            streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
+                    segmentHelper, controllerExecutor, host.getHostId(), requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
-                    connectionFactory, authHelper);
+                    segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig());
             
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000, retentionExecutor);
             Duration executionDuration = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
@@ -211,7 +221,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetrics = new StreamMetrics();
             transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -370,6 +380,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
+            
+            log.info("Closing store");
+            streamStore.close();
 
             // Close metrics.
             if (streamMetrics != null) {

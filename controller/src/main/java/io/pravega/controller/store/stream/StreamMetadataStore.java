@@ -37,7 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 /**
  * Stream Metadata.
  */
-public interface StreamMetadataStore {
+public interface StreamMetadataStore extends AutoCloseable {
 
     /**
      * Method to create an operation context. A context ensures that multiple calls to store for the same data are avoided

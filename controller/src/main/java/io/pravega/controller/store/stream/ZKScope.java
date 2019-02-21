@@ -38,7 +38,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ZKScope implements Scope {
-
     private static final String SCOPE_PATH = "/store/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH = "/store/streamsinscope/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH_FORMAT = STREAMS_IN_SCOPE_ROOT_PATH + "/streams";

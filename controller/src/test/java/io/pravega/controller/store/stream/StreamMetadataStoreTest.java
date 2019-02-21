@@ -71,7 +71,7 @@ import static org.mockito.Mockito.spy;
 public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
-    @Rule
+    @Rule 
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected BucketStore bucketStore;
@@ -85,10 +85,10 @@ public abstract class StreamMetadataStoreTest {
     protected final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
     @Before
-    public abstract void setupTaskStore() throws Exception;
+    public abstract void setupStore() throws Exception;
 
     @After
-    public abstract void cleanupTaskStore() throws Exception;
+    public abstract void cleanupStore() throws Exception;
 
     @After
     public void tearDown() {
@@ -553,7 +553,7 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void concurrentStartScaleTest() throws Exception {
         final String scope = "ScopeScale";
-        final String stream = "StreamScale";
+        final String stream = "StreamScale1";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
@@ -851,7 +851,7 @@ public abstract class StreamMetadataStoreTest {
     @Test
     public void scaleWithTxnForInconsistentScanerios() throws Exception {
         final String scope = "ScopeScaleWithTx";
-        final String stream = "StreamScaleWithTx";
+        final String stream = "StreamScaleWithTx1";
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 

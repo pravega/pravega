@@ -46,4 +46,9 @@ public class StoreClientConfigImpl implements StoreClientConfig {
         Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
         return new StoreClientConfigImpl(StoreType.Zookeeper, Optional.of(zkClientConfig));
     }
+    
+    public static StoreClientConfig withPravegaTablesClient(ZKClientConfig zkClientConfig) {
+        Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
+        return new StoreClientConfigImpl(StoreType.PravegaTable, Optional.of(zkClientConfig));
+    }
 }

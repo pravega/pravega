@@ -95,9 +95,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, long createTimestamp, int startingSegmentNumber) {
-        return checkScopeExists()
-                .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp, startingSegmentNumber))
-                .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
+        return checkStreamExists(configuration, createTimestamp, startingSegmentNumber)
+                .thenCompose(createStreamResponse -> createStreamMetadata()
+                        .thenCompose((Void v) -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp()))
                         .thenCompose((Void v) -> createConfigurationIfAbsent(StreamConfigurationRecord.complete(
                                 scope, name, createStreamResponse.getConfiguration()).toBytes()))
                         .thenCompose((Void v) -> createEpochTransitionIfAbsent(EpochTransitionRecord.EMPTY.toBytes()))
@@ -1608,12 +1608,12 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     // region abstract methods
-    abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
-
     //region create delete
     abstract CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration,
                                                                        final long creationTime, final int startingSegmentNumber);
 
+    abstract CompletableFuture<Void> createStreamMetadata();
+    
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 
     abstract CompletableFuture<Void> deleteStream();
