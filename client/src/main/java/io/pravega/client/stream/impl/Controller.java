@@ -48,7 +48,7 @@ public interface Controller extends AutoCloseable {
      * Gets an async iterator on streams in scope.
      *
      * @param scopeName The name of the scope for which to list streams in.
-     * @return A future which when completed will contain an iterator for all Streams in the scope. 
+     * @return An AsyncIterator which can be used to iterate over all Streams in the scope. 
      */
     AsyncIterator<Stream> listStreamsInScope(final String scopeName);
 

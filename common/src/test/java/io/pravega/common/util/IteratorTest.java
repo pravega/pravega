@@ -104,12 +104,12 @@ public class IteratorTest {
         Integer next0 = iterator.getNext().join();
         assertEquals(next0.intValue(), 1);
         assertEquals(1, functionCalledCount.get());
-        assertEquals(iterator.getToken().get(), "1");
+        assertEquals(iterator.getToken(), "1");
 
         CompletableFuture<Integer> next1 = iterator.getNext();
         // wait until first call is made.
 
-        assertEquals("1", iterator.getToken().get());
+        assertEquals("1", iterator.getToken());
 
         CompletableFuture<Integer> next2 = iterator.getNext();
         // this should keep calling getNext in a loop until it gets the value. 
@@ -125,8 +125,8 @@ public class IteratorTest {
         assertEquals(next1.join() + next2.join(), 5);
         assertEquals(3, functionCalledCount.get());
 
-        assertEquals(iterator.getToken().get(), "3");
-        assertTrue(iterator.getQueue().isEmpty());
+        assertEquals(iterator.getToken(), "3");
+        assertTrue(iterator.isInternalQueueEmpty());
 
         assertNull(iterator.getNext().join());
         // endregion

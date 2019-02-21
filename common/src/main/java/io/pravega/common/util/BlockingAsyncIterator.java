@@ -10,6 +10,7 @@
 package io.pravega.common.util;
 
 import com.google.common.annotations.VisibleForTesting;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.Synchronized;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -26,7 +27,9 @@ import java.util.NoSuchElementException;
 @VisibleForTesting
 public class BlockingAsyncIterator<T> implements Iterator<T> {
     private final AsyncIterator<T> asyncIterator;
+    @GuardedBy("$lock")
     private T next;
+    @GuardedBy("$lock")
     private boolean canHaveNext;
 
     public BlockingAsyncIterator(AsyncIterator<T> asyncIterator) {
