@@ -17,6 +17,7 @@ import io.pravega.common.util.SequencedItemList;
 public interface SegmentOperation extends SequencedItemList.Element {
     /**
      * Gets a value indicating the Id of the StreamSegment this operation relates to.
+     * @return StreamSegment Id.
      */
     long getStreamSegmentId();
 }

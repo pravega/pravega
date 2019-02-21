@@ -30,8 +30,9 @@ import lombok.extern.slf4j.Slf4j;
  * Local (sandbox) implementation for SegmentContainerManager. Nothing that happens here ever leaves the confines
  * of this class. All information is lost upon closing and/or garbage-collection.
  * <p>
- * The SegmentName {@literal ->} ContainerId mapping is done by taking the hash of the StreamSegment name and then modulo the
+ * The SegmentName -&lt; ContainerId mapping is done by taking the hash of the StreamSegment name and then modulo the
  * number of containers (result is in hex).
+ * </p>
  */
 @Slf4j
 @ThreadSafe

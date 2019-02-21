@@ -23,17 +23,20 @@ public interface WriterSegmentProcessor extends AutoCloseable {
 
     /**
      * Gets a value indicating whether the Segment Processor is closed (for any kind of operations).
+     * @return true if the Segment Processor is closed, false otherwise.
      */
     boolean isClosed();
 
     /**
      * Gets the SequenceNumber of the first operation that is not fully committed to Storage.
      * See {@link Operation#getSequenceNumber} for a definition of Sequence Number.
+     * @return The SequenceNumber of the first operation that is not fully committed to Storage.
      */
     long getLowestUncommittedSequenceNumber();
 
     /**
      * Gets a value indicating whether a call to {@link #flush} is required given the current state of this Segment Processor.
+     * @return true if a flush call is required.
      */
     boolean mustFlush();
 
