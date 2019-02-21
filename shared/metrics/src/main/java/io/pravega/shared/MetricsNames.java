@@ -259,13 +259,16 @@ public final class MetricsNames {
             return new MetricKey(key, key);
         } else { //tags: append tag values and suffix to form cache key, original name is registry key
             if (tags.length % 2 == 1) {
-                throw new IllegalArgumentException("tags size must be even, it is a set of key=value pairs");
+                throw new IllegalArgumentException("Tags size must be even, it is a set of key=value pairs");
             }
             for (int i = 0; i < tags.length; i += 2) {
+                if (Strings.isNullOrEmpty(tags[i]) || Strings.isNullOrEmpty(tags[i + 1])) {
+                    throw new IllegalArgumentException("Tag name or value cannot be empty or null");
+                }
                 sb.append('.').append(tags[i + 1]);
             }
             sb.append(typeSuffix);
-            return new MetricKey(escapeSpecialChar(sb.toString()), metric);
+            return new MetricKey(sb.toString(), metric);
         }
     }
 

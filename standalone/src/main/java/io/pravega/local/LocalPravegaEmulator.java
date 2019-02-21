@@ -53,7 +53,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .containerCount(4)
                     .restServerPort(restServerPort)
                     .enableRestServer(enableRestServer)
-                    .enableMetrics(true)
+                    .enableMetrics(false)
                     .enableAuth(enableAuth)
                     .enableTls(enableTls)
                     .certFile(certFile)
