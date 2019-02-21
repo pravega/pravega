@@ -10,12 +10,14 @@
 package io.pravega.controller.mocks;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.KeyVersion;
 import io.pravega.client.tables.impl.KeyVersionImpl;
 import io.pravega.client.tables.impl.TableEntry;
 import io.pravega.client.tables.impl.TableEntryImpl;
 import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
+import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
@@ -38,10 +40,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -148,16 +147,14 @@ public class SegmentHelperMock {
                     String tableName = x.getArgument(1);
                     Boolean mustBeEmpty = x.getArgument(2);
                     String key = scope + "/" + tableName;
-                    synchronized (lock) {
-                        boolean empty = Optional.ofNullable(mapOfTables.get(key)).orElse(Collections.emptyMap()).isEmpty();
-                        if (!mustBeEmpty || empty) {
-                            mapOfTables.remove(key);
-                            return true;
-                        } else {
-                            final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
-                            throw new WireCommandFailedException(type,
-                                    WireCommandFailedException.Reason.TableSegmentNotEmpty);
-                        }
+                    boolean empty = Optional.ofNullable(mapOfTables.get(key)).orElse(Collections.emptyMap()).isEmpty();
+                    if (!mustBeEmpty || empty) {
+                        mapOfTables.remove(key);
+                        return true;
+                    } else {
+                        final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
+                        throw new WireCommandFailedException(type,
+                                WireCommandFailedException.Reason.TableSegmentNotEmpty);
                     }
                 }
             }, EXECUTOR);
@@ -174,44 +171,42 @@ public class SegmentHelperMock {
                     String tableName = x.getArgument(1);
                     List<TableEntry<byte[], byte[]>> entries = x.getArgument(2);
                     String tableScopedName = scope + "/" + tableName;
-                    synchronized (lock) {
-                        Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                        if (table == null) {
-                            throw new WireCommandFailedException(type,
-                                    WireCommandFailedException.Reason.SegmentDoesNotExist);
-                        } else {
-                            List<KeyVersion> resultList = new LinkedList<>();
-                            entries.forEach(entry -> {
-                                ByteBuffer key = ByteBuffer.wrap(entry.getKey().getKey());
-                                byte[] value = entry.getValue();
-                                TableEntry<byte[], byte[]> existingEntry = table.get(key);
-                                if (existingEntry == null) {
-                                    if (entry.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
-                                        KeyVersion newVersion = new KeyVersionImpl(0);
-                                        TableEntry<byte[], byte[]> newEntry = new TableEntryImpl<>(
-                                                new TableKeyImpl<>(key.array(), newVersion), value);
-                                        table.put(key, newEntry);
-                                        resultList.add(newVersion);
-                                    } else {
-                                        throw new WireCommandFailedException(type,
-                                                WireCommandFailedException.Reason.TableKeyDoesNotExist);
-                                    }
-                                } else if (existingEntry.getKey().getVersion().equals(entry.getKey().getVersion())) {
-                                    KeyVersion newVersion = new KeyVersionImpl(
-                                            existingEntry.getKey().getVersion().getSegmentVersion() + 1);
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
+                    if (table == null) {
+                        throw new WireCommandFailedException(type,
+                                WireCommandFailedException.Reason.SegmentDoesNotExist);
+                    } else {
+                        List<KeyVersion> resultList = new LinkedList<>();
+                        entries.forEach(entry -> {
+                            ByteBuffer key = ByteBuffer.wrap(entry.getKey().getKey());
+                            byte[] value = entry.getValue();
+                            TableEntry<byte[], byte[]> existingEntry = table.get(key);
+                            if (existingEntry == null) {
+                                if (entry.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
+                                    KeyVersion newVersion = new KeyVersionImpl(0);
                                     TableEntry<byte[], byte[]> newEntry = new TableEntryImpl<>(
                                             new TableKeyImpl<>(key.array(), newVersion), value);
                                     table.put(key, newEntry);
                                     resultList.add(newVersion);
                                 } else {
                                     throw new WireCommandFailedException(type,
-                                            WireCommandFailedException.Reason.TableKeyBadVersion);
+                                            WireCommandFailedException.Reason.TableKeyDoesNotExist);
                                 }
-                            });
-                                return resultList;
+                            } else if (existingEntry.getKey().getVersion().equals(entry.getKey().getVersion())) {
+                                KeyVersion newVersion = new KeyVersionImpl(
+                                        existingEntry.getKey().getVersion().getSegmentVersion() + 1);
+                                TableEntry<byte[], byte[]> newEntry = new TableEntryImpl<>(
+                                        new TableKeyImpl<>(key.array(), newVersion), value);
+                                table.put(key, newEntry);
+                                resultList.add(newVersion);
+                            } else {
+                                throw new WireCommandFailedException(type,
+                                        WireCommandFailedException.Reason.TableKeyBadVersion);
                             }
-                        }
+                        });
+                        return resultList;
                     }
+                }
             }, EXECUTOR);
         }).when(helper).updateTableEntries(anyString(), anyString(), any(), anyLong());
         // endregion
@@ -226,26 +221,24 @@ public class SegmentHelperMock {
                     String tableName = x.getArgument(1);
                     List<TableKey<byte[]>> entries = x.getArgument(2);
                     String tableScopedName = scope + "/" + tableName;
-                    synchronized (lock) {
-                        Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                        if (table == null) {
-                            throw new WireCommandFailedException(type,
-                                    WireCommandFailedException.Reason.SegmentDoesNotExist);
-                        } else {
-                            entries.forEach(entry -> {
-                                ByteBuffer key = ByteBuffer.wrap(entry.getKey());
-                                TableEntry<byte[], byte[]> existingEntry = table.get(key);
-                                if (existingEntry != null) {
-                                    if (existingEntry.getKey().getVersion().equals(entry.getVersion())
-                                            || entry.getVersion() == null || entry.getVersion().equals(KeyVersion.NOT_EXISTS)) {
-                                        table.remove(key);
-                                    } else {
-                                        throw new WireCommandFailedException(type,
-                                                WireCommandFailedException.Reason.TableKeyBadVersion);
-                                    }
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
+                    if (table == null) {
+                        throw new WireCommandFailedException(type,
+                                WireCommandFailedException.Reason.SegmentDoesNotExist);
+                    } else {
+                        entries.forEach(entry -> {
+                            ByteBuffer key = ByteBuffer.wrap(entry.getKey());
+                            TableEntry<byte[], byte[]> existingEntry = table.get(key);
+                            if (existingEntry != null) {
+                                if (existingEntry.getKey().getVersion().equals(entry.getVersion())
+                                        || entry.getVersion() == null || entry.getVersion().equals(KeyVersion.NOT_EXISTS)) {
+                                    table.remove(key);
+                                } else {
+                                    throw new WireCommandFailedException(type,
+                                            WireCommandFailedException.Reason.TableKeyBadVersion);
                                 }
-                            });
-                        }
+                            }
+                        });
                     }
                 }
             }, EXECUTOR);
@@ -262,36 +255,57 @@ public class SegmentHelperMock {
                     String tableName = x.getArgument(1);
                     List<TableKey<byte[]>> entries = x.getArgument(2);
                     String tableScopedName = scope + "/" + tableName;
-                    synchronized (lock) {
-                        Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                        if (table == null) {
-                            throw new WireCommandFailedException(type,
-                                    WireCommandFailedException.Reason.SegmentDoesNotExist);
-                        } else {
-                            List<TableEntry<byte[], byte[]>> resultList = new LinkedList<>();
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
+                    if (table == null) {
+                        throw new WireCommandFailedException(type,
+                                WireCommandFailedException.Reason.SegmentDoesNotExist);
+                    } else {
+                        List<TableEntry<byte[], byte[]>> resultList = new LinkedList<>();
 
-                            entries.forEach(entry -> {
-                                ByteBuffer key = ByteBuffer.wrap(entry.getKey());
-                                TableEntry<byte[], byte[]> existingEntry = table.get(key);
-                                if (existingEntry == null) {
-                                    throw new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist);
-                                } else if (existingEntry.getKey().getVersion().equals(entry.getVersion())
-                                        || entry.getVersion() == null || entry.getVersion().equals(KeyVersion.NOT_EXISTS)) {
-                                    resultList.add(table.get(key));
-                                } else {
-                                    throw new WireCommandFailedException(type,
-                                            WireCommandFailedException.Reason.TableKeyBadVersion);
-                                }
-                            });
+                        entries.forEach(entry -> {
+                            ByteBuffer key = ByteBuffer.wrap(entry.getKey());
+                            TableEntry<byte[], byte[]> existingEntry = table.get(key);
+                            if (existingEntry == null) {
+                                throw new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist);
+                            } else if (existingEntry.getKey().getVersion().equals(entry.getVersion())
+                                    || entry.getVersion() == null || entry.getVersion().equals(KeyVersion.NOT_EXISTS)) {
+                                resultList.add(table.get(key));
+                            } else {
+                                throw new WireCommandFailedException(type,
+                                        WireCommandFailedException.Reason.TableKeyBadVersion);
+                            }
+                        });
 
-                            return resultList;
-                        }
+                        return resultList;
                     }
                 }
             }, EXECUTOR);
         }).when(helper).readTable(anyString(), anyString(), any(), anyLong());
         // endregion
         
+        // region readTableKeys
+        doAnswer(x -> {
+            return CompletableFuture.supplyAsync(() -> {
+                final WireCommandType type = WireCommandType.READ_TABLE;
+
+                synchronized (lock) {
+                    String scope = x.getArgument(0);
+                    String tableName = x.getArgument(1);
+                    int limit = x.getArgument(2);
+                    IteratorState state = x.getArgument(3);
+                    String tableScopedName = scope + "/" + tableName;
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
+                    if (table == null) {
+                        throw new WireCommandFailedException(type,
+                                WireCommandFailedException.Reason.SegmentDoesNotExist);
+                    } else {
+                        TableSegment.IteratorItem<TableKey<byte[]>> result = new TableSegment.IteratorItem();
+                        return result;
+                    }
+                }
+            }, EXECUTOR);
+        }).when(helper).readTableKeys(anyString(), anyString(), anyInt(), any(), anyLong());
+        // endregion
         return helper;
     }
 }

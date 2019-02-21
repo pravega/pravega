@@ -9,6 +9,10 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.pravega.client.tables.impl.IteratorState;
+import io.pravega.client.tables.impl.IteratorStateImpl;
 import io.pravega.client.tables.impl.KeyVersion;
 import io.pravega.client.tables.impl.KeyVersionImpl;
 import io.pravega.client.tables.impl.TableEntry;
@@ -23,6 +27,7 @@ import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import lombok.NonNull;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
@@ -34,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -114,19 +120,39 @@ public class PravegaTablesStoreHelper {
                 "remove entries: keys:" + keys + " table: " + scope + "/" + tableName);
     }
 
-    public CompletableFuture<Pair<List<String>, byte[]>> getKeysPaginated(String scope, String tableName, byte[] continuationToken) {
-        throw new UnsupportedOperationException();
+    public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken) {
+        return segmentHelper.readTableKeys(scope, tableName, 1000, 
+                IteratorState.fromBytes(continuationToken), 0L)
+                .thenApply(result -> {
+                    List<String> items = result.getItems().stream().map(x -> new String(x.getKey())).collect(Collectors.toList());
+                    return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                });
+    }
+
+    public CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, Data>>>> getEntriesPaginated(String scope, String tableName, 
+                                                                                               ByteBuf continuationToken) {
+        return segmentHelper.readTableEntries(scope, tableName, 1000, 
+                IteratorState.fromBytes(continuationToken), 0L)
+                .thenApply(result -> {
+                    List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
+                        String key = new String(x.getKey().getKey());
+                        Data value = new Data(x.getValue(), new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
+                        return new ImmutablePair<>(key, value);
+                    }).collect(Collectors.toList());
+                    return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                });
     }
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
-        return new ContinuationTokenAsyncIterator<>(null, token -> segmentHelper.getAllKeys(scope, tableName, token)
-            .thenApply(result -> {
-                return new AbstractMap.SimpleEntry<String, String>()
-            }));
+        return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token)
+                .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue())),
+                IteratorState.EMPTY.toBytes());
     }
 
     public AsyncIterator<Pair<String, Data>> getAllEntries(String scope, String tableName) {
-        throw new UnsupportedOperationException();
+        return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(scope, tableName, token)
+                .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue())),
+                IteratorState.EMPTY.toBytes());
     }
 
     private <T> CompletableFuture<T> translateException(CompletableFuture<T> future, String errorMessage) {

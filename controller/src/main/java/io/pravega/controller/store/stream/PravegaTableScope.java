@@ -9,9 +9,12 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.util.Base64;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -63,7 +66,8 @@ public class PravegaTableScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(int limit, String continuationToken, Executor executor) {
-        return storeHelper.getKeysPaginated(scopeName, streamsInScopeTable);
+        return storeHelper.getKeysPaginated(scopeName, streamsInScopeTable, Unpooled.wrappedBuffer(Base64.getDecoder().decode(continuationToken)))
+                .thenApply(result -> new ImmutablePair<>(result.getValue(), Base64.getEncoder().encodeToString(result.getKey().array())));
     }
 
     @Override

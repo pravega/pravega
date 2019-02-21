@@ -22,6 +22,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
@@ -54,6 +55,33 @@ public class AsyncIteratorTests extends ThreadPooledTestSuite {
         val result = new ArrayList<Integer>();
         iterator.forEachRemaining(result::add, executorService()).join();
         AssertExtensions.assertListEquals("Unexpected result.", expected, result, Integer::equals);
+    }
+
+
+    /**
+     * Tests the {@link AsyncIterator#collectRemaining(Predicate)} method.
+     */
+    @Test
+    public void testCollectRemaining() {
+        val expected = IntStream.range(0, 10).boxed().collect(Collectors.toList());
+
+        val iterator1 = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
+        val result1 = new ArrayList<Integer>();
+        iterator1.collectRemaining(result1::add).join();
+        AssertExtensions.assertListEquals("Unexpected result.", expected, result1, Integer::equals);
+
+        val iterator2 = new TestIterator<Integer>(expected.stream().map(CompletableFuture::completedFuture).collect(Collectors.toList()));
+        val result2 = new ArrayList<Integer>();
+        iterator2.collectRemaining(e -> {
+            if (e < 5) {
+                result2.add(e);
+                return true;
+            } else {
+                return false;
+            }
+        });
+        AssertExtensions.assertListEquals("Unexpected result.", IntStream.range(0, 5).boxed().collect(Collectors.toList()),
+                                          result2, Integer::equals);
     }
 
     /**

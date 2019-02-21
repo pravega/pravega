@@ -296,7 +296,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile))
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
