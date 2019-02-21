@@ -28,21 +28,21 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     private final String successName;
     private final Timer fail;
     private final String failName;
-    private final MeterRegistry metricRegistry;
+    private final MeterRegistry meterRegistry;
 
     //endregion
 
     //region Constructor
 
     OpStatsLoggerImpl(MeterRegistry metricRegistry, String baseName, String statName, String... tags) {
-        this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
+        this.meterRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
         this.successName = baseName + "." + statName;
         this.failName = baseName + "." + failMetricName(statName);
         //This will publish additional percentile metrics
         this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
-                .register(this.metricRegistry);
+                .register(this.meterRegistry);
         this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILEARRAY)
-                .register(this.metricRegistry);
+                .register(this.meterRegistry);
     }
 
     //endregion
@@ -51,8 +51,8 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     @Override
     public void close() {
-        this.metricRegistry.remove(success);
-        this.metricRegistry.remove(fail);
+        this.meterRegistry.remove(success);
+        this.meterRegistry.remove(fail);
     }
 
 

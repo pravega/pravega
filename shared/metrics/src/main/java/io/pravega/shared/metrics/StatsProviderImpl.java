@@ -75,6 +75,7 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public void close() {
         for (MeterRegistry registry : Metrics.globalRegistry.getRegistries()) {
+            registry.close();
             Metrics.globalRegistry.remove(registry);
         }
     }
