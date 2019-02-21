@@ -42,6 +42,7 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
     private final Function<Token, CompletableFuture<Map.Entry<Token, Collection<T>>>> function;
     private CompletableFuture<Void> outstanding;
     private final AtomicBoolean canContinue;
+    @GuardedBy("lock")
     private final AtomicBoolean isOutstanding;
 
     /**
