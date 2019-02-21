@@ -20,8 +20,6 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
@@ -154,8 +152,6 @@ public class ControllerResolverFactory extends NameResolver.Factory {
                         .nameResolverFactory(new ControllerResolverFactory(executor))
                         .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                         .usePlaintext()
-                        .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
-                        .usePlaintext(true)
                         .build());
             } else {
                 this.client = null;
