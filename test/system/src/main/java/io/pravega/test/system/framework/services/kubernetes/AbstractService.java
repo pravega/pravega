@@ -39,9 +39,12 @@ import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
 import io.pravega.test.system.framework.services.Service;
 
+import java.io.Serializable;
 import java.net.URI;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
@@ -178,10 +181,18 @@ public abstract class AbstractService implements Service {
         return spec;
     }
 
-    private Map<String, String> getTier2Config() {
+    private Map<String, Object> getTier2Config() {
         String tier2Config = System.getProperty("tier2Config");
         checkNotNullOrEmpty(tier2Config, "tier2Config");
-        return Splitter.on(',').trimResults().withKeyValueSeparator("=").split(tier2Config);
+        Map<String, String> split = Splitter.on(',').trimResults().withKeyValueSeparator("=").split(tier2Config);
+        return split.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            try {
+                return Integer.parseInt(e.getValue());
+            } catch (NumberFormatException ex) {
+                // return all non integer configuration as String.
+                return e.getValue();
+            }
+        }));
     }
 
     private Map<String, Object> getPersistentVolumeClaimSpec(String size, String storageClass) {
