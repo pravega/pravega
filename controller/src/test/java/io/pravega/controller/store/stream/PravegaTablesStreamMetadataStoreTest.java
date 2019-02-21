@@ -55,9 +55,9 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
 
     @Override
     public void cleanupStore() throws Exception {
+        store.close();
         cli.close();
         zkServer.close();
-        store.close();
     }
     
     @Test

@@ -61,7 +61,7 @@ public class PravegaTablesStoreHelper {
         return Futures.exceptionallyExpecting(runOnExecutorWithExceptionHandling(
                 () -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID),
                 "delete table: " + scope + "/" + tableName),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, false);
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException, false);
     }
 
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
@@ -121,17 +121,17 @@ public class PravegaTablesStoreHelper {
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken) {
-        return segmentHelper.readTableKeys(scope, tableName, 1000, 
+        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableKeys(scope, tableName, 1000, 
                 IteratorState.fromBytes(continuationToken), 0L)
                 .thenApply(result -> {
                     List<String> items = result.getItems().stream().map(x -> new String(x.getKey())).collect(Collectors.toList());
                     return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
-                });
+                }), "get keys paginated for table:" + scope + "/" + tableName);
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, Data>>>> getEntriesPaginated(String scope, String tableName, 
                                                                                                ByteBuf continuationToken) {
-        return segmentHelper.readTableEntries(scope, tableName, 1000, 
+        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableEntries(scope, tableName, 1000, 
                 IteratorState.fromBytes(continuationToken), 0L)
                 .thenApply(result -> {
                     List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
@@ -140,7 +140,7 @@ public class PravegaTablesStoreHelper {
                         return new ImmutablePair<>(key, value);
                     }).collect(Collectors.toList());
                     return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
-                });
+                }), "get entries paginated for table:" + scope + "/" + tableName);
     }
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {

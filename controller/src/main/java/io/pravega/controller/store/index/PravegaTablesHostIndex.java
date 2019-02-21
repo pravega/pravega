@@ -16,10 +16,12 @@
 package io.pravega.controller.store.index;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.stream.Data;
 import io.pravega.controller.store.stream.PravegaTablesStoreHelper;
+import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.LinkedList;
@@ -30,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 
 /**
  * Zookeeper based host index.
@@ -39,6 +42,8 @@ public class PravegaTablesHostIndex implements HostIndex {
     private static final String SYSTEM_SCOPE = "_system";
     private static final String HOSTS_ROOT_TABLE_FORMAT = "hostsTable-%s";
     private static final String HOST_TABLE_FORMAT = "host-%s-%s";
+    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = ex -> Exceptions.unwrap(ex) instanceof StoreException.DataNotEmptyException;
     private final PravegaTablesStoreHelper storeHelper;
     private final Executor executor;
     private final String hostsTable;
@@ -90,8 +95,8 @@ public class PravegaTablesHostIndex implements HostIndex {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
         String table = getHostEntityTableName(hostId);
-        return storeHelper.getEntry(SYSTEM_SCOPE, table, entity)
-                .thenApply(Data::getData);
+        return Futures.exceptionallyExpecting(storeHelper.getEntry(SYSTEM_SCOPE, table, entity)
+                .thenApply(Data::getData), DATA_NOT_FOUND_PREDICATE, null);
     }
 
     @Override
@@ -99,10 +104,12 @@ public class PravegaTablesHostIndex implements HostIndex {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
         String table = getHostEntityTableName(hostId);
-        return storeHelper.removeEntry(SYSTEM_SCOPE, table, entity)
-                .thenCompose(e -> {
+        return Futures.exceptionallyExpecting(storeHelper.removeEntry(SYSTEM_SCOPE, table, entity),
+                DATA_NOT_FOUND_PREDICATE, null)
+                .thenCompose(v -> {
                     if (deleteEmptyHost) {
-                        return removeHost(hostId);
+                        return Futures.exceptionallyExpecting(removeHost(hostId),
+                                DATA_NOT_EMPTY_PREDICATE, null);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
@@ -113,10 +120,10 @@ public class PravegaTablesHostIndex implements HostIndex {
     public CompletableFuture<Void> removeHost(final String hostId) {
         Preconditions.checkNotNull(hostId);
         String table = getHostEntityTableName(hostId);
-        return storeHelper.deleteTable(SYSTEM_SCOPE, table, true)
+        return Futures.exceptionallyExpecting(storeHelper.deleteTable(SYSTEM_SCOPE, table, true), DATA_NOT_FOUND_PREDICATE, true)
                 .thenCompose(deleted -> {
                     if (deleted) {
-                        return storeHelper.removeEntry(SYSTEM_SCOPE, hostsTable, hostId);     
+                        return Futures.exceptionallyExpecting(storeHelper.removeEntry(SYSTEM_SCOPE, hostsTable, hostId), DATA_NOT_EMPTY_PREDICATE, null);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }

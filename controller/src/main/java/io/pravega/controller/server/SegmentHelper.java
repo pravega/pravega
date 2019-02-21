@@ -706,7 +706,7 @@ public class SegmentHelper {
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
                 log.info(requestId, "deleteTableSegment {} NoSuchSegment.", qualifiedName);
-                result.complete(true);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
 
             @Override

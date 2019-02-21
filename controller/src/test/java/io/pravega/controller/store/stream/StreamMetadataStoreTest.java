@@ -72,7 +72,8 @@ public abstract class StreamMetadataStoreTest {
 
     //Ensure each test completes within 10 seconds.
     @Rule 
-    public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    // TODO: shivesh
+    public Timeout globalTimeout = new Timeout(300, TimeUnit.SECONDS);
     protected StreamMetadataStore store;
     protected BucketStore bucketStore;
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -174,11 +175,8 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
 
         // seal a non-existent stream.
-        try {
-            store.setSealed(scope, "streamNonExistent", null, executor).join();
-        } catch (CompletionException e) {
-            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
-        }
+        AssertExtensions.assertFutureThrows("streamNonExistent", store.setSealed(scope, "streamNonExistent", null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // endregion
 
         // region delete scope and stream
@@ -229,7 +227,7 @@ public abstract class StreamMetadataStoreTest {
                     se instanceof StoreException.DataNotFoundException);
         } catch (CompletionException ce) {
             assertTrue("List streams in non-existent scope Scope1",
-                    ce.getCause() instanceof StoreException.DataNotFoundException);
+                    Exceptions.unwrap(ce) instanceof StoreException.DataNotFoundException);
         }
     }
 

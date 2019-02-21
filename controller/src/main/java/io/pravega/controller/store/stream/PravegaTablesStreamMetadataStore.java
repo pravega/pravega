@@ -26,6 +26,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -74,7 +75,7 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private CompletableFuture<Void> gcCompletedTxn() {
         List<String> batches = new LinkedList<>();
-        return storeHelper.getAllKeys(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
+        return Futures.exceptionallyExpecting(storeHelper.getAllKeys(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
                           .forEachRemaining(batches::add, executor)
                           .thenApply(v -> {
                                       // retain latest two and delete remainder.
@@ -84,9 +85,9 @@ class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
                                           return new ArrayList<String>();
                                       }
                                   }
-                          )
+                          ), DATA_NOT_FOUND_PREDICATE, new ArrayList<String>())
                           .thenCompose(toDeleteList -> {
-                              log.debug("deleting batches {} on new scheme" + toDeleteList);
+                              log.debug("deleting batches {} on new scheme", toDeleteList);
 
                               // delete all those marked for toDelete.
                               return Futures.allOf(
