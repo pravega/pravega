@@ -25,6 +25,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.utils.ZKPaths;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -231,12 +232,12 @@ public class ZKScope implements Scope {
             if (Strings.isNullOrEmpty(token)) {
                 return Token.EMPTY;
             }
-            return SERIALIZER.deserialize(token.getBytes());
+            return SERIALIZER.deserialize(Base64.getDecoder().decode(token));
         }
 
         @SneakyThrows
         public String toString() {
-            return new String(SERIALIZER.serialize(this).getCopy());
+            return Base64.getEncoder().encodeToString(SERIALIZER.serialize(this).getCopy());
         }
 
 
