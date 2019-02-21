@@ -125,13 +125,8 @@ public class ControllerImpl implements Controller {
     public ControllerImpl(final ControllerImplConfig config,
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
-<<<<<<< Upstream, based on master
-                                .nameResolverFactory(new ControllerResolverFactory())
-                                .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
-=======
                                 .nameResolverFactory(new ControllerResolverFactory(executor))
-                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
->>>>>>> 9180869 Use the executor from the controllerImpl to do dns lookups of the controller.
+                                .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());

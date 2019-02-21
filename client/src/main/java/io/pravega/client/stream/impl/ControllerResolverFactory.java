@@ -20,11 +20,8 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.NameResolver;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-<<<<<<< Upstream, based on master
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
-=======
 import io.grpc.util.RoundRobinLoadBalancerFactory;
->>>>>>> 293cce7 Use the provided thread pool
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
@@ -154,15 +151,11 @@ public class ControllerResolverFactory extends NameResolver.Factory {
 
                 this.client = ControllerServiceGrpc.newBlockingStub(ManagedChannelBuilder
                         .forTarget(connectString)
-<<<<<<< Upstream, based on master
-                        .nameResolverFactory(new ControllerResolverFactory())
+                        .nameResolverFactory(new ControllerResolverFactory(executor))
                         .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                         .usePlaintext()
-=======
-                        .nameResolverFactory(new ControllerResolverFactory(executor))
                         .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
                         .usePlaintext(true)
->>>>>>> 9180869 Use the executor from the controllerImpl to do dns lookups of the controller.
                         .build());
             } else {
                 this.client = null;
