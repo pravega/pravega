@@ -13,6 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -103,8 +105,9 @@ public class StreamRecreationTest {
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(myScope);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(myScope, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(myScope, controllerURI, connectionFactory);
         final ReaderGroupConfig readerGroupConfig = ReaderGroupConfig.builder()
                                                                      .stream(Stream.of(myScope, myStream))
                                                                      .build();

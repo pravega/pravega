@@ -12,6 +12,8 @@ package io.pravega.test.integration;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -122,8 +124,9 @@ public class StreamSeekTest {
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1)).stream(Stream.of(SCOPE, STREAM2)).build());
         @Cleanup

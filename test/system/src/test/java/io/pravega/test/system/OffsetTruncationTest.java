@@ -116,7 +116,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         log.info("Invoking offsetTruncationTest test with Controller URI: {}", controllerURI);
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);

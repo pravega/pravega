@@ -17,6 +17,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
@@ -104,8 +106,9 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                     .disableAutomaticCheckpoints()
                     .build();
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);
         readerGroupManager.createReaderGroup(readerGroup, readerGroupConfig);
 
         @Cleanup

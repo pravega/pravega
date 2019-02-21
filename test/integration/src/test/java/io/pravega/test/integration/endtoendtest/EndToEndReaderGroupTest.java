@@ -186,8 +186,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(3)).join();
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
                 .stream(stream)
@@ -240,8 +241,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(3)).join();
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
                 .stream(stream)
@@ -323,8 +325,9 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         //6. Write events to Segment 1.
         writer.writeEvent(keyGenerator.apply("0.9"), getEventData.apply(1));
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         groupManager.createReaderGroup(group, ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
                 .stream(stream)

@@ -120,10 +120,10 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig, connectionFactory);
         log.info("Invoking batchClientSimpleTest test with Controller URI: {}", controllerURI);
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                       .stream(SCOPE + "/" + STREAM).build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);

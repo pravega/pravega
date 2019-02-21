@@ -24,6 +24,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -133,7 +134,9 @@ public class PravegaTest extends AbstractReadWriteTest {
             writer.flush();
         }
         log.info("Invoking Reader test.");
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, clientConfig, connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),

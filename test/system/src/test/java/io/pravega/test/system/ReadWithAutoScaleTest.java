@@ -9,8 +9,11 @@
  */
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -120,8 +123,9 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.1 Create a reader group.
         log.info("Creating Reader group : {}", READER_GROUP_NAME);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         //2.2 Create readers.

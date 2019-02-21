@@ -9,7 +9,7 @@
  */
 package io.pravega.client;
 
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.RevisionedStreamClient;
@@ -20,7 +20,6 @@ import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import lombok.val;
 
 /**
  * Used to create StateSynchronizer and RevisionedStreamClient objects which allow for 
@@ -33,10 +32,10 @@ public interface SynchronizerClientFactory extends AutoCloseable {
      *
      * @param scope The scope string.
      * @param config Configuration for the client.
+     * @param connectionFactory Connection for the client.
      * @return Instance of ClientFactory implementation.
      */
-    static SynchronizerClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new ConnectionFactoryImpl(config);
+    static SynchronizerClientFactory withScope(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         return new ClientFactoryImpl(scope, new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                 connectionFactory.getInternalExecutor()), connectionFactory);
     }

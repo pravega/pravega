@@ -13,6 +13,8 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -131,8 +133,9 @@ public class BoundedStreamReaderTest {
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM1),
@@ -185,8 +188,9 @@ public class BoundedStreamReaderTest {
         StreamCut streamCut = getStreamCut(STREAM1, 30L, 0);
 
         // 3. Create a ReaderGroup where the lower and upper bound are the same.
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM1), streamCut, streamCut)
@@ -228,8 +232,9 @@ public class BoundedStreamReaderTest {
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
 
         ReaderGroupConfig readerGroupCfg1 = ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                 .stream(Stream.of(SCOPE, STREAM1),
@@ -284,8 +289,9 @@ public class BoundedStreamReaderTest {
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
         StreamCut offset30SC = getStreamCut(STREAM3, 30L, 0); // Streamcut pointing to event 2.
         StreamCut offset60SC = getStreamCut(STREAM3, 60L, 0);
         groupManager.createReaderGroup("group", ReaderGroupConfig

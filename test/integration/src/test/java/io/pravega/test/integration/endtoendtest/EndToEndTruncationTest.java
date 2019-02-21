@@ -391,8 +391,9 @@ public class EndToEndTruncationTest {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
                 ClientConfig.builder().controllerURI(controllerURI).build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
         groupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                          .stream(scope + "/" + streamName)
                                                                          .build());
@@ -440,8 +441,9 @@ public class EndToEndTruncationTest {
         StreamConfiguration streamConf = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         streamManager.createScope(scope);
@@ -583,8 +585,9 @@ public class EndToEndTruncationTest {
         writeEvents(clientFactory, streamName, totalEvents);
 
         // Instantiate readers to consume from Stream.
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
         groupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build());
         final List<CompletableFuture<Integer>> futures = readEvents(clientFactory, readerGroup, parallelism);
 

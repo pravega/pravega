@@ -13,6 +13,8 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
@@ -113,8 +115,10 @@ public class UnreadBytesTest {
         EventStreamWriter<String> writer = clientFactory.createEventWriter("unreadbytes", new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
 
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", clientConfig, connectionFactory);
         groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes").build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
@@ -173,8 +177,10 @@ public class UnreadBytesTest {
         writer.writeEvent("0", "data of size 30").get();
         writer.writeEvent("0", "data of size 30").get();
 
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes",  ClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", clientConfig, connectionFactory);
         //create a bounded reader group.
         groupManager.createReaderGroup("group", ReaderGroupConfig
                 .builder().disableAutomaticCheckpoints().stream("unreadbytes/unreadbytes", StreamCut.UNBOUNDED,

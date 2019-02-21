@@ -12,11 +12,12 @@ package io.pravega.client.admin;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
+
 import java.net.URI;
 
 /**
@@ -29,10 +30,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      *
      * @param scope The Scope string.
      * @param controllerUri The Controller URI.
+     * @param connectionFactory The Connection for the client.
      * @return Instance of Stream Manager implementation.
      */
-    public static ReaderGroupManager withScope(String scope, URI controllerUri) {
-        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
+    public static ReaderGroupManager withScope(String scope, URI controllerUri, ConnectionFactory connectionFactory) {
+        return withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build(), connectionFactory);
     }
 
     /**
@@ -40,10 +42,11 @@ public interface ReaderGroupManager extends AutoCloseable {
      *
      * @param scope The Scope string.
      * @param clientConfig Configuration for the client.
+     * @param connectionFactory The Connection for the client.
      * @return Instance of Stream Manager implementation.
      */
-    public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig) {
-        return new ReaderGroupManagerImpl(scope, clientConfig, new ConnectionFactoryImpl(clientConfig));
+    public static ReaderGroupManager withScope(String scope, ClientConfig clientConfig, ConnectionFactory connectionFactory) {
+        return new ReaderGroupManagerImpl(scope, clientConfig, connectionFactory);
     }
 
     /**

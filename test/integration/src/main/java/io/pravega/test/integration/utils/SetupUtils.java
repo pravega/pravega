@@ -190,7 +190,7 @@ public final class SetupUtils {
         Preconditions.checkState(this.started.get(), "Services not yet started");
         Preconditions.checkNotNull(streamName);
 
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);
         final String readerGroup = "testReaderGroup" + scope + streamName;
         readerGroupManager.createReaderGroup(
                 readerGroup,

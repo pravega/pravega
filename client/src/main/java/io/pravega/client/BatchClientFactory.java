@@ -14,7 +14,7 @@ import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.batch.impl.BatchClientFactoryImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
@@ -22,7 +22,6 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import lombok.val;
 
 /**
  * Please note this is an experimental API.
@@ -43,10 +42,10 @@ public interface BatchClientFactory extends AutoCloseable {
      *
      * @param scope The scope of the stream.
      * @param config Configuration for the client.
+     * @param connectionFactory Connection for the client.
      * @return Instance of BatchClientFactory implementation.
      */
-    static BatchClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new ConnectionFactoryImpl(config);
+    static BatchClientFactory withScope(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
         return new BatchClientFactoryImpl(controller, connectionFactory);

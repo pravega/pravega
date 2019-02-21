@@ -13,6 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -119,9 +121,9 @@ public class ReaderGroupStreamCutUpdateTest {
                                                                .stream(Stream.of(scope, stream))
                                                                .automaticCheckpointIntervalMillis(checkpointingIntervalMs)
                                                                .build();
-
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
         readerGroupManager.createReaderGroup(readerGroupName, readerGroupConfig);
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(readerGroupName);
         @Cleanup

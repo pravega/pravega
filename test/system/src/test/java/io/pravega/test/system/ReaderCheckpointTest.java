@@ -13,6 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -105,8 +107,8 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         assertTrue("Creating Scope", streamManager.createScope(SCOPE_1));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM, streamConfig));
 
-        @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, controllerURI);
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, controllerURI, connectionFactory);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME,
                 ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE_1, STREAM)).build());
         @Cleanup
@@ -160,8 +162,9 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         assertTrue("Creating Scope", streamManager.createScope(SCOPE_2));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM, streamConfig));
 
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, controllerURI, connectionFactory);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME,
                                              ReaderGroupConfig.builder()
                                                               .stream(io.pravega.client.stream.Stream.of(SCOPE_2, STREAM))

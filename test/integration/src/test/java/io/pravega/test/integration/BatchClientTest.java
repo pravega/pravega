@@ -19,6 +19,8 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -124,8 +126,11 @@ public class BatchClientTest {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
+
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig, connectionFactory);
 
         // List out all the segments in the stream.
         ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), null, null).getIterator());
@@ -157,8 +162,11 @@ public class BatchClientTest {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
+
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig, connectionFactory);
 
         // 1. Create a StreamCut after 2 events(offset = 2 * 30 = 60).
         StreamCut streamCut60L = new StreamCutImpl(Stream.of(SCOPE, STREAM), ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 60L));
@@ -179,8 +187,11 @@ public class BatchClientTest {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         createTestStreamWithEvents(clientFactory);
+
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig, connectionFactory);
 
         // 1. Fetch Segments.
         ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());

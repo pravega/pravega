@@ -123,7 +123,7 @@ public class RetentionTest extends AbstractSystemTest {
         Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         //create a reader
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,

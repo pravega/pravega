@@ -13,6 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
@@ -135,8 +137,10 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     public void streamCutsTest() {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
+
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
         readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder()
                                                                             .stream(Stream.of(SCOPE, STREAM_ONE))
                                                                             .stream(Stream.of(SCOPE, STREAM_TWO)).build());

@@ -13,6 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -270,9 +272,10 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
                                      .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
                                      .build(), executor);
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
         try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller);
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
-                     ClientConfig.builder().controllerURI(controllerUri).build())) {
+             ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, clientConfig, connectionFactory)) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()
                                                        .stream(Stream.of(testScope, testStream1))
                                                        .stream(Stream.of(testScope, testStream2))

@@ -13,6 +13,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -156,7 +158,9 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
 
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);
         groupManager.createReaderGroup(readerGroup,
                 ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, stream)).build());
 

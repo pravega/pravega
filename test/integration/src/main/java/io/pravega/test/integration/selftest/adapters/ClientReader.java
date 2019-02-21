@@ -13,6 +13,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
@@ -151,11 +153,12 @@ class ClientReader implements StoreReader, AutoCloseable {
         StreamReader(String streamName) {
             this.readerGroup = UUID.randomUUID().toString().replace("-", "");
             this.readerId = UUID.randomUUID().toString().replace("-", "");
-            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE,
-                    ClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
-                            .trustStore("../../config/cert.pem")
-                            .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                            .validateHostName(false).build())) {
+            ClientConfig clientConfig = ClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
+                    .trustStore("../../config/cert.pem")
+                    .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                    .validateHostName(false).build();
+            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+            try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE, clientConfig, connectionFactory)) {
                 readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
                                                                                         .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
                                                                                         .build());

@@ -15,6 +15,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -152,8 +154,9 @@ public class ControllerMetricsTest {
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder()
                                                                                                        .controllerURI(controllerURI)
                                                                                                        .build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
 
         for (int i = 0; i < iterations; i++) {
             final String iterationStreamName = streamName + i;

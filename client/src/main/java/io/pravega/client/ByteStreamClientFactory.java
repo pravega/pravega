@@ -13,10 +13,9 @@ import com.google.common.annotations.Beta;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
-import lombok.val;
 
 /**
  * Used to create Writers and Readers operating on a Byte Stream.
@@ -33,10 +32,11 @@ public interface ByteStreamClientFactory extends AutoCloseable {
      *
      * @param scope The scope string.
      * @param config Configuration for the client.
+     * @param connectionFactory Connection for the client.
      * @return Instance of ByteStreamClientFactory implementation.
      */
-    static ByteStreamClientFactory withScope(String scope, ClientConfig config) {
-        val connectionFactory = new ConnectionFactoryImpl(config);
+    static ByteStreamClientFactory withScope(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
+        /* val connectionFactory = new ConnectionFactoryImpl(config); */
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
         return new ByteStreamClientImpl(scope, controller, connectionFactory);
@@ -44,7 +44,7 @@ public interface ByteStreamClientFactory extends AutoCloseable {
 
     /**
      * Creates a new ByteStreamReader on the specified stream initialized to offset 0.
-     * 
+     *
      * @param streamName the stream to read from.
      * @return A new ByteStreamReader
      */

@@ -14,6 +14,8 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -133,10 +135,10 @@ public class MultiReadersEndToEndTest {
 
         final String readerGroupName = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
 
+        ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SETUP_UTILS.getScope(),
-                                    ClientConfig.builder()
-                                                .controllerURI(SETUP_UTILS.getControllerUri()).build());
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SETUP_UTILS.getScope(), clientConfig, connectionFactory);
         ReaderGroupConfig.ReaderGroupConfigBuilder builder = ReaderGroupConfig.builder();
         streamNames.forEach(s -> builder.stream(Stream.of(SETUP_UTILS.getScope(), s)));
         readerGroupManager.createReaderGroup(readerGroupName, builder.build());
