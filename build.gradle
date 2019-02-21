@@ -1,3 +1,5 @@
+import org.gradle.internal.jvm.Jvm
+
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -10,6 +12,9 @@
  */
 // Apply the java plugin to add support for Java
 buildscript {
+
+    // log the current JVM version.
+    println "Build JVM Version is : " + Jvm.current()
     repositories {
         jcenter()
         maven {
@@ -72,8 +77,8 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            sourceCompatibility = "8"
-            targetCompatibility = "8"
+            sourceCompatibility = JavaVersion.VERSION_1_8
+            targetCompatibility = JavaVersion.VERSION_1_8
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
