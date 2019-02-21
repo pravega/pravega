@@ -31,7 +31,6 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -48,6 +47,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -332,8 +332,8 @@ public class SegmentHelperTest {
                                                                  new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
 
         WireCommands.TableEntries resultData = new WireCommands.TableEntries(entries.stream().map(e -> {
-            val k = new WireCommands.TableKey(ByteBuffer.wrap(e.getKey().getKey()), e.getKey().getVersion().getSegmentVersion());
-            val v = new WireCommands.TableValue(ByteBuffer.wrap(e.getValue()));
+            val k = new WireCommands.TableKey(wrappedBuffer(e.getKey().getKey()), e.getKey().getVersion().getSegmentVersion());
+            val v = new WireCommands.TableValue(wrappedBuffer(e.getValue()));
             return new AbstractMap.SimpleImmutableEntry<>(k, v);
         }).collect(Collectors.toList()));
 

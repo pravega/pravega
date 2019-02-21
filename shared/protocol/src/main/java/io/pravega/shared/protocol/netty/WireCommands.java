@@ -29,10 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
+import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * The complete list of all commands that go over the wire between clients and the server.
@@ -1698,12 +1701,197 @@ public final class WireCommands {
     }
 
     @Data
+    public static final class ReadTableKeys implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+        final int suggestedKeyCount;
+        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.readTableKeys(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(suggestedKeyCount);
+            out.writeInt(continuationToken.readableBytes()); // continuation token length.
+            if (continuationToken.readableBytes() != 0) {
+                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int suggestedKeyCount = in.readInt();
+            int dataLength = in.readInt();
+
+            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + delegationToken.getBytes(UTF_8).length + 2 * Integer.BYTES) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+            }
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new ReadTableKeys(requestId, segment, delegationToken, suggestedKeyCount, wrappedBuffer(continuationToken));
+        }
+    }
+
+    @Data
+    public static final class TableKeysRead implements Reply, WireCommand {
+        public static final Function<Integer, Integer> GET_HEADER_BYTES =
+                keyCount -> Long.BYTES + Integer.BYTES + TableKey.HEADER_BYTES * keyCount + Integer.BYTES;
+
+        final WireCommandType type = WireCommandType.TABLE_KEYS_READ;
+        final long requestId;
+        final String segment;
+        final List<TableKey> keys;
+        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableKeysRead(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeInt(keys.size());
+            for (TableKey key : keys) {
+                key.writeFields(out);
+            }
+            out.writeInt(continuationToken.readableBytes());
+            continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            int numberOfKeys = in.readInt();
+            List<TableKey> keys = new ArrayList<>(numberOfKeys);
+            int keyByteCount = 0;
+            for (int i = 0; i < numberOfKeys; i++) {
+                TableKey k = TableKey.readFrom(in, in.available());
+                keys.add(k);
+                keyByteCount += TableKey.HEADER_BYTES + Long.BYTES + k.getData().readableBytes();
+            }
+            int dataLength = in.readInt();
+            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + Integer.BYTES + keyByteCount) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+            }
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new TableKeysRead(requestId, segment, keys, wrappedBuffer(continuationToken));
+        }
+    }
+
+    @Data
+    public static final class ReadTableEntries implements Request, WireCommand {
+
+        final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
+        final long requestId;
+        final String segment;
+        final String delegationToken;
+        final int suggestedEntryCount;
+        final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.
+
+        @Override
+        public void process(RequestProcessor cp) {
+            cp.readTableEntries(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeInt(suggestedEntryCount);
+            out.writeInt(continuationToken.readableBytes()); // continuation token length.
+            if (continuationToken.readableBytes() != 0) {
+                continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+            }
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            String delegationToken = in.readUTF();
+            int suggestedEntryCount = in.readInt();
+            int dataLength = in.readInt();
+
+            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + delegationToken.getBytes(UTF_8).length + 2 * Integer.BYTES ) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+            }
+
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new ReadTableEntries(requestId, segment, delegationToken, suggestedEntryCount, wrappedBuffer(continuationToken));
+        }
+    }
+
+    @Data
+    public static final class TableEntriesRead implements Reply, WireCommand {
+        public static final Function<Integer, Integer> GET_HEADER_BYTES =
+                entryCount -> Long.BYTES + TableEntries.GET_HEADER_BYTES.apply(entryCount) + Integer.BYTES;
+
+        final WireCommandType type = WireCommandType.TABLE_ENTRIES_READ;
+        final long requestId;
+        final String segment;
+        final TableEntries entries;
+        final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
+
+
+        @Override
+        public void process(ReplyProcessor cp) {
+            cp.tableEntriesRead(this);
+        }
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            entries.writeFields(out);
+            out.writeInt(continuationToken.readableBytes());
+            continuationToken.getBytes(continuationToken.readerIndex(), (OutputStream) out, continuationToken.readableBytes());
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String segment = in.readUTF();
+            TableEntries entries = TableEntries.readFrom(in, in.available());
+            int dataLength = in.readInt();
+
+            if (length < dataLength + Long.BYTES + segment.getBytes(UTF_8).length + entries.size() + Integer.BYTES ) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + dataLength);
+            }
+
+            byte[] continuationToken = new byte[dataLength];
+            in.readFully(continuationToken);
+
+            return new TableEntriesRead(requestId, segment, entries, wrappedBuffer(continuationToken));
+        }
+    }
+
+    @Data
     public static final class TableEntries {
+        static final Function<Integer, Integer> GET_HEADER_BYTES =
+                entryCount -> Integer.BYTES + entryCount * (TableKey.HEADER_BYTES + TableValue.HEADER_BYTES);
+
         final List<Map.Entry<TableKey, TableValue>> entries;
 
         public void writeFields(DataOutput out) throws IOException {
             out.writeInt(entries.size());
-            for (Map.Entry<TableKey, TableValue> ent :entries) {
+            for (Map.Entry<TableKey, TableValue> ent : entries) {
                 ent.getKey().writeFields(out);
                 ent.getValue().writeFields(out);
             }
@@ -1719,22 +1907,30 @@ public final class WireCommands {
 
             return new TableEntries(entries);
         }
+
+        public int size() {
+            int dataBytes = entries.stream()
+                                   .mapToInt(e -> e.getKey().getData().readableBytes() + Long.BYTES + e.getValue().getData().readableBytes())
+                                   .sum();
+            return GET_HEADER_BYTES.apply(entries.size()) + dataBytes;
+        }
     }
 
     @Data
     public static final class TableKey {
         public static final long NO_VERSION = Long.MIN_VALUE;
         public static final long NOT_EXISTS = -1L;
-        public final static TableKey EMPTY = new TableKey(ByteBuffer.wrap(new byte[0]), Long.MIN_VALUE);
+        public static final int HEADER_BYTES = 2 * Integer.BYTES;
+        public static final TableKey EMPTY = new TableKey(EMPTY_BUFFER, Long.MIN_VALUE);
 
-        final ByteBuffer data;
+        final ByteBuf data;
         final long keyVersion;
 
         public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(Integer.BYTES + data.remaining() + Long.BYTES); // total length of the TableKey.
-            out.writeInt(data.remaining()); // data length.
-            if (data.remaining() != 0) {
-                out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            out.writeInt(Integer.BYTES + data.readableBytes() + Long.BYTES); // total length of the TableKey.
+            out.writeInt(data.readableBytes()); // data length.
+            if (data.readableBytes() != 0) {
+                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
                 out.writeLong(keyVersion);
             }
         }
@@ -1751,20 +1947,22 @@ public final class WireCommands {
             byte[] msg = new byte[dataLength];
             in.readFully(msg);
             long keyVersion = in.readLong();
-            return new TableKey(ByteBuffer.wrap(msg), keyVersion);
+            return new TableKey(wrappedBuffer(msg), keyVersion);
         }
     }
 
     @Data
     public static final class TableValue {
-        public final static TableValue EMPTY = new TableValue(ByteBuffer.wrap(new byte[0]));
-        final ByteBuffer data;
+        public static final TableValue EMPTY = new TableValue(EMPTY_BUFFER);
+        public static final int HEADER_BYTES = 2 * Integer.BYTES;
+
+        final ByteBuf data;
 
         public void writeFields(DataOutput out) throws IOException {
-            out.writeInt(Integer.BYTES + data.remaining()); // total length of of TableValue.
-            out.writeInt(data.remaining()); // data length.
-            if (data.remaining() != 0) {
-                out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            out.writeInt(Integer.BYTES + data.readableBytes()); // total length of of TableValue.
+            out.writeInt(data.readableBytes()); // data length.
+            if (data.readableBytes() != 0) {
+                data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
             }
         }
 
@@ -1779,7 +1977,7 @@ public final class WireCommands {
             }
             byte[] msg = new byte[valueLength];
             in.readFully(msg);
-            return new TableValue(ByteBuffer.wrap(msg));
+            return new TableValue(wrappedBuffer(msg));
         }
     }
 

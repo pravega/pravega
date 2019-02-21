@@ -41,16 +41,16 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
@@ -157,32 +157,29 @@ public class ReaderGroupNotificationTest {
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
                 ReaderConfig.builder().build());
 
-        final CountDownLatch latch = new CountDownLatch(2);
-        final ArrayDeque<SegmentNotification> notificationResults = new ArrayDeque<>();
+        val notificationResults = new ArrayBlockingQueue<SegmentNotification>(2);
 
         //Add segment event listener
         Listener<SegmentNotification> l1 = notification -> {
-            log.info("Number of Segments{}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
-            notificationResults.offer(notification);
-            latch.countDown();
+            log.info("Number of Segments: {}, Number of Readers: {}", notification.getNumOfSegments(), notification.getNumOfReaders());
+            notificationResults.add(notification);
         };
         readerGroup.getSegmentNotifier(executor).registerListener(l1);
 
+        // Read first event and validate notification.
         EventRead<String> event1 = reader1.readNextEvent(15000);
-        EventRead<String> event2 = reader1.readNextEvent(15000);
         assertNotNull(event1);
         assertEquals("data1", event1.getEvent());
-        assertNotNull(event2);
-        assertEquals("data2", event2.getEvent());
-
-        latch.await(); // await two invocations.
-
-        SegmentNotification initialSegmentNotification = notificationResults.poll();
+        SegmentNotification initialSegmentNotification = notificationResults.take();
         assertNotNull(initialSegmentNotification);
         assertEquals(1, initialSegmentNotification.getNumOfReaders());
         assertEquals(1, initialSegmentNotification.getNumOfSegments());
 
-        SegmentNotification segmentNotificationPostScale = notificationResults.poll();
+        // Read second event and validate notification.
+        EventRead<String> event2 = reader1.readNextEvent(15000);
+        assertNotNull(event2);
+        assertEquals("data2", event2.getEvent());
+        SegmentNotification segmentNotificationPostScale = notificationResults.take();
         assertEquals(1, segmentNotificationPostScale.getNumOfReaders());
         assertEquals(2, segmentNotificationPostScale.getNumOfSegments());
     }
