@@ -94,6 +94,7 @@ public class PravegaRequestProcessorTest {
 
     static {
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
+        MetricsProvider.getMetricsProvider().startWithoutExporting();
     }
 
     //region Stream Segments

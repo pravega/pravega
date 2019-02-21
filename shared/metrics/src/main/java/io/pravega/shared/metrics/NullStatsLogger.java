@@ -21,7 +21,7 @@ public class NullStatsLogger implements StatsLogger {
     static final NullGauge NULLGAUGE = new NullGauge();
     static final NullMeter NULLMETER = new NullMeter();
     static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
-    private static final Id NULLID = null;
+    private static final Id NULL_ID = null;
 
     @Override
     public OpStatsLogger createStats(String name, String... tags) {
@@ -36,7 +36,7 @@ public class NullStatsLogger implements StatsLogger {
     private static class NullGauge implements Gauge {
         @Override
         public Id getId() {
-            return NULLID;
+            return NULL_ID;
         }
 
         @Override
@@ -95,7 +95,7 @@ public class NullStatsLogger implements StatsLogger {
 
         @Override
         public Id getId() {
-            return NULLID;
+            return NULL_ID;
         }
 
         @Override
@@ -127,7 +127,7 @@ public class NullStatsLogger implements StatsLogger {
 
         @Override
         public Id getId() {
-            return NULLID;
+            return NULL_ID;
         }
 
         @Override
@@ -154,7 +154,7 @@ public class NullStatsLogger implements StatsLogger {
 
         @Override
         public Id getId() {
-            return NULLID;
+            return NULL_ID;
         }
 
         @Override
