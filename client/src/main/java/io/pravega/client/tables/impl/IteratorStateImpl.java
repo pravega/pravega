@@ -9,22 +9,19 @@
  */
 package io.pravega.client.tables.impl;
 
-/**
- * A Table Entry with a Version.
- *
- * @param <KeyT>   Key Type.
- * @param <ValueT> Value Type
- */
-public interface TableEntry<KeyT, ValueT> {
-    /**
-     * The Key.
-     * @return {@link TableKey}
-     */
-    TableKey<KeyT> getKey();
+import io.netty.buffer.ByteBuf;
+import lombok.Data;
 
-    /**
-     * The Value.
-     * @return Value.
-     */
-    ValueT getValue();
+/**
+ * Implementation of {@link KeyVersion}.
+ */
+@Data
+public class IteratorStateImpl implements IteratorState {
+
+    private final ByteBuf token;
+
+    @Override
+    public ByteBuf toBytes() {
+        return token;
+    }
 }
