@@ -75,7 +75,7 @@ public class TableEntry {
      * @param value The Value.
      * @param version The desired version.
      *
-     * @return mew instance of Table Entry with a specified version
+     * @return new instance of Table Entry with a specified version
      */
     public static TableEntry versioned(@NonNull ArrayView key, @NonNull ArrayView value, long version) {
         return new TableEntry(TableKey.versioned(key, version), value);

@@ -204,7 +204,6 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
-
      
     }
 }
@@ -522,13 +521,9 @@ project('shared:controller-api') {
 
     dependencies {
         compile project(':common')
-
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-  
-
-	
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion

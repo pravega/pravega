@@ -73,7 +73,7 @@ public interface ReadResult extends Iterator<ReadResultEntry>, AutoCloseable {
      * Gets a value indicating whether this ReadResult is fully consumed (either because it was read in its entirety
      * or because it was closed externally).
      *
-     * @return true if ReadResult  is fully consumed or closed externally, otherwise false
+     * @return true if ReadResult is fully consumed or closed externally, otherwise false
      */
     boolean isClosed();
 
