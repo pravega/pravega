@@ -9,25 +9,39 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.Version;
 import lombok.extern.slf4j.Slf4j;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Test class for TimeoutService.
  */
 @Slf4j
 public class TimeoutServicePravegaTableStoreTest extends TimeoutServiceTest {
+    private final SegmentHelper segmentHelper;
     public TimeoutServicePravegaTableStoreTest() throws Exception {
         super();
+        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+    }
+
+    @Override
+    SegmentHelper getSegmentHelper() {
+        return segmentHelper;
     }
 
     @Override
     protected StreamMetadataStore getStore() {
-        return StreamStoreFactory.createPravegaTablesStore(
-                SegmentHelperMock.getSegmentHelperMockForTables(), client, executor);
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, client, executor);
     }
 
     @Override

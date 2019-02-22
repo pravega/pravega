@@ -227,6 +227,7 @@ public abstract class ControllerEventProcessorTest {
         // subsequent events should be no op
         // 3. commit request for future epoch
         // this should be ignored as there is nothing in the epoch to commit
+        // scale stream
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
@@ -235,6 +236,8 @@ public abstract class ControllerEventProcessorTest {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
 
+        System.err.println("shivesh:: i am starting the commits now");
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)).join();
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1))));
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1))));
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch))));

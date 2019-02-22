@@ -18,6 +18,7 @@ import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -422,11 +423,11 @@ class PravegaTablesStream extends PersistentStreamBase {
         String scope = getScope();
         String epochTableName = getEpochTable(epoch);
         Map<String, Data> result = new ConcurrentHashMap<>();
-        return storeHelper.getAllEntries(scope, epochTableName)
+        return Futures.exceptionallyExpecting(storeHelper.getAllEntries(scope, epochTableName)
                           .forEachRemaining(x -> {
                               result.put(x.getKey(), x.getValue());
                           }, executor)
-                          .thenApply(x -> result);
+                          .thenApply(x -> result), DATA_NOT_FOUND_PREDICATE, Collections.emptyMap());
     }
 
     @Override

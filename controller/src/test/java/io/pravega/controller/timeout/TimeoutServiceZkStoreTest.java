@@ -9,10 +9,19 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.Version;
 import lombok.extern.slf4j.Slf4j;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Test class for TimeoutService.
@@ -21,6 +30,14 @@ import lombok.extern.slf4j.Slf4j;
 public class TimeoutServiceZkStoreTest extends TimeoutServiceTest {
     public TimeoutServiceZkStoreTest() throws Exception {
         super();
+    }
+
+    @Override
+    SegmentHelper getSegmentHelper() {
+        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+
+        return SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
     }
 
     @Override

@@ -1032,10 +1032,7 @@ public abstract class PersistentStreamBase implements Stream {
             return ActiveTxnRecord.fromBytes(ok.getData()).getTxnStatus();
         }).thenCompose(x -> {
             if (x.equals(TxnStatus.UNKNOWN)) {
-                return getCompletedTxnStatus(txId)
-                        .whenComplete((r, e) -> {
-                            System.err.println("shivesh");
-                        });
+                return getCompletedTxnStatus(txId);
             } else {
                 return CompletableFuture.completedFuture(x);
             }

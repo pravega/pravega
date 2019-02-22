@@ -72,7 +72,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .sessionTimeoutMs(10 * 1000)
                 .namespace("pravega/" + UUID.randomUUID())
                 .build();
-        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
 
         HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(false)
