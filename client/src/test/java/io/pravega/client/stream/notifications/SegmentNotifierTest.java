@@ -13,6 +13,7 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.test.common.InlineExecutor;
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -45,7 +46,7 @@ public class SegmentNotifierTest {
     @Spy
     private NotificationSystem system = new NotificationSystem();
     @Spy
-    private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "SegmentNotifierTest");
+    private ScheduledExecutorService executor = new InlineExecutor();
     @Mock
     private StateSynchronizer<ReaderGroupState> sync;
     @Mock
