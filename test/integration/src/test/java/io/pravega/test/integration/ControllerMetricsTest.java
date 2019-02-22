@@ -33,6 +33,7 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -84,7 +85,6 @@ public class ControllerMetricsTest {
     @Before
     public void setUp() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
-                                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
                                                    .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                                                    .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofMinutes(5));
@@ -162,7 +162,7 @@ public class ControllerMetricsTest {
             // Check that the number of streams in metrics has been incremented.
             streamManager.createStream(scope, iterationStreamName, streamConfiguration);
             Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
-            Assert.assertTrue(i <= createdStreamsCounter.count());
+            AssertExtensions.assertGreaterThanOrEqual("The counter of created streams", i, (long) createdStreamsCounter.count());
             groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                                                 .stream(scope + "/" + iterationStreamName)
                                                                                                 .build());

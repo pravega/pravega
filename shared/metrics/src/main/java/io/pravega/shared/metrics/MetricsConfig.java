@@ -27,25 +27,14 @@ public class MetricsConfig {
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMinutes", 30);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
-    public final static Property<String> CSV_ENDPOINT = Property.named("csvEndpoint", "/tmp/csv");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
     public final static Property<String> INFLUXDB_URI = Property.named("influxDBURI", "http://localhost:8086");
     public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "pravega");
     public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
     public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDBPassword", "");
-    public final static Property<String> GRAPHITE_HOST = Property.named("graphiteHost", "localhost");
-    public final static Property<Integer> GRAPHITE_PORT = Property.named("graphitePort", 2003);
-    public final static Property<String> JMX_DOMAIN = Property.named("jmxDomain", "domain");
-    public final static Property<String> GANGLIA_HOST = Property.named("gangliaHost", "localhost");
-    public final static Property<Integer> GANGLIA_PORT = Property.named("gangliaPort", 8649);
-    public final static Property<Boolean> ENABLE_CSV_REPORTER = Property.named("enableCSVReporter", true);
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsdReporter", true);
     public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("enableInfluxDBReporter", false);
-    public final static Property<Boolean> ENABLE_GRAPHITE_REPORTER = Property.named("enableGraphiteReporter", false);
-    public final static Property<Boolean> ENABLE_JMX_REPORTER = Property.named("enableJMXReporter", false);
-    public final static Property<Boolean> ENABLE_GANGLIA_REPORTER = Property.named("enableGangliaReporter", false);
-    public final static Property<Boolean> ENABLE_CONSOLE_REPORTER = Property.named("enableConsoleReporter", false);
     public static final String COMPONENT_CODE = "metrics";
 
     //endregion
@@ -84,12 +73,6 @@ public class MetricsConfig {
     private final String metricsPrefix;
 
     /**
-     * The metrics csv endpoint.
-     */
-    @Getter
-    private final String csvEndpoint;
-
-    /**
      * The host name (no port) where StatsD is listening.
      */
     @Getter
@@ -126,42 +109,6 @@ public class MetricsConfig {
     private final String influxDBPassword;
 
     /**
-     * The host name where Graphite is listening.
-     */
-    @Getter
-    private final String graphiteHost;
-
-    /**
-     * The port where Graphite is listening.
-     */
-    @Getter
-    private final int graphitePort;
-
-    /**
-     * The JMX domain.
-     */
-    @Getter
-    private final String jmxDomain;
-
-    /**
-     * The host where Ganglia is listening.
-     */
-    @Getter
-    private final String gangliaHost;
-
-    /**
-     * The port where Ganglia is listening.
-     */
-    @Getter
-    private final int gangliaPort;
-
-    /**
-     * The status of enable CSV reporter.
-     */
-    @Getter
-    private final boolean enableCSVReporter;
-
-    /**
      * The status of enable StatsD reporter.
      */
     @Getter
@@ -172,30 +119,6 @@ public class MetricsConfig {
      */
     @Getter
     private final boolean enableInfluxDBReporter;
-
-    /**
-     * The status of enable Graphite reporter.
-     */
-    @Getter
-    private final boolean enableGraphiteReporter;
-
-    /**
-     * The status of enable JMX reporter.
-     */
-    @Getter
-    private final boolean enableJMXReporter;
-
-    /**
-     * The status of enable Ganglia reporter.
-     */
-    @Getter
-    private final boolean enableGangliaReporter;
-
-    /**
-     * The status of enable Console reporter.
-     */
-    @Getter
-    private final boolean enableConsoleReporter;
 
     //endregion
 
@@ -212,25 +135,14 @@ public class MetricsConfig {
         this.dynamicCacheEvictionDurationMinutes = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES));
         this.statsOutputFrequencySeconds = Duration.ofSeconds(properties.getInt(OUTPUT_FREQUENCY));
         this.metricsPrefix = properties.get(METRICS_PREFIX);
-        this.csvEndpoint = properties.get(CSV_ENDPOINT);
         this.statsDHost = properties.get(STATSD_HOST);
         this.statsDPort = properties.getInt(STATSD_PORT);
         this.influxDBUri = properties.get(INFLUXDB_URI);
         this.influxDBName = properties.get(INFLUXDB_NAME);
         this.influxDBUserName = properties.get(INFLUXDB_USERNAME);
         this.influxDBPassword = properties.get(INFLUXDB_PASSWORD);
-        this.graphiteHost = properties.get(GRAPHITE_HOST);
-        this.graphitePort = properties.getInt(GRAPHITE_PORT);
-        this.jmxDomain = properties.get(JMX_DOMAIN);
-        this.gangliaHost = properties.get(GANGLIA_HOST);
-        this.gangliaPort = properties.getInt(GANGLIA_PORT);
-        this.enableCSVReporter = properties.getBoolean(ENABLE_CSV_REPORTER);
         this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsdReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);
-        this.enableGraphiteReporter = properties.getBoolean(ENABLE_GRAPHITE_REPORTER);
-        this.enableJMXReporter = properties.getBoolean(ENABLE_JMX_REPORTER);
-        this.enableGangliaReporter = properties.getBoolean(ENABLE_GANGLIA_REPORTER);
-        this.enableConsoleReporter = properties.getBoolean(ENABLE_CONSOLE_REPORTER);
     }
 
     /**
