@@ -15,9 +15,11 @@ import io.pravega.shared.NameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,16 +29,15 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 
 public class PravegaTableScope implements Scope {
-    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope-%s";
+    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table.#.streamsInScope.#.%s";
     private final String streamsInScopeTable;
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
-    private final Executor executor;
+    
     PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper, Executor executor) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName);
-        this.executor = executor;
     }
 
     @Override
@@ -47,14 +48,31 @@ public class PravegaTableScope implements Scope {
     @Override
     public CompletableFuture<Void> createScope() {
         // add entry to scopes table followed by creating scope specific table
-        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, new byte[0]),
-                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE).thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, new byte[0])))
-                      .thenCompose(entryAdded -> Futures.toVoid(storeHelper.createTable(scopeName, streamsInScopeTable)));
+        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId()),
+                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
+                                                           .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId())))
+                      .thenCompose(v -> getStreamsInScopeTableName())
+                      .thenCompose(tableName -> {
+                          return Futures.toVoid(storeHelper.createTable(scopeName, tableName));
+                      });
+    }
+
+    private byte[] newId() {
+        return UUID.randomUUID().toString().getBytes();
+    }
+
+    CompletableFuture<String> getStreamsInScopeTableName() {
+        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
+                .thenApply(entry -> {
+                    UUID id = UUID.fromString(new String(entry.getData()));
+                    return streamsInScopeTable + id;
+                });
     }
 
     @Override
     public CompletableFuture<Void> deleteScope() {
-        return storeHelper.deleteTable(scopeName, streamsInScopeTable, true)
+        return getStreamsInScopeTableName()
+                .thenCompose(tableName -> storeHelper.deleteTable(scopeName, tableName, true))
                 .thenCompose(deleted -> storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName));
     }
 
@@ -63,8 +81,9 @@ public class PravegaTableScope implements Scope {
         List<String> taken = new LinkedList<>();
         AtomicReference<String> token = new AtomicReference<>(continuationToken);
         AtomicBoolean canContinue = new AtomicBoolean(true);
-        return Futures.loop(() -> taken.size() < limit && canContinue.get(), 
-                () -> storeHelper.getKeysPaginated(scopeName, streamsInScopeTable, 
+        return getStreamsInScopeTableName()
+            .thenCompose(entry -> Futures.loop(() -> taken.size() < limit && canContinue.get(), 
+                () -> storeHelper.getKeysPaginated(scopeName, entry, 
                         Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit - taken.size())
                 .thenAccept(result -> {
                     if (result.getValue().isEmpty()) {
@@ -77,25 +96,28 @@ public class PravegaTableScope implements Scope {
                 .thenApply(v -> {
                     List<String> result = taken.size() > limit ? taken.subList(0, limit) : taken;
                     return new ImmutablePair<>(result, token.get());
-                });
+                }));
     }
 
     @Override
     public CompletableFuture<List<String>> listStreamsInScope() {
-        List<String> result = new LinkedList<>();
-        return storeHelper.getAllKeys(scopeName, streamsInScopeTable).forEachRemaining(result::add, executor)
-                .thenApply(v -> result);
+        List<String> result = new ArrayList<>();
+        return getStreamsInScopeTableName()
+            .thenCompose(tableName -> storeHelper.getAllKeys(scopeName, tableName).collectRemaining(result::add)
+                .thenApply(v -> result));
     }
 
     @Override
     public void refresh() {
     }
 
-    public CompletableFuture<Void> addStreamToScope(String stream) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(scopeName, streamsInScopeTable, stream, new byte[0]));
+    CompletableFuture<Void> addStreamToScope(String stream) {
+        return getStreamsInScopeTableName()
+            .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(scopeName, tableName, stream, newId())));
     }
-
-    public CompletableFuture<Void> removeStreamFromScope(String stream) {
-        return Futures.toVoid(storeHelper.removeEntry(scopeName, streamsInScopeTable, stream));
+    
+    CompletableFuture<Void> removeStreamFromScope(String stream) {
+        return getStreamsInScopeTableName()
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(scopeName, tableName, stream)));
     }
 }

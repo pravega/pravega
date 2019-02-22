@@ -1109,14 +1109,6 @@ public class SegmentHelper {
 
         final CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
-
-            @Override
-            public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
-                // TODO: shivesh @Sandeep i copied this from failing processor to keep it in context.. 
-                // this gets invoked!!!
-                throw new IllegalStateException("Unexpected operation: " + tableKeysRead);
-            }
-
             @Override
             public void connectionDropped() {
                 log.warn(requestId, "readTableEntries {} Connection dropped", qualifiedName);
@@ -1171,7 +1163,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, retrieveDelegationToken(),
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, retrieveDelegationToken(),
                                                                         suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;

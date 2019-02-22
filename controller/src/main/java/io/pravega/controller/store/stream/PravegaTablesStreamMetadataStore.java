@@ -43,10 +43,10 @@ import java.util.stream.Collectors;
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
-    static final String SCOPES_TABLE = "scopes";
-    static final String DELETED_STREAMS_TABLE = "deletedStreams";
-    static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "completedTransactionsBatches";
-    static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "completedTransactionsBatch-%d";
+    static final String SCOPES_TABLE = "Table.#.scopes";
+    static final String DELETED_STREAMS_TABLE = "Table.#.deletedStreams";
+    static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "Table.#.completedTransactionsBatches";
+    static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "Table.#.completedTransactionsBatch-%d";
 
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
 
@@ -77,7 +77,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     private CompletableFuture<Void> gcCompletedTxn() {
         List<String> batches = new LinkedList<>();
         return Futures.exceptionallyExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
-                          .forEachRemaining(batches::add, executor)
+                          .collectRemaining(batches::add)
                           .thenApply(v -> {
                                       // retain latest two and delete remainder.
                                       if (batches.size() > 2) {
@@ -104,7 +104,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
-        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor);
+        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor,
+                () -> ((PravegaTableScope) getScope(scope)).getStreamsInScopeTableName());
     }
 
     @Override
@@ -125,8 +126,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                                 final long createTimestamp,
                                                                 final OperationContext context,
                                                                 final Executor executor) {
-        return super.createStream(scope, name, configuration, createTimestamp, context, executor)
-                    .thenCompose(status -> ((PravegaTableScope) getScope(scope)).addStreamToScope(name).thenApply(v -> status));
+        return ((PravegaTableScope) getScope(scope)).addStreamToScope(name)
+                .thenCompose(id -> super.createStream(scope, name, configuration, createTimestamp, context, executor));
     }
 
     @Override
@@ -162,7 +163,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public CompletableFuture<List<String>> listScopes() {
         List<String> scopes = new LinkedList<>();
-        return Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE).forEachRemaining(scopes::add, executor)
+        return Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
+                                                                .collectRemaining(scopes::add)
                           .thenApply(v -> scopes), DATA_NOT_FOUND_PREDICATE, 
                 () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE).thenApply(v -> Collections.emptyList()));
     }

@@ -38,10 +38,10 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 
 @Slf4j
 class PravegaTablesStream extends PersistentStreamBase {
-    private static final String STREAM_TABLE_PREFIX = "%s.#-#.%s.#-#."; // scoped stream name
+    private static final String STREAM_TABLE_PREFIX = "Table.#.%s.#.%s.#."; // scoped stream name
     private static final String METADATA_TABLE = STREAM_TABLE_PREFIX + "metadata"; 
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = STREAM_TABLE_PREFIX + "epochsWithTransactions"; 
-    private static final String EPOCH_TRANSACTIONS_TABLE_FORMAT = "transactionsInEpoch-%d";
+    private static final String EPOCH_TRANSACTIONS_TABLE_FORMAT = STREAM_TABLE_PREFIX + "transactionsInEpoch-%d";
     
     // metadata keys
     private static final String CREATION_TIME_KEY = "creationTime";
@@ -61,29 +61,30 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
 
     // completed transactions key
-    private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_TABLE_PREFIX + "/%s";
+    private static final String STREAM_KEY_PREFIX = "Key.#.%s.#.%s.#."; // scoped stream name
+    private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
 
     private static final String CACHE_KEY_DELIMITER = ".#cacheKey#.";
 
     private final PravegaTablesStoreHelper storeHelper;
     private final String metadataTableName;
     private final String epochsWithTransactionsTableName;
-    private final String streamTablePrefix;
-
+    
     private final Cache cache;
     private final Supplier<Integer> currentBatchSupplier;
-    private final Executor executor;
-
+    private final Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier;
+    
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, 
-                        Supplier<Integer> currentBatchSupplier, Executor executor) {
+                        Supplier<Integer> currentBatchSupplier, Executor executor, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
         this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, 
-                SealedSegmentsMapShard.SHARD_SIZE, executor);
+                SealedSegmentsMapShard.SHARD_SIZE, executor, streamsInScopeTableNameSupplier);
     }
     
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, 
-                        Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize, Executor executor) {
+                        Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize, Executor executor, 
+                        Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
         super(scopeName, streamName, chunkSize, shardSize);
         this.storeHelper = storeHelper;
 
@@ -94,31 +95,53 @@ class PravegaTablesStream extends PersistentStreamBase {
             return this.storeHelper.getEntry(scopeName, tableName, key);
         });
         this.currentBatchSupplier = currentBatchSupplier;
-        this.executor = executor;
         this.metadataTableName = String.format(METADATA_TABLE, scopeName, streamName);
         this.epochsWithTransactionsTableName = String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, scopeName, streamName);
-        this.streamTablePrefix = String.format(STREAM_TABLE_PREFIX, scopeName, streamName);
+        this.streamsInScopeTableNameSupplier = streamsInScopeTableNameSupplier;
     }
 
+    CompletableFuture<String> getId() {
+        return streamsInScopeTableNameSupplier.get()
+                                       .thenCompose(table -> cache.getCachedData(getCacheEntryKey(table, getName()))
+                                                                  .thenApply(data -> new String(data.getData())));
+    }
+    
     // region overrides
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         List<CompletableFuture<Integer>> futures = new LinkedList<>();
-        return storeHelper.getAllKeys(getScope(), epochsWithTransactionsTableName)
-                   .forEachRemaining(x -> {
-                       futures.add(getNumberOfOngoingTransactions(Integer.parseInt(x)));
-                   }, executor)
-        .thenCompose(v -> Futures.allOfWithResults(futures)
-                            .thenApply(list -> list.stream().reduce(0, Integer::sum)));
+        return getId()
+                .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
+                                              .collectRemaining(x -> {
+                                                  futures.add(getNumberOfOngoingTransactions(Integer.parseInt(x)));
+                                                  return true;
+                                              })
+                                              .thenCompose(v -> Futures.allOfWithResults(futures)
+                                                                       .thenApply(list -> list.stream().reduce(0, Integer::sum))));
+    }
+
+    private String getMetadataTableName(String id) {
+        return metadataTableName + ".#." + id;
+    }
+
+    private String getEpochsWithTransactionsTableName(String id) {
+        return epochsWithTransactionsTableName + ".#." + id;
+    }
+
+    private String getEpochTransactionsTableName(int epoch, String id) {
+        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, getScope(), getName(), epoch);
+
+        return epochTableName + ".#." + id;
     }
 
     private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
-        String scope = getScope();
-        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), epoch);
         AtomicInteger count = new AtomicInteger(0);
-        return storeHelper.getAllKeys(scope, epochTableName).forEachRemaining(x -> count.incrementAndGet(), executor)
-                          .thenApply(x -> count.get());
+        return getId()
+                .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochTransactionsTableName(epoch, id)).collectRemaining(x -> {
+                    count.incrementAndGet();
+                    return true;
+                }).thenApply(x -> count.get()));
     }
 
     @Override
@@ -132,17 +155,19 @@ class PravegaTablesStream extends PersistentStreamBase {
         // delete stream in scope 
         String scope = getScope();
         List<CompletableFuture<Void>> futures = new LinkedList<>();
-        return Futures.exceptionallyExpecting(storeHelper.getAllKeys(getScope(), epochsWithTransactionsTableName)
-                          .forEachRemaining(x -> {
-                              String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, scope, getName(), Integer.parseInt(x));
+        return getId()
+                .thenCompose(id -> Futures.exceptionallyExpecting(storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
+                          .collectRemaining(x -> {
+                              String epochTableName = getEpochTransactionsTableName(Integer.parseInt(x), id);
                               futures.add(Futures.exceptionallyExpecting(storeHelper.deleteTable(scope, epochTableName, false), 
                                       DATA_NOT_FOUND_PREDICATE, null));
-                          }, executor), DATA_NOT_FOUND_PREDICATE, null)
+                              return true;
+                          }), DATA_NOT_FOUND_PREDICATE, null)
                           .thenCompose(x -> Futures.allOfWithResults(futures))
                           .thenCompose(x -> Futures.exceptionallyExpecting(
-                                  storeHelper.deleteTable(scope, epochsWithTransactionsTableName, false), 
+                                  storeHelper.deleteTable(scope, getEpochsWithTransactionsTableName(id), false), 
                                   DATA_NOT_FOUND_PREDICATE, null))
-                          .thenCompose(deleted -> storeHelper.deleteTable(scope, metadataTableName, false));
+                          .thenCompose(deleted -> storeHelper.deleteTable(scope, getMetadataTableName(id), false)));
     }
 
     @Override
@@ -167,16 +192,14 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                             configuration, storedCreationTime, startingSegmentNumber));
                                                 }
                                             });
-                              
                           }
                       });
-                              
     }
 
     @Override
     CompletableFuture<Void> createStreamMetadata() {
-        return CompletableFuture.allOf(storeHelper.createTable(getScope(), metadataTableName), 
-                storeHelper.createTable(getScope(), epochsWithTransactionsTableName));
+        return getId().thenCompose(id -> CompletableFuture.allOf(storeHelper.createTable(getScope(), getMetadataTableName(id)), 
+                storeHelper.createTable(getScope(), getEpochsWithTransactionsTableName(id))));
     }
 
     private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, StreamConfiguration config, 
@@ -198,119 +221,147 @@ class PravegaTablesStream extends PersistentStreamBase {
     
     @Override
     public CompletableFuture<Long> getCreationTime() {
-        return cache.getCachedData(getCacheEntryKey(metadataTableName, CREATION_TIME_KEY))
-                    .thenApply(data -> BitConverter.readLong(data.getData(), 0));
+        return getId()
+            .thenCompose(id -> cache.getCachedData(getCacheEntryKey(getMetadataTableName(id), CREATION_TIME_KEY))
+                    .thenApply(data -> BitConverter.readLong(data.getData(), 0)));
     }
 
-    private String getCacheEntryKey(String metadataTableName, String creationTimeKey) {
-        return metadataTableName + CACHE_KEY_DELIMITER + creationTimeKey;
+    private String getCacheEntryKey(String tableName, String key) {
+        return tableName + CACHE_KEY_DELIMITER + key;
     }
     
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(byte[] data) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, RETENTION_SET_KEY, data));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), getMetadataTableName(id), 
+                        RETENTION_SET_KEY, data)));
     }
 
     @Override
     CompletableFuture<Data> getRetentionSetData() {
-        return storeHelper.getEntry(getScope(), metadataTableName, RETENTION_SET_KEY);
+        return getId()
+                .thenCompose(id -> storeHelper.getEntry(getScope(), getMetadataTableName(id), RETENTION_SET_KEY));
     }
 
     @Override
     CompletableFuture<Version> updateRetentionSetData(Data retention) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, RETENTION_SET_KEY, retention);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), RETENTION_SET_KEY, retention));
     }
 
     @Override
     CompletableFuture<Void> createStreamCutRecordData(long recordingTime, byte[] record) {
         String key = String.format(RETENTION_STREAM_CUT_RECORD_KEY_FORMAT, recordingTime);
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, key, record));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), getMetadataTableName(id), key, record)));
     }
 
     @Override
     CompletableFuture<Data> getStreamCutRecordData(long recordingTime) {
         String key = String.format(RETENTION_STREAM_CUT_RECORD_KEY_FORMAT, recordingTime);
-        return cache.getCachedData(getCacheEntryKey(metadataTableName, key));
+        return getId()
+                .thenCompose(id -> cache.getCachedData(getCacheEntryKey(getMetadataTableName(id), key)));
     }
 
     @Override
     CompletableFuture<Void> deleteStreamCutRecordData(long recordingTime) {
         String key = String.format(RETENTION_STREAM_CUT_RECORD_KEY_FORMAT, recordingTime);
 
-        return storeHelper.removeEntry(getScope(), metadataTableName, key)
-                          .thenAccept(x -> cache.invalidateCache(getCacheEntryKey(metadataTableName, key)));
+        return getId()
+                .thenCompose(id -> storeHelper.removeEntry(getScope(), getMetadataTableName(id), key)
+                          .thenAccept(x -> cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), key))));
     }
     
     @Override
     CompletableFuture<Void> createHistoryTimeSeriesChunkDataIfAbsent(int chunkNumber, byte[] data) {
         String key = String.format(HISTORY_TIMESERES_CHUNK_FORMAT, chunkNumber);
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, key, data));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), getMetadataTableName(id), key, data)));
     }
 
     @Override
     CompletableFuture<Data> getHistoryTimeSeriesChunkData(int chunkNumber, boolean ignoreCached) {
         String key = String.format(HISTORY_TIMESERES_CHUNK_FORMAT, chunkNumber);
-        String cacheKey = getCacheEntryKey(metadataTableName, key);
-        if (ignoreCached) {
-            cache.invalidateCache(cacheKey);
-        }
-        return cache.getCachedData(cacheKey);
+        return getId()
+                .thenCompose(id -> {
+                    String cacheKey = getCacheEntryKey(getMetadataTableName(id), key);
+                    if (ignoreCached) {
+                        cache.invalidateCache(cacheKey);
+                    }
+                    return cache.getCachedData(cacheKey);
+                });
     }
 
     @Override
     CompletableFuture<Version> updateHistoryTimeSeriesChunkData(int chunkNumber, Data data) {
         String key = String.format(HISTORY_TIMESERES_CHUNK_FORMAT, chunkNumber);
-        return storeHelper.updateEntry(getScope(), metadataTableName, key, data);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), key, data));
     }
 
     @Override
     CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(byte[] data) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, CURRENT_EPOCH_KEY, data));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), CURRENT_EPOCH_KEY, data)));
     }
 
     @Override
     CompletableFuture<Version> updateCurrentEpochRecordData(Data data) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, CURRENT_EPOCH_KEY, data);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), CURRENT_EPOCH_KEY, data));
     }
 
     @Override
     CompletableFuture<Data> getCurrentEpochRecordData(boolean ignoreCached) {
-        String cacheKey = getCacheEntryKey(metadataTableName, CURRENT_EPOCH_KEY);
-        if (ignoreCached) {
-            cache.invalidateCache(cacheKey);
-        }
-        return cache.getCachedData(cacheKey);
+        return getId()
+                .thenCompose(id -> {
+                    String cacheKey = getCacheEntryKey(getMetadataTableName(id), CURRENT_EPOCH_KEY);
+                    if (ignoreCached) {
+                        cache.invalidateCache(cacheKey);
+                    }
+                    return cache.getCachedData(cacheKey);
+                });
     }
 
     @Override
     CompletableFuture<Void> createEpochRecordDataIfAbsent(int epoch, byte[] data) {
         String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, key, data));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), key, data)));
     }
 
     @Override
     CompletableFuture<Data> getEpochRecordData(int epoch) {
-        String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
-        String cacheEntryKey = getCacheEntryKey(metadataTableName, key);
-        return cache.getCachedData(cacheEntryKey);
+        return getId()
+                .thenCompose(id -> {
+                    String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
+                    String cacheEntryKey = getCacheEntryKey(getMetadataTableName(id), key);
+                    return cache.getCachedData(cacheEntryKey);
+                });
     }
 
     @Override
     CompletableFuture<Void> createSealedSegmentSizesMapShardDataIfAbsent(int shard, byte[] data) {
         String key = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT, shard);
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, key, data));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), key, data)));
     }
 
     @Override
     CompletableFuture<Data> getSealedSegmentSizesMapShardData(int shard) {
         String key = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT, shard);
-        return storeHelper.getEntry(getScope(), metadataTableName, key);
+        return getId()
+                .thenCompose(id -> storeHelper.getEntry(getScope(), getMetadataTableName(id), key));
     }
 
     @Override
     CompletableFuture<Version> updateSealedSegmentSizesMapShardData(int shard, Data data) {
         String key = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_FORMAT, shard);
-        return storeHelper.updateEntry(getScope(), metadataTableName, key, data);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), key, data));
     }
 
     @Override
@@ -318,28 +369,35 @@ class PravegaTablesStream extends PersistentStreamBase {
         String key = String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, segmentToSeal);
         byte[] epochData = new byte[Integer.BYTES];
         BitConverter.writeInt(epochData, 0, epoch);
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, key, epochData));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), key, epochData)));
     }
 
     @Override
     CompletableFuture<Data> getSegmentSealedRecordData(long segmentId) {
         String key = String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, segmentId);
-        return cache.getCachedData(getCacheEntryKey(metadataTableName, key));
+        return getId()
+                .thenCompose(id -> cache.getCachedData(getCacheEntryKey(getMetadataTableName(id), key)));
     }
 
     @Override
     CompletableFuture<Void> createEpochTransitionIfAbsent(byte[] epochTransition) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, EPOCH_TRANSITION_KEY, epochTransition));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), EPOCH_TRANSITION_KEY, epochTransition)));
     }
 
     @Override
     CompletableFuture<Version> updateEpochTransitionNode(Data epochTransition) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, EPOCH_TRANSITION_KEY, epochTransition);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), EPOCH_TRANSITION_KEY, epochTransition));
     }
 
     @Override
     CompletableFuture<Data> getEpochTransitionNode() {
-        return storeHelper.getEntry(getScope(), metadataTableName, EPOCH_TRANSITION_KEY);
+        return getId()
+                .thenCompose(id -> storeHelper.getEntry(getScope(), getMetadataTableName(id), EPOCH_TRANSITION_KEY));
     }
 
     @Override
@@ -347,17 +405,23 @@ class PravegaTablesStream extends PersistentStreamBase {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, creationTime);
 
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, CREATION_TIME_KEY, b));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), CREATION_TIME_KEY, b)));
     }
 
     @Override
     public CompletableFuture<Void> createConfigurationIfAbsent(final byte[] configuration) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, CONFIGURATION_KEY, configuration));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), CONFIGURATION_KEY, configuration)));
     }
 
     @Override
     public CompletableFuture<Void> createStateIfAbsent(final byte[] state) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, STATE_KEY, state));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), STATE_KEY, state)));
     }
 
     @Override
@@ -366,20 +430,23 @@ class PravegaTablesStream extends PersistentStreamBase {
         byte[] b = new byte[Long.BYTES];
         BitConverter.writeLong(b, 0, timestamp);
 
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, key, b));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), key, b)));
     }
 
     @Override
     CompletableFuture<Version> updateMarkerData(long segmentId, Data data) {
         final String key = String.format(SEGMENT_MARKER_PATH_FORMAT, segmentId);
-        return storeHelper.updateEntry(getScope(), metadataTableName, key, data);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), key, data));
     }
 
     @Override
     CompletableFuture<Data> getMarkerData(long segmentId) {
         final CompletableFuture<Data> result = new CompletableFuture<>();
         final String key = String.format(SEGMENT_MARKER_PATH_FORMAT, segmentId);
-        storeHelper.getEntry(getScope(), metadataTableName, key)
+        getId().thenCompose(id -> storeHelper.getEntry(getScope(), getMetadataTableName(id), key)
                    .whenComplete((res, ex) -> {
                        if (ex != null) {
                            Throwable cause = Exceptions.unwrap(ex);
@@ -391,7 +458,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                        } else {
                            result.complete(res);
                        }
-                   });
+                   }));
 
         return result;
     }
@@ -399,16 +466,19 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> removeMarkerData(long segmentId) {
         final String key = String.format(SEGMENT_MARKER_PATH_FORMAT, segmentId);
-        return storeHelper.removeEntry(getScope(), metadataTableName, key);
+        return getId()
+                .thenCompose(id -> storeHelper.removeEntry(getScope(), getMetadataTableName(id), key));
     }
 
     @Override
     public CompletableFuture<Map<String, Data>> getCurrentTxns() {
         List<CompletableFuture<Map<String, Data>>> futures = new LinkedList<>();
-        return storeHelper.getAllKeys(getScope(), epochsWithTransactionsTableName)
-                          .forEachRemaining(x -> {
+        return getId()
+                .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
+                          .collectRemaining(x -> {
                               futures.add(getTxnInEpoch(Integer.parseInt(x)));
-                          }, executor)
+                              return true;
+                          })
                           .thenCompose(v -> {
                               return Futures.allOfWithResults(futures)
                                             .thenApply(list -> {
@@ -416,24 +486,24 @@ class PravegaTablesStream extends PersistentStreamBase {
                                   list.forEach(map::putAll);
                                   return map;
                               });
-                          });
+                          }));
     }
 
     @Override
     public CompletableFuture<Map<String, Data>> getTxnInEpoch(int epoch) {
         String scope = getScope();
-        String epochTableName = getEpochTable(epoch);
         Map<String, Data> result = new ConcurrentHashMap<>();
-        return Futures.exceptionallyExpecting(storeHelper.getAllEntries(scope, epochTableName)
-                          .forEachRemaining(x -> {
+        return getId()
+                .thenCompose(id -> Futures.exceptionallyExpecting(storeHelper.getAllEntries(scope, getEpochTransactionsTableName(epoch, id))
+                          .collectRemaining(x -> {
                               result.put(x.getKey(), x.getValue());
-                          }, executor)
-                          .thenApply(x -> result), DATA_NOT_FOUND_PREDICATE, Collections.emptyMap());
+                              return true;
+                          })
+                          .thenApply(x -> result), DATA_NOT_FOUND_PREDICATE, Collections.emptyMap()));
     }
 
     @Override
     CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final byte[] txnRecord) {
-        String epochTable = getEpochTable(epoch);
         String scope = getScope();
         // epochs_with_txn ==> epochs are removed from this only when an epoch is empty and does not match current epoch.reference epoch
         // txns-in-epoch-<epoch>-table ==>
@@ -442,51 +512,62 @@ class PravegaTablesStream extends PersistentStreamBase {
         //  1. add epochs_with_txn entry for the epoch
         //  2. create txns-in-epoch-<epoch> table
         //  3. create txn in epoch
-        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(scope, epochTable, txId.toString(), txnRecord),
-            DATA_NOT_FOUND_PREDICATE, () -> createEpochTxnTableAndEntries(scope, epochTable, epoch, txId.toString(), txnRecord));
+        return getId()
+                .thenCompose(id -> {
+                    String epochTable = getEpochTransactionsTableName(epoch, id);
+
+                    return Futures.exceptionallyComposeExpecting(
+                            storeHelper.addNewEntry(scope, epochTable, txId.toString(), txnRecord),
+                            DATA_NOT_FOUND_PREDICATE, () -> createEpochTxnTableAndEntries(scope, epochTable, epoch, txId.toString(), txnRecord));
+                });
     }
 
     private CompletableFuture<Version> createEpochTxnTableAndEntries(String scope, String epochTable, int epoch, 
                                                                      String txnId, byte[] txnRecord) {
-        return storeHelper.addNewEntry(scope, epochsWithTransactionsTableName, "" + epoch, new byte[0])
-            .thenCompose(added -> storeHelper.createTable(scope, epochTable))
-            .thenCompose(tableCreated -> storeHelper.addNewEntry(scope, epochTable, txnId, txnRecord));    
+        return getId()
+                .thenCompose(id -> {
+                    return storeHelper.addNewEntry(scope,
+                            getEpochsWithTransactionsTableName(id), "" + epoch, new byte[0])
+                               .thenCompose(added -> storeHelper.createTable(scope, epochTable))
+                               .thenCompose(tableCreated -> storeHelper.addNewEntry(scope, epochTable, txnId, txnRecord));
+                });    
     }
-
-    private String getEpochTable(int epoch) {
-        return streamTablePrefix + String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, epoch);
-    }
-
+    
     @Override
     CompletableFuture<Data> getActiveTx(final int epoch, final UUID txId) {
-        String epochTable = getEpochTable(epoch);
-        return storeHelper.getEntry(getScope(), epochTable, txId.toString());
+        return getId()
+                .thenCompose(id -> storeHelper.getEntry(getScope(), getEpochTransactionsTableName(epoch, id), txId.toString()));
     }
 
     @Override
     CompletableFuture<Version> updateActiveTx(final int epoch, final UUID txId, final Data data) {
-        String epochTable = getEpochTable(epoch);
-        return storeHelper.updateEntry(getScope(), epochTable, txId.toString(), data);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getEpochTransactionsTableName(epoch, id), txId.toString(), data));
     }
 
     @Override
     CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
         // 1. remove txn from txn-in-epoch table
         // 2. get current epoch --> if txn-epoch < activeEpoch.reference epoch, try deleting empty epoch table.
-        String epochTable = getEpochTable(epoch);
-        return storeHelper.removeEntry(getScope(), epochTable, txId.toString())
-                .thenCompose(v -> tryRemoveEpoch(epoch, epochTable));
+        return getId()
+                .thenCompose(id -> {
+                    String epochTransactionsTableName = getEpochTransactionsTableName(epoch, id);
+                    return storeHelper.removeEntry(getScope(), epochTransactionsTableName, txId.toString())
+                                      .thenCompose(v -> tryRemoveEpoch(epoch));
+                });
     }
 
-    private CompletableFuture<Void> tryRemoveEpoch(int epoch, String epochTable) {
-        return getActiveEpoch(true)
+    private CompletableFuture<Void> tryRemoveEpoch(int epoch) {
+        return getId()
+                .thenCompose(id -> getActiveEpoch(true)
                 .thenCompose(activeEpoch -> {
                     if (epoch < activeEpoch.getReferenceEpoch()) {
-                        return Futures.exceptionallyExpecting(storeHelper.deleteTable(getScope(), epochTable, true).thenApply(v -> true),
+                        return Futures.exceptionallyExpecting(
+                                storeHelper.deleteTable(getScope(), getEpochTransactionsTableName(epoch, id), true).thenApply(v -> true),
                                    DATA_NOT_EMPTY_PREDICATE, false)
                                    .thenCompose(deleted -> {
                                        if (deleted) {
-                                           return storeHelper.removeEntry(getScope(), epochsWithTransactionsTableName, "" + epoch);
+                                           return storeHelper.removeEntry(getScope(), getEpochsWithTransactionsTableName(id), "" + epoch);
                                        } else {
                                            return CompletableFuture.completedFuture(null);
                                        }
@@ -494,7 +575,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }
-                });
+                }));
     }
 
     @Override
@@ -504,7 +585,8 @@ class PravegaTablesStream extends PersistentStreamBase {
         
         String key = String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), txId.toString());
 
-        return Futures.exceptionallyComposeExpecting(Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, tableName, key, complete)),
+        return Futures.exceptionallyComposeExpecting(
+                Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, tableName, key, complete)),
                 DATA_NOT_FOUND_PREDICATE, () -> tryCreateBatchTable(batch, key, complete));
     }
 
@@ -520,7 +602,11 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Data> getCompletedTx(final UUID txId) {
         List<Long> batches = new LinkedList<>();
-        return storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE).forEachRemaining(x -> batches.add(Long.parseLong(x)), executor)
+        return storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
+                          .collectRemaining(x -> {
+                              batches.add(Long.parseLong(x));
+                              return true;
+                          })
                           .thenCompose(v -> {
                               return Futures.allOfWithResults(batches.stream().map(batch -> {
                                   String table = String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch);
@@ -541,94 +627,116 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> createTruncationDataIfAbsent(final byte[] truncationRecord) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, TRUNCATION_KEY, truncationRecord));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), TRUNCATION_KEY, truncationRecord)));
     }
 
     @Override
     CompletableFuture<Version> setTruncationData(final Data truncationRecord) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, TRUNCATION_KEY, truncationRecord)
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), TRUNCATION_KEY, truncationRecord)
                           .thenApply(r -> {
-                              cache.invalidateCache(getCacheEntryKey(metadataTableName, TRUNCATION_KEY));
+                              cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), TRUNCATION_KEY));
                               return r;
-                          });
+                          }));
     }
 
     @Override
     CompletableFuture<Data> getTruncationData(boolean ignoreCached) {
-        String cacheKey = getCacheEntryKey(metadataTableName, TRUNCATION_KEY);
-        if (ignoreCached) {
-            cache.invalidateCache(cacheKey);
-        }
+        return getId()
+                .thenCompose(id -> {
+                    String cacheKey = getCacheEntryKey(getMetadataTableName(id), TRUNCATION_KEY);
+                    if (ignoreCached) {
+                        cache.invalidateCache(cacheKey);
+                    }
 
-        return cache.getCachedData(cacheKey);
+                    return cache.getCachedData(cacheKey);
+                });
     }
 
     @Override
     CompletableFuture<Version> setConfigurationData(final Data configuration) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, CONFIGURATION_KEY, configuration)
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), CONFIGURATION_KEY, configuration)
                           .thenApply(r -> {
-                              cache.invalidateCache(getCacheEntryKey(metadataTableName, CONFIGURATION_KEY));
+                              cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), CONFIGURATION_KEY));
                               return r;
-                          });
+                          }));
     }
 
     @Override
     CompletableFuture<Data> getConfigurationData(boolean ignoreCached) {
-        String cacheKey = getCacheEntryKey(metadataTableName, CONFIGURATION_KEY);
-        if (ignoreCached) {
-            cache.invalidateCache(cacheKey);
-        }
+        return getId()
+                .thenCompose(id -> {
+                    String cacheKey = getCacheEntryKey(getMetadataTableName(id), CONFIGURATION_KEY);
+                    if (ignoreCached) {
+                        cache.invalidateCache(cacheKey);
+                    }
 
-        return cache.getCachedData(cacheKey);
+                    return cache.getCachedData(cacheKey);
+                });
     }
 
     @Override
     CompletableFuture<Version> setStateData(final Data state) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, STATE_KEY, state)
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), STATE_KEY, state)
                           .thenApply(r -> {
-                              cache.invalidateCache(getCacheEntryKey(metadataTableName, STATE_KEY));
+                              cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), STATE_KEY));
                               return r;
-                          });
+                          }));
     }
 
     @Override
     CompletableFuture<Data> getStateData(boolean ignoreCached) {
-        String cacheKey = getCacheEntryKey(metadataTableName, STATE_KEY);
-        if (ignoreCached) {
-            cache.invalidateCache(cacheKey);
-        }
+        return getId()
+                .thenCompose(id -> {
+                    String cacheKey = getCacheEntryKey(getMetadataTableName(id), STATE_KEY);
+                    if (ignoreCached) {
+                        cache.invalidateCache(cacheKey);
+                    }
 
-        return cache.getCachedData(cacheKey);
+                    return cache.getCachedData(cacheKey);
+                });
     }
 
     @Override
     CompletableFuture<Void> createCommitTxnRecordIfAbsent(byte[] committingTxns) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, COMMITTING_TRANSACTIONS_RECORD_KEY, committingTxns));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), COMMITTING_TRANSACTIONS_RECORD_KEY, committingTxns)));
     }
 
     @Override
     CompletableFuture<Data> getCommitTxnRecord() {
-        return storeHelper.getEntry(getScope(), metadataTableName, COMMITTING_TRANSACTIONS_RECORD_KEY);
+        return getId()
+                .thenCompose(id -> storeHelper.getEntry(getScope(), getMetadataTableName(id), COMMITTING_TRANSACTIONS_RECORD_KEY));
     }
 
     @Override
     CompletableFuture<Version> updateCommittingTxnRecord(Data update) {
-        return storeHelper.updateEntry(getScope(), metadataTableName, COMMITTING_TRANSACTIONS_RECORD_KEY, update);
+        return getId()
+                .thenCompose(id -> storeHelper.updateEntry(getScope(), getMetadataTableName(id), COMMITTING_TRANSACTIONS_RECORD_KEY, update));
     }
 
     @Override
     CompletableFuture<Void> createWaitingRequestNodeIfAbsent(byte[] waitingRequestProcessor) {
-        return Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), metadataTableName, WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor));
+        return getId()
+                .thenCompose(id -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(getScope(), 
+                        getMetadataTableName(id), WAITING_REQUEST_PROCESSOR_PATH, waitingRequestProcessor)));
     }
 
     @Override
     CompletableFuture<Data> getWaitingRequestNode() {
-        return storeHelper.getEntry(getScope(), metadataTableName, WAITING_REQUEST_PROCESSOR_PATH);
+        return getId()
+                .thenCompose(id -> storeHelper.getEntry(getScope(), getMetadataTableName(id), WAITING_REQUEST_PROCESSOR_PATH));
     }
 
     @Override
     CompletableFuture<Void> deleteWaitingRequestNode() {
-        return storeHelper.removeEntry(getScope(), metadataTableName, WAITING_REQUEST_PROCESSOR_PATH);
+        return getId()
+                .thenCompose(id -> storeHelper.removeEntry(getScope(), getMetadataTableName(id), WAITING_REQUEST_PROCESSOR_PATH));
     }
 
     @Override
