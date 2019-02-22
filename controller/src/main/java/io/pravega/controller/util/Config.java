@@ -9,16 +9,19 @@
  */
 package io.pravega.controller.util;
 
-import com.typesafe.config.ConfigException;
+import com.google.common.base.Strings;
 import com.typesafe.config.ConfigFactory;
-import com.typesafe.config.ConfigResolveOptions;
-import com.typesafe.config.ConfigValue;
 import io.pravega.common.util.Property;
+import io.pravega.common.util.TypedProperties;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.shared.metrics.MetricsConfig;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
+import java.util.Properties;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -29,139 +32,233 @@ import lombok.val;
  */
 @Slf4j
 public final class Config {
-    /*
-     * TODO
-     * 1. Make all these properties instance members and generate getters
-     * 2. Make a Config Builder that allows resolution of all the properties. TODO: where to put default values? In config only?
-     * 3. Provide a static field DEFAULT with the result of the builder.
-     * 4. Make sure configuration value sourcing is backwards compatible.
-     * 5. Search through the code for random settings
-     */
-    private static final Property<Integer> PROPERTY_CONTAINER_COUNT = Property.named("containerCount");
-    private static final Property<Boolean> PROPERTY_HOST_MONITORING_ENABLED = Property.named("hostMonitorEnabled");
-    private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds");
-    private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError");
-    private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled");
+    //region Property Definitions
 
-    private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port");
-    private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize");
-    private static final Property<String> PROPERTY_SERVICE_HOST_IP_ = Property.named("service.hostIp");
-    private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named("service.hostPort");
-    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost");
-    private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.publishedRPCPort");
-    private static final Property<Integer> PROPERTY_CLUSTER_NAME = Property.named("service.cluster");
-    private static final Property<String> PROPERTY_REST_IP = Property.named("service.restIp");
-    private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.restPort");
-
-    private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("auth.enabled");
-    private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("auth.userPasswordFile");
-    private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("auth.tlsEnabled");
-    private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile");
-    private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore");
-    private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile");
-    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey");
-
-    private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url");
-    private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zk.retryIntervalMillis");
-    private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("maxRetries");
-    private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("sessionTimeoutMillis");
-    private static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named("secureConnection");
-
-    private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequencyMinutes");
-    private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucketCount");
-    private static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named("retention.threadCount");
-
-    private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLeaseValue");
-    private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue");
-    private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours");
-
-    private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName");
-    private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup");
+    private static final Property<Integer> PROPERTY_CONTAINER_COUNT = Property.named("containerCount", 4);
+    private static final Property<Boolean> PROPERTY_HOST_MONITORING_ENABLED = Property.named("hostMonitorEnabled", true);
+    private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds", 10);
+    private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
+    private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled", true);
+    private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port", 9090);
+    private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
+    private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.hostIp", "localhost");
+    private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named("service.hostPort", 12345);
+    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost", "localhost");
+    private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.publishedRPCPort", 9090);
+    private static final Property<String> PROPERTY_CLUSTER_NAME = Property.named("service.cluster", "pravega-cluster");
+    private static final Property<String> PROPERTY_REST_IP = Property.named("service.restIp", "0.0.0.0");
+    private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.restPort", 9091);
+    private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("auth.enabled", false);
+    private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("auth.userPasswordFile", "");
+    private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("auth.tlsEnabled", false);
+    private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile", "");
+    private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore", "");
+    private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile", "");
+    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
+    private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url", "localhost:2121");
+    private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zk.retryIntervalMillis", 5000);
+    private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("maxRetries", 5);
+    private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("sessionTimeoutMillis", 10000);
+    private static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named("secureConnection", false);
+    private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequencyMinutes", 30);
+    private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucketCount", 1);
+    private static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named("retention.threadCount", 1);
+    private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLeaseValue", 10000);
+    private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue", 120000);
+    private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
+    private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requestStream");
+    private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
     private static final String COMPONENT_CODE = "controller";
+
+    //endregion
 
 
     //RPC Server configuration
-    public static final int RPC_SERVER_PORT = LegacyConfig.RPC_SERVER_PORT;
-    public static final int ASYNC_TASK_POOL_SIZE = LegacyConfig.ASYNC_TASK_POOL_SIZE;
-    public static final int RPC_PUBLISHED_SERVER_PORT = LegacyConfig.RPC_PUBLISHED_SERVER_PORT;
+    public static final int RPC_SERVER_PORT;
+    public static final int ASYNC_TASK_POOL_SIZE;
+    public static final String RPC_PUBLISHED_SERVER_HOST;
+    public static final int RPC_PUBLISHED_SERVER_PORT;
 
     //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
-    public static final String SERVICE_HOST = LegacyConfig.SERVICE_HOST;
-    public static final int SERVICE_PORT = LegacyConfig.SERVICE_PORT;
+    public static final String SERVICE_HOST;
+    public static final int SERVICE_PORT;
 
     //Store configuration.
     //HostStore configuration.
-    public static final int HOST_STORE_CONTAINER_COUNT = LegacyConfig.HOST_STORE_CONTAINER_COUNT;
+    public static final int HOST_STORE_CONTAINER_COUNT;
 
     //Cluster configuration.
-    public static final boolean HOST_MONITOR_ENABLED = LegacyConfig.HOST_MONITOR_ENABLED;
-    public static final String CLUSTER_NAME = LegacyConfig.CLUSTER_NAME;
-    public static final int CLUSTER_MIN_REBALANCE_INTERVAL = LegacyConfig.CLUSTER_MIN_REBALANCE_INTERVAL;
-    private static final boolean AUTHORIZATION_ENABLED = LegacyConfig.AUTHORIZATION_ENABLED;
-    private static final String USER_PASSWORD_FILE = LegacyConfig.USER_PASSWORD_FILE;
-    private static final boolean TLS_ENABLED = LegacyConfig.TLS_ENABLED;
-    private static final String TLS_KEY_FILE = LegacyConfig.TLS_KEY_FILE;
-    private static final String TLS_CERT_FILE = LegacyConfig.TLS_CERT_FILE;
-    private static final String TLS_TRUST_STORE = LegacyConfig.TLS_TRUST_STORE;
-    private static final String TOKEN_SIGNING_KEY = LegacyConfig.TOKEN_SIGNING_KEY;
-    private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR = LegacyConfig.REPLY_WITH_STACK_TRACE_ON_ERROR;
-    private static final boolean REQUEST_TRACING_ENABLED = LegacyConfig.REQUEST_TRACING_ENABLED;
+    public static final boolean HOST_MONITOR_ENABLED;
+    public static final String CLUSTER_NAME;
+    public static final int CLUSTER_MIN_REBALANCE_INTERVAL;
+    private static final boolean AUTHORIZATION_ENABLED;
+    private static final String USER_PASSWORD_FILE;
+    private static final boolean TLS_ENABLED;
+    private static final String TLS_KEY_FILE;
+    private static final String TLS_CERT_FILE;
+    private static final String TLS_TRUST_STORE;
+    private static final String TOKEN_SIGNING_KEY;
+    private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
+    private static final boolean REQUEST_TRACING_ENABLED;
 
     //Zookeeper configuration.
-    public static final String ZK_URL = LegacyConfig.ZK_URL;
-    public static final int ZK_RETRY_SLEEP_MS = LegacyConfig.ZK_RETRY_SLEEP_MS;
-    public static final int ZK_MAX_RETRIES = LegacyConfig.ZK_MAX_RETRIES;
-    public static final int ZK_SESSION_TIMEOUT_MS = LegacyConfig.ZK_SESSION_TIMEOUT_MS;
-    public static final boolean SECURE_ZK = LegacyConfig.SECURE_ZK;
-    static {
-        Set<Map.Entry<String, ConfigValue>> entries = LegacyConfig.CONFIG.entrySet();
-        log.info("Controller legacy configuration:");
-        entries.forEach(entry -> log.info("{} = {}", entry.getKey(), entry.getValue()));
-    }
+    public static final String ZK_URL;
+    public static final int ZK_RETRY_SLEEP_MS;
+    public static final int ZK_MAX_RETRIES;
+    public static final int ZK_SESSION_TIMEOUT_MS;
+    public static final boolean SECURE_ZK;
 
     //REST server configuration
-    public static final String REST_SERVER_IP = LegacyConfig.REST_SERVER_IP;
-    public static final int REST_SERVER_PORT = LegacyConfig.REST_SERVER_PORT;
+    public static final String REST_SERVER_IP;
+    public static final int REST_SERVER_PORT;
 
     //Transaction configuration
-    public static final long MIN_LEASE_VALUE = LegacyConfig.MIN_LEASE_VALUE;
-    public static final long MAX_LEASE_VALUE = LegacyConfig.MAX_LEASE_VALUE;
+    public static final long MIN_LEASE_VALUE;
+    public static final long MAX_LEASE_VALUE;
 
     // Completed Transaction TTL
-    public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS = LegacyConfig.COMPLETED_TRANSACTION_TTL_IN_HOURS;
+    public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS;
 
     // Retention Configuration
-    public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = LegacyConfig.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
-    public static final int BUCKET_COUNT = LegacyConfig.BUCKET_COUNT;
-    public static final int RETENTION_THREAD_POOL_SIZE = LegacyConfig.RETENTION_THREAD_POOL_SIZE;
+    public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
+    public static final int BUCKET_COUNT;
+    public static final int RETENTION_THREAD_POOL_SIZE;
 
     // Request Stream Configuration
-    public static final String SCALE_STREAM_NAME = LegacyConfig.SCALE_STREAM_NAME;
+    public static final String SCALE_STREAM_NAME;
 
     // Request Stream readerGroup
-    public static final String SCALE_READER_GROUP = LegacyConfig.SCALE_READER_GROUP;
+    public static final String SCALE_READER_GROUP;
+
+    public static final MetricsConfig METRICS_CONFIG;
+    public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
     private static final String METRIC_PATH = "config.controller.metric";
 
-    public static MetricsConfig getMetricsConfig() {
-        val builder = MetricsConfig.builder();
-        for (Map.Entry<String, ConfigValue> e : LegacyConfig.CONFIG.entrySet()) {
-            if (e.getKey().startsWith(METRIC_PATH)) {
-                builder.with(Property.named(e.getKey().replaceFirst(METRIC_PATH, "")), e.getValue().unwrapped());
+    static {
+        /*
+         * TODO
+         * 1. Search through the code for random settings
+         * 2. Remove gradle references to the legacy config.
+         */
+        val properties = loadConfiguration();
+        val p = new TypedProperties(properties, COMPONENT_CODE);
+        RPC_SERVER_PORT = p.getInt(PROPERTY_SERVICE_PORT);
+        ASYNC_TASK_POOL_SIZE = p.getInt(PROPERTY_TASK_POOL_SIZE);
+        RPC_PUBLISHED_SERVER_HOST = p.get(PROPERTY_RPC_HOST);
+        RPC_PUBLISHED_SERVER_PORT = p.getInt(PROPERTY_RPC_PORT);
+        SERVICE_HOST = p.get(PROPERTY_SERVICE_HOST_IP);
+        SERVICE_PORT = p.getInt(PROPERTY_SERVICE_HOST_PORT);
+        HOST_STORE_CONTAINER_COUNT = p.getInt(PROPERTY_CONTAINER_COUNT);
+        HOST_MONITOR_ENABLED = p.getBoolean(PROPERTY_HOST_MONITORING_ENABLED);
+        CLUSTER_NAME = p.get(PROPERTY_CLUSTER_NAME);
+        CLUSTER_MIN_REBALANCE_INTERVAL = p.getInt(PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS);
+        AUTHORIZATION_ENABLED = p.getBoolean(PROPERTY_AUTH_ENABLED);
+        USER_PASSWORD_FILE = p.get(PROPERTY_AUTH_PASSWORD_FILE);
+        TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
+        TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
+        TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
+        TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
+        TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
+        REPLY_WITH_STACK_TRACE_ON_ERROR = p.getBoolean(PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR);
+        REQUEST_TRACING_ENABLED = p.getBoolean(PROPERTY_REQUEST_TRACING_ENABLED);
+        ZK_URL = p.get(PROPERTY_ZK_URL);
+        ZK_RETRY_SLEEP_MS = p.getInt(PROPERTY_ZK_RETRY_MILLIS);
+        ZK_MAX_RETRIES = p.getInt(PROPERTY_ZK_MAX_RETRY_COUNT);
+        ZK_SESSION_TIMEOUT_MS = p.getInt(PROPERTY_ZK_SESSION_TIMEOUT_MILLIS);
+        SECURE_ZK = p.getBoolean(PROPERTY_ZK_SECURE_CONNECTION);
+        REST_SERVER_IP = p.get(PROPERTY_REST_IP);
+        REST_SERVER_PORT = p.getInt(PROPERTY_REST_PORT);
+        MIN_LEASE_VALUE = p.getInt(PROPERTY_TXN_MIN_LEASE);
+        MAX_LEASE_VALUE = p.getInt(PROPERTY_TXN_MAX_LEASE);
+        COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
+        MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
+        BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
+        RETENTION_THREAD_POOL_SIZE = p.getInt(PROPERTY_RETENTION_THREAD_COUNT);
+        SCALE_STREAM_NAME = p.get(PROPERTY_SCALE_STREAM_NAME);
+        SCALE_READER_GROUP = p.get(PROPERTY_SCALE_READER_GROUP);
+        GRPC_SERVER_CONFIG = createGrpcServerConfig();
+        METRICS_CONFIG = createMetricsConfig(properties);
+    }
+
+    private static Properties loadConfiguration() {
+        // Fetch configuration in a specific order (from lowest priority to highest), at each step resolving references
+        // against Environment Variables.
+        // We begin with System Properties, then Environment Variables, then (any) Configuration File. Each step will only
+        // include those properties that have an actual value; references will only be included if the referred value
+        // resolves to anything.
+        // Finally, anything which is not loaded via these methods will be defaulted to the Property defaults defined
+        // in this file.
+        val properties = new Properties();
+        properties.putAll(resolveReferences(System.getProperties(), System.getenv()));
+        properties.putAll(resolveReferences(System.getProperties(), System.getenv()));
+        val fileProperties = loadFromFile();
+        properties.putAll(resolveReferences(fileProperties, System.getenv()));
+
+        log.info("Controller configuration:");
+        properties.forEach((k, v) -> log.info("{} = {}", k, v));
+        return properties;
+    }
+
+    @SneakyThrows(IOException.class)
+    private static Properties loadFromFile() {
+        Properties result = new Properties();
+
+        String filePath = System.getProperty("config.file", "controller.config.properties");
+        File file = null;
+
+        if (!Strings.isNullOrEmpty(filePath)) {
+            file = new File(filePath);
+            if (!file.exists()) {
+                file = null;
             }
         }
 
-        return builder.build();
+        if (file == null) {
+            ClassLoader classLoader = Config.class.getClassLoader();
+            file = new File(classLoader.getResource("controller.config.properties").getFile());
+        }
+
+        try (FileReader reader = new FileReader(file)) {
+            result.load(reader);
+        }
+
+        return result;
     }
 
-    public static GRPCServerConfig getGRPCServerConfig() {
-        String publishHost = null;
-        try {
-            publishHost = LegacyConfig.RPC_PUBLISHED_SERVER_HOST;
-        } catch (ConfigException.NotResolved e) {
-            // This config is optional so we can ignore this exception.
+    private static Properties resolveReferences(Properties properties, Map<String, String> source) {
+        // Any value that looks like ${REF} will need to be replaced by the value of REF in source.
+        final String pattern = "^\\$\\{(.+)\\}$";
+        val resolved = new Properties();
+        for (val e : properties.entrySet()) {
+            if (((String) e.getKey()).contains("hostIp")) {
+                System.out.println();
+            }
+            // Fetch reference value.
+            String existingValue = (String) e.getValue();
+            String newValue = existingValue; // Default to existing value (in case it's not a reference).
+            if (existingValue.matches(pattern)) {
+                // Only include the referred value if it resolves to anything; otherwise exclude this altogether.
+                String lookupKey = pattern.replaceAll(pattern, "$1");
+                newValue = source.getOrDefault(lookupKey, null);
+            }
+
+            if (newValue != null) {
+                resolved.put(e.getKey(), newValue);
+            }
+        }
+
+        return resolved;
+    }
+
+    private static GRPCServerConfig createGrpcServerConfig() {
+        String publishHost = Config.RPC_PUBLISHED_SERVER_HOST;
+        if (publishHost != null && publishHost.equals("{null}")) {
+            // This config is optional. "{null}" is used for testing purposes - we override all defaults to null.
+            publishHost = null;
             log.info("publishedRPCHost is not configured, will use default value");
         }
+
         return GRPCServerConfigImpl.builder()
                 .port(Config.RPC_SERVER_PORT)
                 .publishedRPCHost(publishHost)
@@ -178,73 +275,17 @@ public final class Config {
                 .build();
     }
 
-    private static class LegacyConfig {
-        final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication()
-                                                                              .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
-                                                                              .withFallback(ConfigFactory.systemEnvironment())
-                                                                              .withFallback(ConfigFactory.defaultReference())
-                                                                              .resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true));
-
-        //RPC Server configuration
-        static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
-        static final int ASYNC_TASK_POOL_SIZE = CONFIG.getInt("config.controller.server.asyncTaskPoolSize");
-        static final String RPC_PUBLISHED_SERVER_HOST = CONFIG.getString("config.controller.server.publishedRPCHost");
-        static final int RPC_PUBLISHED_SERVER_PORT = CONFIG.getInt("config.controller.server.publishedRPCPort");
-
-        //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
-        static final String SERVICE_HOST = CONFIG.getString("config.controller.server.serviceHostIp");
-        static final int SERVICE_PORT = CONFIG.getInt("config.controller.server.serviceHostPort");
-
-        //Store configuration.
-        //HostStore configuration.
-        static final int HOST_STORE_CONTAINER_COUNT = CONFIG.getInt("config.controller.server.store.host.containerCount");
-
-        //Cluster configuration.
-        static final boolean HOST_MONITOR_ENABLED = CONFIG.getBoolean("config.controller.server.hostMonitorEnabled");
-        static final String CLUSTER_NAME = CONFIG.getString("config.controller.server.cluster");
-        static final int CLUSTER_MIN_REBALANCE_INTERVAL = CONFIG.getInt("config.controller.server.minRebalanceInterval");
-        static final boolean AUTHORIZATION_ENABLED = CONFIG.getBoolean("config.controller.server.authorizationEnabled");
-        static final String USER_PASSWORD_FILE = CONFIG.getString("config.controller.server.userPasswordFile");
-        static final boolean TLS_ENABLED = CONFIG.getBoolean("config.controller.server.tlsEnabled");
-        static final String TLS_KEY_FILE = CONFIG.getString("config.controller.server.tlsKeyFile");
-        static final String TLS_CERT_FILE = CONFIG.getString("config.controller.server.tlsCertFile");
-        static final String TLS_TRUST_STORE = CONFIG.getString("config.controller.server.tlsTrustStore");
-        static final String TOKEN_SIGNING_KEY = CONFIG.getString("config.controller.server.tokenSigningKey");
-        static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR = CONFIG.getBoolean("config.controller.server.replyWithStackTraceOnError");
-        static final boolean REQUEST_TRACING_ENABLED = CONFIG.getBoolean("config.controller.server.requestTracingEnabled");
-
-        //Zookeeper configuration.
-        static final String ZK_URL = CONFIG.getString("config.controller.server.zk.url");
-        static final int ZK_RETRY_SLEEP_MS = CONFIG.getInt("config.controller.server.zk.retryIntervalMS");
-        static final int ZK_MAX_RETRIES = CONFIG.getInt("config.controller.server.zk.maxRetries");
-        static final int ZK_SESSION_TIMEOUT_MS = CONFIG.getInt("config.controller.server.zk.sessionTimeoutMS");
-        static final boolean SECURE_ZK = CONFIG.getBoolean("config.controller.server.zk.secureConnectionToZooKeeper");
-        static {
-            Set<Map.Entry<String, ConfigValue>> entries = CONFIG.entrySet();
-            log.info("Controller legacy configuration:");
-            entries.forEach(entry -> log.info("{} = {}", entry.getKey(), entry.getValue()));
+    private static MetricsConfig createMetricsConfig(Properties p) {
+        val builder = MetricsConfig.builder();
+        for (val e : p.entrySet()) {
+            String key = (String) e.getKey();
+            if (key.startsWith(METRIC_PATH)) {
+                builder.with(Property.named(key.replaceFirst(METRIC_PATH, "")), e.getValue());
+            }
         }
 
-        //REST server configuration
-        static final String REST_SERVER_IP = CONFIG.getString("config.controller.server.rest.serverIp");
-        static final int REST_SERVER_PORT = CONFIG.getInt("config.controller.server.rest.serverPort");
-
-        //Transaction configuration
-        static final long MIN_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.minLeaseValue");
-        static final long MAX_LEASE_VALUE = CONFIG.getLong("config.controller.server.transaction.maxLeaseValue");
-
-        // Completed Transaction TTL
-        static final int COMPLETED_TRANSACTION_TTL_IN_HOURS = CONFIG.getInt("config.controller.server.transaction.completed.ttlInHours");
-
-        // Retention Configuration
-        static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = CONFIG.getInt("config.controller.server.retention.frequencyInMinutes");
-        static final int BUCKET_COUNT = CONFIG.getInt("config.controller.server.retention.bucketCount");
-        static final int RETENTION_THREAD_POOL_SIZE = CONFIG.getInt("config.controller.server.retention.threadCount");
-
-        // Request Stream Configuration
-        static final String SCALE_STREAM_NAME = CONFIG.getString("config.controller.server.internal.scale.streamName");
-
-        // Request Stream readerGroup
-        static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
+        return builder.build();
     }
+
+
 }
