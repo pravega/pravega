@@ -24,7 +24,6 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
