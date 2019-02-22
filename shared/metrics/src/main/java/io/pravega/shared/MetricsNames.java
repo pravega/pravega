@@ -49,9 +49,10 @@ package io.pravega.shared;
  */
 
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
-import lombok.Getter;
+import lombok.Data;
 
 public final class MetricsNames {
     // Metrics in Segment Store Service
@@ -171,6 +172,8 @@ public final class MetricsNames {
     public static final String COUNTER_SUFFIX = ".Counter";
     public static final String GAUGE_SUFFIX = ".Gauge";
     public static final String METER_SUFFIX = ".Meter";
+    public static final String TIMER_SUFFIX = ".Timer";
+    public static final String NONE_SUFFIX = "";
 
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
@@ -191,7 +194,7 @@ public final class MetricsNames {
         return escapeSpecialChar(name);
     }
 
-    public static String  nameFromHost(String metric, String hostId) {
+    public static String nameFromHost(String metric, String hostId) {
         String name = metric + "." + hostId;
         return escapeSpecialChar(name);
     }
@@ -237,7 +240,18 @@ public final class MetricsNames {
     }
 
     /**
-     * Generate MetricKey holds cache lookup key and metric registry key.
+     * Convenient method to concastenate two Strings using dot.
+     *
+     * @param element1 the first String object.
+     * @param element2 the second String object.
+     * @return String object with element1 and element2 connected with dot.
+     */
+    public static String name(String element1, String element2) {
+        return element1 + "." + element2;
+    }
+
+    /**
+     * Create an MetricKey based on metric name, metric type and tags associated.
      *
      * e.g.
      * for flat metric name "append_count.6" (without tag), its cache key is:
@@ -258,13 +272,9 @@ public final class MetricsNames {
             String key = sb.toString();
             return new MetricKey(key, key);
         } else { //tags: append tag values and suffix to form cache key, original name is registry key
-            if (tags.length % 2 == 1) {
-                throw new IllegalArgumentException("Tags size must be even, it is a set of key=value pairs");
-            }
+            Preconditions.checkArgument((tags.length % 2) == 0, "Tags is a set of key/value pair so the size must be even: %s", tags.length);
             for (int i = 0; i < tags.length; i += 2) {
-                if (Strings.isNullOrEmpty(tags[i]) || Strings.isNullOrEmpty(tags[i + 1])) {
-                    throw new IllegalArgumentException("Tag name or value cannot be empty or null");
-                }
+                Preconditions.checkArgument(!Strings.isNullOrEmpty(tags[i]) || !Strings.isNullOrEmpty(tags[i + 1]), "Tag name or value cannot be empty or null");
                 sb.append('.').append(tags[i + 1]);
             }
             sb.append(typeSuffix);
@@ -277,14 +287,9 @@ public final class MetricsNames {
      * This class is provided to keep the metric name convention backwards compatible.
      *
      */
+    @Data
     public static class MetricKey {
-        @Getter
-        final private String cacheKey;
-        @Getter
-        final private String registryKey;
-        public MetricKey(String cacheKey, String registryKey) {
-            this.cacheKey = cacheKey;
-            this.registryKey = registryKey;
-        }
+        private final String cacheKey;
+        private final String registryKey;
     }
 }

@@ -58,7 +58,7 @@ class StatsProviderImpl implements StatsProvider {
         }
 
         if (Metrics.globalRegistry.getRegistries().size() == 0) {
-            log.error("Error! No concrete metrics register bound, the composite registry runs as no-op!");
+            log.error("No concrete metrics register bound, the composite registry runs in no-op mode!");
         }
     }
 
