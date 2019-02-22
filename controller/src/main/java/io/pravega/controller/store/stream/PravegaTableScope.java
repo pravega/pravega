@@ -47,7 +47,8 @@ public class PravegaTableScope implements Scope {
     @Override
     public CompletableFuture<Void> createScope() {
         // add entry to scopes table followed by creating scope specific table
-        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId()),
+        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
+                NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId()),
                 DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
                                                            .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId())))
                       .thenCompose(v -> getStreamsInScopeTableName())
@@ -79,20 +80,16 @@ public class PravegaTableScope implements Scope {
         AtomicReference<String> token = new AtomicReference<>(continuationToken);
         AtomicBoolean canContinue = new AtomicBoolean(true);
         return getStreamsInScopeTableName()
-            .thenCompose(entry -> Futures.loop(() -> taken.size() < limit && canContinue.get(), 
-                () -> storeHelper.getKeysPaginated(scopeName, entry, 
-                        Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit - taken.size())
-                .thenAccept(result -> {
+            .thenCompose(entry -> storeHelper.getKeysPaginated(scopeName, entry, 
+                        Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit)
+                .thenApply(result -> {
                     if (result.getValue().isEmpty()) {
                         canContinue.set(false);
                     } else {
                         taken.addAll(result.getValue());
                     }
                     token.set(Base64.getEncoder().encodeToString(result.getKey().array()));
-                }), executor)
-                .thenApply(v -> {
-                    List<String> result = taken.size() > limit ? taken.subList(0, limit) : taken;
-                    return new ImmutablePair<>(result, token.get());
+                    return new ImmutablePair<>(taken, token.get());
                 }));
     }
 

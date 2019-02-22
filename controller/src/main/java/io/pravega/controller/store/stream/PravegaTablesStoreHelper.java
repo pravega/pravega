@@ -63,8 +63,16 @@ public class PravegaTablesStoreHelper {
         List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
+        String errorMessage = "addNewEntry: key:" + key + " table: " + scope + "/" + tableName;
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
-                "addNewEntry: key:" + key + " table: " + scope + "/" + tableName)
+                errorMessage)
+                .exceptionally(e -> {
+                    if (Exceptions.unwrap(e) instanceof StoreException.WriteConflictException) {
+                        throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage);
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                })
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
                     return new Version.LongVersion(first.getSegmentVersion());
@@ -74,7 +82,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Version> addNewEntryIfAbsent(String scope, String tableName, String key, @NonNull byte[] value) {
         // if entry exists, we will get write conflict in attempting to create it again. 
         return Futures.exceptionallyExpecting(addNewEntry(scope, tableName, key, value),
-                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null);
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null);
     }
 
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, Data value) {

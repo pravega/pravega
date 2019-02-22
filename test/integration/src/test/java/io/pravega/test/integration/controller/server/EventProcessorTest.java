@@ -58,8 +58,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-
 /**
  * End-to-end tests for event processor.
  */
@@ -155,8 +153,10 @@ public class EventProcessorTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup
