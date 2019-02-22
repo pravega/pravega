@@ -30,7 +30,7 @@ public class RegistryConfigUtil {
         return new StatsdConfig() {
             @Override
             public Duration step() {
-                return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
+                return Duration.ofSeconds(conf.getOutputFrequencySeconds().getSeconds());
             }
 
             @Override
@@ -71,7 +71,7 @@ public class RegistryConfigUtil {
         return new InfluxConfig() {
             @Override
             public Duration step() {
-                return Duration.ofSeconds(conf.getStatsOutputFrequencySeconds().getSeconds());
+                return Duration.ofSeconds(conf.getOutputFrequencySeconds().getSeconds());
             }
 
             @Override

@@ -25,7 +25,7 @@ public class MetricsConfig {
     public final static Property<Boolean> ENABLE_STATISTICS = Property.named("enableStatistics", true);
     public final static Property<Long> DYNAMIC_CACHE_SIZE = Property.named("dynamicCacheSize", 10000000L);
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMinutes", 30);
-    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("statsOutputFrequencySeconds", 60);
+    public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("outputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
     public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
     public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
@@ -64,7 +64,7 @@ public class MetricsConfig {
      * Gets a value indicating output frequency in seconds.
      */
     @Getter
-    private final Duration statsOutputFrequencySeconds;
+    private final Duration outputFrequencySeconds;
 
     /**
      * The metrics prefix.
@@ -133,7 +133,7 @@ public class MetricsConfig {
         this.enableStatistics = properties.getBoolean(ENABLE_STATISTICS);
         this.dynamicCacheSize = properties.getLong(DYNAMIC_CACHE_SIZE);
         this.dynamicCacheEvictionDurationMinutes = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES));
-        this.statsOutputFrequencySeconds = Duration.ofSeconds(properties.getInt(OUTPUT_FREQUENCY));
+        this.outputFrequencySeconds = Duration.ofSeconds(properties.getInt(OUTPUT_FREQUENCY));
         this.metricsPrefix = properties.get(METRICS_PREFIX);
         this.statsDHost = properties.get(STATSD_HOST);
         this.statsDPort = properties.getInt(STATSD_PORT);
