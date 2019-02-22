@@ -12,7 +12,9 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -173,7 +175,7 @@ public class StreamTest {
             testConcurrentGetSuccessorScale(store, (x, y) -> {
                 PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
                 PravegaTableScope scope = new PravegaTableScope(x, storeHelper, executor);
-                scope.createScope().join();
+                Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
                 scope.addStreamToScope(y).join();
                 return new PravegaTablesStream(x, y, storeHelper, () -> 0, executor, scope::getStreamsInScopeTableName);
             });
