@@ -180,6 +180,7 @@ public class InlineExecutor implements ScheduledExecutorService {
         }
         return delayedExecutor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
+    
     private static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
         result.completeExceptionally(exception);
@@ -189,30 +190,37 @@ public class InlineExecutor implements ScheduledExecutorService {
     @RequiredArgsConstructor
     private static class NonScheduledFuture<T> implements ScheduledFuture<T> {
         private final CompletableFuture<T> wrappedFuture;
+
         @Override
         public long getDelay(TimeUnit unit) {
             return 0;
         }
+
         @Override
         public int compareTo(Delayed o) {
             return Long.compare(0, o.getDelay(TimeUnit.MILLISECONDS));
         }
+
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
             return false;
         }
+
         @Override
         public boolean isCancelled() {
             return false;
         }
+
         @Override
         public boolean isDone() {
             return wrappedFuture.isDone();
         }
+
         @Override
         public T get() throws InterruptedException, ExecutionException {
             return wrappedFuture.get();
         }
+
         @Override
         public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
             return wrappedFuture.get(timeout, unit);
