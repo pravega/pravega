@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,7 +88,7 @@ public abstract class BucketServiceTest {
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    abstract StreamMetadataStore createStreamStore(Executor executor);
+    abstract StreamMetadataStore createStreamStore(ScheduledExecutorService executor);
 
     abstract BucketStore createBucketStore(int bucketCount);
 

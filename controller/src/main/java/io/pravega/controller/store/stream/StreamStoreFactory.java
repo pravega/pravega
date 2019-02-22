@@ -17,9 +17,10 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamStoreFactory {
-    public static StreamMetadataStore createStore(final StoreClient storeClient, SegmentHelper segmentHelper, final Executor executor) {
+    public static StreamMetadataStore createStore(final StoreClient storeClient, SegmentHelper segmentHelper, ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryStreamMetadataStore(executor);
@@ -34,12 +35,12 @@ public class StreamStoreFactory {
 
     @VisibleForTesting
     public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, 
-                                                               final CuratorFramework client, final Executor executor) {
+                                                               final CuratorFramework client, final ScheduledExecutorService executor) {
         return new PravegaTablesStreamMetadataStore(segmentHelper, client, executor);
     }
     
     @VisibleForTesting
-    public static StreamMetadataStore createZKStore(final CuratorFramework client, final Executor executor) {
+    public static StreamMetadataStore createZKStore(final CuratorFramework client, final ScheduledExecutorService executor) {
         return new ZKStreamMetadataStore(client, executor);
     }
     

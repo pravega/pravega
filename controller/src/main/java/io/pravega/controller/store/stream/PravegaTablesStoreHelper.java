@@ -24,6 +24,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
+import io.pravega.controller.util.RetryHelper;
 import lombok.NonNull;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -34,15 +35,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class PravegaTablesStoreHelper {
     private final SegmentHelper segmentHelper;
-    private final Executor executor;
+    private final ScheduledExecutorService executor;
 
-    public PravegaTablesStoreHelper(SegmentHelper segmentHelper, Executor executor) {
+    public PravegaTablesStoreHelper(SegmentHelper segmentHelper, ScheduledExecutorService executor) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
     }
@@ -191,7 +192,7 @@ public class PravegaTablesStoreHelper {
     }
 
     private <T> CompletableFuture<T> runOnExecutorWithExceptionHandling(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
-        return CompletableFuture.completedFuture(null)
-                                .thenComposeAsync(v -> translateException(futureSupplier.get(), errorMessage), executor);
+        return RetryHelper.withRetriesAsync(() -> translateException(futureSupplier.get(), errorMessage), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, 5, executor);
     }
 }

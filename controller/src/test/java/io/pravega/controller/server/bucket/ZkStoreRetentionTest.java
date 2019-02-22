@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,7 +80,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
     }
 
     @Override
-    StreamMetadataStore createStreamStore(Executor executor) {
+    StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createZKStore(zkClient, executor);
     }
 

@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_EMPTY_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
@@ -46,7 +46,7 @@ public class PravegaTablesHostIndex implements HostIndex {
     private final String hostsTable;
     private final String indexName;
     
-    public PravegaTablesHostIndex(SegmentHelper segmentHelper, String indexName, Executor executor) {
+    public PravegaTablesHostIndex(SegmentHelper segmentHelper, String indexName, ScheduledExecutorService executor) {
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
         this.indexName = indexName;
         this.hostsTable = String.format(HOSTS_ROOT_TABLE_FORMAT, this.indexName);

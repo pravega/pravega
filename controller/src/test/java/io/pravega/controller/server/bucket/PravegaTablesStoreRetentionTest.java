@@ -19,7 +19,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
     private TestingServer zkServer;
@@ -48,7 +48,7 @@ public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
     }
 
     @Override
-    StreamMetadataStore createStreamStore(Executor executor) {
+    StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(), 
                 zkClient, executor);
     }
