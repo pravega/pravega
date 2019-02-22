@@ -28,7 +28,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
-import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 

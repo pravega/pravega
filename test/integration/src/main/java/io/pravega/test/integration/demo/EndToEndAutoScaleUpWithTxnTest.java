@@ -47,7 +47,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -138,8 +137,8 @@ public class EndToEndAutoScaleUpWithTxnTest {
 
             String event1 = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
             String event2 = reader.readNextEvent(SECONDS.toMillis(60)).getEvent();
-//            assert event1.equals("1");
-//            assert event2.equals("2");
+            assert event1.equals("1");
+            assert event2.equals("2");
             final AtomicBoolean done = new AtomicBoolean(false);
 
             startWriter(test, done);
