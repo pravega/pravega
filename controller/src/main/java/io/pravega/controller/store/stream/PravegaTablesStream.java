@@ -105,21 +105,6 @@ class PravegaTablesStream extends PersistentStreamBase {
                                        .thenCompose(table -> cache.getCachedData(getCacheEntryKey(table, getName()))
                                                                   .thenApply(data -> new String(data.getData())));
     }
-    
-    // region overrides
-
-    @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        List<CompletableFuture<Integer>> futures = new LinkedList<>();
-        return getId()
-                .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
-                                              .collectRemaining(x -> {
-                                                  futures.add(getNumberOfOngoingTransactions(Integer.parseInt(x)));
-                                                  return true;
-                                              })
-                                              .thenCompose(v -> Futures.allOfWithResults(futures)
-                                                                       .thenApply(list -> list.stream().reduce(0, Integer::sum))));
-    }
 
     private String getMetadataTableName(String id) {
         return metadataTableName + ".#." + id;
@@ -135,6 +120,21 @@ class PravegaTablesStream extends PersistentStreamBase {
         return epochTableName + ".#." + id;
     }
 
+    // region overrides
+
+    @Override
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        List<CompletableFuture<Integer>> futures = new LinkedList<>();
+        return getId()
+                .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
+                                              .collectRemaining(x -> {
+                                                  futures.add(getNumberOfOngoingTransactions(Integer.parseInt(x)));
+                                                  return true;
+                                              })
+                                              .thenCompose(v -> Futures.allOfWithResults(futures)
+                                                                       .thenApply(list -> list.stream().reduce(0, Integer::sum))));
+    }
+    
     private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
         AtomicInteger count = new AtomicInteger(0);
         return getId()

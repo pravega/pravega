@@ -96,14 +96,6 @@ public class PravegaTablesHostIndex implements HostIndex {
         String table = getHostEntityTableName(hostId);
         return Futures.exceptionallyExpecting(storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, table, entity),
                 DATA_NOT_FOUND_PREDICATE, null);
-//                .thenCompose(v -> {
-//                    if (deleteEmptyHost) {
-//                        return Futures.exceptionallyExpecting(removeHost(hostId),
-//                                DATA_NOT_EMPTY_PREDICATE, null);
-//                    } else {
-//                        return CompletableFuture.completedFuture(null);
-//                    }
-//                });
     }
 
     @Override

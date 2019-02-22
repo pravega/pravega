@@ -418,7 +418,7 @@ public abstract class StreamTestBase {
     @Test(timeout = 30000L)
     public void scaleInputValidityTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
-        String name = "stream" + startingSegmentNumber;
+        String name = "streamInputValidity" + startingSegmentNumber;
         PersistentStreamBase stream = createStream("scope", name, System.currentTimeMillis(), 5, startingSegmentNumber);
 
         long timestamp = System.currentTimeMillis();
@@ -591,8 +591,8 @@ public abstract class StreamTestBase {
     }
 
     private VersionedMetadata<EpochTransitionRecord> resetScale(VersionedMetadata<EpochTransitionRecord> etr, Stream stream) {
-        stream.completeScale(etr);
-        stream.updateState(State.ACTIVE);
+        stream.completeScale(etr).join();
+        stream.updateState(State.ACTIVE).join();
         return stream.getEpochTransition().join();
     }
 

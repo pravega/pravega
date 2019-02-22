@@ -41,9 +41,9 @@ public class PravegaTablesStreamTest extends StreamTestBase {
 
     @Override
     public void tearDown() throws Exception {
+        store.close();
         cli.close();
         zkServer.close();
-        store.close();
         executor.shutdown();
     }
 
@@ -54,6 +54,10 @@ public class PravegaTablesStreamTest extends StreamTestBase {
 
     @Override
     PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize) {
-        return new PravegaTablesStream(scope, stream, storeHelper, () -> 0, chunkSize, shardSize, executor);
+        PravegaTableScope pravegaTableScope = new PravegaTableScope(scope, storeHelper, executor);
+        pravegaTableScope.createScope().join();
+        pravegaTableScope.addStreamToScope(stream).join();
+
+        return new PravegaTablesStream(scope, stream, storeHelper, () -> 0, chunkSize, shardSize, executor, pravegaTableScope::getStreamsInScopeTableName);
     }
 }

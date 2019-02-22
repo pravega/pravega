@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -86,7 +87,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                           return new ArrayList<String>();
                                       }
                                   }
-                          ), DATA_NOT_FOUND_PREDICATE, new ArrayList<String>())
+                          )
                           .thenCompose(toDeleteList -> {
                               log.debug("deleting batches {} on new scheme", toDeleteList);
 
@@ -99,9 +100,9 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                   })
                                                   .collect(Collectors.toList()))
                                       .thenCompose(v -> storeHelper.removeEntries(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE, toDeleteList));
-                          });
+                          }), DATA_NOT_FOUND_PREDICATE, null);
     }
-
+    
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
         return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor,

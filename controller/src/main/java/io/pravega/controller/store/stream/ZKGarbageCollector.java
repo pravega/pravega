@@ -184,6 +184,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                 try {
                     x.close();
                 } catch (IOException e) {
+                    log.error("Exception while shutting down node cache", e);
                     throw Exceptions.sneakyThrow(e);
                 }
             }

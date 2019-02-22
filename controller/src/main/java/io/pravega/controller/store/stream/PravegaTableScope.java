@@ -29,7 +29,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 
 public class PravegaTableScope implements Scope {
-    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table.#.streamsInScope.#.%s";
+    static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table.#.streamsInScope.#.%s";
     private final String streamsInScopeTable;
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
@@ -52,9 +52,7 @@ public class PravegaTableScope implements Scope {
                 DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
                                                            .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId())))
                       .thenCompose(v -> getStreamsInScopeTableName())
-                      .thenCompose(tableName -> {
-                          return Futures.toVoid(storeHelper.createTable(scopeName, tableName));
-                      });
+                      .thenCompose(tableName -> Futures.toVoid(storeHelper.createTable(scopeName, tableName)));
     }
 
     private byte[] newId() {

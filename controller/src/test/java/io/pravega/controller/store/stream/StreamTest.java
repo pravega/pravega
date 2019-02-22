@@ -65,8 +65,14 @@ public class StreamTest {
 
     @Test(timeout = 10000)
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
-        PravegaTablesStream stream = new PravegaTablesStream("test", "test", 
-                new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables(), executor), () -> 0, executor);
+        PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables(), executor);
+        PravegaTableScope scope = new PravegaTableScope("test", storeHelper, executor);
+        scope.createScope().join();
+        scope.addStreamToScope("test").join();
+        
+        PravegaTablesStream stream = new PravegaTablesStream("test", "test",
+                storeHelper, () -> 0, executor,
+                scope::getStreamsInScopeTableName);
         testStream(stream);
     }
     
@@ -163,8 +169,14 @@ public class StreamTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
                 segmentHelper, cli, executor)) {
-            testConcurrentGetSuccessorScale(store, (x, y) -> new PravegaTablesStream(x, y, 
-                    new PravegaTablesStoreHelper(segmentHelper, executor), () -> 0, executor));
+
+            testConcurrentGetSuccessorScale(store, (x, y) -> {
+                PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
+                PravegaTableScope scope = new PravegaTableScope(x, storeHelper, executor);
+                scope.createScope().join();
+                scope.addStreamToScope(y).join();
+                return new PravegaTablesStream(x, y, storeHelper, () -> 0, executor, scope::getStreamsInScopeTableName);
+            });
         }
     }
     
