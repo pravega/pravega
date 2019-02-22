@@ -57,9 +57,8 @@ class StatsProviderImpl implements StatsProvider {
             Metrics.addRegistry(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
 
-        if (Metrics.globalRegistry.getRegistries().size() == 0) {
-            log.error("No concrete metrics register bound, the composite registry runs in no-op mode!");
-        }
+        Preconditions.checkArgument(Metrics.globalRegistry.getRegistries().size() != 0,
+                "No meter register bound hence no storage for metrics!");
     }
 
     @Synchronized
