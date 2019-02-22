@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.NameUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -24,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SYSTEM_SCOPE;
 
 public class PravegaTableScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope-%s";
@@ -47,15 +47,15 @@ public class PravegaTableScope implements Scope {
     @Override
     public CompletableFuture<Void> createScope() {
         // add entry to scopes table followed by creating scope specific table
-        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, new byte[0]),
-                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(SYSTEM_SCOPE, SCOPES_TABLE).thenCompose(v -> storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, SCOPES_TABLE, scopeName, new byte[0])))
+        return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, new byte[0]),
+                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE).thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, new byte[0])))
                       .thenCompose(entryAdded -> Futures.toVoid(storeHelper.createTable(scopeName, streamsInScopeTable)));
     }
 
     @Override
     public CompletableFuture<Void> deleteScope() {
         return storeHelper.deleteTable(scopeName, streamsInScopeTable, true)
-                .thenCompose(deleted -> storeHelper.removeEntry(SYSTEM_SCOPE, SCOPES_TABLE, scopeName));
+                .thenCompose(deleted -> storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName));
     }
 
     @Override

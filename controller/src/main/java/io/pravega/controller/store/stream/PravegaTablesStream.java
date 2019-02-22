@@ -16,6 +16,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
+import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
@@ -503,29 +504,29 @@ class PravegaTablesStream extends PersistentStreamBase {
         
         String key = String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), txId.toString());
 
-        return Futures.exceptionallyComposeExpecting(Futures.toVoid(storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, tableName, key, complete)),
+        return Futures.exceptionallyComposeExpecting(Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, tableName, key, complete)),
                 DATA_NOT_FOUND_PREDICATE, () -> tryCreateBatchTable(batch, key, complete));
     }
 
     private CompletableFuture<Void> tryCreateBatchTable(int batch, String key, byte[] complete) {
         String batchTable = String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch);
     
-        return storeHelper.createTable(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
-                .thenCompose(v -> storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE, "" + batch, new byte[0]))
-                .thenCompose(v -> storeHelper.createTable(SYSTEM_SCOPE, batchTable))
-                .thenCompose(v -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(SYSTEM_SCOPE, batchTable, key, complete)));
+        return storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
+                .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE, "" + batch, new byte[0]))
+                .thenCompose(v -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, batchTable))
+                .thenCompose(v -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, batchTable, key, complete)));
     }
 
     @Override
     CompletableFuture<Data> getCompletedTx(final UUID txId) {
         List<Long> batches = new LinkedList<>();
-        return storeHelper.getAllKeys(SYSTEM_SCOPE, COMPLETED_TRANSACTIONS_BATCHES_TABLE).forEachRemaining(x -> batches.add(Long.parseLong(x)), executor)
+        return storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE).forEachRemaining(x -> batches.add(Long.parseLong(x)), executor)
                           .thenCompose(v -> {
                               return Futures.allOfWithResults(batches.stream().map(batch -> {
                                   String table = String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch);
                                   String key = String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), txId.toString());
 
-                                  return Futures.exceptionallyExpecting(storeHelper.getEntry(SYSTEM_SCOPE, table, key), DATA_NOT_FOUND_PREDICATE, null);
+                                  return Futures.exceptionallyExpecting(storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, table, key), DATA_NOT_FOUND_PREDICATE, null);
                               }).collect(Collectors.toList()));
                           })
                           .thenCompose(result -> {

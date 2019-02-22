@@ -236,7 +236,6 @@ public abstract class ControllerEventProcessorTest {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
 
-        System.err.println("shivesh:: i am starting the commits now");
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)).join();
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1))));
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1))));

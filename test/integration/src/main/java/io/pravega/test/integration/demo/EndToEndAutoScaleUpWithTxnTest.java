@@ -69,7 +69,6 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
             Controller controller = controllerWrapper.getController();
-            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
             ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -93,6 +92,8 @@ public class EndToEndAutoScaleUpWithTxnTest {
             server.startListening();
 
             controllerWrapper.awaitRunning();
+            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
+
             controllerWrapper.getControllerService().createScope("test").get();
 
             controller.createStream("test", "test", CONFIG).get();

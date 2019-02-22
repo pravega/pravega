@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -924,7 +925,6 @@ public class SegmentHelper {
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
                                                                          final List<TableKey<byte[]>> keys,
-                                                                         
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -956,15 +956,24 @@ public class SegmentHelper {
             @Override
             public void tableRead(WireCommands.TableRead tableRead) {
                 log.info(requestId, "readTable {} successful.", qualifiedName);
+                AtomicBoolean allKeysFound = new AtomicBoolean(true);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> {
                                                                              WireCommands.TableKey k = e.getKey();
                                                                              TableKey<byte[]> tableKey =
                                                                                      new TableKeyImpl<>(getArray(k.getData()),
                                                                                                         new KeyVersionImpl(k.getKeyVersion()));
+                                                                             //TODO: shivesh: @Sandeep hack added to return KeyDoesNotExist if key version is Long.Min
+                                                                             allKeysFound.compareAndSet(true, k.getKeyVersion() != WireCommands.TableKey.NO_VERSION);
+
                                                                              return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                                                          }).collect(Collectors.toList());
-                result.complete(tableEntries);
+                if (allKeysFound.get()) {
+                    result.complete(tableEntries);
+                } else {
+                    //TODO: shivesh: @Sandeep hack added to return KeyDoesNotExist if key version is Long.Min
+                    result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
+                }
             }
 
             @Override
@@ -1100,6 +1109,13 @@ public class SegmentHelper {
 
         final CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
+                // TODO: shivesh @Sandeep i copied this from failing processor to keep it in context.. 
+                // this gets invoked!!!
+                throw new IllegalStateException("Unexpected operation: " + tableKeysRead);
+            }
 
             @Override
             public void connectionDropped() {
