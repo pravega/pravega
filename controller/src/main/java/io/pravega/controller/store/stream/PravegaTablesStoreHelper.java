@@ -29,7 +29,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -59,7 +59,7 @@ public class PravegaTablesStoreHelper {
     }
 
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
-        List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
+        List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
@@ -77,7 +77,7 @@ public class PravegaTablesStoreHelper {
     }
 
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, Data value) {
-        List<TableEntry<byte[], byte[]>> entries = new LinkedList<>();
+        List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
         KeyVersionImpl version = value.getVersion() == null ? null :
                 new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), version), value.getData());
@@ -91,7 +91,7 @@ public class PravegaTablesStoreHelper {
     }
 
     public CompletableFuture<Data> getEntry(String scope, String tableName, String key) {
-        List<TableKey<byte[]>> keys = new LinkedList<>();
+        List<TableKey<byte[]>> keys = new ArrayList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
                 "get entry: key:" + key + " table: " + scope + "/" + tableName)
@@ -102,7 +102,7 @@ public class PravegaTablesStoreHelper {
     }
 
     public CompletableFuture<Void> removeEntry(String scope, String tableName, String key) {
-        List<TableKey<byte[]>> keys = new LinkedList<>();
+        List<TableKey<byte[]>> keys = new ArrayList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
                 "remove entry: key:" + key + " table: " + scope + "/" + tableName);

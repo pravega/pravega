@@ -28,7 +28,7 @@ import org.apache.curator.framework.CuratorFramework;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -75,7 +75,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
-        List<String> batches = new LinkedList<>();
+        List<String> batches = new ArrayList<>();
         return Futures.exceptionallyExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
                           .collectRemaining(batches::add)
                           .thenApply(v -> {
@@ -162,7 +162,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        List<String> scopes = new LinkedList<>();
+        List<String> scopes = new ArrayList<>();
         return Futures.exceptionallyComposeExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
                                                                 .collectRemaining(scopes::add)
                           .thenApply(v -> scopes), DATA_NOT_FOUND_PREDICATE, 

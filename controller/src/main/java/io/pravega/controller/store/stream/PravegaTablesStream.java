@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -124,7 +124,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        List<CompletableFuture<Integer>> futures = new LinkedList<>();
+        List<CompletableFuture<Integer>> futures = new ArrayList<>();
         return getId()
                 .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
                                               .collectRemaining(x -> {
@@ -154,7 +154,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         
         // delete stream in scope 
         String scope = getScope();
-        List<CompletableFuture<Void>> futures = new LinkedList<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
         return getId()
                 .thenCompose(id -> Futures.exceptionallyExpecting(storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
                           .collectRemaining(x -> {
@@ -472,7 +472,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Map<String, Data>> getCurrentTxns() {
-        List<CompletableFuture<Map<String, Data>>> futures = new LinkedList<>();
+        List<CompletableFuture<Map<String, Data>>> futures = new ArrayList<>();
         return getId()
                 .thenCompose(id -> storeHelper.getAllKeys(getScope(), getEpochsWithTransactionsTableName(id))
                           .collectRemaining(x -> {
@@ -601,7 +601,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Data> getCompletedTx(final UUID txId) {
-        List<Long> batches = new LinkedList<>();
+        List<Long> batches = new ArrayList<>();
         return storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
                           .collectRemaining(x -> {
                               batches.add(Long.parseLong(x));

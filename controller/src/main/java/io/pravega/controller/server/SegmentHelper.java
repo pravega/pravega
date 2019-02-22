@@ -135,7 +135,7 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
-                extracted.getLeft(), extracted.getRight(), retrieveDelegationToken());
+                extracted.getLeft(), extracted.getRight(), retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -192,7 +192,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, qualifiedName, offset, retrieveDelegationToken());
+        WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, qualifiedName, offset, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -248,7 +248,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, qualifiedName, retrieveDelegationToken());
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, qualifiedName, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -319,7 +319,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.SealSegment request = new WireCommands.SealSegment(requestId, qualifiedName, retrieveDelegationToken());
+        WireCommands.SealSegment request = new WireCommands.SealSegment(requestId, qualifiedName, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -375,7 +375,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), transactionName,
-                WireCommands.CreateSegment.NO_SCALE, 0, retrieveDelegationToken());
+                WireCommands.CreateSegment.NO_SCALE, 0, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -449,7 +449,7 @@ public class SegmentHelper {
         };
 
         WireCommands.MergeSegments request = new WireCommands.MergeSegments(idGenerator.get(),
-                qualifiedNameTarget, transactionName, retrieveDelegationToken());
+                qualifiedNameTarget, transactionName, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -502,7 +502,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), transactionName, retrieveDelegationToken());
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), transactionName, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -552,7 +552,7 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(requestId,
-                qualifiedName, extracted.getLeft(), extracted.getRight(), retrieveDelegationToken());
+                qualifiedName, extracted.getLeft(), extracted.getRight(), retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -598,7 +598,7 @@ public class SegmentHelper {
         };
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
-                qualifiedName, retrieveDelegationToken());
+                qualifiedName, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -662,7 +662,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, retrieveDelegationToken());
+        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -736,7 +736,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, retrieveDelegationToken());
+        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, retrieveMasterToken());
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -820,7 +820,7 @@ public class SegmentHelper {
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
-        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, retrieveDelegationToken(),
+        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, retrieveMasterToken(),
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -904,7 +904,7 @@ public class SegmentHelper {
 
         List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
 
-        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, retrieveDelegationToken(), keyList);
+        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, retrieveMasterToken(), keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -1001,7 +1001,7 @@ public class SegmentHelper {
                                                                                                WireCommands.TableKey.NO_VERSION))
                                                   .collect(Collectors.toList());
 
-        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, retrieveDelegationToken(), keyList);
+        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, retrieveMasterToken(), keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -1079,7 +1079,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, retrieveDelegationToken(), suggestedKeyCount,
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, retrieveMasterToken(), suggestedKeyCount,
                                                                         token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -1163,7 +1163,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, retrieveDelegationToken(),
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, retrieveMasterToken(),
                                                                         suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -1232,7 +1232,7 @@ public class SegmentHelper {
         return new ImmutablePair<>(rateType, desiredRate);
     }
 
-    public String retrieveDelegationToken() {
+    public String retrieveMasterToken() {
         return authHelper.retrieveMasterToken();
     }
 }
