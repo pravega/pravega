@@ -36,6 +36,7 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
@@ -133,11 +134,16 @@ public class EndToEndStatsTest {
         HashMap<String, AtomicInteger> segments = new HashMap<>();
 
         @Override
-        public void createSegment(String streamSegmentName, byte type, int targetRate) {
+        public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
             String parent = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
             if (parent == null) {
                 segments.put(streamSegmentName, new AtomicInteger());
             }
+        }
+
+        @Override
+        public void deleteSegment(String segmentName) {
+
         }
 
         @Override
@@ -151,7 +157,7 @@ public class EndToEndStatsTest {
         }
 
         @Override
-        public void record(String streamSegmentName, long dataLength, int numOfEvents) {
+        public void recordAppend(String streamSegmentName, long dataLength, int numOfEvents, Duration elapsed) {
             segments.computeIfPresent(streamSegmentName, (x, y) -> {
                 y.addAndGet(numOfEvents);
                 return y;
@@ -164,6 +170,16 @@ public class EndToEndStatsTest {
                 y.addAndGet(numOfEvents);
                 return y;
             });
+        }
+
+        @Override
+        public void readComplete(Duration elapsed) {
+
+        }
+
+        @Override
+        public void read(String segment, int length) {
+
         }
 
         @Override
