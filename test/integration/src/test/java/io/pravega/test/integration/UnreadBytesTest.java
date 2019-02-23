@@ -116,6 +116,7 @@ public class UnreadBytesTest {
                 EventWriterConfig.builder().build());
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", clientConfig, connectionFactory);
@@ -178,6 +179,7 @@ public class UnreadBytesTest {
         writer.writeEvent("0", "data of size 30").get();
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope("unreadbytes", clientConfig, connectionFactory);

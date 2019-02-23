@@ -137,7 +137,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     public void streamCutsTest() {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);

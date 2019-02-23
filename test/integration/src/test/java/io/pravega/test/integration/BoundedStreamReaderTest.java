@@ -133,6 +133,7 @@ public class BoundedStreamReaderTest {
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
 
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
@@ -188,6 +189,7 @@ public class BoundedStreamReaderTest {
         StreamCut streamCut = getStreamCut(STREAM1, 30L, 0);
 
         // 3. Create a ReaderGroup where the lower and upper bound are the same.
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
@@ -232,6 +234,7 @@ public class BoundedStreamReaderTest {
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(5)).get();
 
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);
@@ -289,6 +292,7 @@ public class BoundedStreamReaderTest {
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(3)).get();
         writer1.writeEvent(keyGenerator.get(), getEventData.apply(4)).get();
 
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);

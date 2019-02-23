@@ -43,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.checkerframework.checker.units.qual.C;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -186,6 +187,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(3)).join();
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
 
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
@@ -240,7 +242,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(2)).join();
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(3)).join();
         writer.writeEvent(randomKeyGenerator.get(), getEventData.apply(4)).join();
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);
@@ -324,7 +326,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent(keyGenerator.apply("0.3"), getEventData.apply(3));
         //6. Write events to Segment 1.
         writer.writeEvent(keyGenerator.apply("0.9"), getEventData.apply(1));
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI, connectionFactory);

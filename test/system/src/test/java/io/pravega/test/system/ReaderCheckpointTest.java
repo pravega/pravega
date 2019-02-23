@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.checkerframework.checker.units.qual.C;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -98,6 +99,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     @After
     public void tearDown() {
         ExecutorServiceHelpers.shutdown(readerExecutor);
+
     }
 
     @Test
@@ -106,7 +108,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         StreamManager streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE_1));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM, streamConfig));
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, controllerURI, connectionFactory);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME,
@@ -161,7 +163,7 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         StreamManager streamManager = StreamManager.create(controllerURI);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE_2));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM, streamConfig));
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, controllerURI, connectionFactory);

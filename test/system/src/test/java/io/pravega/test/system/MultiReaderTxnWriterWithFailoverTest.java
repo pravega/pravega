@@ -31,6 +31,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -114,6 +115,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURIDirect).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);
     }

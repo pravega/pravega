@@ -136,6 +136,7 @@ public class MultiReadersEndToEndTest {
         final String readerGroupName = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10).toLowerCase();
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(SETUP_UTILS.getControllerUri()).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SETUP_UTILS.getScope(), clientConfig, connectionFactory);

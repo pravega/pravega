@@ -105,7 +105,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                     .stream(Stream.of(scope, streamName))
                     .disableAutomaticCheckpoints()
                     .build();
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);

@@ -123,7 +123,7 @@ public class StreamSeekTest {
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
-
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);

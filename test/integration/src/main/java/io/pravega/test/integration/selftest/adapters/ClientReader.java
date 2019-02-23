@@ -149,6 +149,7 @@ class ClientReader implements StoreReader, AutoCloseable {
         private boolean closed;
         @GuardedBy("this")
         private EventStreamReader<byte[]> reader;
+        private final ConnectionFactory connectionFactory;
 
         StreamReader(String streamName) {
             this.readerGroup = UUID.randomUUID().toString().replace("-", "");
@@ -157,7 +158,7 @@ class ClientReader implements StoreReader, AutoCloseable {
                     .trustStore("../../config/cert.pem")
                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                     .validateHostName(false).build();
-            ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+            this.connectionFactory = new ConnectionFactoryImpl(clientConfig);
             try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE, clientConfig, connectionFactory)) {
                 readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()
                                                                                         .stream(Stream.of(ClientAdapterBase.SCOPE, streamName))
@@ -179,6 +180,9 @@ class ClientReader implements StoreReader, AutoCloseable {
             }
             if (r != null) {
                 r.close();
+            }
+            if (this.connectionFactory != null) {
+                this.connectionFactory.close();
             }
         }
 

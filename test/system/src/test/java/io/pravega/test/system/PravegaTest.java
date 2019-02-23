@@ -134,6 +134,7 @@ public class PravegaTest extends AbstractReadWriteTest {
         }
         log.info("Invoking Reader test.");
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, clientConfig, connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());

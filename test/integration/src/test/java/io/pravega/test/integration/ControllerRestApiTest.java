@@ -274,8 +274,8 @@ public class ControllerRestApiTest {
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
-        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
+        try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, createController(controllerUri, inlineExecutor));
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      clientConfig, connectionFactory)) {
             readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder()

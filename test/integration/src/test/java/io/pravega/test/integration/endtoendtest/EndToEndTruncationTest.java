@@ -391,6 +391,7 @@ public class EndToEndTruncationTest {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
                 ClientConfig.builder().controllerURI(controllerURI).build());
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
@@ -441,6 +442,7 @@ public class EndToEndTruncationTest {
         StreamConfiguration streamConf = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);
@@ -585,6 +587,7 @@ public class EndToEndTruncationTest {
         writeEvents(clientFactory, streamName, totalEvents);
 
         // Instantiate readers to consume from Stream.
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);

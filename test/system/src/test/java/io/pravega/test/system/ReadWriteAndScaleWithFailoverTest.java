@@ -67,6 +67,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     private ClientFactoryImpl clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
+    private ConnectionFactory connectionFactory;
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
@@ -120,7 +121,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURIDirect).build();
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        connectionFactory = new ConnectionFactoryImpl(clientConfig);
         readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);
     }
 
@@ -132,6 +133,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         testState.cancelAllPendingWork();
         streamManager.close();
         clientFactory.close(); //close the clientFactory/connectionFactory.
+        connectionFactory.close();
         readerGroupManager.close();
         ExecutorServiceHelpers.shutdown(executorService, controllerExecutorService);
         //scale the controller and segmentStore back to 1 instance.

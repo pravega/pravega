@@ -123,6 +123,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //2.1 Create a reader group.
         log.info("Creating Reader group : {}", READER_GROUP_NAME);
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri, connectionFactory);

@@ -121,6 +121,7 @@ public class ReaderGroupStreamCutUpdateTest {
                                                                .stream(Stream.of(scope, stream))
                                                                .automaticCheckpointIntervalMillis(checkpointingIntervalMs)
                                                                .build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(scope, controllerURI, connectionFactory);

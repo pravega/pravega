@@ -105,6 +105,7 @@ public class StreamRecreationTest {
         @Cleanup
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(myScope);
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(myScope, controllerURI, connectionFactory);

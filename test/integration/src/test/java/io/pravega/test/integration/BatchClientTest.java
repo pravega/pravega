@@ -128,6 +128,7 @@ public class BatchClientTest {
         createTestStreamWithEvents(clientFactory);
 
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig, connectionFactory);

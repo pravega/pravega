@@ -36,7 +36,6 @@ public interface ByteStreamClientFactory extends AutoCloseable {
      * @return Instance of ByteStreamClientFactory implementation.
      */
     static ByteStreamClientFactory withScope(String scope, ClientConfig config, ConnectionFactory connectionFactory) {
-        /* val connectionFactory = new ConnectionFactoryImpl(config); */
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(config).build(),
                            connectionFactory.getInternalExecutor());
         return new ByteStreamClientImpl(scope, controller, connectionFactory);

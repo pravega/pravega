@@ -159,6 +159,7 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
+        @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, clientConfig, connectionFactory);
         groupManager.createReaderGroup(readerGroup,
