@@ -21,6 +21,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -188,6 +189,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     }
     
     @RequiredArgsConstructor
+    @EqualsAndHashCode
     private static class NonScheduledFuture<T> implements ScheduledFuture<T> {
         private final CompletableFuture<T> wrappedFuture;
 
