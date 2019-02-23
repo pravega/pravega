@@ -358,6 +358,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
            readAndVerify(reader2, 0);
         }
 
+        //Readers see the empty segments
         EventRead<String> data = reader2.readNextEvent(100);
         assertNull(data.getEvent());
         data = reader1.readNextEvent(100);
@@ -371,6 +372,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         data = reader2.readNextEvent(5000);
         assertEquals("cp1", data.getCheckpointName());
         
+        //New segments are available to read
         reader1Event = reader1.readNextEvent(5000).getEvent();
         assertNotNull(reader1Event);
         reader2Event = reader2.readNextEvent(5000).getEvent();

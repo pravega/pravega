@@ -30,6 +30,9 @@ public class EndOfDataNotifier extends AbstractPollingNotifier<EndOfDataNotifica
         super(notifySystem, executor, synchronizer);
     }
     
+    /**
+     * Invokes the periodic processing now in the current thread.
+     */
     @VisibleForTesting
     public void pollNow() {
         this.checkAndTriggerEndOfStreamNotification();

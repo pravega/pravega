@@ -63,7 +63,7 @@ public class EndToEndChannelLeakTest {
     private static final String SCOPE = "test";
     private static final String STREAM_NAME = "test";
     private static final String READER_GROUP = "reader";
-    private static final long ASSERT_TIMEOUT = 5000;
+    private static final long ASSERT_TIMEOUT = 10000;
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";

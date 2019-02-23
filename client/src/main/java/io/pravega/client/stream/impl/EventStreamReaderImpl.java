@@ -193,16 +193,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         }
     }
 
+    /**
+     * Releases segments. This must not be invoked except immediately after a checkpoint.
+     */
     @GuardedBy("readers")
     private void releaseSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
-        for (Iterator<Segment> iterator = sealedSegments.iterator(); iterator.hasNext();) {
-            Segment oldSegment = iterator.next();
-            if (groupState.handleEndOfSegment(oldSegment)) {
-                iterator.remove();
-            } else {
-                break;
-            }
-        }     
+        releaseSealedSegments();
         Segment segment = groupState.findSegmentToReleaseIfRequired();
         if (segment != null) {
             log.info("{} releasing segment {}", this, segment);
@@ -214,6 +210,20 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                 }
             }
         }
+    }
+    
+    /**
+     * Releases all sealed segments, unless there is a checkpoint pending for this reader.
+     */
+    private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
+        for (Iterator<Segment> iterator = sealedSegments.iterator(); iterator.hasNext();) {
+            Segment oldSegment = iterator.next();
+            if (groupState.handleEndOfSegment(oldSegment)) {
+                iterator.remove();
+            } else {
+                break;
+            }
+        }    
     }
 
     @GuardedBy("readers")

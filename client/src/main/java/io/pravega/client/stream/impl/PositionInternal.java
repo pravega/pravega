@@ -19,14 +19,14 @@ import java.util.Set;
  * A position has ownedSegments -- segments that can be read currently (or have been completed and
  * not yet replaced).
  * 
- * A Position obtained at at any given point will return a segment for all of the keyspace owned by
+ * A Position obtained at any given point will return a segment for all of the keyspace owned by
  * the reader.
  * 
  * Each ownedSegment also has an offset indicating the point until which events have been read from
  * that segment. Completely read segments have offset of -1.
  * <p>
- * Well-formed position object. A position is called well-formed iff each segment s in ownedSegment,
- * s.previous does not belongs to ownedSegments.
+ * We say that a position object P is well-formed to denote that every segment `s` in `P`
+ * is not a predecessor of any segment in ownedSegments.
  */
 public abstract class PositionInternal implements Position {
 

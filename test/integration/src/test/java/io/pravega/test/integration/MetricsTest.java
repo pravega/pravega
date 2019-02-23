@@ -182,16 +182,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             String event = "12345";
             long bytesWritten = TOTAL_NUM_EVENTS * (8 + event.length());
 
-            for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
-                try {
-                    log.info("Writing event {}", event);
-                    writer1.writeEvent("", event);
-                } catch (Throwable e) {
-                    log.warn("Test exception writing events: {}", e);
-                    break;
-                }
-            }
-            writer1.flush();
+            writeEvents(event, writer1);
 
             String readerGroupName1 = readerGroupName + "1";
             log.info("Creating Reader group : {}", readerGroupName1);
@@ -207,17 +198,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                     new UTF8StringSerializer(),
                     ReaderConfig.builder().build());
 
-            for (int j = 0; j < TOTAL_NUM_EVENTS;) {
-                try {
-                    String eventRead1 = reader1.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    if (eventRead1 != null) {
-                        j++;
-                    }
-                    log.info("Reading event {}", eventRead1);
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                }
-            }
+            readAllEvents(reader1);
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 Counter count = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter");
@@ -238,17 +219,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                     new UTF8StringSerializer(),
                     ReaderConfig.builder().build());
 
-            for (int q = 0; q < TOTAL_NUM_EVENTS;) {
-                try {
-                    String eventRead2 = reader2.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    if (eventRead2 != null) {
-                        q++;
-                    }
-                    log.info("Reading event {}", eventRead2);
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                }
-            }
+            readAllEvents(reader2);
 
             long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
 
@@ -270,28 +241,9 @@ public class MetricsTest extends ThreadPooledTestSuite {
                     new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());
 
-            for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
-                try {
-                    log.info("Writing event {}", event);
-                    writer2.writeEvent("", event);
-                } catch (Throwable e) {
-                    log.warn("Test exception writing events: {}", e);
-                    break;
-                }
-            }
-            writer2.flush();
+            writeEvents(event, writer2);
 
-            for (int j = 0; j < TOTAL_NUM_EVENTS;) {
-                try {
-                    String eventRead2 = reader1.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    if (eventRead2 != null) {
-                        j++;
-                    }
-                    log.info("Reading event {}", eventRead2);
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                }
-            }
+            readAllEvents(reader1);
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 Counter count = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter");
@@ -315,6 +267,33 @@ public class MetricsTest extends ThreadPooledTestSuite {
         }
 
         log.info("Metrics Time based Cache Eviction test succeeds");
+    }
+
+    private void writeEvents(String event, EventStreamWriter<String> writer) {
+        for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
+            try {
+                log.info("Writing event {}", event);
+                writer.writeEvent("", event);
+            } catch (Throwable e) {
+                log.warn("Test exception writing events: {}", e);
+                break;
+            }
+        }
+        writer.flush();
+    }
+
+    private void readAllEvents(EventStreamReader<String> reader) {
+        for (int q = 0; q < TOTAL_NUM_EVENTS;) {
+            try {
+                String eventRead2 = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
+                if (eventRead2 != null) {
+                    q++;
+                }
+                log.info("Reading event {}", eventRead2);
+            } catch (ReinitializationRequiredException e) {
+                log.warn("Test Exception while reading from the stream", e);
+            }
+        }
     }
        
 }

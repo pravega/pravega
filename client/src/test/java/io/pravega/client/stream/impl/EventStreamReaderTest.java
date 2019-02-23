@@ -58,12 +58,12 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static io.pravega.client.stream.impl.ReaderGroupImpl.getEndSegmentsForStreams;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 
@@ -138,12 +138,12 @@ public class EventStreamReaderTest {
         //Validate that segmentInputStream1.close() is invoked on reaching endOffset.
         Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
         
-        // Ensure groupstate is updated not updated before the checkpoint.
+        // Verify groupstate is updated not updated before the checkpoint, but is after.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint").thenReturn(null);
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
-        // Ensure groupstate is updated not updated before the checkpoint.
+        // Verify groupstate is updated not updated before the checkpoint, but is after.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
@@ -186,8 +186,7 @@ public class EventStreamReaderTest {
                 orderer, clock::get,
                 ReaderConfig.builder().build());
 
-        AssertExtensions.assertThrows(TruncatedDataException.class,
-                () -> reader.readNextEvent(100L));
+        assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(100L));
         //Validate that groupState.getOrRefreshDelegationTokenFor method is invoked.
         Mockito.verify(groupState, Mockito.times(1)).getOrRefreshDelegationTokenFor(segment);
     }
@@ -240,6 +239,7 @@ public class EventStreamReaderTest {
         Assert.assertEquals(segment1, readers.get(0).getSegmentId());
         Assert.assertEquals(segment2, readers.get(1).getSegmentId());
 
+        //Checkpoint is required to release a segment.
         Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint");
         assertTrue(reader.readNextEvent(0).isCheckpoint());
         Mockito.when(groupState.getCheckpoint()).thenReturn(null);
@@ -369,12 +369,7 @@ public class EventStreamReaderTest {
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
-        try {
-            reader.readNextEvent(0);
-            fail();
-        } catch (ReinitializationRequiredException e) {
-            // expected
-        }
+        assertThrows(ReinitializationRequiredException.class, () -> reader.readNextEvent(0)); 
         assertTrue(reader.getReaders().isEmpty());
         reader.close();
     }
@@ -407,10 +402,10 @@ public class EventStreamReaderTest {
         assertEquals(buffer2, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         metadataClient.truncateSegment(length);
         ByteBuffer buffer4 = writeInt(stream, 4);
-        AssertExtensions.assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
+        assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(0));
         assertEquals(buffer4, ByteBuffer.wrap(reader.readNextEvent(0).getEvent()));
         assertNull(reader.readNextEvent(0).getEvent());
-        AssertExtensions.assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(event1.getEventPointer()));
+        assertThrows(NoSuchEventException.class, () -> reader.fetchEvent(event1.getEventPointer()));
         reader.close();
     }
 
@@ -458,7 +453,7 @@ public class EventStreamReaderTest {
         assertTrue(event.isCheckpoint());
         assertEquals("Foo", event.getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
-        // Ensure groupstate is updated not updated before the checkpoint.
+        // Verify groupstate is updated not updated before the checkpoint, but is after.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
@@ -502,20 +497,26 @@ public class EventStreamReaderTest {
         
         @Cleanup
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
-                new ByteArraySerializer(), groupState,
-                new Orderer(), clock::get,
-                ReaderConfig.builder().build());
+                                                                           new ByteArraySerializer(), groupState,
+                                                                           new Orderer(), clock::get,
+                                                                           ReaderConfig.builder().build());
 
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong())).thenReturn(ImmutableMap.of(segment1, 0L)).thenReturn(Collections.emptyMap());
-        
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong()))
+               .thenReturn(ImmutableMap.of(segment1, 0L))
+               .thenReturn(Collections.emptyMap());
+
         InOrder inOrder = Mockito.inOrder(segmentInputStream1, groupState);
         EventRead<byte[]> event = reader.readNextEvent(100L);
         assertNull(event.getEvent());
         event = reader.readNextEvent(100L);
         assertNull(event.getEvent());
-        
-        Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint").thenReturn(null);
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong())).thenReturn(ImmutableMap.of(segment2, 0L, segment3, 0L)).thenReturn(Collections.emptyMap());
+
+        Mockito.when(groupState.getCheckpoint())
+               .thenReturn("checkpoint")
+               .thenReturn(null);
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong()))
+               .thenReturn(ImmutableMap.of(segment2, 0L, segment3, 0L))
+               .thenReturn(Collections.emptyMap());
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Ensure groupstate is updated not updated before the checkpoint.
@@ -529,7 +530,7 @@ public class EventStreamReaderTest {
     }
     
     @Test
-    public void testReaderClose() throws EndOfSegmentException, SegmentTruncatedException, SegmentSealedException {
+    public void testReaderClose() throws SegmentSealedException {
         String scope = "scope";
         String stream = "stream";
         AtomicLong clock = new AtomicLong();
@@ -572,50 +573,6 @@ public class EventStreamReaderTest {
         assertEquals(2, readInt(reader1.readNextEvent(0)));
     }
     
-    private int readInt(EventRead<byte[]> eventRead) {
-        byte[] event = eventRead.getEvent();
-        assertNotNull(event);
-        return ByteBuffer.wrap(event).getInt();
-    }
-
-    private EventStreamReaderImpl<byte[]> createReader(MockController controller,
-                                                       MockSegmentStreamFactory segmentStreamFactory, String readerId,
-                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock) {
-        ReaderGroupStateManager groupState = new ReaderGroupStateManager(readerId, sync, controller, clock::get);
-        groupState.initializeReader(0);
-        return new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory, new ByteArraySerializer(),
-                                           groupState, new Orderer(), clock::get, ReaderConfig.builder().build());
-    }
-
-    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionFactory connectionFactory,
-                                                                                      Controller controller,
-                                                                                      MockSegmentStreamFactory streamFactory,
-                                                                                      Stream stream, String readerId,
-                                                                                      AtomicLong clock,
-                                                                                      int numSegments) {
-        StreamConfiguration streamConfig = StreamConfiguration.builder()
-                                                              .scalingPolicy(ScalingPolicy.fixed(numSegments))
-                                                              .build();
-        controller.createScope(stream.getScope());
-        controller.createStream(stream.getScope(), stream.getStreamName(), streamConfig);
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionFactory,
-                                                                streamFactory, streamFactory, streamFactory,
-                                                                streamFactory);
-
-        ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(stream).build();
-        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
-        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup("readerGroup"),
-                                                                                         new ReaderGroupStateUpdatesSerializer(),
-                                                                                         new ReaderGroupStateInitSerializer(),
-                                                                                         SynchronizerConfig.builder()
-                                                                                                           .build());
-        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
-                                                                  ReaderGroupImpl.getSegmentsForStreams(controller,
-                                                                                                        config),
-                                                                  getEndSegmentsForStreams(config)));
-        return sync;
-    }
-
     @Test
     public void testPositionsContainSealedSegments() throws SegmentSealedException {
         String scope = "scope";
@@ -671,4 +628,47 @@ public class EventStreamReaderTest {
         assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getCompletedSegments());
         assertEquals(ImmutableSet.of(segment1, segment2), event.getPosition().asImpl().getOwnedSegments());
     }
+    
+    private int readInt(EventRead<byte[]> eventRead) {
+        byte[] event = eventRead.getEvent();
+        assertNotNull(event);
+        return ByteBuffer.wrap(event).getInt();
+    }
+
+    private EventStreamReaderImpl<byte[]> createReader(MockController controller,
+                                                       MockSegmentStreamFactory segmentStreamFactory, String readerId,
+                                                       StateSynchronizer<ReaderGroupState> sync, AtomicLong clock) {
+        ReaderGroupStateManager groupState = new ReaderGroupStateManager(readerId, sync, controller, clock::get);
+        groupState.initializeReader(0);
+        return new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory, new ByteArraySerializer(),
+                                           groupState, new Orderer(), clock::get, ReaderConfig.builder().build());
+    }
+
+    private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionFactory connectionFactory,
+                                                                                      Controller controller,
+                                                                                      MockSegmentStreamFactory streamFactory,
+                                                                                      Stream stream, String readerId,
+                                                                                      AtomicLong clock,
+                                                                                      int numSegments) {
+        StreamConfiguration streamConfig = StreamConfiguration.builder()
+                                                              .scalingPolicy(ScalingPolicy.fixed(numSegments))
+                                                              .build();
+        controller.createScope(stream.getScope());
+        controller.createStream(stream.getScope(), stream.getStreamName(), streamConfig);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionFactory,
+                                                                streamFactory, streamFactory, streamFactory,
+                                                                streamFactory);
+        ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(stream).build();
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup("readerGroup"),
+                                                                                         new ReaderGroupStateUpdatesSerializer(),
+                                                                                         new ReaderGroupStateInitSerializer(),
+                                                                                         SynchronizerConfig.builder()
+                                                                                                           .build());
+        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
+                                                                  segments,
+                                                                  getEndSegmentsForStreams(config)));
+        return sync;
+    }
+
 }

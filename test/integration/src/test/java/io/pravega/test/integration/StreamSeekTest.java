@@ -160,9 +160,9 @@ public class StreamSeekTest {
         //Offset of a streamCut is always set to zero.
         Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
         readAndVerify(reader, 1, 2);
-        assertNull(reader.readNextEvent(100).getEvent());
-        readerGroup.initiateCheckpoint("cp1", executor);
-        readAndVerify(reader, 3, 4, 5);
+        assertNull(reader.readNextEvent(100).getEvent()); //Sees the segments are empty prior to scaling
+        readerGroup.initiateCheckpoint("cp1", executor); //Checkpoint to move past the scale
+        readAndVerify(reader, 3, 4, 5); // Old segments are released and new ones can be read
         Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(streamCut1).build()); //reset the readers to offset 0.

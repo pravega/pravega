@@ -140,7 +140,7 @@ public class StreamCutsTest {
         EventRead<String> firstEvent = reader.readNextEvent(5000);
         assertNotNull(firstEvent.getEvent());
         assertEquals("fpj was here", firstEvent.getEvent());
-        readerGroup.initiateCheckpoint("cp1", executor);
+        readerGroup.initiateCheckpoint("cp1", executor); 
         EventRead<String> cpEvent = reader.readNextEvent(5000);
         assertEquals("cp1", cpEvent.getCheckpointName());
         EventRead<String> secondEvent = reader.readNextEvent(5000);
@@ -160,9 +160,9 @@ public class StreamCutsTest {
         log.info("Finished 1st scaling");
         writer.writeEvent("0", "fpj was here again0").get();
         writer.writeEvent("1", "fpj was here again1").get();
-        EventRead<String> eosEvent = reader.readNextEvent(100);
-        assertNull(eosEvent.getEvent());
-        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp2", executor);
+        EventRead<String> eosEvent = reader.readNextEvent(100); 
+        assertNull(eosEvent.getEvent()); //Reader does not yet see the data becasue there has been no CP
+        CompletableFuture<Checkpoint> checkpoint = readerGroup.initiateCheckpoint("cp2", executor); 
         cpEvent = reader.readNextEvent(100);
         EventRead<String> event0 = reader.readNextEvent(100);
         EventRead<String> event1 = reader.readNextEvent(100);
@@ -176,10 +176,8 @@ public class StreamCutsTest {
         CompletableFuture<Map<Stream, StreamCut>> futureCuts = readerGroup.generateStreamCuts(executor);
         EventRead<String> emptyEvent = reader.readNextEvent(100);
         cuts = futureCuts.get();
-        segmentNames = ImmutableSet.of(getQualifiedStreamSegmentName("test", "test",
-                                                                     computeSegmentId(1, 1)),
-                                       getQualifiedStreamSegmentName("test", "test",
-                                                                     computeSegmentId(2, 1)));
+        segmentNames = ImmutableSet.of(getQualifiedStreamSegmentName("test", "test", computeSegmentId(1, 1)),
+                                       getQualifiedStreamSegmentName("test", "test", computeSegmentId(2, 1)));
         validateCuts(readerGroup, cuts, segmentNames);
         
         // Scale down to verify that the number drops back.
@@ -193,12 +191,12 @@ public class StreamCutsTest {
         log.info("Finished 2nd scaling");
         writer.writeEvent("0", "fpj was here again2").get();
 
-        emptyEvent = reader.readNextEvent(100);
+        emptyEvent = reader.readNextEvent(100); //Reader sees the segment is empty
         assertNull(emptyEvent.getEvent());
         checkpoint = readerGroup.initiateCheckpoint("cp3", executor);
         cpEvent = reader.readNextEvent(100);
         assertEquals("cp3", cpEvent.getCheckpointName());
-        event0 = reader.readNextEvent(5000);
+        event0 = reader.readNextEvent(5000); //Reader releases segments here
         assertTrue(event0.getEvent().endsWith("2"));
 
         cuts = readerGroup.getStreamCuts();
@@ -216,12 +214,12 @@ public class StreamCutsTest {
         log.info("Finished 3rd scaling");
         writer.writeEvent("0", "fpj was here again3").get();
         
-        emptyEvent = reader.readNextEvent(100);
+        emptyEvent = reader.readNextEvent(100); //Reader sees the segment is empty
         assertNull(emptyEvent.getEvent());
         readerGroup.initiateCheckpoint("cp4", executor);
         cpEvent = reader.readNextEvent(1000);
         assertEquals("cp4", cpEvent.getCheckpointName());
-        event0 = reader.readNextEvent(5000);
+        event0 = reader.readNextEvent(5000); //Reader releases segments here
         assertNotNull(event0.getEvent());
 
         cuts = readerGroup.getStreamCuts();
