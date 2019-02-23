@@ -15,14 +15,12 @@ import io.pravega.client.stream.notifications.notifier.SegmentNotifier;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.test.common.InlineExecutor;
 import java.util.HashSet;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -52,15 +50,9 @@ public class SegmentNotifierTest {
     @Mock
     private ReaderGroupState state;
 
-    @BeforeClass
-    public static void beforeClass() {
-        System.setProperty("pravega.client.segmentNotification.poll.interval.seconds", String.valueOf(1));
-    }
-
     @Test(timeout = 5000)
     public void segmentNotifierTest() throws Exception {
         AtomicBoolean listenerInvoked = new AtomicBoolean();
-        CountDownLatch latch = new CountDownLatch(2);
         AtomicInteger segmentCount = new AtomicInteger(0);
 
         when(state.getOnlineReaders()).thenReturn(new HashSet<>(singletonList("reader1")));
@@ -71,7 +63,6 @@ public class SegmentNotifierTest {
             log.info("listener 1 invoked");
             listenerInvoked.set(true);
             segmentCount.set(e.getNumOfSegments());
-            latch.countDown();
 
         };
         Listener<SegmentNotification> listener2 = e -> {
@@ -80,7 +71,10 @@ public class SegmentNotifierTest {
         SegmentNotifier notifier = new SegmentNotifier(system, sync, executor);
         notifier.registerListener(listener1);
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), eq(0L), anyLong(), any(TimeUnit.class));
-        latch.await();
+        assertTrue(listenerInvoked.get());
+        assertEquals(1, segmentCount.get());
+        listenerInvoked.set(false);
+        notifier.pollNow();
         assertTrue(listenerInvoked.get());
         assertEquals(2, segmentCount.get());
 
