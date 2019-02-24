@@ -14,7 +14,7 @@ import java.security.Principal;
 /**
  * Custom authorization/authentication handlers implement this interface.
  * The implementations are loaded from the classpath using `ServiceLoader` (https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html)
- * Pravega controller also implements this interface through {@link PasswordAuthHandler}.
+ * Pravega controller also implements this interface through {@link io.pravega.controller.server.rpc.auth.PasswordAuthHandler}.
  *
  * Each custom auth handler is registered with a unique name identifying a supported authentication scheme.
  *

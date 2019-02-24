@@ -226,7 +226,6 @@ project('client') {
         failOnError = false
         exclude "**/impl/**";
         options.addBooleanOption("Xdoclint:all,-reference", true)
-        apply plugin: 'io.franzbecker.gradle-lombok'
     }
 }
 
@@ -259,7 +258,6 @@ project('segmentstore:contracts') {
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:all,-reference", true)
-        apply plugin: 'io.franzbecker.gradle-lombok'
     }
 }
 
