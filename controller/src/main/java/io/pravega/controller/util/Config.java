@@ -19,8 +19,10 @@ import io.pravega.shared.metrics.MetricsConfig;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.URL;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -190,10 +192,10 @@ public final class Config {
         // Finally, anything which is not loaded via these methods will be defaulted to the Property defaults defined
         // in this file.
         val properties = new Properties();
-        properties.putAll(resolveReferences(System.getProperties(), System.getenv()));
-        properties.putAll(resolveReferences(System.getProperties(), System.getenv()));
+        properties.putAll(resolveReferences(System.getProperties().entrySet(), System.getenv()));
+        properties.putAll(resolveReferences(System.getenv().entrySet(), System.getenv()));
         val fileProperties = loadFromFile();
-        properties.putAll(resolveReferences(fileProperties, System.getenv()));
+        properties.putAll(resolveReferences(fileProperties.entrySet(), System.getenv()));
 
         log.info("Controller configuration:");
         properties.forEach((k, v) -> log.info("{} = {}", k, v));
@@ -216,26 +218,35 @@ public final class Config {
 
         if (file == null) {
             ClassLoader classLoader = Config.class.getClassLoader();
-            file = new File(classLoader.getResource("controller.config.properties").getFile());
+            URL url = classLoader.getResource("controller.config.properties");
+            if (url != null) {
+                file = new File(url.getFile());
+                if (!file.exists()) {
+                    file = null;
+                }
+            }
         }
 
-        try (FileReader reader = new FileReader(file)) {
-            result.load(reader);
+        if (file != null) {
+            try (FileReader reader = new FileReader(file)) {
+                result.load(reader);
+            }
         }
 
         return result;
     }
 
-    private static Properties resolveReferences(Properties properties, Map<String, String> source) {
+    private static <T, U> Properties resolveReferences(Set<Map.Entry<T, U>> properties, Map<String, String> source) {
         // Any value that looks like ${REF} will need to be replaced by the value of REF in source.
         final String pattern = "^\\$\\{(.+)\\}$";
         val resolved = new Properties();
-        for (val e : properties.entrySet()) {
-            if (((String) e.getKey()).contains("hostIp")) {
+        for (val e : properties) {
+            String key = e.getKey().toString();
+            if (key.contains("hostIp")) {
                 System.out.println();
             }
             // Fetch reference value.
-            String existingValue = (String) e.getValue();
+            String existingValue = e.getValue().toString();
             String newValue = existingValue; // Default to existing value (in case it's not a reference).
             if (existingValue.matches(pattern)) {
                 // Only include the referred value if it resolves to anything; otherwise exclude this altogether.
@@ -244,7 +255,7 @@ public final class Config {
             }
 
             if (newValue != null) {
-                resolved.put(e.getKey(), newValue);
+                resolved.put(key, newValue);
             }
         }
 
