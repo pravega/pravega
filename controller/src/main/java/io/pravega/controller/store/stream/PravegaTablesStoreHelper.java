@@ -24,6 +24,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
+import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.util.RetryHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -203,6 +204,8 @@ public class PravegaTablesStoreHelper {
                     default:
                         toThrow = StoreException.create(StoreException.Type.UNKNOWN, wcfe, errorMessage);
                 }
+            } else if (cause instanceof HostStoreException) {
+                toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
                 toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, errorMessage);
             }
@@ -212,7 +215,8 @@ public class PravegaTablesStoreHelper {
     }
 
     private <T> CompletableFuture<T> runOnExecutorWithExceptionHandling(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
-        return RetryHelper.withRetriesAsync(() -> translateException(futureSupplier.get(), errorMessage), 
+        return RetryHelper.withRetriesAsync(() -> translateException(
+                CompletableFuture.completedFuture(null).thenCompose(v -> futureSupplier.get()), errorMessage), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, NUM_OF_TRIES, executor);
     }
 }
