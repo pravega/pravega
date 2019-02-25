@@ -10,7 +10,6 @@
 package io.pravega.controller.util;
 
 import com.google.common.base.Strings;
-import com.typesafe.config.ConfigFactory;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
@@ -29,11 +28,78 @@ import lombok.val;
 
 /**
  * This is a utility used to read configuration. It can be configured to read custom configuration
- * files by setting the following system properties conf.file= < FILE PATH > or conf.resource=< Resource Name>. By default
- * it reads application.conf if no system property is set. Reference: {@link ConfigFactory#defaultApplication()}
+ * files by setting the following system properties conf.file= < FILE PATH >. By default
+ * it reads controller.config.properties.
  */
 @Slf4j
 public final class Config {
+
+    //#region Properties
+
+    //RPC Server configuration
+    public static final int RPC_SERVER_PORT;
+    public static final int ASYNC_TASK_POOL_SIZE;
+    public static final String RPC_PUBLISHED_SERVER_HOST;
+    public static final int RPC_PUBLISHED_SERVER_PORT;
+
+    //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
+    public static final String SERVICE_HOST;
+    public static final int SERVICE_PORT;
+
+    //Store configuration.
+    //HostStore configuration.
+    public static final int HOST_STORE_CONTAINER_COUNT;
+
+    //Cluster configuration.
+    public static final boolean HOST_MONITOR_ENABLED;
+    public static final String CLUSTER_NAME;
+    public static final int CLUSTER_MIN_REBALANCE_INTERVAL;
+    public static final boolean AUTHORIZATION_ENABLED;
+    public static final String USER_PASSWORD_FILE;
+    public static final boolean TLS_ENABLED;
+    public static final String TLS_KEY_FILE;
+    public static final String TLS_CERT_FILE;
+    public static final String TLS_TRUST_STORE;
+    public static final String TOKEN_SIGNING_KEY;
+    public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
+    public static final boolean REQUEST_TRACING_ENABLED;
+
+    //Zookeeper configuration.
+    public static final String ZK_URL;
+    public static final int ZK_RETRY_SLEEP_MS;
+    public static final int ZK_MAX_RETRIES;
+    public static final int ZK_SESSION_TIMEOUT_MS;
+    public static final boolean SECURE_ZK;
+
+    //REST server configuration
+    public static final String REST_SERVER_IP;
+    public static final int REST_SERVER_PORT;
+
+    //Transaction configuration
+    public static final long MIN_LEASE_VALUE;
+    public static final long MAX_LEASE_VALUE;
+
+    // Completed Transaction TTL
+    public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS;
+
+    // Retention Configuration
+    public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
+    public static final int BUCKET_COUNT;
+    public static final int RETENTION_THREAD_POOL_SIZE;
+
+    // Request Stream Configuration
+    public static final String SCALE_STREAM_NAME;
+
+    // Request Stream readerGroup
+    public static final String SCALE_READER_GROUP;
+
+    public static final MetricsConfig METRICS_CONFIG;
+    public static final GRPCServerConfig GRPC_SERVER_CONFIG;
+
+    private static final String METRIC_PATH = "config.controller.metric";
+
+    //endregion
+
     //region Property Definitions
 
     private static final Property<Integer> PROPERTY_CONTAINER_COUNT = Property.named("containerCount", 4);
@@ -74,75 +140,9 @@ public final class Config {
 
     //endregion
 
-
-    //RPC Server configuration
-    public static final int RPC_SERVER_PORT;
-    public static final int ASYNC_TASK_POOL_SIZE;
-    public static final String RPC_PUBLISHED_SERVER_HOST;
-    public static final int RPC_PUBLISHED_SERVER_PORT;
-
-    //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
-    public static final String SERVICE_HOST;
-    public static final int SERVICE_PORT;
-
-    //Store configuration.
-    //HostStore configuration.
-    public static final int HOST_STORE_CONTAINER_COUNT;
-
-    //Cluster configuration.
-    public static final boolean HOST_MONITOR_ENABLED;
-    public static final String CLUSTER_NAME;
-    public static final int CLUSTER_MIN_REBALANCE_INTERVAL;
-    private static final boolean AUTHORIZATION_ENABLED;
-    private static final String USER_PASSWORD_FILE;
-    private static final boolean TLS_ENABLED;
-    private static final String TLS_KEY_FILE;
-    private static final String TLS_CERT_FILE;
-    private static final String TLS_TRUST_STORE;
-    private static final String TOKEN_SIGNING_KEY;
-    private static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
-    private static final boolean REQUEST_TRACING_ENABLED;
-
-    //Zookeeper configuration.
-    public static final String ZK_URL;
-    public static final int ZK_RETRY_SLEEP_MS;
-    public static final int ZK_MAX_RETRIES;
-    public static final int ZK_SESSION_TIMEOUT_MS;
-    public static final boolean SECURE_ZK;
-
-    //REST server configuration
-    public static final String REST_SERVER_IP;
-    public static final int REST_SERVER_PORT;
-
-    //Transaction configuration
-    public static final long MIN_LEASE_VALUE;
-    public static final long MAX_LEASE_VALUE;
-
-    // Completed Transaction TTL
-    public static final int COMPLETED_TRANSACTION_TTL_IN_HOURS;
-
-    // Retention Configuration
-    public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
-    public static final int BUCKET_COUNT;
-    public static final int RETENTION_THREAD_POOL_SIZE;
-
-    // Request Stream Configuration
-    public static final String SCALE_STREAM_NAME;
-
-    // Request Stream readerGroup
-    public static final String SCALE_READER_GROUP;
-
-    public static final MetricsConfig METRICS_CONFIG;
-    public static final GRPCServerConfig GRPC_SERVER_CONFIG;
-
-    private static final String METRIC_PATH = "config.controller.metric";
+    //region Initialization
 
     static {
-        /*
-         * TODO
-         * 1. Search through the code for random settings
-         * 2. Remove gradle references to the legacy config.
-         */
         val properties = loadConfiguration();
         val p = new TypedProperties(properties, COMPONENT_CODE);
         RPC_SERVER_PORT = p.getInt(PROPERTY_SERVICE_PORT);
@@ -206,7 +206,7 @@ public final class Config {
     private static Properties loadFromFile() {
         Properties result = new Properties();
 
-        String filePath = System.getProperty("config.file", "controller.config.properties");
+        String filePath = System.getProperty("conf.file", "controller.config.properties");
         File file = null;
 
         if (!Strings.isNullOrEmpty(filePath)) {
@@ -298,5 +298,5 @@ public final class Config {
         return builder.build();
     }
 
-
+    //endregion
 }
