@@ -178,7 +178,9 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> createStreamMetadata() {
         return getId().thenCompose(id -> CompletableFuture.allOf(storeHelper.createTable(getScope(), getMetadataTableName(id)),
-                storeHelper.createTable(getScope(), getEpochsWithTransactionsTableName(id))));
+                storeHelper.createTable(getScope(), getEpochsWithTransactionsTableName(id)))
+                .thenAccept(v -> log.debug("stream {}/{} metadata tables {} & {} created", getScope(), getName(), getMetadataTableName(id), 
+                        getEpochsWithTransactionsTableName(id))));
     }
 
     @Override
@@ -529,7 +531,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(id -> {
                     return storeHelper.addNewEntry(scope,
                             getEpochsWithTransactionsTableName(id), "" + epoch, new byte[0])
-                               .thenCompose(added -> storeHelper.createTable(scope, epochTable))
+                               .thenCompose(added -> storeHelper.createTable(scope, epochTable)
+                                .thenAccept(v -> log.debug("transactions in epoch {}/{} table created ", scope, epochTable)))
                                .thenCompose(tableCreated -> storeHelper.addNewEntry(scope, epochTable, txnId, txnRecord));
                 });    
     }
@@ -595,9 +598,15 @@ class PravegaTablesStream extends PersistentStreamBase {
         String batchTable = String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch);
     
         return storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE)
-                .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE, "" + batch, new byte[0]))
+                          .thenAccept(v -> log.debug("batches root table {}/{} created", NameUtils.INTERNAL_SCOPE_NAME, 
+                                  COMPLETED_TRANSACTIONS_BATCHES_TABLE))
+                .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, COMPLETED_TRANSACTIONS_BATCHES_TABLE,
+                        "" + batch, new byte[0]))
                 .thenCompose(v -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, batchTable))
-                .thenCompose(v -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, batchTable, key, complete)));
+                .thenCompose(v -> {
+                    log.debug("batch table {} created", batchTable);
+                    return Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, batchTable, key, complete));
+                });
     }
 
     @Override

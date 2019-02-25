@@ -72,8 +72,10 @@ public class PravegaTablesHostIndex implements HostIndex {
 
     private CompletableFuture<Version> handleTableNotExist(String hostId, String entity, byte[] entityData, String hostEntityTable) {
         return storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, hostsTable)
+                          .thenAccept(x -> log.debug("created hosts root table {}", hostId))
                           .thenCompose(x -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, hostsTable, hostId, new byte[0]))
-                          .thenCompose(x -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable))
+                          .thenCompose(x -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable)
+                                                   .thenAccept(v -> log.debug("creating table {} for host {}", hostEntityTable, hostId)))
                           .thenCompose(x -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable, entity, entityData));
     }
 
@@ -104,11 +106,16 @@ public class PravegaTablesHostIndex implements HostIndex {
         Preconditions.checkNotNull(hostId);
         String table = getHostEntityTableName(hostId);
         return Futures.exceptionallyExpecting(Futures.exceptionallyExpecting(
-                storeHelper.deleteTable(NameUtils.INTERNAL_SCOPE_NAME, table, true).thenApply(v -> true), 
+                storeHelper.deleteTable(NameUtils.INTERNAL_SCOPE_NAME, table, true)
+                           .thenApply(v -> {
+                               log.debug("deleted table {}", table);
+                               return true;
+                           }), 
                 DATA_NOT_EMPTY_PREDICATE, false), DATA_NOT_FOUND_PREDICATE, true)
                 .thenCompose(deleted -> {
                     if (deleted) {
-                        return Futures.exceptionallyExpecting(storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, hostsTable, hostId), DATA_NOT_FOUND_PREDICATE, null);
+                        return Futures.exceptionallyExpecting(storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, hostsTable, hostId), 
+                                DATA_NOT_FOUND_PREDICATE, null);
                     } else {
                         return CompletableFuture.completedFuture(null);
                     }

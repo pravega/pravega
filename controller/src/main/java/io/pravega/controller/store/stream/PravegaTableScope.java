@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -28,6 +29,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 
+@Slf4j
 public class PravegaTableScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table" + SEPARATOR + "streamsInScope" + SEPARATOR + "%s";
     private final String streamsInScopeTable;
@@ -50,10 +52,15 @@ public class PravegaTableScope implements Scope {
         // add entry to scopes table followed by creating scope specific table
         return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
                 NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId()),
-                DATA_NOT_FOUND_PREDICATE, () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
-                                                           .thenCompose(v -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId())))
+                DATA_NOT_FOUND_PREDICATE,
+                () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
+                                 .thenCompose(v -> {
+                                     log.debug("table created {}/{}", NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE);
+                                     return storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId());
+                                 }))
                       .thenCompose(v -> getStreamsInScopeTableName())
-                      .thenCompose(tableName -> Futures.toVoid(storeHelper.createTable(scopeName, tableName)));
+                      .thenCompose(tableName -> storeHelper.createTable(scopeName, tableName)
+                      .thenAccept(v -> log.debug("table created {}/{}", scopeName, tableName)));
     }
 
     private byte[] newId() {
@@ -71,7 +78,8 @@ public class PravegaTableScope implements Scope {
     @Override
     public CompletableFuture<Void> deleteScope() {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> storeHelper.deleteTable(scopeName, tableName, true))
+                .thenCompose(tableName -> storeHelper.deleteTable(scopeName, tableName, true)
+                                                     .thenAccept(v -> log.debug("table deleted {}/{}", scopeName, tableName)))
                 .thenCompose(deleted -> storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName));
     }
 

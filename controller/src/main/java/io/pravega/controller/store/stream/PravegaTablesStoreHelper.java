@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class PravegaTablesStoreHelper {
-    private static final int NUM_OF_TRIES = 5;
+    private static final int NUM_OF_TRIES = 10;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
 
@@ -57,9 +57,9 @@ public class PravegaTablesStoreHelper {
                 "create table: " + scope + "/" + tableName))
                 .whenComplete((r, e) -> {
                     if (e != null) {
-                        log.warn("create table %s/%s threw exception", scope, tableName, e);
+                        log.warn("create table {}/{} threw exception", scope, tableName, e);
                     } else {
-                        log.debug("table %s/%s created successfully", scope, tableName);
+                        log.debug("table {}/{} created successfully", scope, tableName);
                     }
                 });
     }
@@ -82,7 +82,7 @@ public class PravegaTablesStoreHelper {
                     if (unwrap instanceof StoreException.WriteConflictException) {
                         throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage);
                     } else {
-                        log.debug("add new entry %s to %s/%s threw exception %s %s", key, scope, tableName, unwrap.getClass(), unwrap.getMessage());
+                        log.debug("add new entry {} to {}/{} threw exception {} {}", key, scope, tableName, unwrap.getClass(), unwrap.getMessage());
                         throw new CompletionException(e);
                     }
                 })
@@ -216,7 +216,7 @@ public class PravegaTablesStoreHelper {
 
     private <T> CompletableFuture<T> runOnExecutorWithExceptionHandling(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
         return RetryHelper.withRetriesAsync(() -> translateException(
-                CompletableFuture.completedFuture(null).thenCompose(v -> futureSupplier.get()), errorMessage), 
+                CompletableFuture.completedFuture(null).thenCompose(v -> futureSupplier.get()), errorMessage),
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, NUM_OF_TRIES, executor);
     }
 }
