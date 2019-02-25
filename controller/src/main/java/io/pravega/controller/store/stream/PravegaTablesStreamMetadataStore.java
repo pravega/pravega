@@ -41,12 +41,13 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
+    public static final String SEPARATOR = ".#.";
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
-    static final String SCOPES_TABLE = "Table.#.scopes";
-    static final String DELETED_STREAMS_TABLE = "Table.#.deletedStreams";
-    static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "Table.#.completedTransactionsBatches";
-    static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "Table.#.completedTransactionsBatch-%d";
+    static final String SCOPES_TABLE = "Table" + SEPARATOR + "scopes";
+    static final String DELETED_STREAMS_TABLE = "Table" + SEPARATOR + "deletedStreams";
+    static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "Table" + SEPARATOR + "completedTransactionsBatches";
+    static final String COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT = "Table" + SEPARATOR + "completedTransactionsBatch-%d";
 
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
 

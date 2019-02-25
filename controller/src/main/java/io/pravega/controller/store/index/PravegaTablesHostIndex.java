@@ -34,14 +34,15 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_EMPTY_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 
 /**
  * Pravega Tables based host index.
  */
 @Slf4j
 public class PravegaTablesHostIndex implements HostIndex {
-    private static final String HOSTS_ROOT_TABLE_FORMAT = "Table.#.hosts.#.%s";
-    private static final String HOST_TABLE_FORMAT = "Table.#.host.#.%s.#.%s";
+    private static final String HOSTS_ROOT_TABLE_FORMAT = "Table" + SEPARATOR + "hosts" + SEPARATOR + "%s";
+    private static final String HOST_TABLE_FORMAT = "Table" + SEPARATOR + "host" + SEPARATOR + "%s" + SEPARATOR + "%s";
     private final PravegaTablesStoreHelper storeHelper;
     private final String hostsTable;
     private final String indexName;

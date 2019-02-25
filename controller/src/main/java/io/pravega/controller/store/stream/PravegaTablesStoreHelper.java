@@ -26,6 +26,7 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.util.RetryHelper;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -39,7 +40,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class PravegaTablesStoreHelper {
+    private static final int NUM_OF_TRIES = 5;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
 
@@ -50,7 +53,14 @@ public class PravegaTablesStoreHelper {
 
     public CompletableFuture<Void> createTable(String scope, String tableName) {
         return Futures.toVoid(runOnExecutorWithExceptionHandling(() -> segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID),
-                "create table: " + scope + "/" + tableName));
+                "create table: " + scope + "/" + tableName))
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        log.warn("create table %s/%s threw exception", scope, tableName, e);
+                    } else {
+                        log.debug("table %s/%s created successfully", scope, tableName);
+                    }
+                });
     }
     
     public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
@@ -67,9 +77,11 @@ public class PravegaTablesStoreHelper {
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
                 errorMessage)
                 .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StoreException.WriteConflictException) {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    if (unwrap instanceof StoreException.WriteConflictException) {
                         throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage);
                     } else {
+                        log.debug("add new entry %s to %s/%s threw exception %s %s", key, scope, tableName, unwrap.getClass(), unwrap.getMessage());
                         throw new CompletionException(e);
                     }
                 })
@@ -201,6 +213,6 @@ public class PravegaTablesStoreHelper {
 
     private <T> CompletableFuture<T> runOnExecutorWithExceptionHandling(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
         return RetryHelper.withRetriesAsync(() -> translateException(futureSupplier.get(), errorMessage), 
-                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, 5, executor);
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, NUM_OF_TRIES, executor);
     }
 }

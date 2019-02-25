@@ -26,9 +26,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
 
 public class PravegaTableScope implements Scope {
-    static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table.#.streamsInScope.#.%s";
+    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table" + SEPARATOR + "streamsInScope" + SEPARATOR + "%s";
     private final String streamsInScopeTable;
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;

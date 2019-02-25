@@ -34,11 +34,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.*;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_EMPTY_PREDICATE;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT;
+import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
 
 @Slf4j
 class PravegaTablesStream extends PersistentStreamBase {
-    private static final String STREAM_TABLE_PREFIX = "Table.#.%s.#.%s.#."; // scoped stream name
+    private static final String STREAM_TABLE_PREFIX = "Table" + SEPARATOR + "%s" + SEPARATOR; // stream name
     private static final String METADATA_TABLE = STREAM_TABLE_PREFIX + "metadata"; 
     private static final String EPOCHS_WITH_TRANSACTIONS_TABLE = STREAM_TABLE_PREFIX + "epochsWithTransactions"; 
     private static final String EPOCH_TRANSACTIONS_TABLE_FORMAT = STREAM_TABLE_PREFIX + "transactionsInEpoch-%d";
@@ -61,10 +65,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String WAITING_REQUEST_PROCESSOR_PATH = "waitingRequestProcessor";
 
     // completed transactions key
-    private static final String STREAM_KEY_PREFIX = "Key.#.%s.#.%s.#."; // scoped stream name
+    private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
 
-    private static final String CACHE_KEY_DELIMITER = ".#cacheKey#.";
+    private static final String CACHE_KEY_DELIMITER = SEPARATOR + "cacheKey" + SEPARATOR;
 
     private final PravegaTablesStoreHelper storeHelper;
     private final String metadataTableName;
@@ -89,14 +93,15 @@ class PravegaTablesStream extends PersistentStreamBase {
         this.storeHelper = storeHelper;
 
         cache = new Cache(entryKey -> {
+            // Since there are be multiple tables, we will cache `table+key` in our cache
             String[] splits = entryKey.split(CACHE_KEY_DELIMITER);
             String tableName = splits[0];
             String key = splits[1];
             return this.storeHelper.getEntry(scopeName, tableName, key);
         });
         this.currentBatchSupplier = currentBatchSupplier;
-        this.metadataTableName = String.format(METADATA_TABLE, scopeName, streamName);
-        this.epochsWithTransactionsTableName = String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, scopeName, streamName);
+        this.metadataTableName = String.format(METADATA_TABLE, streamName);
+        this.epochsWithTransactionsTableName = String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, streamName);
         this.streamsInScopeTableNameSupplier = streamsInScopeTableNameSupplier;
     }
 
@@ -107,17 +112,17 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     private String getMetadataTableName(String id) {
-        return metadataTableName + ".#." + id;
+        return metadataTableName + SEPARATOR + id;
     }
 
     private String getEpochsWithTransactionsTableName(String id) {
-        return epochsWithTransactionsTableName + ".#." + id;
+        return epochsWithTransactionsTableName + SEPARATOR + id;
     }
 
     private String getEpochTransactionsTableName(int epoch, String id) {
-        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, getScope(), getName(), epoch);
+        String epochTableName = String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, getName(), epoch);
 
-        return epochTableName + ".#." + id;
+        return epochTableName + SEPARATOR + id;
     }
 
     // region overrides
@@ -171,6 +176,12 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
+    CompletableFuture<Void> createStreamMetadata() {
+        return getId().thenCompose(id -> CompletableFuture.allOf(storeHelper.createTable(getScope(), getMetadataTableName(id)),
+                storeHelper.createTable(getScope(), getEpochsWithTransactionsTableName(id))));
+    }
+
+    @Override
     public CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration, final long creationTime, 
                                                                      final int startingSegmentNumber) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
@@ -195,13 +206,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                           }
                       });
     }
-
-    @Override
-    CompletableFuture<Void> createStreamMetadata() {
-        return getId().thenCompose(id -> CompletableFuture.allOf(storeHelper.createTable(getScope(), getMetadataTableName(id)), 
-                storeHelper.createTable(getScope(), getEpochsWithTransactionsTableName(id))));
-    }
-
+    
     private CompletableFuture<CreateStreamResponse> handleConfigExists(long creationTime, StreamConfiguration config, 
                                                                        int startingSegmentNumber, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
@@ -224,10 +229,6 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getId()
             .thenCompose(id -> cache.getCachedData(getCacheEntryKey(getMetadataTableName(id), CREATION_TIME_KEY))
                     .thenApply(data -> BitConverter.readLong(data.getData(), 0)));
-    }
-
-    private String getCacheEntryKey(String tableName, String key) {
-        return tableName + CACHE_KEY_DELIMITER + key;
     }
     
     @Override
@@ -745,4 +746,8 @@ class PravegaTablesStream extends PersistentStreamBase {
         cache.invalidateAll();
     }
     // endregion
+
+    private String getCacheEntryKey(String tableName, String key) {
+        return tableName + CACHE_KEY_DELIMITER + key;
+    }
 }
