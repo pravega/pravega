@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class PravegaTablesStoreHelper {
-    private static final int NUM_OF_TRIES = 10;
+    private static final int NUM_OF_TRIES = Integer.MAX_VALUE;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
 
