@@ -136,11 +136,11 @@ public class ZKScope implements Scope {
 
     @Override
     public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor) {
-        // Stream references are stored under a hierarchy of nodes as described in `addStreamsInScope method. 
+        // Stream references are stored under a hierarchy of nodes as described in `addStreamsInScope` method. 
         // A continuation token is essentially a serialized integer that is broken into three parts - 
         // msb 2 bytes, middle 4 bytes and lsb 4 bytes. 
         // stream references are stored as /01/2345/stream-6789. 
-        // So effectively all streams under the scope are ordered by the stream position. Stream position is monotonically 
+        // So effectively all streams under the scope are ordered by the stream position. Stream position is strictly 
         // increasing and any new stream that is added to the scope will be done at a higher position. 
         // Streams can be deleted though. 
         // So now the continuation token basically signifies the position of last stream that was returned in previous iteration. 
