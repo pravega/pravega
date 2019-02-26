@@ -67,7 +67,8 @@ public class StreamTest {
 
     @Test(timeout = 10000)
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
-        PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(SegmentHelperMock.getSegmentHelperMockForTables(), executor);
+        PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), executor);
         PravegaTableScope scope = new PravegaTableScope("test", storeHelper, executor);
         scope.createScope().join();
         scope.addStreamToScope("test").join();
@@ -168,7 +169,7 @@ public class StreamTest {
 
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScalePravegaTables() throws Exception {
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
                 segmentHelper, cli, executor)) {
 

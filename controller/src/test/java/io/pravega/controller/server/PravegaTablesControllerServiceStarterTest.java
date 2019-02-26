@@ -20,6 +20,7 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 
 /**
  * ControllerServiceStarter backed by ZK store tests.
@@ -50,6 +51,7 @@ public class PravegaTablesControllerServiceStarterTest extends ControllerService
         storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
         storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
         Assert.assertNotNull(storeClient);
+        executor = Executors.newScheduledThreadPool(5);
     }
 
     @Override
@@ -67,5 +69,6 @@ public class PravegaTablesControllerServiceStarterTest extends ControllerService
             log.error("Error stopping test zk server");
             Assert.fail("Error stopping test zk server");
         }
+        executor.shutdown();
     }
 }

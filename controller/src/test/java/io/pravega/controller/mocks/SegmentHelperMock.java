@@ -43,6 +43,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -54,8 +55,6 @@ import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
-    private static final Executor EXECUTOR = Executors.newScheduledThreadPool(10);
-    
     public static SegmentHelper getSegmentHelperMock(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
         SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
 
@@ -122,13 +121,14 @@ public class SegmentHelperMock {
         return helper;
     }
 
-    public static SegmentHelper getSegmentHelperMockForTables() {
+    public static SegmentHelper getSegmentHelperMockForTables(ScheduledExecutorService executor) {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        return getSegmentHelperMockForTables(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        return getSegmentHelperMockForTables(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper(), executor);
     }
     
-    public static SegmentHelper getSegmentHelperMockForTables(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
+    public static SegmentHelper getSegmentHelperMockForTables(HostControllerStore hostControllerStore, ConnectionFactory clientCF, 
+                                                              AuthHelper authHelper, ScheduledExecutorService executor) {
         SegmentHelper helper = getSegmentHelperMock(hostControllerStore, clientCF, authHelper);
         final Object lock = new Object();
         final Map<String, Map<ByteBuffer, TableEntry<byte[], byte[]>>> mapOfTables = new HashMap<>();
@@ -143,7 +143,7 @@ public class SegmentHelperMock {
                     mapOfTables.putIfAbsent(scope + "/" + tableName, new HashMap<>());
                     mapOfTablesPosition.put(scope + "/" + tableName, new HashMap<>());
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).createTableSegment(anyString(), anyString(), anyLong());
         // endregion
         
@@ -170,7 +170,7 @@ public class SegmentHelperMock {
                                 WireCommandFailedException.Reason.TableSegmentNotEmpty);
                     }
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).deleteTableSegment(anyString(), anyString(), anyBoolean(), anyLong());
         // endregion
         
@@ -223,7 +223,7 @@ public class SegmentHelperMock {
                         return resultList;
                     }
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).updateTableEntries(anyString(), anyString(), any(), anyLong());
         // endregion
     
@@ -259,7 +259,7 @@ public class SegmentHelperMock {
                         });
                     }
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).removeTableKeys(anyString(), anyString(), any(), anyLong());
         // endregion
 
@@ -297,7 +297,7 @@ public class SegmentHelperMock {
                         return resultList;
                     }
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).readTable(anyString(), anyString(), any(), anyLong());
         // endregion
         
@@ -338,7 +338,7 @@ public class SegmentHelperMock {
                         return new TableSegment.IteratorItem<>(newState, list);
                     }
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).readTableKeys(anyString(), anyString(), anyInt(), any(), anyLong());
         // endregion        
         
@@ -379,7 +379,7 @@ public class SegmentHelperMock {
                         return new TableSegment.IteratorItem<>(newState, list);
                     }
                 }
-            }, EXECUTOR);
+            }, executor);
         }).when(helper).readTableEntries(anyString(), anyString(), anyInt(), any(), anyLong());
         // endregion
         return helper;

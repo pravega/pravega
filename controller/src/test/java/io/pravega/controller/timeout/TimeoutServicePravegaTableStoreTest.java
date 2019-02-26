@@ -24,7 +24,7 @@ public class TimeoutServicePravegaTableStoreTest extends TimeoutServiceTest {
     private final SegmentHelper segmentHelper;
     public TimeoutServicePravegaTableStoreTest() throws Exception {
         super();
-        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
     }
 
     @Override

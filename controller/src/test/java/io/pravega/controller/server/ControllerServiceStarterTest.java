@@ -26,6 +26,8 @@ import io.pravega.test.common.TestUtils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
@@ -39,6 +41,7 @@ import org.junit.Test;
 public abstract class ControllerServiceStarterTest {
     protected StoreClientConfig storeClientConfig;
     protected StoreClient storeClient;
+    protected ScheduledExecutorService executor;
     private final boolean disableControllerCluster;
     private final int grpcPort;
     private final boolean enableAuth;
@@ -59,7 +62,7 @@ public abstract class ControllerServiceStarterTest {
     public void testStartStop() {
         Assert.assertNotNull(storeClient);
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient, 
-                SegmentHelperMock.getSegmentHelperMockForTables());
+                SegmentHelperMock.getSegmentHelperMockForTables(executor));
         starter.startAsync();
 
         try {

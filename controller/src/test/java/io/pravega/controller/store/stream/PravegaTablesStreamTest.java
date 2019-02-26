@@ -34,7 +34,7 @@ public class PravegaTablesStreamTest extends StreamTestBase {
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
         store = new PravegaTablesStreamMetadataStore(segmentHelper, cli, executor, Duration.ofSeconds(1));
     }

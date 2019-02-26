@@ -232,11 +232,11 @@ public class PravegaTablesStoreHelper {
                 }
             } else if (cause instanceof HostStoreException) {
                 // TODO: shivesh -- remove this log
-                log.warn("Error in host store", cause);
+                log.warn("Error in host store {} {}", errorMessage, e.getClass());
                 toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
                 // TODO: shivesh -- remove this log
-                log.warn("unknown error", cause);
+                log.warn("unknown error {} {}", errorMessage, cause.getClass());
                 toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, errorMessage);
             }
 

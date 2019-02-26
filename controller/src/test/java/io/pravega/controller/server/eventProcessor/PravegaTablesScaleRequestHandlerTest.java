@@ -16,7 +16,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 
 public class PravegaTablesScaleRequestHandlerTest extends ScaleRequestHandlerTest {
-    SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables();
+    SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
 
     @Override
     <T> Number getVersionNumber(VersionedMetadata<T> versioned) {

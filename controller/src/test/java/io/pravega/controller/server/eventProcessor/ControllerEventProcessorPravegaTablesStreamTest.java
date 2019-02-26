@@ -20,6 +20,6 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
     @Override
     StreamMetadataStore createStore() {
         return StreamStoreFactory.createPravegaTablesStore(
-                SegmentHelperMock.getSegmentHelperMockForTables(), zkClient, executor);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), zkClient, executor);
     }
 }

@@ -49,7 +49,7 @@ public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
 
     @Override
     StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
-        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(), 
+        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
                 zkClient, executor);
     }
 
