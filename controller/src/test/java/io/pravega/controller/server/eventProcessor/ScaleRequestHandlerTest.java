@@ -104,6 +104,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+// TODO: shivesh remove slf4j
 @Slf4j
 public abstract class ScaleRequestHandlerTest {
     protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -474,8 +475,11 @@ public abstract class ScaleRequestHandlerTest {
         map.put("completeScale", 0);
         map.put("updateVersionedState", 1);
 
+        log.error("shivesh:: starting concurrent identical run with first run stalled on updateVersionedState");
         concurrentIdenticalScaleRun("stream0", "updateVersionedState", true,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
+
+        log.error("shivesh:: starting concurrent identical run with first run stalled on startScale");
 
         map.put("startScale", 1);
         concurrentIdenticalScaleRun("stream1", "startScale", true,
@@ -568,21 +572,27 @@ public abstract class ScaleRequestHandlerTest {
         
         setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
         
+        log.error("shivesh:: starting first scale.. it should wait on " + func);
         // the processing will stall at start scale
         CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
         signal.join();
-        
+        log.error("shivesh:: first scale called and is now waiting on " + func);
+        log.error("shivesh:: second scale started.");
+
         // let this run to completion. this should succeed 
         if (!expectFailureOnSecondJob) {
             scaleRequestHandler2.execute(event).join();
+            log.error("shivesh:: second scale completed as expect.");
         } else {
+            log.error("shivesh:: second scale failure expected and thrown.");
             AssertExtensions.assertSuppliedFutureThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
                     secondExceptionPredicate);
         }
         // verify that scale is complete
         // now complete wait latch.
         wait.complete(null);
-        
+        log.error("shivesh:: second scale completed. wait over.");
+
         AssertExtensions.assertSuppliedFutureThrows(
                 "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
