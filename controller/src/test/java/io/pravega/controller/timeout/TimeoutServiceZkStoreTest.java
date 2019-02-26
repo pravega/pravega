@@ -28,10 +28,6 @@ import static org.mockito.Mockito.mock;
  */
 @Slf4j
 public class TimeoutServiceZkStoreTest extends TimeoutServiceTest {
-    public TimeoutServiceZkStoreTest() throws Exception {
-        super();
-    }
-
     @Override
     SegmentHelper getSegmentHelper() {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());

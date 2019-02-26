@@ -15,6 +15,7 @@ import com.google.common.cache.LoadingCache;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 public class Cache {

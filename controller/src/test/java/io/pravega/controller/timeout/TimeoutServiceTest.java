@@ -45,6 +45,7 @@ import io.pravega.test.common.TestingServerStarter;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -82,10 +83,10 @@ public abstract class TimeoutServiceTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StoreClient storeClient;
     private RequestTracker requestTracker = new RequestTracker(true);
+    protected SegmentHelper segmentHelper;
 
     @Before
     public void setUp() throws Exception {
-
         final String hostId = "host";
 
         // Instantiate test ZK service.
@@ -93,22 +94,22 @@ public abstract class TimeoutServiceTest {
         String connectionString = zkTestServer.getConnectString();
 
         // Initialize the executor service.
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "testtaskpool");
-
+        executor = Executors.newScheduledThreadPool(5);
         // Initialize ZK client.
         client = CuratorFrameworkFactory.newClient(connectionString, new RetryOneTime(2000));
         client.start();
 
         // Create STREAM store, host store, and task metadata store.
         storeClient = StoreClientFactory.createZKStoreClient(client);
+        segmentHelper = getSegmentHelper();
         streamStore = getStore();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore,
-                getSegmentHelper(), executor, hostId, requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
-                getSegmentHelper(),
+                segmentHelper, executor, hostId, requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                segmentHelper,
                 executor, hostId, TimeoutServiceConfig.defaultConfig(),
                 new LinkedBlockingQueue<>(5));
                 streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
@@ -118,7 +119,7 @@ public abstract class TimeoutServiceTest {
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
 
         controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, getSegmentHelper(), executor, null);
+                streamTransactionMetadataTasks, segmentHelper, executor, null);
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();
@@ -253,10 +254,10 @@ public abstract class TimeoutServiceTest {
 
         @Cleanup
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, bucketStore, taskMetadataStore,
-                getSegmentHelper(), executor, "2", requestTracker);
+                segmentHelper, executor, "2", requestTracker);
         @Cleanup
         StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2, 
-                getSegmentHelper(), executor, "2", 
+                segmentHelper, executor, "2", 
                 TimeoutServiceConfig.defaultConfig(), new LinkedBlockingQueue<>(5));
         streamTransactionMetadataTasks2.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
@@ -265,7 +266,7 @@ public abstract class TimeoutServiceTest {
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
         ControllerService controllerService2 = new ControllerService(streamStore2, hostStore, streamMetadataTasks2,
-                streamTransactionMetadataTasks2, getSegmentHelper(), executor, null);
+                streamTransactionMetadataTasks2, segmentHelper, executor, null);
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE)
                 .thenApply(x -> ModelHelper.decode(x.getKey()))
