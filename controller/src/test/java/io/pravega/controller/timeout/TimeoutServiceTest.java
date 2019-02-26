@@ -74,6 +74,7 @@ public abstract class TimeoutServiceTest {
 
     protected ScheduledExecutorService executor;
     protected CuratorFramework client;
+    protected SegmentHelper segmentHelper;
 
     private StreamMetadataStore streamStore;
     private TimerWheelTimeoutService timeoutService;
@@ -83,7 +84,6 @@ public abstract class TimeoutServiceTest {
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private StoreClient storeClient;
     private RequestTracker requestTracker = new RequestTracker(true);
-    protected SegmentHelper segmentHelper;
 
     @Before
     public void setUp() throws Exception {

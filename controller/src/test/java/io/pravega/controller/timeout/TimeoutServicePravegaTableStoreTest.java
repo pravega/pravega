@@ -15,7 +15,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.Version;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Before;
 
 /**
  * Test class for TimeoutService.
