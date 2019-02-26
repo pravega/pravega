@@ -391,17 +391,21 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scope = request.getScope().getScope();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scope);
         log.info(requestTag.getRequestId(), "listStream called for scope {}.", scope);
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope, AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listStreams(scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
-                                                    .thenApply(response -> {
-                                                        List<StreamInfo> streams = response.getKey().stream()
-                                                                                    .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())
-                                                                                    .collect(Collectors.toList());
-                                                        return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(
-                                                                streams).setContinuationToken(Controller.ContinuationToken
-                                                                .newBuilder().setToken(response.getValue()).build()).build();
-                                                    }),
-                responseObserver, requestTag);
+        authenticateExecuteAndProcessResults(
+                () -> this.authHelper.checkAuthorization(AuthResourceRepresentation.ofAScope(scope),
+                        AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.listStreams(
+                        scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        .thenApply(response -> {
+                             List<StreamInfo> streams = response.getKey().stream()
+                                     .filter(m -> authHelper.isAuthorized(m, AuthHandler.Permissions.READ))
+                                     .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())
+                                     .collect(Collectors.toList());
+                             return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
+                                     .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
+                                             response.getValue()).build()).build();
+                        }),
+                        responseObserver, requestTag);
     }
 
     @Override

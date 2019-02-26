@@ -491,8 +491,9 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                      }
                                  } catch (AuthException e) {
                                      log.warn(e.getMessage(), e);
-                                     // Ignore. In this case an exception just implies that the principal doesn't
-                                     // have specified access to the scope, and that the scope be filtered out.
+                                     // Ignore. This exception occurs under abnormal circumstances and not to determine
+                                     // whether the user is authorized. In case it does occur, we assume that the user
+                                     // is unauthorized.
                                  }
                              });
                              return Response.status(Status.OK).entity(scopes).build(); })
@@ -518,9 +519,13 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                             final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "listStreams");
 
+        final Principal principal;
+        final List<String> authHeader = getAuthorizationHeader();
+
         try {
-            restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofStreamsInScope(scopeName), READ);
+            principal = restAuthHelper.authenticate(authHeader);
+            restAuthHelper.authorize(authHeader,
+                    AuthResourceRepresentation.ofStreamsInScope(scopeName), principal, READ);
         } catch (AuthException e) {
             log.warn("List streams for {} failed due to authentication failure.", scopeName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -532,10 +537,22 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                 .thenApply(streamsList -> {
                     StreamsList streams = new StreamsList();
                     streamsList.forEach((stream, config) -> {
-                        // If internal streams are requested select only the ones that have the special stream names
-                        // otherwise display the regular user created streams.
-                        if (!showOnlyInternalStreams ^ stream.startsWith(INTERNAL_NAME_PREFIX)) {
-                            streams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, stream, config));
+
+                        try {
+                            if (restAuthHelper.isAuthorized(getAuthorizationHeader(),
+                                    AuthResourceRepresentation.ofAStreamInScope(scopeName, stream),
+                                    principal, READ)) {
+                                // If internal streams are requested select only the ones that have the special stream names
+                                // otherwise display the regular user created streams.
+                                if (!showOnlyInternalStreams ^ stream.startsWith(INTERNAL_NAME_PREFIX)) {
+                                    streams.addStreamsItem(ModelHelper.encodeStreamResponse(scopeName, stream, config));
+                                }
+                            }
+                        } catch (AuthException e) {
+                            log.warn(e.getMessage(), e);
+                            // Ignore. This exception occurs under abnormal circumstances and not to determine
+                            // whether the user is authorized. In case it does occur, we assume that the user
+                            // is unauthorized.
                         }
                     });
                     log.info("Successfully fetched streams for scope: {}", scopeName);
