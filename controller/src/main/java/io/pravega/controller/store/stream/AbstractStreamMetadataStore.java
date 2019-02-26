@@ -61,14 +61,15 @@ import java.util.stream.Collectors;
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
-    
+    private static final int MAXIMUM_SIZE = 1000;
+
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostIndex;
 
     protected AbstractStreamMetadataStore(HostIndex hostIndex) {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(10000)
+                .maximumSize(MAXIMUM_SIZE)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
@@ -85,7 +86,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         scopeCache = CacheBuilder.newBuilder()
-                .maximumSize(1000)
+                .maximumSize(MAXIMUM_SIZE)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(

@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import io.pravega.common.Exceptions;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
@@ -19,6 +20,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 public class Cache {
+    private static final int MAXIMUM_SIZE = 1000;
+
     @FunctionalInterface
     public interface Loader {
         CompletableFuture<Data> get(final String key);
@@ -28,7 +31,7 @@ public class Cache {
 
     public Cache(final Loader loader) {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(10000)
+                .maximumSize(MAXIMUM_SIZE)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(new CacheLoader<String, CompletableFuture<Data>>() {
                     @ParametersAreNonnullByDefault
@@ -41,6 +44,8 @@ public class Cache {
 
     public CompletableFuture<Data> getCachedData(final String key) {
         return cache.getUnchecked(key).exceptionally(ex -> {
+            System.err.println("shivesh:: invalidating cache because of a previous exception.. key = " 
+                    + key + " exception=" + Exceptions.unwrap(ex).getClass());
             invalidateCache(key);
             throw new CompletionException(ex);
         });
