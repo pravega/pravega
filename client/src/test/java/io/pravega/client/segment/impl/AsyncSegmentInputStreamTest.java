@@ -14,6 +14,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -55,7 +56,7 @@ public class AsyncSegmentInputStreamTest {
         InOrder inOrder = Mockito.inOrder(c);
         connectionFactory.provideConnection(endpoint, c);
         
-        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.allocate(0));
+        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBufferUtils.EMPTY);
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -120,7 +121,7 @@ public class AsyncSegmentInputStreamTest {
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         
-        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBuffer.allocate(0));
+        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 1234, false, false, ByteBufferUtils.EMPTY);
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);
         AssertExtensions.assertBlocks(() -> readFuture.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
@@ -163,7 +164,7 @@ public class AsyncSegmentInputStreamTest {
         verifyNoMoreInteractions(c);
 
         //Ensure that reads at a different offset can still happen on the same instance.
-        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 5656, false, false, ByteBuffer.allocate(0));
+        WireCommands.SegmentRead segmentRead = new WireCommands.SegmentRead(segment.getScopedName(), 5656, false, false, ByteBufferUtils.EMPTY);
         CompletableFuture<SegmentRead> readFuture2 = in.read(5656, 5678);
         AssertExtensions.assertBlocks(() -> readFuture2.get(), () -> {
             ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
