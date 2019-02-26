@@ -77,7 +77,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -104,8 +103,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// TODO: shivesh remove slf4j
-@Slf4j
 public abstract class ScaleRequestHandlerTest {
     protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected CuratorFramework zkClient;
@@ -475,11 +472,8 @@ public abstract class ScaleRequestHandlerTest {
         map.put("completeScale", 0);
         map.put("updateVersionedState", 1);
 
-        log.error("shivesh:: starting concurrent identical run with first run stalled on updateVersionedState");
         concurrentIdenticalScaleRun("stream0", "updateVersionedState", true,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, false, e -> false, map);
-
-        log.error("shivesh:: starting concurrent identical run with first run stalled on startScale");
 
         map.put("startScale", 1);
         concurrentIdenticalScaleRun("stream1", "startScale", true,
@@ -572,26 +566,20 @@ public abstract class ScaleRequestHandlerTest {
         
         setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
         
-        log.error("shivesh:: starting first scale.. it should wait on " + func);
         // the processing will stall at start scale
         CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
         signal.join();
-        log.error("shivesh:: first scale called and is now waiting on " + func);
-        log.error("shivesh:: second scale started.");
 
         // let this run to completion. this should succeed 
         if (!expectFailureOnSecondJob) {
             scaleRequestHandler2.execute(event).join();
-            log.error("shivesh:: second scale completed as expect.");
         } else {
-            log.error("shivesh:: second scale failure expected and thrown.");
             AssertExtensions.assertSuppliedFutureThrows("second job should fail", () -> scaleRequestHandler2.execute(event), 
                     secondExceptionPredicate);
         }
         // verify that scale is complete
         // now complete wait latch.
         wait.complete(null);
-        log.error("shivesh:: second scale completed. wait over.");
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "first scale should fail", () -> future1, firstExceptionPredicate);
@@ -669,12 +657,10 @@ public abstract class ScaleRequestHandlerTest {
         map.put("completeScale", 0);
         map.put("updateVersionedState", 1);
 
-        log.error("shivesh:: testConcurrentDistinctManualScaleRequest updateVersionedState");
         concurrentDistinctScaleRun("stream0", "updateVersionedState", true,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
 
         map.put("startScale", 1);
-        log.error("shivesh:: testConcurrentDistinctManualScaleRequest startScale");
         concurrentDistinctScaleRun("stream1", "startScale", true,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map);
 
@@ -743,15 +729,11 @@ public abstract class ScaleRequestHandlerTest {
 
         setMockLatch(streamStore1, streamStore1Spied, funcToWaitOn, signal, wait);
 
-        log.error("shivesh:: scale 1 issued and waiting");
         CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
         signal.join();
 
-        log.error("shivesh:: scale 1-duplicate issued");
-
         // let this run to completion. this should succeed 
         scaleRequestHandler2.execute(event).join();
-        log.error("shivesh:: scale 1-duplicate completed");
 
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         ScaleOpEvent event2 = new ScaleOpEvent(scope, stream, Lists.newArrayList(one),
@@ -761,9 +743,7 @@ public abstract class ScaleRequestHandlerTest {
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
 
-        log.error("shivesh:: scale 2 issued");
         scaleRequestHandler2.execute(event2).join();
-        log.error("shivesh:: scale 2 completed.. signal to scale 1");
 
         // now complete wait latch.
         wait.complete(null);
