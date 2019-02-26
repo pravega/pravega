@@ -19,17 +19,27 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * This is a utility used to read configuration. It can be configured to read custom configuration
- * files by setting the following system properties conf.file= < FILE PATH >. By default
- * it reads controller.config.properties.
+ * Utility class to supply Controller Configuration.
+ *
+ * The configuration values are retrieved using the following order, with every one overriding previously loaded values:
+ * 1. Environment Variables ({@link System#getenv()}).
+ * 2. System Properties ({@link System#getProperties()}.
+ * 3. The configuration file. By default a 'controller.config.properties' file is sought in the classpath; this can be
+ * overridden by setting the 'conf.file' system property to point to another one.
+ * 4. All currently loaded values will be resolved against themselves.
+ * 5. Anything which is not supplied via the methods above will be defaulted to the values defined in this class.
+ *
+ * Configuration values can be resolved against themselves by referencing them using a special syntax. Any value
+ * of the form '${CFG}' will lookup the already loaded config value with key 'CFG' and, if defined and non-empty, it will
+ * use that config value as the final value (if not defined or empty, it will not be included in the final result and the
+ * default value (step 5) will be used). Chained resolution is not supported (i.e., CFG1=${CFG2};CFG2=${CFG3} will not
+ * set CFG1 to the value of CFG3).
  */
 @Slf4j
 public final class Config {
@@ -185,17 +195,12 @@ public final class Config {
 
     private static Properties loadConfiguration() {
         // Fetch configuration in a specific order (from lowest priority to highest), at each step resolving references
-        // against Environment Variables.
-        // We begin with System Properties, then Environment Variables, then (any) Configuration File. Each step will only
-        // include those properties that have an actual value; references will only be included if the referred value
-        // resolves to anything.
-        // Finally, anything which is not loaded via these methods will be defaulted to the Property defaults defined
-        // in this file.
-        val properties = new Properties();
-        properties.putAll(resolveReferences(System.getProperties().entrySet(), System.getenv()));
-        properties.putAll(resolveReferences(System.getenv().entrySet(), System.getenv()));
-        val fileProperties = loadFromFile();
-        properties.putAll(resolveReferences(fileProperties.entrySet(), System.getenv()));
+        // against already loaded config values..
+        Properties properties = new Properties();
+        properties.putAll(System.getenv());
+        properties.putAll(System.getProperties());
+        properties.putAll(loadFromFile());
+        properties = resolveReferences(properties);
 
         log.info("Controller configuration:");
         properties.forEach((k, v) -> log.info("{} = {}", k, v));
@@ -236,26 +241,22 @@ public final class Config {
         return result;
     }
 
-    private static <T, U> Properties resolveReferences(Set<Map.Entry<T, U>> properties, Map<String, String> source) {
+    private static Properties resolveReferences(Properties properties) {
         // Any value that looks like ${REF} will need to be replaced by the value of REF in source.
         final String pattern = "^\\$\\{(.+)\\}$";
         val resolved = new Properties();
-        for (val e : properties) {
-            String key = e.getKey().toString();
-            if (key.contains("hostIp")) {
-                System.out.println();
-            }
+        for (val e : properties.entrySet()) {
             // Fetch reference value.
             String existingValue = e.getValue().toString();
             String newValue = existingValue; // Default to existing value (in case it's not a reference).
             if (existingValue.matches(pattern)) {
                 // Only include the referred value if it resolves to anything; otherwise exclude this altogether.
                 String lookupKey = pattern.replaceAll(pattern, "$1");
-                newValue = source.getOrDefault(lookupKey, null);
+                newValue = (String) properties.getOrDefault(lookupKey, null);
             }
 
             if (newValue != null) {
-                resolved.put(key, newValue);
+                resolved.put(e.getKey().toString(), newValue);
             }
         }
 
