@@ -249,25 +249,25 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, stream3, State.ACTIVE, null, executor).get();
         
-        Pair<List<String>, String> streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
         
         store.deleteStream(scope, stream1, null, executor).join();
         
-        streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        streamInScope = store.listStream(scope, "", 2, executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }

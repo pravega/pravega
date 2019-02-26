@@ -88,7 +88,7 @@ public class InMemoryScope implements Scope {
 
     @Override
     @Synchronized
-    public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(int limit, String continuationToken, Executor executor) {
+    public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor) {
         String newContinuationToken;
         List<Map.Entry<Integer, String>> limited;
         synchronized (this) {

@@ -191,6 +191,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         nextPositionList.put(2);
         nextPositionList.put(10000);
         nextPositionList.put((int) Math.pow(10, 8));
+        nextPositionList.put((int) Math.pow(10, 9));
         ZKScope myScope = spy((ZKScope) zkStore.getScope(scope));
         doAnswer(x -> CompletableFuture.completedFuture(nextPositionList.poll())).when(myScope).getNextStreamPosition();
         doAnswer(x -> myScope).when(zkStore).getScope(scope);
@@ -199,6 +200,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         String stream2 = "stream2";
         String stream3 = "stream3";
         String stream4 = "stream4";
+        String stream5 = "stream5";
 
         // add three streams and then list them. We should get 2 + 1 + 0
         zkStore.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
@@ -208,18 +210,18 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         zkStore.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
         zkStore.setState(scope, stream3, State.ACTIVE, null, executor).get();
         
-        Pair<List<String>, String> streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream1));
         assertTrue(streamInScope.getKey().contains(stream2));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream3));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
         assertEquals("List streams in scope", 0, streamInScope.getKey().size());
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
@@ -228,34 +230,44 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         zkStore.setState(scope, stream4, State.ACTIVE, null, executor).get();
 
         // list on previous token we should get 1 entry
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
         assertEquals("List streams in scope", 1, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream4));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        // add 5th stream
+        zkStore.createStream(scope, stream5, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream5, State.ACTIVE, null, executor).get();
 
         // delete stream 1
         store.deleteStream(scope, stream1, null, executor).join();
 
         // start listing with empty/default continuation token
-        streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        streamInScope = store.listStream(scope, "", 2, executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream2));
         assertTrue(streamInScope.getKey().contains(stream3));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
-        streamInScope = store.listStreamNamesInScope(scope, streamInScope.getValue(), 2, executor).get();
-        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream4));
+        assertTrue(streamInScope.getKey().contains(stream5));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
 
         // delete stream 3
         store.deleteStream(scope, stream3, null, executor).join();
         
         // start listing with empty/default continuation token
-        streamInScope = store.listStreamNamesInScope(scope, "", 2, executor).get();
+        streamInScope = store.listStream(scope, "", 2, executor).get();
         assertEquals("List streams in scope", 2, streamInScope.getKey().size());
         assertTrue(streamInScope.getKey().contains(stream2));
         assertTrue(streamInScope.getKey().contains(stream4));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream5));
         assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
 

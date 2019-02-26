@@ -77,6 +77,26 @@ public class ZKScope implements Scope {
                     .thenCompose(v -> Futures.exceptionallyExpecting(store.deleteTree(streamsInScopePath), DATA_NOT_FOUND_PREDICATE, null));
     }
 
+    /**
+     * Streams are ordered under the scope in the order of stream position. 
+     * The metadata store first calls `getNextStreamPosition` method to generate a new position. 
+     * This position is assigned to the stream and a reference to this stream is stored under the scope at the said position. 
+     * 
+     * ZkScope takes this position number and breaks it into 3 parts of 2, 4, 4 digits respectively.
+     * Logically following becomes the hierarchy where the stream reference is added under the scope.
+     * `/01/2345/6789-streamname`
+     * `01` is called msb.
+     * `2345` is called middle.
+     * `6789` is called lsb.
+     *
+     * Storing the stream references in such a hierarchy has two advantages -- 
+     * 1. we divide streams in groups of 10k which can be retrieved via a single zk api call which gives us a logical pagination.
+     * 2. the last 4 digits included with stream ref also gives us the "order" within the group of 10k leaf nodes. 
+     *    This enables us to have a continuation token that is not just at group level but for streams within a group too.
+     * @param name name of stream
+     * @param streamPosition position of stream
+     * @return CompletableFuture which when completed has the stream reference stored under the aforesaid hierarchy.  
+     */
     CompletableFuture<Void> addStreamToScope(String name, int streamPosition) {
         // break the path from stream position into three parts --> 2, 4, 4
         String path = getPathForStreamPosition(name, streamPosition);
@@ -115,35 +135,47 @@ public class ZKScope implements Scope {
     }
 
     @Override
-    public CompletableFuture<Pair<List<String>, String>> listStreamsInScope(int limit, String continuationToken, Executor executor) {
+    public CompletableFuture<Pair<List<String>, String>> listStreams(int limit, String continuationToken, Executor executor) {
+        // Stream references are stored under a hierarchy of nodes as described in `addStreamsInScope method. 
+        // A continuation token is essentially a serialized integer that is broken into three parts - 
+        // msb 2 bytes, middle 4 bytes and lsb 4 bytes. 
+        // stream references are stored as /01/2345/stream-6789. 
+        // So effectively all streams under the scope are ordered by the stream position. Stream position is monotonically 
+        // increasing and any new stream that is added to the scope will be done at a higher position. 
+        // Streams can be deleted though. 
+        // So now the continuation token basically signifies the position of last stream that was returned in previous iteration. 
+        // And continuing from the continuation token, we simply retrieve next `limit` number of streams under the scope. 
+        // Since the streams are stored under the aforesaid hierarchy, we start with all children of the `middle` part of 
+        // continuation token and only include streams whose position is greater than token.
+        // If we are not able to get `limit` number of streams from this, we go to the next higher available `middle` znode 
+        // and fetch its children. If middle is exhausted, we increment the `msb` and repeat until we have found `limit` 
+        // number of streams or reached the end. 
         List<String> toReturn = new LinkedList<>();
         AtomicInteger remaining = new AtomicInteger(limit);
         Token floor = Token.fromString(continuationToken);
         AtomicReference<Token> lastPos = new AtomicReference<>(floor);
         // compute on all available top level children (0-99) that are greater than floor.getLeft
         return computeOnChildren(streamsInScopePath, topChild -> {
-            final int top = Integer.parseInt(topChild);
-            if (top >= floor.getMsb()) {
-                String topPath = ZKPaths.makePath(streamsInScopePath, topChild);
+            if (topChild >= floor.getMsb()) {
+                String topPath = ZKPaths.makePath(streamsInScopePath, topChild.toString());
                 // set middle floor = supplied floor OR 0 if top floor has been incremented
-                int middleFloor = top == floor.getMsb() ? floor.getMiddle() : 0;
+                int middleFloor = topChild.intValue() == floor.getMsb() ? floor.getMiddle() : 0;
 
                 // compute on all available middle level children (0-9999) of current top level that are greater than middle floor
                 CompletableFuture<Void> voidCompletableFuture = computeOnChildren(topPath, middleChild -> {
-                    final int middle = Integer.parseInt(middleChild);
-                    if (middle >= middleFloor) {
-                        String middlePah = ZKPaths.makePath(topPath, middleChild.toString());
-                        return store.getChildren(middlePah)
+                    if (middleChild >= middleFloor) {
+                        String middlePath = ZKPaths.makePath(topPath, middleChild.toString());
+                        return store.getChildren(middlePath)
                                     .thenAccept(streams -> {
                                         // set bottom floor = -1 if we have incremented either top or middle floors
-                                        int bottomFloor = top == floor.getMsb() &&
-                                                middle == floor.getMiddle() ? floor.getLsb() : -1;
+                                        int bottomFloor = topChild.intValue() == floor.getMsb() &&
+                                                middleChild.intValue() == floor.getMiddle() ? floor.getLsb() : -1;
 
                                         Pair<List<String>, Integer> retVal = filterStreams(streams, bottomFloor, remaining.get());
                                         if (!retVal.getKey().isEmpty()) {
                                             toReturn.addAll(retVal.getKey());
                                             remaining.set(limit - toReturn.size());
-                                            lastPos.set(new Token(top, middle, retVal.getValue()));
+                                            lastPos.set(new Token(topChild, middleChild, retVal.getValue()));
                                         }
                                     })
                                     .thenApply(v -> remaining.get() > 0);
@@ -181,20 +213,26 @@ public class ZKScope implements Scope {
     public void refresh() {
     }
 
+    /**
+     * When a new stream is created under a scope, we first get a new counter value by creating a sequential znode under 
+     * a counter node. this is a 10 digit integer which the store passes to the zkscope object as position.
+     * @return A future which when completed has the next stream position represented by an integer. 
+     */
     CompletableFuture<Integer> getNextStreamPosition() {
         return store.createEphemeralSequentialZNode(counterPath)
                     .thenApply(counterStr -> Integer.parseInt(counterStr.replace(counterPath, "")));
     }
 
-    private CompletableFuture<Void> computeOnChildren(String path, Function<String, CompletableFuture<Boolean>> function,
+    private CompletableFuture<Void> computeOnChildren(String path, Function<Integer, CompletableFuture<Boolean>> function,
                                                       Executor executor) {
         return store.getChildren(path)
                     .thenCompose(children -> {
                         AtomicInteger index = new AtomicInteger(0);
-                        AtomicBoolean canContinue = new AtomicBoolean(true);
-                        return Futures.loop(canContinue::get,
-                                () -> function.apply(children.get(index.get())).thenAccept(canCont -> {
-                                    canContinue.set(canCont && index.incrementAndGet() < children.size());
+                        AtomicBoolean continueLoop = new AtomicBoolean(true);
+                        List<Integer> list = children.stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
+                        return Futures.loop(continueLoop::get,
+                                () -> function.apply(list.get(index.get())).thenAccept(canContinue -> {
+                                    continueLoop.set(canContinue && index.incrementAndGet() < children.size());
                                 }), executor);
                     });
     }

@@ -49,8 +49,8 @@ public interface Scope {
      * @param executor executor
      * @return A future, which upon completion, will hold a pair of list of stream names and a new continuation token. 
      */
-    CompletableFuture<Pair<List<String>, String>> listStreamsInScope(final int limit, final String continuationToken, 
-                                                                     final Executor executor);
+    CompletableFuture<Pair<List<String>, String>> listStreams(final int limit, final String continuationToken,
+                                                              final Executor executor);
 
     /**
      * List existing streams in scopes.

@@ -366,10 +366,10 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scope = request.getScope().getScope();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStreamNamesInScope", scope);
-        log.info(requestTag.getRequestId(), "listStreamNamesInScope called for scope {}.", scope);
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scope);
+        log.info(requestTag.getRequestId(), "listStream called for scope {}.", scope);
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope, AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listStreamNamesInScope(scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                delegationToken -> controllerService.listStreams(scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
                                                     .thenApply(response -> {
                                                         List<StreamInfo> streams = response.getKey().stream()
                                                                                     .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())
