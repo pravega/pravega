@@ -263,10 +263,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
-    @Override
-    public CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(String scopeName, String continuationToken,
-                                                                                int limit, Executor executor) {
-        return getScope(scopeName).listStreamsInScope(limit, continuationToken, executor);
+    public CompletableFuture<Pair<List<String>, String>> listStream(String scopeName, String continuationToken,
+                                                                    int limit, Executor executor) {
+        return getScope(scopeName).listStreams(limit, continuationToken, executor);
     }
 
     @Override

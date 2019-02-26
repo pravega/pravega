@@ -200,8 +200,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor 
      * @return A pair of list of streams in scope with the continuation token. 
      */
-    CompletableFuture<Pair<List<String>, String>> listStreamNamesInScope(final String scopeName, final String continuationToken,
-                                                                         final int limit, final Executor executor);
+    CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
+                                                             final int limit, final Executor executor);
 
     /**
      * List Scopes in cluster.

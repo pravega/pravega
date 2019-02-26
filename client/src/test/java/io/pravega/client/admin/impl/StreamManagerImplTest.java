@@ -178,7 +178,7 @@ public class StreamManagerImplTest {
         streamManager.createStream(scope, stream3, StreamConfiguration.builder()
                                                                         .scalingPolicy(ScalingPolicy.fixed(3))
                                                                         .build());
-        Iterator<Stream> m = streamManager.listStreamsInScope(scope);
+        Iterator<Stream> m = streamManager.listStreams(scope);
         Set<Stream> streams = new HashSet<>();
         assertTrue(m.hasNext());
         streams.add(m.next());

@@ -22,7 +22,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 @ThreadSafe
@@ -38,13 +37,12 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
     @GuardedBy("lock")
     private final Queue<T> queue;
     @GuardedBy("lock")
-    private final AtomicReference<Token> token;
+    private Token token;
     private final Function<Token, CompletableFuture<Map.Entry<Token, Collection<T>>>> function;
     private CompletableFuture<Void> outstanding;
     private final AtomicBoolean canContinue;
     @GuardedBy("lock")
-    private final AtomicBoolean isOutstanding;
-
+    private boolean isOutstanding;
     /**
      * Constructor takes a Function of token which when applied will return a tuple of new token and collection of elements 
      * of type `T`. 
@@ -57,11 +55,11 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
     public ContinuationTokenAsyncIterator(@NonNull Function<Token, CompletableFuture<Map.Entry<Token, Collection<T>>>> function, 
                                           Token tokenIdentity) {
         this.function = function;
-        this.token = new AtomicReference<>(tokenIdentity);
+        this.token = tokenIdentity;
         this.queue = new LinkedBlockingQueue<>();
         this.outstanding = CompletableFuture.completedFuture(null);
         this.canContinue = new AtomicBoolean(true);
-        this.isOutstanding = new AtomicBoolean(false);
+        this.isOutstanding = false;
     }
 
     @Override
@@ -73,13 +71,13 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
             if (!queue.isEmpty()) {
                 return CompletableFuture.completedFuture(queue.poll());
             } else {
-                continuationToken = token.get();
+                continuationToken = token;
                 // make the function call if previous outstanding call completed.
-                if (outstanding.isDone() && !isOutstanding.get()) {
+                if (outstanding.isDone() && !isOutstanding) {
                     // only one getNext will be able to issue a new outstanding call.
                     // everyone else will see isOutstanding as `true` when they acquire the lock. 
                     toCall = true;
-                    isOutstanding.set(true);
+                    isOutstanding = true;
                 }
             }
         }
@@ -88,14 +86,14 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
             outstanding = function.apply(continuationToken)
                                   .thenAccept(resultPair -> {
                                       synchronized (lock) {
-                                          if (token.get().equals(continuationToken)) {
+                                          if (token != null && token.equals(continuationToken)) {
                                               log.debug("Received the following collection after calling the function: {} with continuation token: {}",
                                                       resultPair.getValue(), resultPair.getKey());
                                               canContinue.set(resultPair.getValue() != null && !resultPair.getValue().isEmpty());
                                               queue.addAll(resultPair.getValue());
-                                              token.set(resultPair.getKey());
+                                              token = resultPair.getKey();
                                               // reset isOutstanding to false because this outstanding call is complete. 
-                                              isOutstanding.set(false);
+                                              isOutstanding = false;
                                           }
                                       }
                                   }).exceptionally(e -> {
@@ -123,7 +121,7 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
     @VisibleForTesting
     Token getToken() {
         synchronized (lock) {
-            return token.get();
+            return token;
         }
     }
 }

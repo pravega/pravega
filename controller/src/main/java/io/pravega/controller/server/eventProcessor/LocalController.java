@@ -84,9 +84,9 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> listStreamsInScope(String scopeName) {
+    public AsyncIterator<Stream> listStreams(String scopeName) {
         final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
-                controller.listStreamNamesInScope(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                controller.listStreams(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
                           .thenApply(result -> {
                               List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
                               return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
@@ -119,7 +119,7 @@ public class LocalController implements Controller {
         return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
-                throw new ControllerFailureException("Failed to create stream: " + streamConfig);
+                throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
             case INVALID_STREAM_NAME:
                 throw new IllegalArgumentException("Illegal stream name: " + streamConfig);
             case SCOPE_NOT_FOUND:

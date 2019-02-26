@@ -136,16 +136,17 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.getChildren(SCOPE_ROOT_PATH);
     }
-
+    
     @Override
-    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration, long createTimestamp, OperationContext context, Executor executor) {
+    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration, 
+                                                                long createTimestamp, OperationContext context, Executor executor) {
         ZKScope zkScope = (ZKScope) getScope(scope);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
 
         return super.createStream(scope, name, configuration, createTimestamp, context, executor)
                         .thenCompose(status -> zkScope.getNextStreamPosition()
-                                    .thenCompose(zkStream::createStreamIdIfAbsent)
-                                    .thenCompose(v -> zkStream.getStreamId())
+                                    .thenCompose(zkStream::createStreamPositionNodeIfAbsent)
+                                    .thenCompose(v -> zkStream.getStreamPosition())
                                     .thenCompose(id -> zkScope.addStreamToScope(name, id))
                                                   .thenApply(x -> status));
 
@@ -206,13 +207,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     public CompletableFuture<Void> deleteStream(String scope, String name, OperationContext context, Executor executor) {
         ZKScope zkScope = (ZKScope) getScope(scope);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
-        return Futures.exceptionallyExpecting(zkStream.getStreamId()
+        return Futures.exceptionallyExpecting(zkStream.getStreamPosition()
                 .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                 .thenCompose(v -> super.deleteStream(scope, name, context, executor)); 
-                
     }
-    
+
     @VisibleForTesting
     public void setStoreHelperForTesting(ZKStoreHelper storeHelper) {
         this.storeHelper = storeHelper;

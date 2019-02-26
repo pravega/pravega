@@ -135,7 +135,7 @@ public class ZkStreamTest {
         createScopeStatus = store.createScope(scopeName);
         assertEquals("Create new scope :", CreateScopeStatus.Status.SCOPE_EXISTS, createScopeStatus.get().getStatus());
 
-        //listStreamsInScope test
+        //listStreams test
         final String streamName1 = "Stream1";
         final String streamName2 = "Stream2";
         final ScalingPolicy policy = ScalingPolicy.fixed(5);

@@ -50,7 +50,7 @@ public interface Controller extends AutoCloseable {
      * @param scopeName The name of the scope for which to list streams in.
      * @return An AsyncIterator which can be used to iterate over all Streams in the scope. 
      */
-    AsyncIterator<Stream> listStreamsInScope(final String scopeName);
+    AsyncIterator<Stream> listStreams(final String scopeName);
 
     /**
      * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If

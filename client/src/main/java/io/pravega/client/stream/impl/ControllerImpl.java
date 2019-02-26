@@ -229,16 +229,16 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public AsyncIterator<Stream> listStreamsInScope(String scopeName) {
+    public AsyncIterator<Stream> listStreams(String scopeName) {
         Exceptions.checkNotClosed(closed.get(), this);
-        long traceId = LoggerHelpers.traceEnter(log, "listStreamsInScope", scopeName);
+        long traceId = LoggerHelpers.traceEnter(log, "listStreams", scopeName);
 
         try {
             final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
                     token -> this.retryConfig.runAsync(() -> {
-                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreamsInScope");
+                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreams");
                         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
-                        new ControllerClientTagger(client).withTag(traceId, "listStreamsInScope", scopeName)
+                        new ControllerClientTagger(client).withTag(traceId, "listStreams", scopeName)
                                                           .listStreamsInScope(StreamsInScopeRequest
                                                                   .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
                         return callback.getFuture()
@@ -250,7 +250,7 @@ public class ControllerImpl implements Controller {
                     }, this.executor);
             return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
         } finally {
-            LoggerHelpers.traceLeave(log, "listStreamsInScope", traceId);
+            LoggerHelpers.traceLeave(log, "listStreams", traceId);
         }
     }
 

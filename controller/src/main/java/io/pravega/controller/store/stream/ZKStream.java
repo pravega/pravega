@@ -54,7 +54,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String RETENTION_STREAM_CUT_RECORD_PATH = STREAM_PATH + "/retentionCuts";
     private static final String CURRENT_EPOCH_RECORD = STREAM_PATH + "/currentEpochRecord";
     private static final String EPOCH_RECORD = STREAM_PATH + "/epochRecords";
-    private static final String HISTORY_TIMESERES_CHUNK_PATH = STREAM_PATH + "/historyTimeSeriesChunks";
+    private static final String HISTORY_TIMESERIES_CHUNK_PATH = STREAM_PATH + "/historyTimeSeriesChunks";
     private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH = STREAM_PATH + "/segmentsSealedSizeMapShardPath";
     private static final String SEGMENT_SEALED_EPOCH_PATH = STREAM_PATH + "/segmentSealedEpochPath";
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
@@ -125,7 +125,7 @@ class ZKStream extends PersistentStreamBase {
         idPath = String.format(ID_PATH, scopeName, streamName);
         currentEpochRecordPath = String.format(CURRENT_EPOCH_RECORD, scopeName, streamName);
         epochRecordPathFormat = String.format(EPOCH_RECORD, scopeName, streamName) + "/%d";
-        historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERES_CHUNK_PATH, scopeName, streamName) + "/%d";
+        historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERIES_CHUNK_PATH, scopeName, streamName) + "/%d";
         segmentSealedEpochPathFormat = String.format(SEGMENT_SEALED_EPOCH_PATH, scopeName, streamName) + "/%d";
         segmentsSealedSizeMapShardPathFormat = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH, scopeName, streamName) + "/%d";
 
@@ -614,14 +614,14 @@ class ZKStream extends PersistentStreamBase {
         return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
     }
 
-    CompletableFuture<Void> createStreamIdIfAbsent(int id) {
+    CompletableFuture<Void> createStreamPositionNodeIfAbsent(int streamPosition) {
         byte[] b = new byte[Integer.BYTES];
-        BitConverter.writeInt(b, 0, id);
+        BitConverter.writeInt(b, 0, streamPosition);
 
         return Futures.toVoid(store.createZNodeIfNotExist(idPath, b));
     }
     
-    CompletableFuture<Integer> getStreamId() {
+    CompletableFuture<Integer> getStreamPosition() {
         return store.getData(idPath)
                 .thenApply(data -> BitConverter.readInt(data.getData(), 0));
     }
