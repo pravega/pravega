@@ -267,7 +267,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getSegmentId());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
                 AuthResourceRepresentation.ofAStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ),
+                AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.getURI(request),
                 responseObserver);
     }
@@ -295,7 +295,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofAStreamInScope(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ),
+                AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.isStreamCutValid(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getCutMap())
