@@ -130,7 +130,7 @@ public class PravegaTablesStoreHelper {
                 "get entry: key:" + key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
-                    log.debug("shivesh:: returning entry called for : {}/{} key : {} with version {}", scope, tableName, key, 
+                    log.debug("returning entry for : {}/{} key : {} with version {}", scope, tableName, key, 
                             first.getKey().getVersion().getSegmentVersion());
 
                     return new Data(first.getValue(), new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
@@ -235,6 +235,8 @@ public class PravegaTablesStoreHelper {
                 log.warn("Error in host store", cause);
                 toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
+                // TODO: shivesh -- remove this log
+                log.warn("unknown error", cause);
                 toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, errorMessage);
             }
 
