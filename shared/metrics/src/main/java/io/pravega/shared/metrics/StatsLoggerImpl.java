@@ -16,8 +16,9 @@ import java.util.function.Supplier;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Meter.Id;
 import lombok.Getter;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.concurrent.GuardedBy;
 
 import static io.pravega.shared.metrics.NullStatsLogger.NULLCOUNTER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLGAUGE;
@@ -87,6 +88,7 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     private class CounterImpl implements Counter {
+        @GuardedBy("this")
         private io.micrometer.core.instrument.Counter counter;
         private final io.micrometer.core.instrument.Tags tags;
         @Getter
@@ -111,21 +113,18 @@ public class StatsLoggerImpl implements StatsLogger {
             this.counter = metrics.counter(name, tags);
         }
 
-        @Synchronized
         @Override
-        public long get() {
+        public synchronized long get() {
             return (long) counter.count();
         }
 
-        @Synchronized
         @Override
-        public void inc() {
+        public synchronized void inc() {
             counter.increment();
         }
 
-        @Synchronized
         @Override
-        public void add(long delta) {
+        public synchronized void add(long delta) {
             counter.increment(delta);
         }
     }
