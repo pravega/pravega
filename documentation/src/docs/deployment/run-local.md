@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 -->
 # Running Pravega
 
-Running in local machine allows us to get started using Pravega very quickly. Most of the options uses the standalone mode which is suitable for most of the development and testing.
+Running in local machine allows us to get started using Pravega very quickly. Most of the options uses the standalone mode which is suitable for most of the development and testing purposes.
 
 The prerequisites for running in local machine is described below.
 
@@ -17,7 +17,7 @@ The prerequisites for running in local machine is described below.
 
 ### From Source
 
-First we need to have the Pravega source code checked out to download the dependencies:
+The Pravega source code needs to be checked out to download the dependencies:
 
 ```
 git clone https://github.com/pravega/pravega.git
@@ -39,7 +39,7 @@ Download the Pravega latest release from the [Github Releases](https://github.co
 tar xfvz pravega-0.1.0.tgz
 ```
 
-Run Pravega standalone:
+Run Pravega Standalone:
 
 ```
 pravega-0.1.0/bin/pravega-standalone
@@ -58,7 +58,8 @@ docker run -it -e HOST_IP=<ip> -p 9090:9090 -p 12345:12345 pravega/pravega:lates
 
 ## Docker Compose (Distributed Mode)
 
-Unlike other options for running locally, the docker compose option runs a full Pravega install in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
+Unlike other options for running locally, the docker compose option runs a full deployment of Pravega
+in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
 
 
 To use this we need to have Docker `1.12` or later versions.
@@ -69,7 +70,7 @@ Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master
 wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/docker-compose.yml
 ```
 
-We need to set the IP address of our local machine as the value of HOST_IP in the following command.
+We need to set the IP address of our local machine as the value of `HOST_IP` in the following command.
 ```
 HOST_IP=1.2.3.4 docker-compose up
 ```
@@ -122,7 +123,7 @@ Caused by: sun.security.validator.ValidatorException: PKIX path building failed:
     `-v` is to avoid hostname verification, since we are using the provided certificate
     which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
 
-5.  Run [Reader/Writer](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) Pravega sample application against the standalone server to verify it is responding appropriately to `Read/Write` requests. To do so, in the `ClientConfig`, set the following:
+5.  Run Reader/Writer [Pravega sample application](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) against the standalone server to verify it is responding appropriately to `Read/Write` requests. To do so, in the `ClientConfig`, set the following:
 
     ```java
     ClientConfig clientConfig = ClientConfig.builder()
