@@ -19,6 +19,7 @@ PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
+CONTAINER_INITIALIZED="/container_initialized"
 
 export BOOKIE_PORT=${BOOKIE_PORT}
 export BK_zkServers=${BK_zkServers}
@@ -39,13 +40,24 @@ export BK_tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd
 echo "wait for zookeeper"
 until zk-shell --run-once "ls /" ${BK_zkServers}; do sleep 5; done
 
-echo "delete bookie cookie"
-# We need to update the metadata endpoint and Bookie ID before attempting delete the cookie
+
+# We need to update the metadata endpoint and Bookie ID before attempting to delete the cookie
 sed -i "s|.*metadataServiceUri=.*\$|metadataServiceUri=${BK_metadataServiceUri}|" /opt/bookkeeper/conf/bk_server.conf
 if [ ! -z "$BK_useHostNameAsBookieID" ]; then
   sed -i "s|.*useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
 fi
-/opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
+
+if [ ! -e $CONTAINER_INITIALIZED ]; then
+  # This is the first time the container is started, let's format the bookie
+  # to delete any preexistent data and metadata that can cause conflicts.
+  echo "format bookie data and metadata"
+  /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
+  touch $CONTAINER_INITIALIZED
+else
+  # Rhe container has been restarted and there is no need to format
+  # the bookie.
+  echo "the container has been restarted, not formatting the bookie"
+fi
 
 echo "start bookie"
 set +e
