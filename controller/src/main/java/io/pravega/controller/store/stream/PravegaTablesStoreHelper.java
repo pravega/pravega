@@ -88,6 +88,7 @@ public class PravegaTablesStoreHelper {
                 })
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
+                    log.debug("entry for key {} added to table {}/{} with version {}", key, scope, tableName, first.getSegmentVersion());
                     return new Version.LongVersion(first.getSegmentVersion());
                 });
     }
@@ -108,6 +109,7 @@ public class PravegaTablesStoreHelper {
                 "updateEntry: key:" + key + " table: " + scope + "/" + tableName)
                 .thenApply(x -> {
                     KeyVersion first = x.get(0);
+                    log.debug("entry for key {} updated to table {}/{} with new version {}", key, scope, tableName, first.getSegmentVersion());
                     return new Version.LongVersion(first.getSegmentVersion());
                 });
     }
@@ -127,13 +129,15 @@ public class PravegaTablesStoreHelper {
         List<TableKey<byte[]>> keys = new ArrayList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
         return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
-                "remove entry: key:" + key + " table: " + scope + "/" + tableName);
+                "remove entry: key:" + key + " table: " + scope + "/" + tableName)
+                .thenAccept(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName));
     }
 
-    public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> key) {
-        List<TableKey<byte[]>> keys = key.stream().map(x -> new TableKeyImpl<>(x.getBytes(), null)).collect(Collectors.toList());
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
-                "remove entries: keys:" + keys + " table: " + scope + "/" + tableName);
+    public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> keys) {
+        List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(), null)).collect(Collectors.toList());
+        return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, 0L),
+                "remove entries: keys:" + keys + " table: " + scope + "/" + tableName)
+                .thenAccept(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName));
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {
