@@ -113,7 +113,7 @@ public interface StreamManager extends AutoCloseable {
      * @param scopeName The name of the scope for which to list streams in.
      * @return Iterator of Stream to iterator over all streams in scope. 
      */
-    Iterator<Stream> listStreamsInScope(String scopeName);
+    Iterator<Stream> listStreams(String scopeName);
 
     /**
      * Deletes an existing scope. The scope must contain no

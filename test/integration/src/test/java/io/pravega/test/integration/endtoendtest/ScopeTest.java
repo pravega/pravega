@@ -108,7 +108,7 @@ public class ScopeTest {
 
         StreamManager manager = new StreamManagerImpl(controller, connectionFactory);
 
-        Iterator<Stream> iterator = manager.listStreamsInScope(scope);
+        Iterator<Stream> iterator = manager.listStreams(scope);
         assertTrue(iterator.hasNext());
         Stream next = iterator.next();
         foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
@@ -125,7 +125,7 @@ public class ScopeTest {
 
         assertTrue(foundCount.entrySet().stream().allMatch(x -> x.getValue() == 1));
 
-        AsyncIterator<Stream> asyncIterator = controller.listStreamsInScope(scope);
+        AsyncIterator<Stream> asyncIterator = controller.listStreams(scope);
         next = asyncIterator.getNext().join();
         foundCount.computeIfPresent(next.getStreamName(), (x, y) -> ++y);
 

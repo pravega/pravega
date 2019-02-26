@@ -114,10 +114,10 @@ public class StreamManagerImpl implements StreamManager {
     }
 
     @Override
-    public Iterator<Stream> listStreamsInScope(String scopeName) {
+    public Iterator<Stream> listStreams(String scopeName) {
         NameUtils.validateUserScopeName(scopeName);
         log.info("Listing streams in scope: {}", scopeName);
-        AsyncIterator<Stream> asyncIterator = controller.listStreamsInScope(scopeName);
+        AsyncIterator<Stream> asyncIterator = controller.listStreams(scopeName);
         return new BlockingAsyncIterator<>(asyncIterator);
     }
 
