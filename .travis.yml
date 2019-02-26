@@ -23,7 +23,8 @@ jobs:
     - stage: build
       if: type IN (push, pull_request)
       install: ./gradlew assemble
-      script: ./gradlew check
+      script: ./gradlew -Dlog.level=DEBUG :controller:test --tests "io.pravega.controller.server.eventProcessor.PravegaTablesScaleRequestHandlerTest.testConcurrentDistinctManualScaleRequest"
+
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
 
