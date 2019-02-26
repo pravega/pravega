@@ -15,10 +15,10 @@ import com.google.common.cache.LoadingCache;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 public class Cache {
-
     @FunctionalInterface
     public interface Loader {
         CompletableFuture<Data> get(final String key);
@@ -34,18 +34,16 @@ public class Cache {
                     @ParametersAreNonnullByDefault
                     @Override
                     public CompletableFuture<Data> load(final String key) {
-                        CompletableFuture<Data> result = loader.get(key);
-                        result.exceptionally(ex -> {
-                            invalidateCache(key);
-                            return null;
-                        });
-                        return result;
+                        return loader.get(key);
                     }
                 });
     }
 
     public CompletableFuture<Data> getCachedData(final String key) {
-        return cache.getUnchecked(key);
+        return cache.getUnchecked(key).exceptionally(ex -> {
+            invalidateCache(key);
+            throw new CompletionException(ex);
+        });
     }
 
     public void invalidateCache(final String key) {

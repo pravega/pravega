@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -31,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -77,6 +79,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     private final Cache cache;
     private final Supplier<Integer> currentBatchSupplier;
     private final Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier;
+    private final AtomicReference<String> streamsInScopeTableName;
     
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, 
@@ -103,11 +106,23 @@ class PravegaTablesStream extends PersistentStreamBase {
         this.metadataTableName = String.format(METADATA_TABLE, streamName);
         this.epochsWithTransactionsTableName = String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, streamName);
         this.streamsInScopeTableNameSupplier = streamsInScopeTableNameSupplier;
+        this.streamsInScopeTableName = new AtomicReference<>(null);
     }
 
     CompletableFuture<String> getId() {
-        return streamsInScopeTableNameSupplier.get()
-                                       .thenCompose(table -> cache.getCachedData(getCacheEntryKey(table, getName()))
+        CompletableFuture<String> tableNameFuture;
+        String scopeTable = streamsInScopeTableName.get();
+        
+        if (!Strings.isNullOrEmpty(scopeTable)) {
+            tableNameFuture = CompletableFuture.completedFuture(scopeTable);
+        } else {
+            tableNameFuture = streamsInScopeTableNameSupplier.get()
+                    .thenApply(table -> {
+                        streamsInScopeTableName.set(table);
+                        return table;
+                    });
+        }
+        return tableNameFuture.thenCompose(table -> cache.getCachedData(getCacheEntryKey(table, getName()))
                                                                   .thenApply(data -> new String(data.getData())));
     }
 
