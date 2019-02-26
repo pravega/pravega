@@ -32,7 +32,7 @@ As a next step compile Pravega and start the standalone deployment.
 
 ### From Installation Package
 
-Download the Pravega latest release from the [github releases page](https://github.com/pravega/pravega/releases). The tarball or zip files can be used as they are identical. Instructions are provided for the tar files, but the same can be used for the zip file also.
+Download the Pravega latest release from the [Github Releases](https://github.com/pravega/pravega/releases). The tarball or zip files can be used as they are identical. Instructions are provided for the tar files, but the same can be used for the zip file also.
 
 
 ```
@@ -77,9 +77,18 @@ Clients can then connect to the controller at `${HOST_IP}:9090`.
 
 ## Configuring standalone
 
-The configuration properties for standalone can be specified in `config/standalone-config.properties`.
+Configure standalone server to communicate using SSL/TLS. To do so, edit the TLS-related properties in `standalone-config.properties` as shown below:
 
-These properties include ports for zookeeper, segment store and controller. They also contain other configurations related to security.
+  ```java
+  singlenode.enableTls=true
+  singlenode.keyFile=../config/key.pem
+  singlenode.certFile=../config/cert.pem
+  singlenode.keyStoreJKS=../config/standalone.keystore.jks
+  singlenode.keyStoreJKSPasswordFile=../config/standalone.keystore.jks.passwd
+  singlenode.trustStoreJKS=../config/standalone.truststore.jks
+
+  ```
+These properties include ports for Zookeeper, Segment Store and Controller. They also contain other configurations related to security.
 
 ## Running standalone with encryption and authentication enabled
 
@@ -87,5 +96,42 @@ The configurations, `singlenode.enableTls` and `singlenode.enableauth` can be us
 
 In case `enableTls` is set to true, the default certificates provided in the `conf` directory are used for setting up TLS. These can be overridden by specifying in the properties file.
 
+1. Ensure that the server's certificate is trusted. If you run `/gradlew startStandalone` without it, you'll encounter the following error:
 
-Clients can then connect to the controller at `${HOST_IP}:9090`.
+```java
+Caused by: sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
+        at sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:397)
+        at sun.security.validator.PKIXValidator.engineValidate(PKIXValidator.java:302)
+        at sun.security.validator.Validator.validate(Validator.java:260)
+        at sun.security.ssl.X509TrustManagerImpl.validate(X509TrustManager
+```
+2. To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file "cert.pem":
+
+ - `cd /path/to/pravega/config`
+ - Convert the 'cert.pem' file to `DER` format: `openssl x509 -in cert.pem -inform pem -out cert.der -outform der`
+ - Import the certificate into the local JVM's trust store:
+  `sudo keytool -importcert -alias local-CA -keystore /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/cacerts  -file cert.der` (using the default password 'changeit')
+
+3. Run Pravega standalone mode using command `./gradlew startStandalone`.
+
+4. Verify that controller REST API is returning response over SSL/TLS:
+
+    ```java
+     curl -v -k https://104.215.152.115:9091/v1/scopes
+    ```
+    `-v` is to avoid hostname verification, since we are using the provided certificate
+    which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
+
+5.  Run [Reader/Writer](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) Pravega sample application against the standalone server to verify it is responding appropriately to `Read/Write` requests. To do so, in the `ClientConfig`, set the following:
+
+    ```java
+    ClientConfig clientConfig = ClientConfig.builder()
+                 .controllerURI(...)
+                 .trustStore("/path/to/cert.pem")
+                 .validateHostName(false)
+                 .build();
+    ```
+    Everything else should be the same as other reader/writer apps.
+
+
+6. Clients can then connect to the controller at `${HOST_IP}:9090`.
