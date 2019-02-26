@@ -575,15 +575,15 @@ class PravegaTablesStream extends PersistentStreamBase {
     private CompletableFuture<Version> createEpochTxnTableAndEntries(String scope, String epochTable, int epoch, 
                                                                      UUID txnId, byte[] txnRecord) {
         return getEpochsWithTransactionsTable()
-                .thenCompose(epochWithTxnTable -> {
-                    return storeHelper.addNewEntryIfAbsent(scope, epochWithTxnTable, "" + epoch, new byte[0])
-                               .thenCompose(added -> storeHelper.createTable(scope, epochTable)
-                                .thenAccept(v -> log.debug("transactions in epoch {}/{} table created ", scope, epochTable)))
-                                      // Note: the epoch table could still have been deleted as we attempt to create transaction in it. 
-                                      // We want to create the table again but segment store does not allow us to recreate 
-                                      // the table with same name. So we are not deleting the epoch table when they are empty.  
-                               .thenCompose(tableCreated -> createNewTransaction(epoch, txnId, txnRecord));
-                });    
+                .thenCompose(epochWithTxnTable ->
+                        storeHelper.addNewEntryIfAbsent(scope, epochWithTxnTable, "" + epoch, new byte[0])
+                                   .thenCompose(added ->
+                                           storeHelper.createTable(scope, epochTable)
+                                                      .thenAccept(v -> log.debug("transactions in epoch {}/{} table created ", scope, epochTable)))
+                                   // Note: the epoch table could still have been deleted as we attempt to create transaction in it. 
+                                   // We want to create the table again but segment store does not allow us to recreate 
+                                   // the table with same name. So we are not deleting the epoch table when they are empty.  
+                                   .thenCompose(tableCreated -> createNewTransaction(epoch, txnId, txnRecord)));    
     }
     
     @Override
