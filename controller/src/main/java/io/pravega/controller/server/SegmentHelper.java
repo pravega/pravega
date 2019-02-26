@@ -963,7 +963,7 @@ public class SegmentHelper {
                                                                              TableKey<byte[]> tableKey =
                                                                                      new TableKeyImpl<>(getArray(k.getData()),
                                                                                                         new KeyVersionImpl(k.getKeyVersion()));
-                                                                             //TODO: shivesh: @Sandeep hack added to return KeyDoesNotExist if key version is Long.Min
+                                                                             // Hack added to return KeyDoesNotExist if key version is Long.Min
                                                                              allKeysFound.compareAndSet(true, k.getKeyVersion() != WireCommands.TableKey.NO_VERSION);
 
                                                                              return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
@@ -971,7 +971,7 @@ public class SegmentHelper {
                 if (allKeysFound.get()) {
                     result.complete(tableEntries);
                 } else {
-                    //TODO: shivesh: @Sandeep hack added to return KeyDoesNotExist if key version is Long.Min
+                    // Hack added to return KeyDoesNotExist if key version is Long.Min
                     result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
                 }
             }

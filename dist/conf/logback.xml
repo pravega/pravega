@@ -36,15 +36,8 @@ You may obtain a copy of the License at
         </encoder>
     </appender>
 
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <charset>UTF-8</charset>
-            <Pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n</Pattern>
-        </encoder>
-    </appender>
-    <!--TODO: shivesh: remove this-->
-    <root level="DEBUG">
-        <appender-ref ref="STDOUT"/>
+    <root level="${log.level:-INFO}">
+        <appender-ref ref="consoleAppender"/>
+        <appender-ref ref="FILE"/>
     </root>
-
 </configuration>
