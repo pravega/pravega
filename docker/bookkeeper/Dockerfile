@@ -32,6 +32,9 @@ RUN set -x \
 WORKDIR /opt/bookkeeper
 
 COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
+# For backwards compatibility with older operator versions
+COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
+
 RUN chmod +x -R /opt/bookkeeper/scripts/
 
 ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/scripts/pravega_entrypoint.sh" ]
