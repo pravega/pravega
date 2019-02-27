@@ -28,7 +28,6 @@ public class ZkInt96Counter {
      * will use this range for transaction id generation as it will be unique assigned to current controller.
      * If controller crashes, all unused values go to waste. In worst case we may lose COUNTER_RANGE worth of values everytime
      * a controller crashes.
-     * Since we use a 96 bit number for our counter, so
      */
     @VisibleForTesting
     static final int COUNTER_RANGE = 10000;
