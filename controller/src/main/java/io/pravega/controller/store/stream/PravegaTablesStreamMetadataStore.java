@@ -36,7 +36,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 
 /**
- * ZK stream metadata store.
+ * Pravega Tables stream metadata store.
  */
 @Slf4j
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
