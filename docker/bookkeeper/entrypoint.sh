@@ -54,7 +54,7 @@ if [ ! -e $CONTAINER_INITIALIZED ]; then
   /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
   touch $CONTAINER_INITIALIZED
 else
-  # Rhe container has been restarted and there is no need to format
+  # The container has been restarted and there is no need to format
   # the bookie.
   echo "the container has been restarted, not formatting the bookie"
 fi
