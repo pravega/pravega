@@ -28,13 +28,12 @@ import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.util.RetryHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.CharSet;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -100,9 +99,8 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
         log.debug("addNewEntry called for : {}/{} key : {}", scope, tableName, key);
 
-        List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
-        TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value);
-        entries.add(entry);
+        List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
+                new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value));
         String errorMessage = String.format("addNewEntry: key: %s table: %s/%s", key, scope, tableName);
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
                 errorMessage)
@@ -131,11 +129,11 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, Data value) {
         log.debug("updateEntry entry called for : {}/{} key : {} version {}", scope, tableName, key, value.getVersion().asLongVersion().getLongValue());
 
-        List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
         KeyVersionImpl version = value.getVersion() == null ? null :
                 new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
-        TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value.getData());
-        entries.add(entry);
+
+        List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
+                new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value.getData()));
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
                 String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName))
                 .thenApplyAsync(x -> {
@@ -147,8 +145,7 @@ public class PravegaTablesStoreHelper {
 
     public CompletableFuture<Data> getEntry(String scope, String tableName, String key) {
         log.debug("get entry called for : {}/{} key : {}", scope, tableName, key);
-        List<TableKey<byte[]>> keys = new ArrayList<>();
-        keys.add(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
+        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         CompletableFuture<Data> result = new CompletableFuture<>();
         withRetries(() -> segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
                 String.format("get entry: key: %s table: %s/%s", key, scope, tableName))
@@ -172,8 +169,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> removeEntry(String scope, String tableName, String key) {
         log.debug("remove entry called for : {}/{} key : {}", scope, tableName, key);
 
-        List<TableKey<byte[]>> keys = new ArrayList<>();
-        keys.add(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
+        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
                 String.format("remove entry: key: %s table: %s/%s", key, scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
