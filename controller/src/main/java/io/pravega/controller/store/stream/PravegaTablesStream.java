@@ -113,9 +113,9 @@ class PravegaTablesStream extends PersistentStreamBase {
             return streamsInScopeTableNameSupplier.get()
                     .thenCompose(streamsInScopeTable -> cache.getCachedData(
                             getCacheEntryKey(streamsInScopeTable, getName()))
-                                               .thenApply(data -> {
+                                               .thenComposeAsync(data -> {
                                                    idRef.compareAndSet(null, new String(data.getData()));
-                                                   return idRef.get();
+                                                   return getId();
                                                }));
         }
     }
@@ -801,9 +801,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public void refresh() {
         String id = idRef.get();
-        if (Strings.isNullOrEmpty(id)) {
-            cache.invalidateAll();
-        } else {
+        if (!Strings.isNullOrEmpty(id)) {
+            idRef.set(null);
             // refresh all mutable records
             cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), STATE_KEY));
             cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), CONFIGURATION_KEY));

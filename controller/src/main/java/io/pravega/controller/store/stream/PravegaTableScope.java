@@ -74,10 +74,10 @@ public class PravegaTableScope implements Scope {
         String name = streamsInScopeRef.get();
         if (Strings.isNullOrEmpty(name)) {
             return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
-                              .thenApply(entry -> {
+                              .thenCompose(entry -> {
                                   UUID id = UUID.fromString(new String(entry.getData()));
                                   streamsInScopeRef.compareAndSet(null, streamsInScopeTable + id);
-                                  return streamsInScopeRef.get();
+                                  return getStreamsInScopeTableName();
                               });
         } else {
             return CompletableFuture.completedFuture(name);
@@ -121,6 +121,7 @@ public class PravegaTableScope implements Scope {
 
     @Override
     public void refresh() {
+        streamsInScopeRef.set(null);
     }
 
     CompletableFuture<Void> addStreamToScope(String stream) {
