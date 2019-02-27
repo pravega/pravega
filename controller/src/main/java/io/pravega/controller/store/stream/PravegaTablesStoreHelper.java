@@ -28,8 +28,10 @@ import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.util.RetryHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.CharSet;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -99,7 +101,7 @@ public class PravegaTablesStoreHelper {
         log.debug("addNewEntry called for : {}/{} key : {}", scope, tableName, key);
 
         List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
-        TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
+        TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
         String errorMessage = String.format("addNewEntry: key: %s table: %s/%s", key, scope, tableName);
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
@@ -132,7 +134,7 @@ public class PravegaTablesStoreHelper {
         List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
         KeyVersionImpl version = value.getVersion() == null ? null :
                 new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
-        TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), version), value.getData());
+        TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value.getData());
         entries.add(entry);
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
                 String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName))
@@ -146,7 +148,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Data> getEntry(String scope, String tableName, String key) {
         log.debug("get entry called for : {}/{} key : {}", scope, tableName, key);
         List<TableKey<byte[]>> keys = new ArrayList<>();
-        keys.add(new TableKeyImpl<>(key.getBytes(), null));
+        keys.add(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         CompletableFuture<Data> result = new CompletableFuture<>();
         withRetries(() -> segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
                 String.format("get entry: key: %s table: %s/%s", key, scope, tableName))
@@ -171,7 +173,7 @@ public class PravegaTablesStoreHelper {
         log.debug("remove entry called for : {}/{} key : {}", scope, tableName, key);
 
         List<TableKey<byte[]>> keys = new ArrayList<>();
-        keys.add(new TableKeyImpl<>(key.getBytes(), null));
+        keys.add(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
                 String.format("remove entry: key: %s table: %s/%s", key, scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
@@ -180,7 +182,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> keys) {
         log.debug("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
 
-        List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(), null)).collect(Collectors.toList());
+        List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(Charsets.UTF_8), null)).collect(Collectors.toList());
         return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, 0L),
                 String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
@@ -193,7 +195,8 @@ public class PravegaTablesStoreHelper {
                 segmentHelper.readTableKeys(scope, tableName, limit, IteratorState.fromBytes(continuationToken), 0L),
                         String.format("get keys paginated for table: %s/%s", scope, tableName))
                              .thenApplyAsync(result -> {
-                                 List<String> items = result.getItems().stream().map(x -> new String(x.getKey())).collect(Collectors.toList());
+                                 List<String> items = result.getItems().stream().map(x -> new String(x.getKey(), Charsets.UTF_8))
+                                                            .collect(Collectors.toList());
                                  log.debug("get keys paginated on table {}/{} returned items {}", scope, tableName, items);
                                  return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
                              }, executor);
@@ -208,7 +211,7 @@ public class PravegaTablesStoreHelper {
                 String.format("get entries paginated for table: %s/%s", scope, tableName))
                 .thenApplyAsync(result -> {
                     List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
-                        String key = new String(x.getKey().getKey());
+                        String key = new String(x.getKey().getKey(), Charsets.UTF_8);
                         Data value = new Data(x.getValue(), new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
                         return new ImmutablePair<>(key, value);
                     }).collect(Collectors.toList());
