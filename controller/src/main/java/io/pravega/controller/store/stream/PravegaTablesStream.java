@@ -163,11 +163,9 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Void> deleteStream() {
         // delete all tables for this stream even if they are not empty!
-        // 1. read epoch table 
-        // delete all epoch txn specific tables
+        // read epoch table --> delete all epoch txn specific tables
         // delete epoch txn base table
         // delete metadata table
-        
         // delete stream in scope 
         String scope = getScope();
         List<CompletableFuture<Void>> futures = new ArrayList<>();
