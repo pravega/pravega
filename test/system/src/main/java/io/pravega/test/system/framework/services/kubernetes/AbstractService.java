@@ -131,8 +131,8 @@ public abstract class AbstractService implements Service {
                 .put("curator-default-session-timeout", "10000")
                 .put("bookkeeper.bkAckQuorumSize", "3")
                 // Controller properties.
-                .put("MAX_LEASE_VALUE", "60000")
-                .put("RETENTION_FREQUENCY_MINUTES", "2")
+                .put("controller.transaction.maxLeaseValue", "60000")
+                .put("controller.retention.frequencyMinutes", "2")
                 .put("log.level", "DEBUG")
                 .build();
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
