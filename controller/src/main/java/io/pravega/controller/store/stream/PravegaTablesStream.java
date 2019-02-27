@@ -111,12 +111,11 @@ class PravegaTablesStream extends PersistentStreamBase {
             return CompletableFuture.completedFuture(id);
         } else {
             return streamsInScopeTableNameSupplier.get()
-                    .thenCompose(streamsInScopeTable -> cache.getCachedData(
-                            getCacheEntryKey(streamsInScopeTable, getName()))
+                    .thenCompose(streamsInScopeTable -> storeHelper.getEntry(getScope(), streamsInScopeTable, getName()))
                                                .thenComposeAsync(data -> {
                                                    idRef.compareAndSet(null, new String(data.getData()));
                                                    return getId();
-                                               }));
+                                               });
         }
     }
 
