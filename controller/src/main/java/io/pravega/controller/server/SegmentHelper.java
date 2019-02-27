@@ -617,7 +617,7 @@ public class SegmentHelper {
                                                          final String stream,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final String qualifiedStreamSegmentName = getScopedStreamName(scope, stream);
+        final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -685,7 +685,7 @@ public class SegmentHelper {
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -758,7 +758,7 @@ public class SegmentHelper {
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -845,7 +845,7 @@ public class SegmentHelper {
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -928,7 +928,7 @@ public class SegmentHelper {
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -1022,7 +1022,7 @@ public class SegmentHelper {
                                                                                     final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
@@ -1102,7 +1102,7 @@ public class SegmentHelper {
                                                                                final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;

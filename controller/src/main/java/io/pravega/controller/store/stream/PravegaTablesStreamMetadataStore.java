@@ -62,7 +62,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
-        super(new PravegaTablesHostIndex(segmentHelper, "hostTxnIndex", executor));
+        super(new PravegaTablesHostIndex(segmentHelper, "hostTxnIndex", new PravegaTablesStoreHelper(segmentHelper, executor)));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
@@ -102,7 +102,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
-        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor,
+        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, 
                 () -> ((PravegaTableScope) getScope(scope)).getStreamsInScopeTableName());
     }
 
@@ -149,7 +149,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     
     @Override
     PravegaTableScope newScope(final String scopeName) {
-        return new PravegaTableScope(scopeName, storeHelper, executor);
+        return new PravegaTableScope(scopeName, storeHelper);
     }
 
     @Override

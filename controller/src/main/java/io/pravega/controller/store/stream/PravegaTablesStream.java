@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -69,8 +68,6 @@ class PravegaTablesStream extends PersistentStreamBase {
     private static final String STREAM_KEY_PREFIX = "Key" + SEPARATOR + "%s" + SEPARATOR + "%s" + SEPARATOR; // scoped stream name
     private static final String COMPLETED_TRANSACTIONS_KEY_FORMAT = STREAM_KEY_PREFIX + "/%s";
 
-    private static final String CACHE_KEY_DELIMITER = SEPARATOR + "cacheKey" + SEPARATOR;
-    
     private final PravegaTablesStoreHelper storeHelper;
     
     private final Supplier<Integer> currentBatchSupplier;
@@ -79,14 +76,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, 
-                        Supplier<Integer> currentBatchSupplier, Executor executor, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
+                        Supplier<Integer> currentBatchSupplier, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
         this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, 
-                SealedSegmentsMapShard.SHARD_SIZE, executor, streamsInScopeTableNameSupplier);
+                SealedSegmentsMapShard.SHARD_SIZE, streamsInScopeTableNameSupplier);
     }
     
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, 
-                        Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize, Executor executor, 
+                        Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize, 
                         Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
         super(scopeName, streamName, chunkSize, shardSize);
         this.storeHelper = storeHelper;
