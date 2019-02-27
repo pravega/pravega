@@ -60,6 +60,7 @@ import java.util.stream.IntStream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.toMap;
@@ -1448,12 +1449,14 @@ public abstract class PersistentStreamBase implements Stream {
             int shard = x.getKey();
             List<Long> segments = x.getValue();
 
-            return createSealedSegmentSizeMapShardIfAbsent(shard).thenCompose(v -> getSealedSegmentSizesMapShardData(shard)
-                    .thenApply(y -> {
-                        SealedSegmentsMapShard mapShard = SealedSegmentsMapShard.fromBytes(y.getData());
+            return Futures.exceptionallyComposeExpecting(getSealedSegmentSizesMapShardData(shard), 
+                    DATA_NOT_FOUND_PREDICATE, () -> createSealedSegmentSizeMapShardIfAbsent(shard)
+                            .thenCompose(v -> getSealedSegmentSizesMapShardData(shard))) 
+                    .thenCompose(mapShardData -> {
+                        SealedSegmentsMapShard mapShard = SealedSegmentsMapShard.fromBytes(mapShardData.getData());
                         segments.forEach(z -> mapShard.addSealedSegmentSize(z, sealedSegmentSizes.get(z)));
-                        return updateSealedSegmentSizesMapShardData(shard, new Data(mapShard.toBytes(), y.getVersion()));
-                    }));
+                        return updateSealedSegmentSizesMapShardData(shard, new Data(mapShard.toBytes(), mapShardData.getVersion()));
+                    });
         }).collect(Collectors.toList()));
     }
 

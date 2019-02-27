@@ -33,7 +33,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -42,8 +41,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
     public static final String SEPARATOR = ".#.";
-    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
-    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
     static final String SCOPES_TABLE = "Table" + SEPARATOR + "scopes";
     static final String DELETED_STREAMS_TABLE = "Table" + SEPARATOR + "deletedStreams";
     static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "Table" + SEPARATOR + "completedTransactionsBatches";

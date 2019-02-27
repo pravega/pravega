@@ -121,27 +121,27 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     private CompletableFuture<String> getMetadataTable() {
-        return getId().thenApply(this::getMetadataTable);
+        return getId().thenApply(this::getMetadataTableName);
     }
 
-    private String getMetadataTable(String id) {
+    private String getMetadataTableName(String id) {
         return String.format(METADATA_TABLE, getName(), id);
     }
 
     private CompletableFuture<String> getEpochsWithTransactionsTable() {
-        return getId().thenApply(this::getEpochsWithTransactionsTable);
+        return getId().thenApply(this::getEpochsWithTransactionsTableName);
     }
 
-    private String getEpochsWithTransactionsTable(String id) {
+    private String getEpochsWithTransactionsTableName(String id) {
         return String.format(EPOCHS_WITH_TRANSACTIONS_TABLE, getName(), id);
     }
 
     private CompletableFuture<String> getEpochTransactionsTable(int epoch) {
 
-        return getId().thenApply(id -> getEpochTransactionsTable(epoch, id));
+        return getId().thenApply(id -> getEpochTransactionsTableName(epoch, id));
     }
 
-    private String getEpochTransactionsTable(int epoch, String id) {
+    private String getEpochTransactionsTableName(int epoch, String id) {
         return String.format(EPOCH_TRANSACTIONS_TABLE_FORMAT, getName(), id, epoch);
     }
 
@@ -182,10 +182,10 @@ class PravegaTablesStream extends PersistentStreamBase {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         return getId()
                 .thenCompose(id -> {
-                    String epochWithTxnTable = getEpochsWithTransactionsTable(id);
+                    String epochWithTxnTable = getEpochsWithTransactionsTableName(id);
                     return Futures.exceptionallyExpecting(storeHelper.getAllKeys(getScope(), epochWithTxnTable)
                                                                          .collectRemaining(x -> {
-                                  String epochTableName = getEpochTransactionsTable(Integer.parseInt(x), id);
+                                  String epochTableName = getEpochTransactionsTableName(Integer.parseInt(x), id);
                                   futures.add(Futures.exceptionallyExpecting(storeHelper.deleteTable(scope, epochTableName, false), 
                                           DATA_NOT_FOUND_PREDICATE, null));
                                   return true;
@@ -194,7 +194,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                                       .thenCompose(x -> Futures.exceptionallyExpecting(
                                       storeHelper.deleteTable(scope, epochWithTxnTable, false), 
                                       DATA_NOT_FOUND_PREDICATE, null))
-                                      .thenCompose(deleted -> storeHelper.deleteTable(scope, getMetadataTable(id), false));
+                                      .thenCompose(deleted -> storeHelper.deleteTable(scope, getMetadataTableName(id), false));
                 })
                 .thenAccept(v -> cache.invalidateAll());
     }
@@ -202,8 +202,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Void> createStreamMetadata() {
         return getId().thenCompose(id -> {
-            String metadataTable = getMetadataTable(id);
-            String epochWithTxnTable = getEpochsWithTransactionsTable(id);
+            String metadataTable = getMetadataTableName(id);
+            String epochWithTxnTable = getEpochsWithTransactionsTableName(id);
             return CompletableFuture.allOf(storeHelper.createTable(getScope(), metadataTable),
                     storeHelper.createTable(getScope(), epochWithTxnTable))
                                     .thenAccept(v -> log.debug("stream {}/{} metadata tables {} & {} created", getScope(), getName(), metadataTable,
@@ -623,7 +623,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(activeEpoch -> {
                     if (epoch < activeEpoch.getReferenceEpoch()) {
                         return Futures.exceptionallyExpecting(
-                                storeHelper.deleteTable(getScope(), getEpochTransactionsTable(epoch, id), true),
+                                storeHelper.deleteTable(getScope(), getEpochTransactionsTableName(epoch, id), true),
                                    DATA_NOT_EMPTY_PREDICATE, null);
                     } else {
                         return CompletableFuture.completedFuture(null);
@@ -800,8 +800,19 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public void refresh() {
-        // refresh all mutable records
-        cache.invalidateAll();
+        String id = idRef.get();
+        if (Strings.isNullOrEmpty(id)) {
+            cache.invalidateAll();
+        } else {
+            // refresh all mutable records
+            cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), STATE_KEY));
+            cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), CONFIGURATION_KEY));
+            cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), TRUNCATION_KEY));
+            cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), EPOCH_TRANSITION_KEY));
+            cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), COMMITTING_TRANSACTIONS_RECORD_KEY));
+            cache.invalidateCache(getCacheEntryKey(getMetadataTableName(id), CURRENT_EPOCH_KEY));
+
+        }
     }
     // endregion
 

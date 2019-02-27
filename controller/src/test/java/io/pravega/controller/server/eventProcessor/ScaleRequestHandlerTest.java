@@ -76,7 +76,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -567,9 +566,9 @@ public abstract class ScaleRequestHandlerTest {
         setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
         
         // the processing will stall at start scale
-        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.runAsync(() -> {}, executor).thenComposeAsync(v -> scaleRequestHandler1.execute(event), executor);
         signal.join();
-
+        
         // let this run to completion. this should succeed 
         if (!expectFailureOnSecondJob) {
             scaleRequestHandler2.execute(event).join();
@@ -580,7 +579,7 @@ public abstract class ScaleRequestHandlerTest {
         // verify that scale is complete
         // now complete wait latch.
         wait.complete(null);
-
+        
         AssertExtensions.assertSuppliedFutureThrows(
                 "first scale should fail", () -> future1, firstExceptionPredicate);
         verify(streamStore1Spied, times(invocationCount.get("startScale"))).startScale(anyString(), anyString(), anyBoolean(), any(), any(), any(), any());
@@ -729,7 +728,7 @@ public abstract class ScaleRequestHandlerTest {
 
         setMockLatch(streamStore1, streamStore1Spied, funcToWaitOn, signal, wait);
 
-        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.runAsync(() -> {}, executor).thenComposeAsync(v -> scaleRequestHandler1.execute(event), executor);
         signal.join();
 
         // let this run to completion. this should succeed 
@@ -744,7 +743,7 @@ public abstract class ScaleRequestHandlerTest {
         }
 
         scaleRequestHandler2.execute(event2).join();
-
+        
         // now complete wait latch.
         wait.complete(null);
 

@@ -597,9 +597,8 @@ class ZKStream extends PersistentStreamBase {
         cache.invalidateCache(statePath);
         cache.invalidateCache(configurationPath);
         cache.invalidateCache(truncationPath);
-        cache.invalidateCache(epochRecordPathFormat);
+        cache.invalidateCache(epochTransitionPath);
         cache.invalidateCache(committingTxnsPath);
-        cache.invalidateCache(currentEpochRecordPath);
         cache.invalidateCache(currentEpochRecordPath);
     }
     // endregion

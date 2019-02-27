@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Strings;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
@@ -35,11 +36,13 @@ public class PravegaTableScope implements Scope {
     private final String streamsInScopeTable;
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
+    private final AtomicReference<String> streamsInScopeRef;
     
     PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper, Executor executor) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName);
+        this.streamsInScopeRef = new AtomicReference<>(null);
     }
 
     @Override
@@ -68,11 +71,17 @@ public class PravegaTableScope implements Scope {
     }
 
     CompletableFuture<String> getStreamsInScopeTableName() {
-        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
-                .thenApply(entry -> {
-                    UUID id = UUID.fromString(new String(entry.getData()));
-                    return streamsInScopeTable + id;
-                });
+        String name = streamsInScopeRef.get();
+        if (Strings.isNullOrEmpty(name)) {
+            return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
+                              .thenApply(entry -> {
+                                  UUID id = UUID.fromString(new String(entry.getData()));
+                                  streamsInScopeRef.compareAndSet(null, streamsInScopeTable + id);
+                                  return streamsInScopeRef.get();
+                              });
+        } else {
+            return CompletableFuture.completedFuture(name);
+        }
     }
 
     @Override

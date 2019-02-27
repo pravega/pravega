@@ -55,23 +55,23 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> createTable(String scope, String tableName) {
         log.debug("create table called for table: {}/{}", scope, tableName);
 
-        return Futures.toVoid(runOnExecutorWithExceptionHandling(() -> segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID),
-                "create table: " + scope + "/" + tableName))
-                .whenComplete((r, e) -> {
+        return Futures.toVoid(withRetries(() -> exceptionallyCallback(segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID),
+                String.format("create table: %s/%s", scope, tableName))))
+                .whenCompleteAsync((r, e) -> {
                     if (e != null) {
                         log.warn("create table {}/{} threw exception", scope, tableName, e);
                     } else {
                         log.debug("table {}/{} created successfully", scope, tableName);
                     }
-                });
+                }, executor);
     }
     
     public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
         log.debug("delete table called for table: {}/{}", scope, tableName);
-        return runOnExecutorWithExceptionHandling(
-                () -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID)
-                                   .thenAccept(v -> log.debug("table {}/{} deleted successfully", scope, tableName)),
-                "delete table: " + scope + "/" + tableName);
+        return withRetries(
+                () -> exceptionallyCallback(segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID),
+                        String.format("delete table: %s/%s", scope, tableName)) 
+                                   .thenAcceptAsync(v -> log.debug("table {}/{} deleted successfully", scope, tableName), executor));
     }
 
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
@@ -80,9 +80,9 @@ public class PravegaTablesStoreHelper {
         List<TableEntry<byte[], byte[]>> entries = new ArrayList<>();
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), KeyVersion.NOT_EXISTS), value);
         entries.add(entry);
-        String errorMessage = "addNewEntry: key:" + key + " table: " + scope + "/" + tableName;
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
-                errorMessage)
+        String errorMessage = String.format("addNewEntry: key: %s table: %s/%s", key, scope, tableName);
+        return withRetries(() -> exceptionallyCallback(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
+                errorMessage))
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     if (unwrap instanceof StoreException.WriteConflictException) {
@@ -92,11 +92,11 @@ public class PravegaTablesStoreHelper {
                         throw new CompletionException(e);
                     }
                 })
-                .thenApply(x -> {
+                .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
                     log.debug("entry for key {} added to table {}/{} with version {}", key, scope, tableName, first.getSegmentVersion());
                     return new Version.LongVersion(first.getSegmentVersion());
-                });
+                }, executor);
     }
 
     public CompletableFuture<Version> addNewEntryIfAbsent(String scope, String tableName, String key, @NonNull byte[] value) {
@@ -113,28 +113,37 @@ public class PravegaTablesStoreHelper {
                 new KeyVersionImpl(value.getVersion().asLongVersion().getLongValue());
         TableEntry<byte[], byte[]> entry = new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(), version), value.getData());
         entries.add(entry);
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
-                "updateEntry: key:" + key + " table: " + scope + "/" + tableName)
-                .thenApply(x -> {
+        return withRetries(() -> exceptionallyCallback(segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
+                String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName)))
+                .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
                     log.debug("entry for key {} updated to table {}/{} with new version {}", key, scope, tableName, first.getSegmentVersion());
                     return new Version.LongVersion(first.getSegmentVersion());
-                });
+                }, executor);
     }
 
     public CompletableFuture<Data> getEntry(String scope, String tableName, String key) {
         log.debug("get entry called for : {}/{} key : {}", scope, tableName, key);
         List<TableKey<byte[]>> keys = new ArrayList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
-                "get entry: key:" + key + " table: " + scope + "/" + tableName)
-                .thenApply(x -> {
+        CompletableFuture<Data> result = new CompletableFuture<>();
+        withRetries(() -> exceptionallyCallback(segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
+                String.format("get entry: key: %s table: %s/%s", key, scope, tableName)))
+                .thenApplyAsync(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
                     log.debug("returning entry for : {}/{} key : {} with version {}", scope, tableName, key, 
                             first.getKey().getVersion().getSegmentVersion());
 
                     return new Data(first.getValue(), new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
-                });
+                }, executor)
+                .whenCompleteAsync((r, e) -> {
+                   if (e != null) {
+                       result.completeExceptionally(e);
+                   } else {
+                       result.complete(r);
+                   }
+                }, executor);
+        return result;
     }
 
     public CompletableFuture<Void> removeEntry(String scope, String tableName, String key) {
@@ -142,39 +151,41 @@ public class PravegaTablesStoreHelper {
 
         List<TableKey<byte[]>> keys = new ArrayList<>();
         keys.add(new TableKeyImpl<>(key.getBytes(), null));
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
-                "remove entry: key:" + key + " table: " + scope + "/" + tableName)
-                .thenAccept(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName));
+        return withRetries(() -> exceptionallyCallback(segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
+                String.format("remove entry: key: %s table: %s/%s", key, scope, tableName)))
+                .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
     }
 
     public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> keys) {
         log.debug("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
 
         List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(), null)).collect(Collectors.toList());
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, 0L),
-                "remove entries: keys:" + keys + " table: " + scope + "/" + tableName)
-                .thenAccept(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName));
+        return withRetries(() -> exceptionallyCallback(segmentHelper.removeTableKeys(scope, tableName, listOfKeys, 0L),
+                String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName)))
+                .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {
         log.debug("get keys paginated called for : {}/{}", scope, tableName);
 
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableKeys(scope, tableName, limit, 
-                IteratorState.fromBytes(continuationToken), 0L)
-                .thenApply(result -> {
-                    List<String> items = result.getItems().stream().map(x -> new String(x.getKey())).collect(Collectors.toList());
-                    log.debug("get keys paginated on table {}/{} returned items {}", scope, tableName, items);
-                    return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
-                }), "get keys paginated for table:" + scope + "/" + tableName);
+        return withRetries(() ->
+                exceptionallyCallback(segmentHelper.readTableKeys(scope, tableName, limit, IteratorState.fromBytes(continuationToken), 0L),
+                        String.format("get keys paginated for table: %s/%s", scope, tableName)))
+                             .thenApplyAsync(result -> {
+                                 List<String> items = result.getItems().stream().map(x -> new String(x.getKey())).collect(Collectors.toList());
+                                 log.debug("get keys paginated on table {}/{} returned items {}", scope, tableName, items);
+                                 return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
+                             }, executor);
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, Data>>>> getEntriesPaginated(String scope, String tableName, 
                                                                                                ByteBuf continuationToken, int limit) {
         log.debug("get entries paginated called for : {}/{}", scope, tableName);
 
-        return runOnExecutorWithExceptionHandling(() -> segmentHelper.readTableEntries(scope, tableName, limit, 
-                IteratorState.fromBytes(continuationToken), 0L)
-                .thenApply(result -> {
+        return withRetries(() -> exceptionallyCallback(segmentHelper.readTableEntries(scope, tableName, limit,
+                IteratorState.fromBytes(continuationToken), 0L),
+                String.format("get entries paginated for table: %s/%s", scope, tableName)))
+                .thenApplyAsync(result -> {
                     List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
                         String key = new String(x.getKey().getKey());
                         Data value = new Data(x.getValue(), new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
@@ -182,24 +193,24 @@ public class PravegaTablesStoreHelper {
                     }).collect(Collectors.toList());
                     log.debug("get keys paginated on table {}/{} returned number of items {}", scope, tableName, items.size());
                     return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
-                }), "get entries paginated for table:" + scope + "/" + tableName);
+                }, executor);
     }
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
         return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token, 1000)
-                .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue())),
+                .thenApplyAsync(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue()), executor),
                 IteratorState.EMPTY.toBytes());
     }
 
     public AsyncIterator<Pair<String, Data>> getAllEntries(String scope, String tableName) {
         return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(scope, tableName, token, 100)
-                .thenApply(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue())),
+                .thenApplyAsync(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue()), executor),
                 IteratorState.EMPTY.toBytes());
     }
 
-    private <T> CompletableFuture<T> translateException(CompletableFuture<T> future, String errorMessage) {
-        return future.exceptionally(e -> {
-            Throwable cause = Exceptions.unwrap(e);
+    private <T> CompletableFuture<T> exceptionallyCallback(CompletableFuture<T> future, String errorMessage) {
+        return future.exceptionally(t -> {
+            Throwable cause = Exceptions.unwrap(t);
             Throwable toThrow;
             if (cause instanceof WireCommandFailedException) {
                 WireCommandFailedException wcfe = (WireCommandFailedException) cause;
@@ -231,12 +242,10 @@ public class PravegaTablesStoreHelper {
                         toThrow = StoreException.create(StoreException.Type.UNKNOWN, wcfe, errorMessage);
                 }
             } else if (cause instanceof HostStoreException) {
-                // TODO: shivesh -- remove this log
-                log.warn("Error in host store {} {}", errorMessage, e.getClass());
+                log.warn("Host Store exception {}", cause.getMessage());
                 toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
-                // TODO: shivesh -- remove this log
-                log.warn("unknown error {} {}", errorMessage, cause.getClass());
+                log.warn("error {} {}", errorMessage, cause.getClass());
                 toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, errorMessage);
             }
 
@@ -244,9 +253,8 @@ public class PravegaTablesStoreHelper {
         });
     }
 
-    private <T> CompletableFuture<T> runOnExecutorWithExceptionHandling(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
-        return RetryHelper.withRetriesAsync(() -> translateException(
-                CompletableFuture.completedFuture(null).thenCompose(v -> futureSupplier.get()), errorMessage),
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier) {
+        return RetryHelper.withRetriesAsync(futureSupplier, 
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, NUM_OF_TRIES, executor);
     }
 }

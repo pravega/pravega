@@ -44,8 +44,6 @@ public class Cache {
 
     public CompletableFuture<Data> getCachedData(final String key) {
         return cache.getUnchecked(key).exceptionally(ex -> {
-            System.err.println("shivesh:: invalidating cache because of a previous exception.. key = " 
-                    + key + " exception=" + Exceptions.unwrap(ex).getClass());
             invalidateCache(key);
             throw new CompletionException(ex);
         });

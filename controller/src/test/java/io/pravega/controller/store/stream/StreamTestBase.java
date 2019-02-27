@@ -418,7 +418,7 @@ public abstract class StreamTestBase {
     @Test(timeout = 30000L)
     public void scaleInputValidityTest() {
         int startingSegmentNumber = new Random().nextInt(2000);
-        String name = "streamInputValidity" + startingSegmentNumber;
+        String name = "stream" + startingSegmentNumber;
         PersistentStreamBase stream = createStream("scope", name, System.currentTimeMillis(), 5, startingSegmentNumber);
 
         long timestamp = System.currentTimeMillis();
