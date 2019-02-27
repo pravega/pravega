@@ -219,7 +219,8 @@ public abstract class RequestHandlersTest {
 
         setMockCommitTxnLatch(streamStore1, streamStore1Spied, func, signal, wait);
 
-        CompletableFuture<Void> future1 = requestHandler1.execute(commitOnEpoch1);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> requestHandler1.execute(commitOnEpoch1), executor);
 
         signal.join();
         // let this run to completion. this should succeed 
@@ -322,7 +323,8 @@ public abstract class RequestHandlersTest {
 
         // start rolling txn
         // stall rolling transaction in different stages
-        CompletableFuture<Void> future1Rolling = requestHandler1.execute(commitOnEpoch0);
+        CompletableFuture<Void> future1Rolling = CompletableFuture.completedFuture(null)
+                                                                  .thenComposeAsync(v -> requestHandler1.execute(commitOnEpoch0), executor);
         signal.join();
         requestHandler2.execute(commitOnEpoch0).join();
         wait.complete(null);
@@ -439,7 +441,8 @@ public abstract class RequestHandlersTest {
                     x.getArgument(2), x.getArgument(3), x.getArgument(4));
         }).when(streamStore1Spied).completeUpdateConfiguration(anyString(), anyString(), any(), any(), any());
 
-        CompletableFuture<Void> future1 = requestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> requestHandler1.execute(event), executor);
         signal.join();
         requestHandler2.execute(event).join();
         wait.complete(null);
@@ -492,7 +495,8 @@ public abstract class RequestHandlersTest {
                     x.getArgument(2), x.getArgument(3), x.getArgument(4));
         }).when(streamStore1Spied).completeTruncation(anyString(), anyString(), any(), any(), any());
 
-        CompletableFuture<Void> future1 = requestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                         .thenComposeAsync(v -> requestHandler1.execute(event), executor);
         signal.join();
         requestHandler2.execute(event).join();
         wait.complete(null);

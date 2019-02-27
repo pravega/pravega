@@ -10,6 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.Version;
@@ -18,16 +19,15 @@ import lombok.Synchronized;
 
 public class PravegaTablesRequestHandlersTest extends RequestHandlersTest {
 
-    private StreamMetadataStore pravegaTablesStore;
+    private SegmentHelper segmentHelper;
     
     @Override
     @Synchronized
     StreamMetadataStore getStore() {
-        if (pravegaTablesStore == null) {
-            pravegaTablesStore = StreamStoreFactory.createPravegaTablesStore(
-                    SegmentHelperMock.getSegmentHelperMockForTables(executor), zkClient, executor);
+        if (segmentHelper == null) {
+            segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         }
-        return pravegaTablesStore;
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, zkClient, executor);
     }
 
     @Override

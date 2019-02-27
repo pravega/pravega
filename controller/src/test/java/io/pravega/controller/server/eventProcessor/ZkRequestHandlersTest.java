@@ -12,9 +12,11 @@ package io.pravega.controller.server.eventProcessor;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.Version;
+import lombok.Synchronized;
 
 public class ZkRequestHandlersTest extends RequestHandlersTest {
     @Override
+    @Synchronized
     StreamMetadataStore getStore() {
         return StreamStoreFactory.createZKStore(zkClient, executor);
     }
