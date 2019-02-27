@@ -37,19 +37,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+// TODO: shivesh: change info to debug
 @Slf4j
 public class PravegaTablesStoreHelper {
     private static final int NUM_OF_TRIES = Integer.MAX_VALUE;
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
-
+    private final Cache<CacheKey> cache;
+    
+    @lombok.Data
+    private class CacheKey {
+        private final String scope;
+        private final String table;
+        private final String key;
+    }
+    
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, ScheduledExecutorService executor) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
+
+        cache = new Cache<>(entryKey -> {
+            // Since there are be multiple tables, we will cache `table+key` in our cache
+            return getEntry(entryKey.getScope(), entryKey.getTable(), entryKey.getKey());
+        });
+    }
+
+    CompletionStage<Data> getCachedData(String scope, String table, String key) {
+        return cache.getCachedData(new CacheKey(scope, table, key));
+    }
+
+    void invalidateCache(String scope, String table, String key) {
+        cache.invalidateCache(new CacheKey(scope, table, key));
     }
 
     public CompletableFuture<Void> createTable(String scope, String tableName) {

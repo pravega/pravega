@@ -32,8 +32,7 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 
 @Slf4j
 public class PravegaTableScope implements Scope {
-    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table" + SEPARATOR + "streamsInScope" + SEPARATOR + "%s";
-    private final String streamsInScopeTable;
+    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table" + SEPARATOR + "streamsInScope" + SEPARATOR + "%s" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<String> streamsInScopeRef;
@@ -41,7 +40,6 @@ public class PravegaTableScope implements Scope {
     PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper, Executor executor) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
-        this.streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName);
         this.streamsInScopeRef = new AtomicReference<>(null);
     }
 
@@ -76,7 +74,8 @@ public class PravegaTableScope implements Scope {
             return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
                               .thenCompose(entry -> {
                                   UUID id = UUID.fromString(new String(entry.getData()));
-                                  streamsInScopeRef.compareAndSet(null, streamsInScopeTable + id);
+                                  String streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName, id);
+                                  streamsInScopeRef.compareAndSet(null, streamsInScopeTable);
                                   return getStreamsInScopeTableName();
                               });
         } else {

@@ -35,6 +35,7 @@ import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
@@ -85,11 +86,13 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class RequestHandlersTest {
+public abstract class RequestHandlersTest {
+    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected CuratorFramework zkClient;
+
     private final String scope = "scope";
     private RequestTracker requestTracker = new RequestTracker(true);
 
-    private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
@@ -99,7 +102,6 @@ public class RequestHandlersTest {
 
     private TestingServer zkServer;
 
-    private CuratorFramework zkClient;
     private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 
@@ -122,7 +124,7 @@ public class RequestHandlersTest {
             hostId = UUID.randomUUID().toString();
         }
 
-        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        streamStore = spy(getStore());
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
@@ -138,13 +140,13 @@ public class RequestHandlersTest {
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, hostId);
 
-        long createTimestamp = System.currentTimeMillis();
-
         // add a host in zk
         // mock pravega
         // create a stream
         streamStore.createScope(scope).get();
     }
+
+    abstract StreamMetadataStore getStore();
 
     @After
     public void tearDown() throws Exception {
@@ -181,14 +183,14 @@ public class RequestHandlersTest {
                                      boolean expectFailureOnFirstJob,
                                      Predicate<Throwable> firstExceptionPredicate,
                                      Map<String, Integer> invocationCount, int expectedVersion) throws Exception {
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
 
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, executor);
@@ -239,7 +241,7 @@ public class RequestHandlersTest {
 
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
         assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
-        assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(expectedVersion, getVersionNumber(versioned.getVersion()));
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
         streamStore1.close();
         streamStore2.close();
@@ -281,14 +283,14 @@ public class RequestHandlersTest {
                                             boolean expectFailureOnFirstJob,
                                             Predicate<Throwable> firstExceptionPredicate,
                                             Map<String, Integer> invocationCount, int expectedVersion) {
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
 
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         CommitRequestHandler requestHandler1 = new CommitRequestHandler(streamStore1Spied, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, executor);
@@ -344,7 +346,7 @@ public class RequestHandlersTest {
         // validate rolling txn done
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
         assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
-        assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(expectedVersion, getVersionNumber(versioned.getVersion()));
         assertEquals(3, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
     }
@@ -411,14 +413,14 @@ public class RequestHandlersTest {
     @Test(timeout = 300000)
     public void concurrentUpdateStream() throws Exception {
         String stream = "update";
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
 
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         UpdateStreamTask requestHandler1 = new UpdateStreamTask(streamMetadataTasks, streamStore1Spied, bucketStore, executor);
         UpdateStreamTask requestHandler2 = new UpdateStreamTask(streamMetadataTasks, streamStore2, bucketStore, executor);
@@ -448,25 +450,27 @@ public class RequestHandlersTest {
         // validate rolling txn done
         VersionedMetadata<StreamConfigurationRecord> versioned = streamStore1.getConfigurationRecord(scope, stream, null, executor).join();
         assertFalse(versioned.getObject().isUpdating());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
         streamStore1.close();
         streamStore2.close();
     }
+
+    abstract int getVersionNumber(Version version); 
 
     // concurrent truncate stream
     @SuppressWarnings("unchecked")
     @Test(timeout = 300000)
     public void concurrentTruncateStream() throws Exception {
         String stream = "update";
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore1.setState(scope, stream, State.ACTIVE, null, executor).join();
 
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         TruncateStreamTask requestHandler1 = new TruncateStreamTask(streamMetadataTasks, streamStore1Spied, executor);
         TruncateStreamTask requestHandler2 = new TruncateStreamTask(streamMetadataTasks, streamStore2, executor);
@@ -499,7 +503,7 @@ public class RequestHandlersTest {
         // validate rolling txn done
         VersionedMetadata<StreamTruncationRecord> versioned = streamStore1.getTruncationRecord(scope, stream, null, executor).join();
         assertFalse(versioned.getObject().isUpdating());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(2, getVersionNumber(versioned.getVersion()));
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
         streamStore1.close();
         streamStore2.close();

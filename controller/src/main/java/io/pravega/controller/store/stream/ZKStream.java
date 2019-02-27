@@ -87,7 +87,7 @@ class ZKStream extends PersistentStreamBase {
     private final String segmentSealedEpochPathFormat;
     private final String segmentsSealedSizeMapShardPathFormat;
 
-    private final Cache cache;
+    private final Cache<String> cache;
     private final Supplier<Integer> currentBatchSupplier;
 
     @VisibleForTesting
@@ -129,7 +129,7 @@ class ZKStream extends PersistentStreamBase {
         segmentSealedEpochPathFormat = String.format(SEGMENT_SEALED_EPOCH_PATH, scopeName, streamName) + "/%d";
         segmentsSealedSizeMapShardPathFormat = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH, scopeName, streamName) + "/%d";
 
-        cache = new Cache(store::getData);
+        cache = new Cache<>(store::getData);
         this.currentBatchSupplier = currentBatchSupplier;
     }
 

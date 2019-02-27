@@ -17,42 +17,34 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-public class Cache {
-    private static final int MAXIMUM_SIZE = 1000;
+public class Cache<T> {
+    private static final int MAXIMUM_SIZE = 10000;
+    
+    private final LoadingCache<T, CompletableFuture<Data>> cache;
 
-    @FunctionalInterface
-    public interface Loader {
-        CompletableFuture<Data> get(final String key);
-    }
-
-    private final LoadingCache<String, CompletableFuture<Data>> cache;
-
-    public Cache(final Loader loader) {
+    public Cache(final Function<T, CompletableFuture<Data>> loader) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(MAXIMUM_SIZE)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(new CacheLoader<String, CompletableFuture<Data>>() {
+                .build(new CacheLoader<T, CompletableFuture<Data>>() {
                     @ParametersAreNonnullByDefault
                     @Override
-                    public CompletableFuture<Data> load(final String key) {
-                        return loader.get(key);
+                    public CompletableFuture<Data> load(final T key) {
+                        return loader.apply(key);
                     }
                 });
     }
 
-    public CompletableFuture<Data> getCachedData(final String key) {
+    public CompletableFuture<Data> getCachedData(final T key) {
         return cache.getUnchecked(key).exceptionally(ex -> {
             invalidateCache(key);
             throw new CompletionException(ex);
         });
     }
 
-    public void invalidateCache(final String key) {
+    public void invalidateCache(final T key) {
         cache.invalidate(key);
-    }
-
-    public void invalidateAll() {
-        cache.invalidateAll();
     }
 }
