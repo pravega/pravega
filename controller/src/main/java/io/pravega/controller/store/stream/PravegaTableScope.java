@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.base.Strings;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -65,7 +66,9 @@ public class PravegaTableScope implements Scope {
     }
 
     private byte[] newId() {
-        return UUID.randomUUID().toString().getBytes();
+        byte[] b = new byte[2 * Long.BYTES];
+        BitConverter.writeUUID(b, 0, UUID.randomUUID());
+        return b;
     }
 
     CompletableFuture<String> getStreamsInScopeTableName() {
@@ -73,7 +76,7 @@ public class PravegaTableScope implements Scope {
         if (Strings.isNullOrEmpty(name)) {
             return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
                               .thenCompose(entry -> {
-                                  UUID id = UUID.fromString(new String(entry.getData()));
+                                  UUID id = BitConverter.readUUID(entry.getData(), 0);
                                   String streamsInScopeTable = String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, scopeName, id);
                                   streamsInScopeRef.compareAndSet(null, streamsInScopeTable);
                                   return getStreamsInScopeTableName();

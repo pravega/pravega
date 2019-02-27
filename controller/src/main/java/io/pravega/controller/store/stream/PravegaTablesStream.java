@@ -105,7 +105,7 @@ class PravegaTablesStream extends PersistentStreamBase {
             return streamsInScopeTableNameSupplier.get()
                     .thenCompose(streamsInScopeTable -> storeHelper.getEntry(getScope(), streamsInScopeTable, getName()))
                                                .thenComposeAsync(data -> {
-                                                   idRef.compareAndSet(null, new String(data.getData()));
+                                                   idRef.compareAndSet(null, BitConverter.readUUID(data.getData(), 0).toString());
                                                    return getId();
                                                });
         }
