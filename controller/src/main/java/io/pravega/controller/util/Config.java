@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Properties;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -211,16 +212,7 @@ public final class Config {
     private static Properties loadFromFile() {
         Properties result = new Properties();
 
-        String filePath = System.getProperty("conf.file", "controller.config.properties");
-        File file = null;
-
-        if (!Strings.isNullOrEmpty(filePath)) {
-            file = new File(filePath);
-            if (!file.exists()) {
-                file = null;
-            }
-        }
-
+        File file = findConfigFile();
         if (file == null) {
             ClassLoader classLoader = Config.class.getClassLoader();
             URL url = classLoader.getResource("controller.config.properties");
@@ -239,6 +231,18 @@ public final class Config {
         }
 
         return result;
+    }
+
+    private static File findConfigFile() {
+        File result = Arrays.stream(new String[]{"conf.file", "config.file"})
+                            .map(System::getProperty)
+                            .filter(s -> !Strings.isNullOrEmpty(s))
+                            .map(File::new)
+                            .filter(File::exists)
+                            .findFirst()
+                            .orElse(new File("controller.config.properties"));
+
+        return result.exists() ? result : null;
     }
 
     private static Properties resolveReferences(Properties properties) {

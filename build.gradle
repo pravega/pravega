@@ -559,7 +559,7 @@ project('controller') {
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=controller"]
@@ -621,7 +621,7 @@ project('controller') {
                           "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
                           "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
                           "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
-                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                           "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                           "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                           "-Dlog.name=controller"]
