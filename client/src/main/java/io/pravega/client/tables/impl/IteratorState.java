@@ -9,17 +9,21 @@
  */
 package io.pravega.client.tables.impl;
 
-import java.nio.ByteBuffer;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 /**
  * Defines the state of a resumable iterator.
  */
-interface IteratorState {
+public interface IteratorState {
+
+    IteratorState EMPTY = new IteratorStateImpl(Unpooled.EMPTY_BUFFER);
 
     /**
      * Serializes the IteratorState instance to a compact byte array.
+     * @return byte representation..
      */
-    ByteBuffer toBytes();
+    ByteBuf toBytes();
 
     /**
      * Deserializes the IteratorState from its serialized form obtained from calling {@link #toBytes()}.
@@ -27,7 +31,11 @@ interface IteratorState {
      * @param serializedState A serialized IteratorState.
      * @return The IteratorState object.
      */
-    static IteratorState fromBytes(ByteBuffer serializedState) {
-        throw new UnsupportedOperationException("Not Implemented");
+    static IteratorState fromBytes(ByteBuf serializedState) {
+        if (serializedState == null) {
+            return EMPTY;
+        } else {
+            return new IteratorStateImpl(serializedState);
+        }
     }
 }

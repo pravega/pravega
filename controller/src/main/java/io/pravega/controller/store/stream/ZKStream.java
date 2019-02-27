@@ -54,12 +54,13 @@ class ZKStream extends PersistentStreamBase {
     private static final String RETENTION_STREAM_CUT_RECORD_PATH = STREAM_PATH + "/retentionCuts";
     private static final String CURRENT_EPOCH_RECORD = STREAM_PATH + "/currentEpochRecord";
     private static final String EPOCH_RECORD = STREAM_PATH + "/epochRecords";
-    private static final String HISTORY_TIMESERES_CHUNK_PATH = STREAM_PATH + "/historyTimeSeriesChunks";
+    private static final String HISTORY_TIMESERIES_CHUNK_PATH = STREAM_PATH + "/historyTimeSeriesChunks";
     private static final String SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH = STREAM_PATH + "/segmentsSealedSizeMapShardPath";
     private static final String SEGMENT_SEALED_EPOCH_PATH = STREAM_PATH + "/segmentSealedEpochPath";
     private static final String COMMITTING_TXNS_PATH = STREAM_PATH + "/committingTxns";
     private static final String WAITING_REQUEST_PROCESSOR_PATH = STREAM_PATH + "/waitingRequestProcessor";
     private static final String MARKER_PATH = STREAM_PATH + "/markers";
+    private static final String ID_PATH = STREAM_PATH + "/id";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
 
@@ -75,6 +76,7 @@ class ZKStream extends PersistentStreamBase {
     private final String waitingRequestProcessorPath;
     private final String activeTxRoot;
     private final String markerPath;
+    private final String idPath;
     private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
@@ -122,9 +124,10 @@ class ZKStream extends PersistentStreamBase {
         committingTxnsPath = String.format(COMMITTING_TXNS_PATH, scopeName, streamName);
         waitingRequestProcessorPath = String.format(WAITING_REQUEST_PROCESSOR_PATH, scopeName, streamName);
         markerPath = String.format(MARKER_PATH, scopeName, streamName);
+        idPath = String.format(ID_PATH, scopeName, streamName);
         currentEpochRecordPath = String.format(CURRENT_EPOCH_RECORD, scopeName, streamName);
         epochRecordPathFormat = String.format(EPOCH_RECORD, scopeName, streamName) + "/%d";
-        historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERES_CHUNK_PATH, scopeName, streamName) + "/%d";
+        historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERIES_CHUNK_PATH, scopeName, streamName) + "/%d";
         segmentSealedEpochPathFormat = String.format(SEGMENT_SEALED_EPOCH_PATH, scopeName, streamName) + "/%d";
         segmentsSealedSizeMapShardPathFormat = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH, scopeName, streamName) + "/%d";
 
@@ -621,5 +624,17 @@ class ZKStream extends PersistentStreamBase {
 
     private String getEpochPath(final int epoch) {
         return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
+    }
+
+    CompletableFuture<Void> createStreamPositionNodeIfAbsent(int streamPosition) {
+        byte[] b = new byte[Integer.BYTES];
+        BitConverter.writeInt(b, 0, streamPosition);
+
+        return Futures.toVoid(store.createZNodeIfNotExist(idPath, b));
+    }
+    
+    CompletableFuture<Integer> getStreamPosition() {
+        return store.getData(idPath)
+                .thenApply(data -> BitConverter.readInt(data.getData(), 0));
     }
 }
