@@ -60,5 +60,4 @@ else
 fi
 
 echo "start bookie"
-set +e
-source /opt/bookkeeper/scripts/entrypoint.sh bookie
+/opt/bookkeeper/scripts/entrypoint.sh bookie
