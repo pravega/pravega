@@ -29,10 +29,10 @@ import lombok.val;
  * Utility class to supply Controller Configuration.
  *
  * The configuration values are retrieved using the following order, with every one overriding previously loaded values:
- * 1. Environment Variables ({@link System#getenv()}).
- * 2. System Properties ({@link System#getProperties()}.
- * 3. The configuration file. By default a 'controller.config.properties' file is sought in the classpath; this can be
+ * 1. The configuration file. By default a 'controller.config.properties' file is sought in the classpath; this can be
  * overridden by setting the 'conf.file' system property to point to another one.
+ * 2. Environment Variables ({@link System#getenv()}).
+ * 3. System Properties ({@link System#getProperties()}.
  * 4. All currently loaded values will be resolved against themselves.
  * 5. Anything which is not supplied via the methods above will be defaulted to the values defined in this class.
  *
@@ -196,12 +196,13 @@ public final class Config {
     }
 
     private static Properties loadConfiguration() {
-        // Fetch configuration in a specific order (from lowest priority to highest), at each step resolving references
-        // against already loaded config values..
+        // Fetch configuration in a specific order (from lowest priority to highest).
         Properties properties = new Properties();
+        properties.putAll(loadFromFile());
         properties.putAll(System.getenv());
         properties.putAll(System.getProperties());
-        properties.putAll(loadFromFile());
+
+        // Resolve references against the loaded properties.
         properties = resolveReferences(properties);
 
         log.info("Controller configuration:");
