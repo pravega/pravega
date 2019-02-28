@@ -46,15 +46,12 @@ Some specific Pravega instructions are shown below. All sets are assumed to be r
 In the file `conf/bk_server.conf`, the following configuration options should be implemented:
 
 ```
-# Comma separated list of <zp-ip>:<port> for all ZK servers
-zkServers=localhost:2181
+metadataServiceUri=zk://localhost:2181/pravega/bookkeeper/ledgers
 
 # Alternatively specify a different path to the storage for /bk
 journalDirectory=/bk/journal
 ledgerDirectories=/bk/ledgers
 indexDirectories=/bk/index
-
-zkLedgersRootPath=/pravega/bookkeeper/ledgers
 ```
 
 ### Initializing Zookeeper paths

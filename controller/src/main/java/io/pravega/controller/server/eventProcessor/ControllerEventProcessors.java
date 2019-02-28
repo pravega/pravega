@@ -13,11 +13,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
@@ -26,6 +24,7 @@ import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
+import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.ConcurrentEventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
@@ -42,6 +41,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -66,9 +66,9 @@ import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 @Slf4j
 public class ControllerEventProcessors extends AbstractIdleService implements FailoverSweeper {
 
-    public static final Serializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new JavaSerializer<>();
-    public static final Serializer<AbortEvent> ABORT_EVENT_SERIALIZER = new JavaSerializer<>();
-    public static final Serializer<ControllerEvent> CONTROLLER_EVENT_SERIALIZER = new JavaSerializer<>();
+    public static final EventSerializer<CommitEvent> COMMIT_EVENT_SERIALIZER = new EventSerializer<>();
+    public static final EventSerializer<AbortEvent> ABORT_EVENT_SERIALIZER = new EventSerializer<>();
+    public static final EventSerializer<ControllerEvent> CONTROLLER_EVENT_SERIALIZER = new EventSerializer<>();
 
     // Retry configuration
     private static final long DELAY = 100;
@@ -95,11 +95,12 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
+                                     final BucketStore bucketStore,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final ScheduledExecutorService executor) {
-        this(host, config, controller, checkpointStore, streamMetadataStore, connectionFactory,
+        this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
                 streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
     }
 
@@ -109,6 +110,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final Controller controller,
                                      final CheckpointStore checkpointStore,
                                      final StreamMetadataStore streamMetadataStore,
+                                     final BucketStore bucketStore,
                                      final ConnectionFactory connectionFactory,
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
@@ -123,9 +125,9 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                 new ReaderGroupManagerImpl(config.getScopeName(), controller, clientFactory, connectionFactory)) : system;
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamMetadataStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamMetadataStore, executor),
-                new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamMetadataStore, executor),
-                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamMetadataStore, bucketStore, executor),
                 new TruncateStreamTask(streamMetadataTasks, streamMetadataStore, executor),
                 streamMetadataStore,
                 executor);

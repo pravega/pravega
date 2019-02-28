@@ -18,11 +18,11 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -34,6 +34,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.State;
@@ -106,6 +107,7 @@ public class ScaleRequestHandlerTest {
     private final String stream = "stream";
     private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
     private HostControllerStore hostStore;
     private StreamMetadataTasks streamMetadataTasks;
@@ -139,6 +141,7 @@ public class ScaleRequestHandlerTest {
         }
 
         streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
@@ -147,7 +150,7 @@ public class ScaleRequestHandlerTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(EventStreamClientFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
@@ -185,7 +188,7 @@ public class ScaleRequestHandlerTest {
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
 
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+        when(clientFactory.<ControllerEvent>createEventWriter(eq(Config.SCALE_STREAM_NAME), any(), any())).thenReturn(writer);
 
         AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(),
                 1, false, System.currentTimeMillis());
@@ -278,7 +281,7 @@ public class ScaleRequestHandlerTest {
     @Test(timeout = 30000)
     public void testScaleWithTransactionRequest() throws InterruptedException {
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -349,7 +352,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -407,7 +410,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -762,7 +765,7 @@ public class ScaleRequestHandlerTest {
         streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
 
-        ArrayList<AbstractMap.SimpleEntry<Double, Double>> newRange = new ArrayList<>();
+        ArrayList<Map.Entry<Double, Double>> newRange = new ArrayList<>();
         newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
         
         // start with manual scale
@@ -823,7 +826,7 @@ public class ScaleRequestHandlerTest {
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
 
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new JavaSerializer<ControllerEvent>()), any())).thenReturn(writer);
+        when(clientFactory.<ControllerEvent>createEventWriter(eq(Config.SCALE_STREAM_NAME), any(), any())).thenReturn(writer);
 
         AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1),
                 AutoScaleEvent.UP, System.currentTimeMillis(), 1, false, System.currentTimeMillis());

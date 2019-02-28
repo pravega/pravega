@@ -139,8 +139,13 @@ public class InProcPravegaCluster implements AutoCloseable {
             Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
             //Check TLS related parameters
-            Preconditions.checkState(!enableTls || (!Strings.isNullOrEmpty(this.keyFile) && !Strings.isNullOrEmpty(this.certFile)),
-                    "TLS parameters not set");
+            Preconditions.checkState(!enableTls ||
+                            (!Strings.isNullOrEmpty(this.keyFile)
+                            && !Strings.isNullOrEmpty(this.certFile)
+                            && !Strings.isNullOrEmpty(this.jksKeyFile)
+                            && !Strings.isNullOrEmpty(this.jksTrustFile)
+                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
+                    "TLS enabled, but not all parameters set");
 
             if (this.isInMemStorage) {
                 this.isInProcHDFS = false;
@@ -290,7 +295,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile))
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 

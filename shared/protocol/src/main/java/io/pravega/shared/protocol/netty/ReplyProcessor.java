@@ -32,7 +32,7 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void notEmptyTableSegment(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
+    void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
 
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
@@ -81,4 +81,8 @@ public interface ReplyProcessor {
     void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist);
 
     void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
+
+    void tableKeysRead(WireCommands.TableKeysRead tableKeysRead);
+
+    void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead);
 }

@@ -58,15 +58,16 @@ public class PravegaControllerK8sService extends AbstractService {
     public boolean isRunning() {
         return k8sClient.getStatusOfPodWithLabel(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL)
                         .thenApply(statuses -> statuses.stream()
-                                                      .filter(podStatus -> podStatus.getContainerStatuses()
-                                                                                    .stream()
-                                                                                    .allMatch(st -> st.getState().getRunning() != null))
-                                                      .count())
+                                                       .filter(podStatus -> podStatus.getContainerStatuses()
+                                                                                     .stream()
+                                                                                     .allMatch(st -> st.getState().getRunning() != null))
+                                                       .count())
                         .thenApply(runCount -> runCount >= DEFAULT_CONTROLLER_COUNT)
                         .exceptionally(t -> {
-                           log.warn("Exception observed while checking status of pods " + PRAVEGA_CONTROLLER_LABEL, t);
-                           return false;
-                       }).join();
+                            log.warn("Exception observed while checking status of pods {}. Details: {}", PRAVEGA_CONTROLLER_LABEL,
+                                     t.getMessage());
+                            return false;
+                        }).join();
     }
 
     @Override

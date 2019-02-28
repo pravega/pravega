@@ -28,6 +28,7 @@ public interface Position {
     
     /**
      * Serializes the position to a compact byte array.
+     * @return A serialized version of this position.
      */
     ByteBuffer toBytes();
     

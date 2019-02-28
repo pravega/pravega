@@ -9,13 +9,12 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
-import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -72,6 +71,7 @@ public class CompletableOperation {
 
     /**
      * Gets a reference to the wrapped Log Operation.
+     * @return reference to the wrapped Log Operation.
      */
     public Operation getOperation() {
         return this.operation;
@@ -82,8 +82,7 @@ public class CompletableOperation {
      */
     public void complete() {
         long seqNo = this.operation.getSequenceNumber();
-        Preconditions.checkState(!this.operation.canSerialize() || seqNo >= 0,
-                "About to complete a CompletableOperation that has no sequence number.");
+        Preconditions.checkState(seqNo >= 0, "About to complete a CompletableOperation that has no sequence number.");
 
         this.done = true;
         if (this.successHandler != null) {

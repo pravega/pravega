@@ -14,14 +14,16 @@ package io.pravega.client.tables.impl;
  *
  * @param <KeyT> Type of the Key.
  */
-interface TableKey<KeyT> {
+public interface TableKey<KeyT> {
     /**
      * The Key.
+     * @return key.
      */
     KeyT getKey();
 
     /**
      * The Version. If null, any updates for this Key will be unconditional.
+     * @return {@link KeyVersion}.
      */
     KeyVersion getVersion();
 }

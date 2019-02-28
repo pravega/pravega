@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
@@ -20,7 +21,6 @@ import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NegotiationType;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import io.grpc.util.RoundRobinLoadBalancerFactory;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
@@ -36,6 +36,8 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -67,9 +69,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -82,10 +88,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
+
 import org.slf4j.LoggerFactory;
+
+import static io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -126,7 +136,7 @@ public class ControllerImpl implements Controller {
                           final ScheduledExecutorService executor) {
         this(NettyChannelBuilder.forTarget(config.getClientConfig().getControllerURI().toString())
                                 .nameResolverFactory(new ControllerResolverFactory())
-                                .loadBalancerFactory(RoundRobinLoadBalancerFactory.getInstance())
+                                .loadBalancerFactory(LoadBalancerRegistry.getDefaultRegistry().getProvider("round_robin"))
                                 .keepAliveTime(DEFAULT_KEEPALIVE_TIME_MINUTES, TimeUnit.MINUTES),
                 config, executor);
         log.info("Controller client connecting to server at {}", config.getClientConfig().getControllerURI().getAuthority());
@@ -216,6 +226,32 @@ public class ControllerImpl implements Controller {
                 }
                 LoggerHelpers.traceLeave(log, "createScope", traceId, scopeName, requestId);
             });
+    }
+
+    @Override
+    public AsyncIterator<Stream> listStreams(String scopeName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "listStreams", scopeName);
+
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreams");
+                        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                        new ControllerClientTagger(client).withTag(traceId, "listStreams", scopeName)
+                                                          .listStreamsInScope(StreamsInScopeRequest
+                                                                  .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
+                        return callback.getFuture()
+                                       .thenApply(x -> {
+                                           List<Stream> result = x.getStreamsList().stream()
+                                                                  .map(y -> new StreamImpl(y.getScope(), y.getStream())).collect(Collectors.toList());
+                                           return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                       });
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, "listStreams", traceId);
+        }
     }
 
     @Override
@@ -724,12 +760,12 @@ public class ControllerImpl implements Controller {
         }, this.executor);
         return result.thenApply(ranges -> {
             log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
-            NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+            NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
             for (SegmentRange r : ranges.getSegmentRangesList()) {
                 Preconditions.checkState(r.getMinKey() <= r.getMaxKey(),
                                          "Min keyrange %s was not less than maximum keyRange %s for segment %s",
                                          r.getMinKey(), r.getMaxKey(), r.getSegmentId());
-                rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+                rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
             }
             return new StreamSegments(rangeMap, ranges.getDelegationToken());
         }).whenComplete((x, e) -> {
@@ -812,11 +848,11 @@ public class ControllerImpl implements Controller {
     }
 
     private TxnSegments convert(CreateTxnResponse response) {
-        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
 
         for (SegmentRange r : response.getActiveSegmentsList()) {
             Preconditions.checkState(r.getMinKey() <= r.getMaxKey());
-            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
         StreamSegments segments = new StreamSegments(rangeMap, response.getDelegationToken());
         return new TxnSegments(segments, ModelHelper.encode(response.getTxnId()));
@@ -1028,6 +1064,11 @@ public class ControllerImpl implements Controller {
 
         public void createScope(ScopeInfo scopeInfo, RPCAsyncCallback<CreateScopeStatus> callback) {
             clientStub.createScope(scopeInfo, callback);
+        }
+
+        public void listStreamsInScope(io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest request, 
+                                       RPCAsyncCallback<StreamsInScopeResponse> callback) {
+            clientStub.listStreamsInScope(request, callback);
         }
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {

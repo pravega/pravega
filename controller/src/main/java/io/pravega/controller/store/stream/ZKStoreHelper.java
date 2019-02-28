@@ -23,6 +23,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -115,7 +116,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Void> deleteTree(final String path) {
+    CompletableFuture<Void> deleteTree(final String path) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete()
@@ -129,7 +130,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Data> getData(final String path) {
+    public CompletableFuture<Data> getData(final String path) {
         final CompletableFuture<Data> result = new CompletableFuture<>();
 
         try {
@@ -228,7 +229,7 @@ public class ZKStoreHelper {
         return createZNodeIfNotExist(path, true);
     }
 
-    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final boolean createParent) {
+    private CompletableFuture<Integer> createZNodeIfNotExist(final String path, final boolean createParent) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
 
         try {
@@ -275,7 +276,23 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Boolean> checkExists(final String path) {
+    CompletableFuture<String> createEphemeralSequentialZNode(final String path) {
+        final CompletableFuture<String> result = new CompletableFuture<>();
+
+        try {
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(x.getName()),
+                    result::completeExceptionally, path);
+            createBuilder.creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
+                         .inBackground(callback, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+    
+    public CompletableFuture<Boolean> checkExists(final String path) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -320,4 +337,8 @@ public class ZKStoreHelper {
         };
     }
     // endregion
+    
+    PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
+        return new PathChildrenCache(client, path, cacheData);
+    }
 }

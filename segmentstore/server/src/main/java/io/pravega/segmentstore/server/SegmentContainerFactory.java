@@ -9,7 +9,6 @@
  */
 package io.pravega.segmentstore.server;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -18,14 +17,10 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public interface SegmentContainerFactory {
     /**
-     * A Function that returns an empty Map of {@link SegmentContainerExtension}.
-     */
-    CreateExtensions NO_EXTENSIONS = (container, executor) -> Collections.emptyMap();
-
-    /**
      * Creates a new instance of a SegmentContainer.
      *
      * @param containerId The Id of the container to create.
+     * @return The SegmentContainer instance.
      */
     SegmentContainer createStreamSegmentContainer(int containerId);
 

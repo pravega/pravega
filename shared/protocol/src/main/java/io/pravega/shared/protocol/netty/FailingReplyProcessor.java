@@ -162,7 +162,7 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     }
 
     @Override
-    public void notEmptyTableSegment(TableSegmentNotEmpty tableSegmentNotEmpty) {
+    public void tableSegmentNotEmpty(TableSegmentNotEmpty tableSegmentNotEmpty) {
         throw new IllegalStateException("Unexpected operation: " + tableSegmentNotEmpty);
     }
 
@@ -184,5 +184,15 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     @Override
     public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
         throw new IllegalStateException("Unexpected operation: " + tableKeyBadVersion);
+    }
+
+    @Override
+    public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeysRead);
+    }
+
+    @Override
+    public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesRead);
     }
 }

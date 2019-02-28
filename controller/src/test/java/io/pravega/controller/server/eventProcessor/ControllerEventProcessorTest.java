@@ -29,12 +29,13 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.TxnStatus;
-import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -47,12 +48,12 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
-
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -80,6 +81,7 @@ public class ControllerEventProcessorTest {
 
     private ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private HostControllerStore hostStore;
@@ -99,10 +101,11 @@ public class ControllerEventProcessorTest {
         zkClient.start();
 
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, TaskStoreFactory.createInMemoryStore(executor),
                 segmentHelperMock, executor, "1", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
                 executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
@@ -164,7 +167,7 @@ public class ControllerEventProcessorTest {
         checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTING);
 
         // scale stream
-        List<AbstractMap.SimpleEntry<Double, Double>> newRange = new LinkedList<>();
+        List<Map.Entry<Double, Double>> newRange = new LinkedList<>();
         newRange.add(new AbstractMap.SimpleEntry<>(0.0, 1.0));
         scaleTask.execute(new ScaleOpEvent(SCOPE, stream, Collections.singletonList(0L), newRange, false, System.currentTimeMillis(), 0L)).join();
 
