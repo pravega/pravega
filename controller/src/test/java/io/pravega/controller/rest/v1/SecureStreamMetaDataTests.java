@@ -41,10 +41,9 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
             //    - list, create and delete scopes
             //    - Create and delete streams within scopes "scope1" and "scope2". Also if "user1" lists scopes,
             //      she'll see those scopes, but not "scope3".
-            writer.write("user1:" + passwd + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
+            writer.write("user1:" + passwd + ":/,READ_UPDATE;scope1,READ_UPDATE;scope1/*,READ_UPDATE;scope2,READ_UPDATE;scope2/*,READ_UPDATE;\n");
 
             writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
-            writer.close();
         }
 
         this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
