@@ -160,7 +160,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "deleteStream called for stream {}/{}.",
                 request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
-                AuthResourceRepresentation.ofStreamsInScope(request.getScope()), AuthHandler.Permissions.READ_UPDATE),
+                AuthResourceRepresentation.ofAStreamInScope(request.getScope(), request.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.deleteStream(request.getScope(), request.getStream()), responseObserver, requestTag);
     }
 
@@ -413,7 +414,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteScope", request.getScope());
         log.info(requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
-                AuthResourceRepresentation.ofScopes(), AuthHandler.Permissions.READ_UPDATE),
+                AuthResourceRepresentation.ofAScope(request.getScope()), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
                 responseObserver, requestTag);
     }
