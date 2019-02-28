@@ -230,6 +230,7 @@ public final class Config {
             try (FileReader reader = new FileReader(file)) {
                 result.load(reader);
             }
+            log.info("Loaded {} config properties from {}.", result.size(), file);
         }
 
         return result;
@@ -257,8 +258,11 @@ public final class Config {
             String newValue = existingValue; // Default to existing value (in case it's not a reference).
             if (existingValue.matches(pattern)) {
                 // Only include the referred value if it resolves to anything; otherwise exclude this altogether.
-                String lookupKey = pattern.replaceAll(pattern, "$1");
+                String lookupKey = existingValue.replaceAll(pattern, "$1");
                 newValue = (String) properties.getOrDefault(lookupKey, null);
+                if (newValue != null) {
+                    log.info("Config property '{}={}' resolved to '{}'.", e.getKey(), existingValue, newValue);
+                }
             }
 
             if (newValue != null) {
