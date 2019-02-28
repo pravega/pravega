@@ -19,7 +19,6 @@ PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
-CONTAINER_INITIALIZED="/container_initialized"
 
 export BOOKIE_PORT=${BOOKIE_PORT}
 export BK_zkServers=${BK_zkServers}
@@ -40,23 +39,23 @@ export BK_tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd
 echo "wait for zookeeper"
 until zk-shell --run-once "ls /" ${BK_zkServers}; do sleep 5; done
 
-
 # We need to update the metadata endpoint and Bookie ID before attempting to delete the cookie
 sed -i "s|.*metadataServiceUri=.*\$|metadataServiceUri=${BK_metadataServiceUri}|" /opt/bookkeeper/conf/bk_server.conf
 if [ ! -z "$BK_useHostNameAsBookieID" ]; then
   sed -i "s|.*useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
 fi
 
-if [ ! -e $CONTAINER_INITIALIZED ]; then
-  # This is the first time the container is started, let's format the bookie
-  # to delete any preexistent data and metadata that can cause conflicts.
+if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+  # The container already contains data in BK directories. This is probably because
+  # the container has been restarted; or, if running on Kubernetes, it has probably been
+  # updated or evacuated without losing its persistent volumes.
+  echo "data available in bookkeeper directories; not formatting the bookie"
+else
+  # The container does not contain any BK data, it is probably a new
+  # bookie. We will format any pre-existent data and metadata before starting
+  # the bookie to avoid potential conflicts.
   echo "format bookie data and metadata"
   /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
-  touch $CONTAINER_INITIALIZED
-else
-  # The container has been restarted and there is no need to format
-  # the bookie.
-  echo "the container has been restarted, not formatting the bookie"
 fi
 
 echo "start bookie"
