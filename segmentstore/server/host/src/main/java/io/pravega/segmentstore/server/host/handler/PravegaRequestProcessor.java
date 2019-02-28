@@ -652,7 +652,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(readTable.getRequestId(), "Reading from table {}.", readTable);
 
         final List<ArrayView> keys = readTable.getKeys().stream()
-                                              .map(k -> new ByteArraySegment(k.getData().array()))
+                                              .map(k -> getArrayView(k.getData()))
                                               .collect(Collectors.toList());
         tableStore.get(segment, keys, TIMEOUT)
                   .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment,
@@ -804,7 +804,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return headerLength + segmentLength + dataLength + continuationTokenLength;
     }
 
-    private ArrayView getArrayView(ByteBuf buf ) {
+    private ArrayView getArrayView(ByteBuf buf) {
         final int length = buf.readableBytes();
         if (buf.hasArray()) {
             return new ByteArraySegment(buf.array(), buf.readerIndex(), length);

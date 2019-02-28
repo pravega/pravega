@@ -276,6 +276,22 @@ public class ZKStoreHelper {
         return result;
     }
 
+    CompletableFuture<String> createEphemeralSequentialZNode(final String path) {
+        final CompletableFuture<String> result = new CompletableFuture<>();
+
+        try {
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(x.getName()),
+                    result::completeExceptionally, path);
+            createBuilder.creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
+                         .inBackground(callback, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+    
     public CompletableFuture<Boolean> checkExists(final String path) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 

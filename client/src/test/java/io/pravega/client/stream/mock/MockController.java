@@ -31,6 +31,7 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +83,30 @@ public class MockController implements Controller {
         }
         createdScopes.put(scopeName, new HashSet<>());
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    @Synchronized
+    public AsyncIterator<Stream> listStreams(String scopeName) {
+        Set<Stream> collect = createdScopes.get(scopeName);
+        return new AsyncIterator<Stream>() {
+            Object lock = new Object();
+            @GuardedBy("lock")
+            Iterator<Stream> iterator = collect.iterator();
+            @Override
+            public CompletableFuture<Stream> getNext() {
+                Stream next;
+                synchronized (lock) {
+                    if (!iterator.hasNext()) {
+                        next = null;
+                    } else {
+                        next = iterator.next();
+                    }
+                }
+
+                return CompletableFuture.completedFuture(next);
+            }
+        };
     }
 
     @Override

@@ -144,8 +144,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.certFile)
                             && !Strings.isNullOrEmpty(this.jksKeyFile)
                             && !Strings.isNullOrEmpty(this.jksTrustFile)
-                            && !Strings.isNullOrEmpty(this.keyPasswordFile)
-                            && !Strings.isNullOrEmpty(this.passwdFile)),
+                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
             if (this.isInMemStorage) {

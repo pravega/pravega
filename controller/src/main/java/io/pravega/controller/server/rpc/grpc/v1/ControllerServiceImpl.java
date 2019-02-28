@@ -52,6 +52,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
+
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -67,6 +69,7 @@ import org.slf4j.LoggerFactory;
 public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServiceImplBase {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(ControllerServiceImpl.class));
+    private static final int LIST_STREAMS_IN_SCOPE_LIMIT = 1000;
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
@@ -75,7 +78,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
+    private final int listStreamsInScopeLimit;
 
+    public ControllerServiceImpl(ControllerService controllerService, AuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT);
+    }
 
     @Override
     public void getControllerServerList(ServerRequest request, StreamObserver<ServerResponse> responseObserver) {
@@ -353,6 +360,24 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info(requestTag.getRequestId(), "createScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(request.getScope(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.createScope(request.getScope()),
+                responseObserver, requestTag);
+    }
+
+    @Override
+    public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
+        String scope = request.getScope().getScope();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scope);
+        log.info(requestTag.getRequestId(), "listStream called for scope {}.", scope);
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(scope, AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.listStreams(scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                                                    .thenApply(response -> {
+                                                        List<StreamInfo> streams = response.getKey().stream()
+                                                                                    .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())
+                                                                                    .collect(Collectors.toList());
+                                                        return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(
+                                                                streams).setContinuationToken(Controller.ContinuationToken
+                                                                .newBuilder().setToken(response.getValue()).build()).build();
+                                                    }),
                 responseObserver, requestTag);
     }
 
