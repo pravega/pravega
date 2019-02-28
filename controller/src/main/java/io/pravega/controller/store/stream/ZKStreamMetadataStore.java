@@ -51,7 +51,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     private final ZKGarbageCollector completedTxnGC;
     private final ZkInt96Counter counter;
-    
+
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         this(client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
@@ -64,29 +64,29 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
-        this.counter = new ZkInt96Counter(storeHelper);    
+        this.counter = new ZkInt96Counter(storeHelper);
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
         return storeHelper.getChildren(COMPLETED_TX_BATCH_ROOT_PATH)
-                .thenApply(children -> {
-                            // retain latest two and delete remainder.
-                            List<Long> list = children.stream().map(Long::parseLong).sorted().collect(Collectors.toList());
-                            if (list.size() > 2) {
-                                return list.subList(0, list.size() - 2);
-                            } else {
-                                return new ArrayList<Long>();
-                            }
-                        }
-                )
-                .thenCompose(toDeleteList -> {
-                    log.debug("deleting batches {} on new scheme" + toDeleteList);
+                          .thenApply(children -> {
+                                      // retain latest two and delete remainder.
+                                      List<Long> list = children.stream().map(Long::parseLong).sorted().collect(Collectors.toList());
+                                      if (list.size() > 2) {
+                                          return list.subList(0, list.size() - 2);
+                                      } else {
+                                          return new ArrayList<Long>();
+                                      }
+                                  }
+                          )
+                          .thenCompose(toDeleteList -> {
+                              log.debug("deleting batches {} on new scheme" + toDeleteList);
 
-                    // delete all those marked for toDelete.
-                    return Futures.allOf(toDeleteList.stream()
-                            .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
-                            .collect(Collectors.toList()));
-                });
+                              // delete all those marked for toDelete.
+                              return Futures.allOf(toDeleteList.stream()
+                                                               .map(toDelete -> storeHelper.deleteTree(String.format(COMPLETED_TX_BATCH_PATH, toDelete)))
+                                                               .collect(Collectors.toList()));
+                          });
     }
 
     @Override
@@ -114,7 +114,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
     }
-    
+
     @Override
     ZKScope newScope(final String scopeName) {
         return new ZKScope(scopeName, storeHelper);
@@ -123,31 +123,31 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
         return storeHelper.checkExists(String.format("/store/%s", scopeName))
-                .thenApply(scopeExists -> {
-                    if (scopeExists) {
-                        return scopeName;
-                    } else {
-                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName);
-                    }
-                });
+                          .thenApply(scopeExists -> {
+                              if (scopeExists) {
+                                  return scopeName;
+                              } else {
+                                  throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeName);
+                              }
+                          });
     }
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
         return storeHelper.getChildren(SCOPE_ROOT_PATH);
     }
-    
+
     @Override
-    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration, 
+    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration,
                                                                 long createTimestamp, OperationContext context, Executor executor) {
         ZKScope zkScope = (ZKScope) getScope(scope);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
 
         return super.createStream(scope, name, configuration, createTimestamp, context, executor)
-                        .thenCompose(status -> zkScope.getNextStreamPosition()
-                                    .thenCompose(zkStream::createStreamPositionNodeIfAbsent)
-                                    .thenCompose(v -> zkStream.getStreamPosition())
-                                    .thenCompose(id -> zkScope.addStreamToScope(name, id))
+                    .thenCompose(status -> zkScope.getNextStreamPosition()
+                                                  .thenCompose(zkStream::createStreamPositionNodeIfAbsent)
+                                                  .thenCompose(v -> zkStream.getStreamPosition())
+                                                  .thenCompose(id -> zkScope.addStreamToScope(name, id))
                                                   .thenApply(x -> status));
 
     }
@@ -208,9 +208,9 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         ZKScope zkScope = (ZKScope) getScope(scope);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);
         return Futures.exceptionallyExpecting(zkStream.getStreamPosition()
-                .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
+                                                      .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                .thenCompose(v -> super.deleteStream(scope, name, context, executor)); 
+                      .thenCompose(v -> super.deleteStream(scope, name, context, executor));
     }
 
     @VisibleForTesting

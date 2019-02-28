@@ -12,7 +12,7 @@ package io.pravega.controller.store.client;
 import org.apache.curator.framework.CuratorFramework;
 
 /**
- * ZK client.
+ * Pravega Table Store client.
  */
 public class PravegaTableStoreClient implements StoreClient {
     private final CuratorFramework client;
@@ -32,7 +32,7 @@ public class PravegaTableStoreClient implements StoreClient {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         client.close();
     }
 }

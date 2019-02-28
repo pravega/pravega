@@ -11,7 +11,6 @@ package io.pravega.controller.store.index;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.stream.Data;
 import io.pravega.controller.store.stream.PravegaTablesStoreHelper;
 import io.pravega.controller.store.stream.Version;
@@ -31,6 +30,9 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 
 /**
  * Pravega Tables based host index.
+ * The tables are structured as follows:
+ * Hosts table which has list of all hosts.
+ * `host`-`index`-entity table which is a dedicated table per host for storing a specific type of entity. 
  */
 @Slf4j
 public class PravegaTablesHostIndex implements HostIndex {
@@ -39,8 +41,8 @@ public class PravegaTablesHostIndex implements HostIndex {
     private final PravegaTablesStoreHelper storeHelper;
     private final String hostsTable;
     private final String indexName;
-    
-    public PravegaTablesHostIndex(SegmentHelper segmentHelper, String indexName, PravegaTablesStoreHelper storeHelper) {
+
+    public PravegaTablesHostIndex(String indexName, PravegaTablesStoreHelper storeHelper) {
         this.storeHelper = storeHelper;
         this.indexName = indexName;
         this.hostsTable = String.format(HOSTS_ROOT_TABLE_FORMAT, this.indexName);
@@ -56,19 +58,26 @@ public class PravegaTablesHostIndex implements HostIndex {
         Preconditions.checkNotNull(hostId);
         Preconditions.checkNotNull(entity);
         String hostEntityTable = getHostEntityTableName(hostId);
-        
+
         return Futures.toVoid(Futures.exceptionallyComposeExpecting(
-                storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable, entity, entityData), 
+                storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable, entity, entityData),
                 DATA_NOT_FOUND_PREDICATE,
                 () -> handleTableNotExist(hostId, entity, entityData, hostEntityTable)));
     }
 
     private CompletableFuture<Version> handleTableNotExist(String hostId, String entity, byte[] entityData, String hostEntityTable) {
+        // This method is called if hostEntity table does not exist.
+        // It will first create new hosts table (idempotent) and add new entry for this host (if absent)
+        // Then it will create hostEntity table and add the entry to it. 
+        // CreateTable is idempotent and returns success if table exists, creates it otherwise. 
+        // addNewEntryIfAbsent ignores DataExists hence it is idempotent. 
+        // This method can be called concurrently across different controller instances and since each step is independently
+        // idempotent, the overall flow is idempotent and does not fail if attempted again. 
         return storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, hostsTable)
                           .thenAccept(x -> log.debug("created hosts root table {}", hostId))
                           .thenCompose(x -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, hostsTable, hostId, new byte[0]))
                           .thenCompose(x -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable)
-                                                   .thenAccept(v -> log.debug("creating table {} for host {}", hostEntityTable, hostId)))
+                                                       .thenAccept(v -> log.debug("creating table {} for host {}", hostEntityTable, hostId)))
                           .thenCompose(x -> storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, hostEntityTable, entity, entityData));
     }
 
@@ -82,7 +91,7 @@ public class PravegaTablesHostIndex implements HostIndex {
         Preconditions.checkNotNull(entity);
         String table = getHostEntityTableName(hostId);
         return Futures.exceptionallyExpecting(storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, table, entity)
-                .thenApply(Data::getData), DATA_NOT_FOUND_PREDICATE, null);
+                                                         .thenApply(Data::getData), DATA_NOT_FOUND_PREDICATE, null);
     }
 
     @Override
@@ -103,16 +112,16 @@ public class PravegaTablesHostIndex implements HostIndex {
                            .thenApply(v -> {
                                log.debug("deleted table {}", table);
                                return true;
-                           }), 
+                           }),
                 DATA_NOT_EMPTY_PREDICATE, false), DATA_NOT_FOUND_PREDICATE, true)
-                .thenCompose(deleted -> {
-                    if (deleted) {
-                        return Futures.exceptionallyExpecting(storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, hostsTable, hostId), 
-                                DATA_NOT_FOUND_PREDICATE, null);
-                    } else {
-                        return CompletableFuture.completedFuture(null);
-                    }
-                });
+                      .thenCompose(deleted -> {
+                          if (deleted) {
+                              return Futures.exceptionallyExpecting(storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, hostsTable, hostId),
+                                      DATA_NOT_FOUND_PREDICATE, null);
+                          } else {
+                              return CompletableFuture.completedFuture(null);
+                          }
+                      });
     }
 
     @Override
@@ -121,15 +130,15 @@ public class PravegaTablesHostIndex implements HostIndex {
         String table = getHostEntityTableName(hostId);
         List<String> entries = new ArrayList<>();
         return Futures.exceptionallyExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, table)
-                .collectRemaining(entries::add)
-                .thenApply(x -> entries), DATA_NOT_FOUND_PREDICATE, Collections.emptyList());
+                                                         .collectRemaining(entries::add)
+                                                         .thenApply(x -> entries), DATA_NOT_FOUND_PREDICATE, Collections.emptyList());
     }
 
     @Override
     public CompletableFuture<Set<String>> getHosts() {
         Set<String> hosts = new ConcurrentSkipListSet<>();
         return Futures.exceptionallyExpecting(storeHelper.getAllKeys(NameUtils.INTERNAL_SCOPE_NAME, hostsTable)
-                          .collectRemaining(hosts::add)
-                          .thenApply(v -> hosts), DATA_NOT_FOUND_PREDICATE, Collections.emptySet());
+                                                         .collectRemaining(hosts::add)
+                                                         .thenApply(v -> hosts), DATA_NOT_FOUND_PREDICATE, Collections.emptySet());
     }
 }

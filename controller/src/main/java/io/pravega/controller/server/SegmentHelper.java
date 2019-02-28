@@ -170,7 +170,7 @@ public class SegmentHelper {
                 log.info(requestId, "truncateSegment {} SegmentTruncated", qualifiedName);
                 result.complete(true);
             }
-            
+
             @Override
             public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
                 log.info(requestId, "truncateSegment {} SegmentIsTruncated", qualifiedName);
@@ -273,7 +273,7 @@ public class SegmentHelper {
 
     private CompletableFuture<Boolean> sealSegment(final String qualifiedName,
                                                    final Controller.NodeUri uri,
-                                                   final 
+                                                   final
                                                    long requestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -507,7 +507,7 @@ public class SegmentHelper {
     }
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy, long segmentId,
-                                                 long clientRequestId) {
+                                                long clientRequestId) {
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
@@ -657,7 +657,7 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -680,7 +680,7 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> deleteTableSegment(final String scope,
                                                          final String stream,
                                                          final boolean mustBeEmpty,
-                                                         
+
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -731,7 +731,7 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -739,7 +739,7 @@ public class SegmentHelper {
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
-    
+
     /**
      * This method sends a WireCommand to update table entries.
      *
@@ -809,7 +809,7 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -820,11 +820,11 @@ public class SegmentHelper {
         }).collect(Collectors.toList());
 
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, retrieveMasterToken(),
-                                                                                      new WireCommands.TableEntries(wireCommandEntries));
+                new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
-    
+
     /**
      * This method sends a WireCommand to remove table keys.
      *
@@ -897,7 +897,7 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
@@ -961,7 +961,7 @@ public class SegmentHelper {
                                                                              WireCommands.TableKey k = e.getKey();
                                                                              TableKey<byte[]> tableKey =
                                                                                      new TableKeyImpl<>(getArray(k.getData()),
-                                                                                                        new KeyVersionImpl(k.getKeyVersion()));
+                                                                                             new KeyVersionImpl(k.getKeyVersion()));
                                                                              // Hack added to return KeyDoesNotExist if key version is Long.Min
                                                                              allKeysFound.compareAndSet(true, k.getKeyVersion() != WireCommands.TableKey.NO_VERSION);
 
@@ -991,13 +991,13 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
         // the version is always NO_VERSION as read returns the latest version of value.
         List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(wrappedBuffer(k.getKey()),
-                                                                                               WireCommands.TableKey.NO_VERSION))
+                WireCommands.TableKey.NO_VERSION))
                                                   .collect(Collectors.toList());
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, retrieveMasterToken(), keyList);
@@ -1015,10 +1015,10 @@ public class SegmentHelper {
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
     public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String scope,
-                                                                                    final String stream,
-                                                                                    final int suggestedKeyCount,
-                                                                                    final IteratorState state,
-                                                                                    final long clientRequestId) {
+                                                                                        final String stream,
+                                                                                        final int suggestedKeyCount,
+                                                                                        final IteratorState state,
+                                                                                        final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
@@ -1054,7 +1054,7 @@ public class SegmentHelper {
                 final IteratorState state = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
                 final List<TableKey<byte[]>> keys =
                         tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(getArray(k.getData()),
-                                                                                     new KeyVersionImpl(k.getKeyVersion()))).collect(Collectors.toList());
+                                new KeyVersionImpl(k.getKeyVersion()))).collect(Collectors.toList());
                 result.complete(new TableSegment.IteratorItem<>(state, keys));
             }
 
@@ -1074,12 +1074,12 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
         WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, retrieveMasterToken(), suggestedKeyCount,
-                                                                        token.toBytes());
+                token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -1095,10 +1095,10 @@ public class SegmentHelper {
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
     public CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> readTableEntries(final String scope,
-                                                                               final String stream,
-                                                                               final int suggestedEntryCount,
-                                                                               final IteratorState state,
-                                                                               final long clientRequestId) {
+                                                                                                     final String stream,
+                                                                                                     final int suggestedEntryCount,
+                                                                                                     final IteratorState state,
+                                                                                                     final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
@@ -1136,7 +1136,7 @@ public class SegmentHelper {
                                         .map(e -> {
                                             WireCommands.TableKey k = e.getKey();
                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(getArray(k.getData()),
-                                                                                           new KeyVersionImpl(k.getKeyVersion()));
+                                                    new KeyVersionImpl(k.getKeyVersion()));
                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                         }).collect(Collectors.toList());
                 result.complete(new TableSegment.IteratorItem<>(state, entries));
@@ -1158,12 +1158,12 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                                       type, WireCommandFailedException.Reason.AuthFailed));
+                                type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
         WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, retrieveMasterToken(),
-                                                                        suggestedEntryCount, token.toBytes());
+                suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -1195,7 +1195,7 @@ public class SegmentHelper {
                 resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
                         request.getType(),
                         WireCommandFailedException.Reason.ConnectionFailed));
-            } else {                
+            } else {
                 connection.sendAsync(request, cfe -> {
                     if (cfe != null) {
                         Throwable cause = Exceptions.unwrap(cfe);
@@ -1203,9 +1203,9 @@ public class SegmentHelper {
                             resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
                         } else {
                             resultFuture.completeExceptionally(new RuntimeException(cause));
-                        }                        
+                        }
                     }
-                });                
+                });
             }
         });
         resultFuture.whenComplete((result, e) -> {
