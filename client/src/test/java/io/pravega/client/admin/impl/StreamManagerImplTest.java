@@ -159,7 +159,7 @@ public class StreamManagerImplTest {
                 Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
-                connectionFactory);
+                connectionFactory, true);
         @Cleanup
         final StreamManager streamManager = new StreamManagerImpl(mockController, connectionFactory);
 
