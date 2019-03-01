@@ -820,7 +820,7 @@ public class SegmentHelper {
         }).collect(Collectors.toList());
 
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, retrieveMasterToken(),
-                new WireCommands.TableEntries(wireCommandEntries));
+                                                                                      new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -964,7 +964,6 @@ public class SegmentHelper {
                                                                                              new KeyVersionImpl(k.getKeyVersion()));
                                                                              // Hack added to return KeyDoesNotExist if key version is Long.Min
                                                                              allKeysFound.compareAndSet(true, k.getKeyVersion() != WireCommands.TableKey.NO_VERSION);
-
                                                                              return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                                                          }).collect(Collectors.toList());
                 if (allKeysFound.get()) {
@@ -1015,10 +1014,10 @@ public class SegmentHelper {
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
     public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String scope,
-                                                                                        final String stream,
-                                                                                        final int suggestedKeyCount,
-                                                                                        final IteratorState state,
-                                                                                        final long clientRequestId) {
+                                                                                    final String stream,
+                                                                                    final int suggestedKeyCount,
+                                                                                    final IteratorState state,
+                                                                                    final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
@@ -1108,6 +1107,7 @@ public class SegmentHelper {
 
         final CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
             @Override
             public void connectionDropped() {
                 log.warn(requestId, "readTableEntries {} Connection dropped", qualifiedName);
@@ -1136,7 +1136,7 @@ public class SegmentHelper {
                                         .map(e -> {
                                             WireCommands.TableKey k = e.getKey();
                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(getArray(k.getData()),
-                                                    new KeyVersionImpl(k.getKeyVersion()));
+                                                                                           new KeyVersionImpl(k.getKeyVersion()));
                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                         }).collect(Collectors.toList());
                 result.complete(new TableSegment.IteratorItem<>(state, entries));
@@ -1195,7 +1195,7 @@ public class SegmentHelper {
                 resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
                         request.getType(),
                         WireCommandFailedException.Reason.ConnectionFailed));
-            } else {
+            } else {                
                 connection.sendAsync(request, cfe -> {
                     if (cfe != null) {
                         Throwable cause = Exceptions.unwrap(cfe);
@@ -1203,9 +1203,9 @@ public class SegmentHelper {
                             resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
                         } else {
                             resultFuture.completeExceptionally(new RuntimeException(cause));
-                        }
+                        }                        
                     }
-                });
+                });                
             }
         });
         resultFuture.whenComplete((result, e) -> {
