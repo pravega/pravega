@@ -57,10 +57,12 @@ jobs:
          - gcloud --quiet version
          - gcloud --quiet components update
          - gcloud --quiet components update kubectl
-         - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/
+         - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/ && rm helm.tar.gz
       before_script:
+         # Push Docker images
+         - git status
          - ./gradlew build docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
-         #
+         # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
          - gcloud --quiet config set project $PROJECT_NAME
@@ -75,7 +77,6 @@ jobs:
          # Install NFS provisioner
          - helm install stable/nfs-server-provisioner
       script:
-
          - ./gradlew startK8SystemTests
       after_script:
          # TODO: collect the logs
