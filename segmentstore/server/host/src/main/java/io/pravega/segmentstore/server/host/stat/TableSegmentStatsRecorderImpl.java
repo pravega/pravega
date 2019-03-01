@@ -18,6 +18,9 @@ import java.time.Duration;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+/**
+ * Implementation for {@link TableSegmentStatsRecorder}.
+ */
 public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     @Getter(AccessLevel.PROTECTED)
@@ -38,21 +41,20 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
     private final OpStatsLogger iterateKeys = STATS_LOGGER.createStats(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS_LATENCY);
     @Getter(AccessLevel.PROTECTED)
     private final OpStatsLogger iterateEntries = STATS_LOGGER.createStats(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY);
-
     @Getter(AccessLevel.PROTECTED)
     private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
     @Override
     public void close() {
-        this.createSegment.close();
-        this.deleteSegment.close();
-        this.updateConditional.close();
-        this.updateUnconditional.close();
-        this.removeConditional.close();
-        this.removeUnconditional.close();
-        this.getKeys.close();
-        this.iterateKeys.close();
-        this.iterateEntries.close();
+        getCreateSegment().close();
+        getDeleteSegment().close();
+        getUpdateConditional().close();
+        getUpdateUnconditional().close();
+        getRemoveConditional().close();
+        getRemoveUnconditional().close();
+        getGetKeys().close();
+        getIterateKeys().close();
+        getIterateEntries().close();
     }
 
     @Override
