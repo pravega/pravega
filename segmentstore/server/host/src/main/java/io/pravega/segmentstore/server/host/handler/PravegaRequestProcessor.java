@@ -46,6 +46,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -91,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -111,7 +113,6 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
-import static io.pravega.segmentstore.contracts.tables.TableEntry.versioned;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -133,6 +134,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final TableStore tableStore;
     private final ServerConnection connection;
     private final SegmentStatsRecorder statsRecorder;
+    private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
 
@@ -149,7 +151,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
-        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
     }
 
     /**
@@ -158,18 +160,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore    The TableStore to attach to (and issue requests to).
      * @param connection    The ServerConnection to attach to (and send responses to).
-     * @param statsRecorder A StatsRecorder for Metrics.
+     * @param statsRecorder A StatsRecorder for Metrics for Stream Segments.
+     * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier  Verifier class that verifies delegation token.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                            SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                            boolean replyWithStackTraceOnError) {
+                            SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
+                            DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.tokenVerifier = Preconditions.checkNotNull(tokenVerifier, "tokenVerifier");
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
+        this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
@@ -550,8 +554,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
+        val timer = new Timer();
         tableStore.createSegment(createTableSegment.getSegment(), TIMEOUT)
-                  .thenAccept(v -> connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment())))
+                .thenAccept(v -> {
+                    connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
+                    this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
+                })
                   .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
     }
 
@@ -565,8 +573,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(deleteTableSegment.getRequestId(), "Deleting table segment {}.", deleteTableSegment);
+        val timer = new Timer();
         tableStore.deleteSegment(segment, deleteTableSegment.isMustBeEmpty(), TIMEOUT)
-                  .thenRun(() -> connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment)))
+                .thenRun(() -> {
+                    connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment));
+                    this.tableStatsRecorder.deleteTableSegment(segment, timer.getElapsed());
+                })
                   .exceptionally(e -> handleException(deleteTableSegment.getRequestId(), segment, operation, e));
     }
 
@@ -611,14 +623,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
-        List<TableEntry> entries = updateTableEntries.getTableEntries().getEntries().stream()
-                                                     .map(e -> versioned(getArrayView(e.getKey().getData()),
-                                                                         getArrayView(e.getValue().getData()),
-                                                                         e.getKey().getKeyVersion()))
-                                                     .collect(Collectors.toList());
+        val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
+        val conditional = new AtomicBoolean(false);
+        for (val e : updateTableEntries.getTableEntries().getEntries()) {
+            val v = TableEntry.versioned(getArrayView(e.getKey().getData()), getArrayView(e.getValue().getData()), e.getKey().getKeyVersion());
+            entries.add(v);
+            if (v.getKey().hasVersion()) {
+                conditional.set(true);
+            }
+        }
+
+        val timer = new Timer();
         tableStore.put(segment, entries, TIMEOUT)
-                  .thenAccept(versions -> connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions)))
-                  .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
+                .thenAccept(versions -> {
+                    connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
+                    this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -631,13 +652,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
+        val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
+        val conditional = new AtomicBoolean(false);
+        for (val k : removeTableKeys.getKeys()) {
+            val v = TableKey.versioned(getArrayView(k.getData()), k.getKeyVersion());
+            keys.add(v);
+            if (v.hasVersion()) {
+                conditional.set(true);
+            }
+        }
 
-        List<TableKey> keys = removeTableKeys.getKeys().stream()
-                                                .map(k -> TableKey.versioned(getArrayView(k.getData()), k.getKeyVersion()))
-                                                .collect(Collectors.toList());
+        val timer = new Timer();
         tableStore.remove(segment, keys, TIMEOUT)
-                  .thenRun(() -> connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment)))
-                  .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
+                .thenRun(() -> {
+                    connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
+                    this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -654,10 +685,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final List<ArrayView> keys = readTable.getKeys().stream()
                                               .map(k -> getArrayView(k.getData()))
                                               .collect(Collectors.toList());
+        val timer = new Timer();
         tableStore.get(segment, keys, TIMEOUT)
-                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment,
-                                                                                   getTableEntriesCommand(keys, values))))
-                  .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
+                .thenAccept(values -> {
+                    connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntriesCommand(keys, values)));
+                    this.tableStatsRecorder.getKeys(readTable.getSegment(), keys.size(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -683,6 +717,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableKey> keys = new ArrayList<>();
 
+        val timer = new Timer();
         tableStore.keyIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
@@ -717,6 +752,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                 .collect(toList());
                       }
                       connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
+                      this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), keys.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
     }
 
@@ -742,6 +778,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableEntry> entries = new ArrayList<>();
+        val timer = new Timer();
         tableStore.entryIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
@@ -783,6 +820,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
                                                                         new WireCommands.TableEntries(wireCommandEntries),
                                                                         continuationToken.get()));
+                      this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 

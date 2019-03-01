@@ -105,7 +105,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
 
         this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
-                monitor.getRecorder(), new PassingTokenVerifier(), null, null, true);
+                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
         this.server.startListening();
 
         // 3. Start Pravega Controller service

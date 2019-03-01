@@ -28,6 +28,7 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.mocks.SynchronousStreamSegmentStore;
 import io.pravega.segmentstore.server.reading.ReadResultEntryBase;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -277,7 +278,8 @@ public class PravegaRequestProcessorTest {
         ServerConnection connection = mock(ServerConnection.class);
         InOrder order = inOrder(connection);
         val recorderMock = mock(SegmentStatsRecorder.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock, new PassingTokenVerifier(), false);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock,
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
         // Execute and Verify createSegment/getStreamSegmentInfo calling stack is executed as design.
         processor.createSegment(new WireCommands.CreateSegment(1, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
@@ -421,7 +423,8 @@ public class PravegaRequestProcessorTest {
         CompletableFuture<SegmentProperties> txnFuture = CompletableFuture.completedFuture(createSegmentProperty(streamSegmentName, txnId));
         doReturn(txnFuture).when(store).mergeStreamSegment(anyString(), anyString(), any());
         SegmentStatsRecorder recorderMock = mock(SegmentStatsRecorder.class);
-        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock, new PassingTokenVerifier(), false);
+        PravegaRequestProcessor processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, recorderMock,
+                TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
 
         processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnId);
