@@ -43,7 +43,7 @@ jobs:
       if: type IN (push, pull_request)
       env:
          - PROJECT_NAME="pravega-dev"
-         - CLUSTER_NAME="pravega-travis-$(date +"%Y%m%d%H%M%S")"
+         - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
          - CLUSTER_ZONE="us-central1-c"
       install:
          - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; export CLOUDSDK_CORE_DISABLE_PROMPTS=1; curl https://sdk.cloud.google.com | bash; fi
