@@ -556,10 +556,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
         val timer = new Timer();
         tableStore.createSegment(createTableSegment.getSegment(), TIMEOUT)
-                .thenAccept(v -> {
-                    connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
-                    this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
-                })
+                  .thenAccept(v -> {
+                      connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
+                      this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
+                  })
                   .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
     }
 
@@ -575,10 +575,10 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(deleteTableSegment.getRequestId(), "Deleting table segment {}.", deleteTableSegment);
         val timer = new Timer();
         tableStore.deleteSegment(segment, deleteTableSegment.isMustBeEmpty(), TIMEOUT)
-                .thenRun(() -> {
-                    connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment));
-                    this.tableStatsRecorder.deleteTableSegment(segment, timer.getElapsed());
-                })
+                  .thenRun(() -> {
+                      connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment));
+                      this.tableStatsRecorder.deleteTableSegment(segment, timer.getElapsed());
+                  })
                   .exceptionally(e -> handleException(deleteTableSegment.getRequestId(), segment, operation, e));
     }
 
