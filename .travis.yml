@@ -45,7 +45,7 @@ jobs:
          - HELM_VERSION=v2.12.0
          - CLOUDSDK_CORE_DISABLE_PROMPTS=1
          - PROJECT_NAME=pravega-dev
-         - CLUSTER_NAME=pravega-travis-$(date +'%Y%m%d%H%M%S')
+         - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
          - CLUSTER_ZONE=us-central1-c
          - PRAVEGA_BASE_TAG=pravega/pravega-testimages
          - BOOKKEEPER_BASE_TAG=pravega/bookkeeper-testimages
