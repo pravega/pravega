@@ -17,7 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.store.index.PravegaTablesHostIndex;
+import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
@@ -62,7 +62,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
-        super(new PravegaTablesHostIndex("hostTxnIndex", new PravegaTablesStoreHelper(segmentHelper, executor)));
+        super(new ZKHostIndex(curatorClient, "hostTxnIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
