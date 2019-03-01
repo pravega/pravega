@@ -61,7 +61,7 @@ jobs:
          - export BASE_VERSION=$(grep 'pravegaVersion=' gradle.properties  | sed 's/pravegaVersion=//' | sed 's/-.*//')
          - export BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
          - export VERSION="${BRANCH}-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
-         - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+         - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
          - ./gradlew docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
          # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
