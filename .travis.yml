@@ -20,52 +20,56 @@ jobs:
   include:
 # the secure configurations in env: is for BINTRAY_USER=<USER> and BINTRAY_KEY=<KEY> properties
 # which will be used for publishing artifacts to snapshot repository
-    - stage: build
-      if: type IN (push, pull_request)
-      install: ./gradlew assemble
-      script: ./gradlew check
-      after_success:
-           - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
-
-    - stage: javadocs
-      install: echo "Building javadocs"
-      script: ./gradlew javadocs
-
-    - stage: snapshot
-      if: branch = master AND NOT (type = pull_request)
-      env:
-         - secure: "EJGO5B4XxT6NpZ4+St4EG/Y3+UmQ2XNkbnJz/5vv7HZziC4OXFVFCigOsjqqRVjJaWmDmYf1a/U7QwJa+esgA9oBchg+DVWYeqkMOEbZkEJzBgHeA5Bmgp+3Q5/2ouOe6M2cUFhSNXN+lZaLri8xYis25ndK6E0Y6MIQ7CbCNyhA/edIIHSttJNHoGkaVxkfEDWNvIvdUbxt7MTTdAGIvT+Xj/EF8clT349N5UfZ8DdYy8Q6i4TKiy5557dj6nfegbD6qD0mGxWt8dqKBSIqmPMoiCjGsy+3LyfeMNhZiNji+7LRmwJtWD87fewlYeU5xkKZIaxXlCnd9JPrkIFH62FzXctn0wc18mDTD+c4mnc2efKHHrmvRcrvQrRD447iFt17lEMCROriHVZsB4m6igxrEg0i2paCBajMqhQG5LEwSqU7D8CQaW+ffC2+9agFR0a6uhW7n9GahU2AOVf9RhvLU7yFWtVJltOP2mBY0s8Oowxzy5OXSfqjxwSJeKKGgWVaTbBY14Y1Y2pCx9CuInLswz4oIO3LqHHfKJasKwHp9nHRSa6flh8JFR8+jGA7vo1MqGAPH3N4rrMQqpYs9DjYD50TPAh2h4asQj5gSjtYkKpvEu58dRRRzansjtSpiwo6TNfaVp9jhzYI3O3vnssyDyJvHjHjCnrvCB/KYrU="
-         - secure: "NdkraKeGWu2OLxxHEjxn09GdVaXeKxaSrpNuTMc38Bnq9O2msXgb2jiEBsq4Z23j8cxG6Y4JJ0ZAOQwhuB3Tfh6UwGxSf8CxAqplD9uy1VRrAT0gXneIjaAwlOITy5IQfP0bY0o+IwYSefLEKnR46YLxd4zHckgneq5SWD9bUZEByM7rcYZArpaHK/fBQ+0aM0SsYY0vHX/6ivA9f9oWIva2pnWgOXPABbgrN7Xah+a+XVAV3Qe2vBA0MAl0pA1S9PWWfZNbVAO+CSR6d4+Rdvn4tQsM5Si5p9hWjmBi22kkDMJtLAhKHUnutoHPVMH6ekQneakshhiVuhMzAJZoMI626P5GkiyN3OVkv+AlAGEUZdJnXlsx51veIAvQh1iZZhpJ5Cd5R8H7dQrgIFiios+fRLlD8VbCwv8NAL366khBkQjoW2RyF+Xl1Y1J7Yd9C7lsg/Ktm7PNIVNRsHjMu1msQHNNsn0VmVbH2IZo20u8giKhiUVcAznctj5kmleCBgszTlRj07pxMQggcLrK0d0y1gU9Gg/pOubcsHNzQ/pLWVjep1vuJ+wyW64BtgQuFvPK97eA95P5b3j3MpalhFUKPF+mVdqXNQjcJrYOwtRagq4CkPsg3fKr7+HMzUCHwo69eqJfgPCOR9NYLSMPzhKAl/YrdphH46wPuEiOopU="
-      install: skip
-      script: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=$BINTRAY_USER -PpublishPassword=$BINTRAY_KEY
+    # - stage: build
+    #   if: type IN (push, pull_request)
+    #   install: ./gradlew assemble
+    #   script: ./gradlew check
+    #   after_success:
+    #        - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
+    #
+    # - stage: javadocs
+    #   install: echo "Building javadocs"
+    #   script: ./gradlew javadocs
+    #
+    # - stage: snapshot
+    #   if: branch = master AND NOT (type = pull_request)
+    #   env:
+    #      - secure: "EJGO5B4XxT6NpZ4+St4EG/Y3+UmQ2XNkbnJz/5vv7HZziC4OXFVFCigOsjqqRVjJaWmDmYf1a/U7QwJa+esgA9oBchg+DVWYeqkMOEbZkEJzBgHeA5Bmgp+3Q5/2ouOe6M2cUFhSNXN+lZaLri8xYis25ndK6E0Y6MIQ7CbCNyhA/edIIHSttJNHoGkaVxkfEDWNvIvdUbxt7MTTdAGIvT+Xj/EF8clT349N5UfZ8DdYy8Q6i4TKiy5557dj6nfegbD6qD0mGxWt8dqKBSIqmPMoiCjGsy+3LyfeMNhZiNji+7LRmwJtWD87fewlYeU5xkKZIaxXlCnd9JPrkIFH62FzXctn0wc18mDTD+c4mnc2efKHHrmvRcrvQrRD447iFt17lEMCROriHVZsB4m6igxrEg0i2paCBajMqhQG5LEwSqU7D8CQaW+ffC2+9agFR0a6uhW7n9GahU2AOVf9RhvLU7yFWtVJltOP2mBY0s8Oowxzy5OXSfqjxwSJeKKGgWVaTbBY14Y1Y2pCx9CuInLswz4oIO3LqHHfKJasKwHp9nHRSa6flh8JFR8+jGA7vo1MqGAPH3N4rrMQqpYs9DjYD50TPAh2h4asQj5gSjtYkKpvEu58dRRRzansjtSpiwo6TNfaVp9jhzYI3O3vnssyDyJvHjHjCnrvCB/KYrU="
+    #      - secure: "NdkraKeGWu2OLxxHEjxn09GdVaXeKxaSrpNuTMc38Bnq9O2msXgb2jiEBsq4Z23j8cxG6Y4JJ0ZAOQwhuB3Tfh6UwGxSf8CxAqplD9uy1VRrAT0gXneIjaAwlOITy5IQfP0bY0o+IwYSefLEKnR46YLxd4zHckgneq5SWD9bUZEByM7rcYZArpaHK/fBQ+0aM0SsYY0vHX/6ivA9f9oWIva2pnWgOXPABbgrN7Xah+a+XVAV3Qe2vBA0MAl0pA1S9PWWfZNbVAO+CSR6d4+Rdvn4tQsM5Si5p9hWjmBi22kkDMJtLAhKHUnutoHPVMH6ekQneakshhiVuhMzAJZoMI626P5GkiyN3OVkv+AlAGEUZdJnXlsx51veIAvQh1iZZhpJ5Cd5R8H7dQrgIFiios+fRLlD8VbCwv8NAL366khBkQjoW2RyF+Xl1Y1J7Yd9C7lsg/Ktm7PNIVNRsHjMu1msQHNNsn0VmVbH2IZo20u8giKhiUVcAznctj5kmleCBgszTlRj07pxMQggcLrK0d0y1gU9Gg/pOubcsHNzQ/pLWVjep1vuJ+wyW64BtgQuFvPK97eA95P5b3j3MpalhFUKPF+mVdqXNQjcJrYOwtRagq4CkPsg3fKr7+HMzUCHwo69eqJfgPCOR9NYLSMPzhKAl/YrdphH46wPuEiOopU="
+    #   install: skip
+    #   script: ./gradlew publish -PpublishUrl=jcenterSnapshot -PpublishUsername=$BINTRAY_USER -PpublishPassword=$BINTRAY_KEY
 
     - stage: system tests
-      if: repo != pravega/pravega
+      if: type IN (push, pull_request)
       env:
-         - secure: xMd2acI6P4cIrVH1ha+CkwkHkomjjanKOWth8rqrLvLjSCA+K/zOqMp0VtDMyDFWSPLUnpa/D2oViGZD/q1rtLTs8O3aVQcQn9MiFL3VpwZKZ3PNEI9MhSgCMGh4oem4jIOu/A7xfTPFTOJsFyOFWi627MHW7EZmUsZOkzmMU04ms5i2Q63pboTd7W2ym9rzTWpGe3eb6IuqEbSyElWNDwKcVRT55YYvyahRL+lcOkObPXkiS2EcS098jfmofKDhkNFZ58m51ukOg7117pnQw0J8hXCtlcfJHfJC4+Mjao8IKeAzeoXkJL/lA1qSCAdkcg85+OeUjJ2HOTWsV+y+aS8VPe0bth2YMKn3/EfWVcrusbgVsbV1bUbje9C5OUOiBZ+0mgcBI2FMP9fk1lHOPJ/XXPfup6g1N67mB3kCK+YI3eTyhFaGnTaN+jz3qn86on8sXw9ionC3KJrUQP0C0JriPVMIAqRQoTBGP8BqtNvCHnEyhriJHuEeRB2XAOAjrge2qJ9MP7heaFmSlG/zqTUZDpHP4CVWX8OTc5jTVWKZ5mfB8XNXVLfVZjaVOXva4eQWJ1KGvoEMwBu+pCThyA6AKHikFSjPxUymdTscyIt7Ma+0YzTy0ejT1OHjdo2eLN2W5swSCA+SWM4oKkR5MAle6NHdHwnw6lPNfLyHzug=
-         - secure: hMyMR2tf9kNsWJ1+6aQWiW2X+vc6dF0mdB4sCXUk//wCqwZ81ri8AOndXdDWv+PZAE0ZCbNynRX5BtXyY1St0cY49+FFFy0ExvrD0Ydro/zoEw2vaAX6f5PSNISRwFXPZv13He516Ssj0733QHs+d0cSywd+6+KXJtaIbgxtzRcqI38pD6BXoT67x1LthkGDOdIt/+N6JQbuQVHsPchABRRr0eZcwU/SjdW0vXXoGZ5b0odHVtRnioFq2Q87zmcCr5rfvFmnerGrnhXywO4MzCA83K3j9vlkAoapV8WWMb9uTKwnxCj4XIKsH6nXDzWAsO2sNlwBu4QtkNXGfoS0H7vUSBZcjDaWSV2YZNl9YUVcjzgzHApoE63NAAm7XwESqAl7AE8GkZX8ZZIC7mH0nbQ3I312d6AzV69o6Npxr8q8sZjK94Qp9jUkgM7/GkMN0R6x8QbByTH5BY8KQaXO4XEF7/GaMkkklJARy66FjO8mOWk3z0cE1QG49zY6l+fatMJzKjDbPXDAoJNqiDqhtfXpHSq2CM+BHMRwp+SHMihl3kus0LzahFSPAqpdT6sJo5XYQi4Ygtkrxya/e15TZQeP4/uvEBwPcCf25LA8GhJ60L1poA2I9ptU1V79w7b72/rJeOWrVvqV+M9tviL1+j9VzSAeMXkBufa7J5W5uak=
-         - secure: hgu6ik1qGduzifEKVdzYyKNawyBmGClyDDw2SaNJqh/FVipT7nFPhi+O5v49OcyUuwXwW/BSYUNqlxjfSUWrZ7dN/kSnTUGFYYqs6RAjhY15NldoXYnmFZHqT3kS38ZQLyTMIeWd0OllR/nx0cQylkK1DNu42MmImH7MXHxjKw/FTN02tSba674ZaHVABxLGuqFtVVx2sORXkU64RCcwg4KSbSQlwUzUIInpkOyKkoI+RugcEHd8YItWiLrJUgvyBwU4IcBKvCgXDOWXlfii+/6eAZdw+2QiANtsWAkz0mxXejyyOAl4iUTMIuhuxjZ5eYcwyLoPXt14WXwuBh2wCZyzuU3h/sa6G+YR1gti4fMNjg2u1X+5uBD8TdHfCQ67D+1Pkx/7AzHYinrxEmx2o4XUs+6wkGcHGbzMUu/njeHSiVpedKAlIv+FuVeNJ73/CF1F2QCuEusUYnj7AXJFikYEWOK1FTI2ip3nQ5fAh/qFoHJNdWNHNhvF8XnRyCTdMK0GIUSXiHP7ciQtl8Sgl2N6Y0nvK9Hwk6T1nJBZr3rxdzPfwW0QBSFN4yyZkR6J4rq4mPi56xl72KV+zrcNsYWehcz8GWVspESn7EAXbwymHGdeJCel3JQ7Abxdf6mrDmTLP6POUtI3RjaIoQAulWBArNxe7e/wiVwWSPGRedE=
-      before_install:
-         - openssl aes-256-cbc -K $encrypted_7840d5b8aa7c_key -iv $encrypted_7840d5b8aa7c_iv -in aws-key-pair.pem.enc -out aws-key-pair.pem -d
-         - sudo wget https://releases.hashicorp.com/terraform/0.11.3/terraform_0.11.3_linux_amd64.zip
-         - unzip terraform_0.11.3_linux_amd64.zip
-         - sudo mv terraform /usr/local/bin/
-         - chmod +x /usr/local/bin/terraform
-         - sudo terraform --version
+         - PROJECT_NAME="pravega-dev"
+         - CLUSTER_NAME="pravega-travis-$(date +"%Y%m%d%H%M%S")"
+         - CLUSTER_ZONE="us-central1-c"
       install:
-         - echo "Executing system tests on AWS"
+         - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; export CLOUDSDK_CORE_DISABLE_PROMPTS=1; curl https://sdk.cloud.google.com | bash; fi
+         - source $HOME/google-cloud-sdk/path.bash.inc
+         - gcloud --quiet version
+         - gcloud --quiet components update
+         - gcloud --quiet components update kubectl
+      before_script:
+         - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
+         - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
+         - gcloud --quiet config set project $PROJECT_NAME
+         - gcloud --quiet container clusters create $CLUSTER_NAME --zone $CLUSTER_ZONE
+         - kubectl config view
+         - kubectl config current-context
+         - kubectl get nodes -o wide
+         # Install Helm tiller
+         - kubectl create serviceaccount --namespace kube-system tiller
+         - kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+         - helm init --wait --service-account tiller
+         # Install NFS provisioner
+         - helm install stable/nfs-server-provisioner
       script:
-         - ./gradlew startSystemTestsWithDocker -DskipServiceInstallation=false
-               -Dlog.level=DEBUG -DexecType=DOCKER -PawsExecution=true -Paws_access_key="$AWS_ACCESS_KEY"
-               -Paws_secret_key="$AWS_SECRET_KEY" -Paws_region=us-east-2  -Paws_key_name=aws-key-pair
-               -Pconfig_path=/home/travis/build/pravega/pravega/test/system/aws -Pcred_path=/home/travis/build/pravega/pravega/aws-key-pair.pem
-               -Ppravega_org="$TRAVIS_REPO_SLUG" -Ppravega_branch="$TRAVIS_BRANCH"  -DimageVersion="$TRAVIS_BRANCH"
-               -DawsExec=true
-         - ./gradlew --info collectSystemTestLogsFromAws -Paws_access_key="$AWS_ACCESS_KEY" -Paws_secret_key="$AWS_SECRET_KEY"
-               -Paws_region=us-east-2 -Paws_key_name=aws-key-pair
-               -Pcred_path=/home/travis/build/pravega/pravega/aws-key-pair.pem -Pconfig_path=/home/travis/build/pravega/pravega/test/system/aws
-               -Ppravega_org="$TRAVIS_REPO_SLUG" -Ppravega_branch="$TRAVIS_BRANCH" -Ptravis_commit="$TRAVIS_COMMIT"
-
+         - ./gradlew startK8SystemTests
+      after_script:
+         # TODO: collect the logs
+         - gcloud --quiet container clusters delete $CLUSTER_NAME --zone $CLUSTER_ZONE
 
 sudo: required
 
@@ -85,7 +89,6 @@ notifications:
     rooms:
       secure: Gv0RJx1Sa/y5fmvLNwY+2ivfWZYCM0ekrr6UAHqsegnid6P/DFZrSrfSpwvcVh2OVNH8DHLV0BoiuDJ7amtl1eMDMXz5/lLz8tFWFKaHv4yDSadm8ILY/KnYUoP4IRuM3NyKQmBrmZB9Or5KFXboG6ex6UkgbuYy0Zyl6syEe168Iw8hlCRx26Jei7/y+8eE2MIGFh09TLRZ/944YbULum9H3KQLYv8nFdPc7GmR5AK461fnwZ7iYjb7MXkCctE5Vml3p9+2Qliv1ZJqNsQeKmSFW6IhiP6pNZ1V8VJEWMQmX/nBr9745l/N+CoLQz9ajLonlxn9xHdWms4TEu1ynFk6uxEJjlcpXcvcEaKhqAKcTMl0GMMRab2m+/Vt3S/VutJnVXQmnhZGT9glLFQHwcdHNqM/LEbXtyisB7zmGImUQpF2InCwO25IXug5gv64IfOHGMzL56yNIhbRgBY9Ud4Tux+pmkV5ZxJiBkul7/FiHQX7tQLUrzQosD0oyCOmaWD7kmbt15A0TOkLgup4HE+sSS1ASwisa7J2+HsbI3Upy3rNVKuIJP0L4KSTn4HSlDlMLLcWM+nz/YCEfuwSRXJTIstotNYHdsLUZAZSYAX7ejpeiuBRed4a4AlCROeKbKKwCcSvqCOjmCaPTpwJAGeJByOXLL2hfQzpDMKCIKM=
   email:
-    - arvind.kandhare@dell.com
     - tom.kaitchuck@dell.com
     - andrei.paduroiu@dell.com
     - shivesh.ranjan@dell.com
