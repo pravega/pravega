@@ -125,6 +125,13 @@ public class PasswordAuthHandler implements AuthHandler {
             // if we combine the conditions.
 
             if (acl.isResource(resource)) {
+                // Example: resource = "myscope", acl-resource = "myscope"
+                result = acl.permissions;
+                break;
+            }
+
+            if (acl.isResource("/*") && !resource.contains("/")) {
+                // Example: resource = "myscope", acl-resource ="/*"
                 result = acl.permissions;
                 break;
             }
