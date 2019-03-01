@@ -57,10 +57,10 @@ jobs:
          - gcloud --quiet version
          - gcloud --quiet components update
          - gcloud --quiet components update kubectl
-         - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/ && rm helm.tar.gz
+         - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/ && rm -rf linux-amd64 helm.tar.gz
       before_script:
          # Push Docker images
-         - git status
+         - docker login
          - ./gradlew docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
          # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
