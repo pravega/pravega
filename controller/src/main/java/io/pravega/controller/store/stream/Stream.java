@@ -408,11 +408,13 @@ interface Stream {
      * @param txId    transaction identifier.
      * @param commit  whether to commit or abort the specified transaction.
      * @param version optional expected version of transaction data node to validate before updating it.
+     * @param writerId
+     * @param mark
      * @return        a pair containing transaction status and its epoch.
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
                                                                        final boolean commit,
-                                                                       final Optional<Version> version);
+                                                                       final Optional<Version> version, UUID writerId, long mark);
 
     /**
      * Returns transaction's status
@@ -421,17 +423,7 @@ interface Stream {
      * @return     transaction status.
      */
     CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
-
-    /**
-     * Commits a transaction.
-     * If already committed, return TxnStatus.Committed.
-     * If aborting/aborted, return a failed future with IllegalStateException.
-     *
-     * @param txId  transaction identifier.
-     * @return      transaction status.
-     */
-    CompletableFuture<TxnStatus> commitTransaction(final UUID txId);
-
+    
     /**
      * Aborts a transaction.
      * If already aborted, return TxnStatus.Aborted.
@@ -518,10 +510,9 @@ interface Stream {
      * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
      * it returns null.
      *
-     * @param epoch epoch
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(final int epoch);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions();
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.

@@ -55,6 +55,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -313,7 +314,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        // TODO: shivesh: watermarking: should receive writer id and mark with commit request.
+                        request.getTxnId(), new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE),
                 responseObserver);
     }
 

@@ -97,12 +97,13 @@ public abstract class StreamTestBase {
     private UUID createAndCommitTransaction(Stream stream, int msb, long lsb) {
         return stream.generateNewTxnId(msb, lsb)
                      .thenCompose(x -> stream.createTransaction(x, 1000L, 1000L))
-                     .thenCompose(y -> stream.sealTransaction(y.getId(), true, Optional.empty())
+                     .thenCompose(y -> stream.sealTransaction(y.getId(), true, Optional.empty(), 
+                             new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE)
                                              .thenApply(z -> y.getId())).join();
     }
 
     private void rollTransactions(Stream stream, long time, int epoch, int activeEpoch, Map<Long, Long> txnSizeMap, Map<Long, Long> activeSizeMap) {
-        stream.startCommittingTransactions(epoch)
+        stream.startCommittingTransactions()
                                         .thenCompose(ctr ->
                                                 stream.getVersionedState()
                                                       .thenCompose(state -> stream.updateVersionedState(state, State.COMMITTING_TXN))
@@ -622,7 +623,7 @@ public abstract class StreamTestBase {
         List<Segment> activeSegmentsBefore = stream.getActiveSegments().join();
 
         // start commit transactions
-        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(0).join();
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions().join();
         stream.getVersionedState().thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN)).join();
 
         // start rolling transaction

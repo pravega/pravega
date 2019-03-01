@@ -43,7 +43,6 @@ public class CommittingTransactionsRecord {
     /**
      * Epoch from which transactions are committed.
      */
-    @Deprecated
     private final int epoch;
     /**
      * Transactions to be be committed.

@@ -564,12 +564,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scopeName, streamName, context).checkTransactionStatus(txId), executor);
     }
 
-    @Override
+    @VisibleForTesting
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName,
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return withCompletion(stream.commitTransaction(txId), executor)
+        return withCompletion(((PersistentStreamBase)stream).commitTransaction(txId), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count ->
                             TransactionMetrics.reportOpenTransactions(scope, streamName, count));
@@ -583,10 +583,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                               final UUID txId,
                                                                               final boolean commit,
                                                                               final Optional<Version> version,
+                                                                              final UUID writerId, 
+                                                                              final long mark,
                                                                               final OperationContext context,
                                                                               final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
-                .sealTransaction(txId, commit, version), executor);
+                .sealTransaction(txId, commit, version, writerId, mark), executor);
     }
 
     @Override
@@ -685,8 +687,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(String scope,
-                                                                                                      String stream, int epoch, OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).startCommittingTransactions(epoch), executor);
+                                                                                                      String stream, OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).startCommittingTransactions(), executor);
     }
 
     @Override
@@ -698,7 +700,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).completeCommittingTransactions(record), executor);
+        Stream streamObj = getStream(scope, stream, context);
+        return withCompletion(streamObj.completeCommittingTransactions(record), executor)
+                .thenAccept(result -> {
+                    streamObj.getNumberOfOngoingTransactions().thenAccept(count ->
+                            TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                });
     }
 
     @Override

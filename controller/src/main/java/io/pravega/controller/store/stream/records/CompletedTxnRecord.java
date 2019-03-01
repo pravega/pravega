@@ -21,6 +21,8 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.UUID;
 
 @Data
 @Builder
@@ -31,7 +33,6 @@ public class CompletedTxnRecord {
 
     private final long completeTime;
     private final TxnStatus completionStatus;
-
     public static class CompletedTxnRecordBuilder implements ObjectBuilder<CompletedTxnRecord> {
 
     }

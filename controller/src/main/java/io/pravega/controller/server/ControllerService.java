@@ -335,13 +335,13 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
-            txnId) {
+            txnId, UUID writerId, long mark) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         Timer timer = new Timer();
         UUID txId = ModelHelper.encode(txnId);
-        return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
+        return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, writerId, mark, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);

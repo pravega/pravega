@@ -14,7 +14,9 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -22,14 +24,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -65,6 +67,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
 
     private static final Data EMPTY_DATA = new Data(null, new Version.IntVersion(Integer.MIN_VALUE));
+    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -139,16 +142,9 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return store.getChildren(activeTxRoot).thenCompose(list ->
-                Futures.allOfWithResults(list.stream().map(epoch ->
-                        getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
-                    .thenApply(list -> list.stream().reduce(0, Integer::sum));
+        return store.getChildren(activeTxRoot).thenApply(List::size);
     }
-
-    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
-        return store.getChildren(getEpochPath(epoch)).thenApply(List::size);
-    }
-
+    
     @Override
     public CompletableFuture<Void> deleteStream() {
         return store.deleteTree(streamPath);
@@ -421,33 +417,72 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, Data>> getCurrentTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return store.getChildren(activeTxRoot)
-                    .thenCompose(children -> {
-                        return Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x))).collect(Collectors.toList()))
-                                      .thenApply(list -> {
-                                          Map<String, Data> map = new HashMap<>();
-                                          list.forEach(map::putAll);
-                                          return map;
-                                      });
+                    .thenCompose(txIds -> {
+                        return Futures.allOfWithResults(
+                                txIds.stream()
+                                     .collect(Collectors.toMap(UUID::fromString, this::getTxnRecord))
+                        ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> x.getValue() != null)
+                                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
                     });
     }
 
     @Override
-    public CompletableFuture<Map<String, Data>> getTxnInEpoch(int epoch) {
-        return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
-                      .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                              Collectors.toMap(txId -> txId, txId -> Futures.exceptionallyExpecting(store.getData(getActiveTxPath(epoch, txId)),
-                                      e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, EMPTY_DATA)))
-                              ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(EMPTY_DATA))
-                                                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                      );
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getCommittingTxnInLowestEpoch() {
+        return Futures.exceptionallyExpecting(store.getChildren(activeTxRoot),
+                DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
+                      .thenCompose(txIds -> {
+                          // group transactions by epoch
+                          Map<Integer, List<String>> groupByEpoch = txIds.stream().collect(
+                                  Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x))));
+
+                          // sort transcations by epoch
+                          List<Map.Entry<Integer, List<String>>> sortedList = groupByEpoch
+                                  .entrySet().stream()
+                                  .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                                  .collect(Collectors.toList());
+
+                          // start with smallest epoch and move to higher epoch 
+                          // in each epoch, see if it has at least one committing transaction. 
+                          // as soon as we find first epoch with committing transactions, all other epochs are ignored.
+                          // ideally we would have done it using futures.loop but that needs an executor. 
+                          CompletableFuture<Map<UUID, ActiveTxnRecord>> future = CompletableFuture.completedFuture(Collections.emptyMap());
+
+                          for (Map.Entry<Integer, List<String>> txnInEpoch : sortedList) {
+                              future = future.thenCompose(map -> {
+                                  if (!map.isEmpty()) {
+                                      CompletableFuture<Map<UUID, ActiveTxnRecord>> transactionsMap = Futures.allOfWithResults(
+                                              txnInEpoch.getValue().stream().collect(Collectors.toMap(UUID::fromString, this::getTxnRecord)));
+
+                                      return transactionsMap
+                                              .thenApply(map2 -> {
+                                                  // Filter non null transactions which are in committing state. 
+                                                  return map2.entrySet().stream()
+                                                             .filter(x -> x.getValue() != null && 
+                                                                     x.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
+                                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                                              });
+                                  } else {
+                                      // if we have already found the epoch with transactions committing, ignore all higher epochs 
+                                      // by falling through with the found map.
+                                      return CompletableFuture.completedFuture(map);
+                                  }
+                              });
+                          }
+                          return future;
+                      });
+    }
+
+    private CompletableFuture<ActiveTxnRecord> getTxnRecord(String txId) {
+        return Futures.exceptionallyExpecting(
+                getActiveTx(UUID.fromString(txId)).thenApply(y -> ActiveTxnRecord.fromBytes(y.getData())),
+                DATA_NOT_FOUND_PREDICATE, null);
     }
 
     @Override
-    CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final byte[] txnRecord) {
-        final String activePath = getActiveTxPath(epoch, txId.toString());
+    CompletableFuture<Version> createNewTransaction(final UUID txId, final byte[] txnRecord) {
+        final String activePath = getActiveTxPath(txId.toString());
         // we will always create parent if needed so that transactions are created successfully even if the epoch znode
         // previously found to be empty and deleted.
         // For this, send createParent flag = true
@@ -456,21 +491,21 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Data> getActiveTx(final int epoch, final UUID txId) {
-        final String activeTxPath = getActiveTxPath(epoch, txId.toString());
+    CompletableFuture<Data> getActiveTx(final UUID txId) {
+        final String activeTxPath = getActiveTxPath(txId.toString());
         return store.getData(activeTxPath);
     }
 
     @Override
-    CompletableFuture<Version> updateActiveTx(final int epoch, final UUID txId, final Data data) {
-        final String activeTxPath = getActiveTxPath(epoch, txId.toString());
+    CompletableFuture<Version> updateActiveTx(final UUID txId, final Data data) {
+        final String activeTxPath = getActiveTxPath(txId.toString());
         return store.setData(activeTxPath, data)
                     .thenApply(Version.IntVersion::new);
     }
 
     @Override
-    CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId) {
-        final String activePath = getActiveTxPath(epoch, txId.toString());
+    CompletableFuture<Void> removeActiveTxEntry(final UUID txId) {
+        final String activePath = getActiveTxPath(txId.toString());
         // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
         return store.deletePath(activePath, true);
     }
@@ -492,15 +527,7 @@ class ZKStream extends PersistentStreamBase {
                             String root = String.format(STREAM_COMPLETED_TX_BATCH_PATH, Long.parseLong(child), getScope(), getName());
                             String path = ZKPaths.makePath(root, txId.toString());
 
-                            return cache.getCachedData(path)
-                                        .exceptionally(e -> {
-                                            if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                                                return null;
-                                            } else {
-                                                log.error("Exception while trying to fetch completed transaction status", e);
-                                                throw new CompletionException(e);
-                                            }
-                                        });
+                            return Futures.exceptionallyExpecting(cache.getCachedData(path), DATA_NOT_FOUND_PREDICATE, null);
                         }).collect(Collectors.toList()));
                     })
                     .thenCompose(result -> {
@@ -618,14 +645,10 @@ class ZKStream extends PersistentStreamBase {
 
     // region private helpers
     @VisibleForTesting
-    String getActiveTxPath(final int epoch, final String txId) {
-        return ZKPaths.makePath(ZKPaths.makePath(activeTxRoot, Integer.toString(epoch)), txId);
+    String getActiveTxPath(final String txId) {
+        return ZKPaths.makePath(activeTxRoot, txId);
     }
-
-    private String getEpochPath(final int epoch) {
-        return ZKPaths.makePath(activeTxRoot, Integer.toString(epoch));
-    }
-
+    
     CompletableFuture<Void> createStreamPositionNodeIfAbsent(int streamPosition) {
         byte[] b = new byte[Integer.BYTES];
         BitConverter.writeInt(b, 0, streamPosition);

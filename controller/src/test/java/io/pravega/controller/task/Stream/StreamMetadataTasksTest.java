@@ -40,6 +40,7 @@ import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
@@ -955,7 +956,8 @@ public class StreamMetadataTasksTest {
         VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, null)
                 .get().getKey();
         // set transaction to committing
-        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
+        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
 
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
         Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
@@ -1004,7 +1006,7 @@ public class StreamMetadataTasksTest {
 
         // Now complete all existing transactions and verify that seal completes
         streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
-        streamStorePartialMock.commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
+        ((AbstractStreamMetadataStore)streamStorePartialMock).commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 

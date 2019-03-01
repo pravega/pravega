@@ -504,8 +504,9 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     private CompletableFuture<TxnStatus> createAndCommitTxn(UUID txnId, String scope, String stream) {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
-             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor))
-             .thenCompose(x -> store.commitTransaction(scope, stream, txnId, null, executor));
+             .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(),
+                     new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor))
+             .thenCompose(x -> ((AbstractStreamMetadataStore)store).commitTransaction(scope, stream, txnId, null, executor));
     }
 
     private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {

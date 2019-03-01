@@ -196,7 +196,8 @@ public class RequestHandlersTest {
         // create txn on epoch 0
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
@@ -205,7 +206,8 @@ public class RequestHandlersTest {
 
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()), null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
 
         // regular commit
         // start commit transactions
@@ -227,7 +229,7 @@ public class RequestHandlersTest {
         if (expectFailureOnFirstJob) {
             AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
-                    .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
+                    .startCommitTransactions(anyString(), anyString(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("completeCommitTransactions")))
                     .completeCommitTransactions(anyString(), anyString(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("updateVersionedState")))
@@ -294,7 +296,8 @@ public class RequestHandlersTest {
         // create txn on epoch 0
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
@@ -303,7 +306,8 @@ public class RequestHandlersTest {
 
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()), null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
 
         // regular commit
         // start commit transactions
@@ -325,7 +329,7 @@ public class RequestHandlersTest {
         if (expectFailureOnFirstJob) {
             AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1Rolling, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
-                    .startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
+                    .startCommitTransactions(anyString(), anyString(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("startRollingTxn"))).startRollingTxn(anyString(), anyString(), anyInt(), any(), any(), any());
             verify(streamStore1Spied, times(invocationCount.get("rollingTxnCreateDuplicateEpochs")))
                     .rollingTxnCreateDuplicateEpochs(anyString(), anyString(), any(), anyLong(), any(), any(), any());
@@ -354,8 +358,8 @@ public class RequestHandlersTest {
                     signal.complete(null);
                     waitOn.join();
                     return store.startCommitTransactions(x.getArgument(0), x.getArgument(1),
-                            x.getArgument(2), x.getArgument(3), x.getArgument(4));
-                }).when(spied).startCommitTransactions(anyString(), anyString(), anyInt(), any(), any());
+                            x.getArgument(2), x.getArgument(3));
+                }).when(spied).startCommitTransactions(anyString(), anyString(), any(), any());
                 break;
             case "completeCommitTransactions":
                 doAnswer(x -> {

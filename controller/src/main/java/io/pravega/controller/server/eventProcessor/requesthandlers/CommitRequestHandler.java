@@ -87,29 +87,30 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     public CompletableFuture<Void> execute(CommitEvent event) {
         String scope = event.getScope();
         String stream = event.getStream();
-        int epoch = event.getEpoch();
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         log.debug("Attempting to commit available transactions on epoch {} on stream {}/{}", event.getEpoch(), event.getScope(), event.getStream());
 
         CompletableFuture<Void> future = new CompletableFuture<>();
 
-        tryCommitTransactions(scope, stream, epoch, context)
+        // Note: we will ignore the epoch in the event. It has been deprecated. 
+        // The logic now finds the smallest epoch with transactions and commits them.
+        tryCommitTransactions(scope, stream, context)
                 .whenComplete((r, e) -> {
                     if (e != null) {
                         Throwable cause = Exceptions.unwrap(e);
                         // for operation not allowed, we will report the event
                         if (cause instanceof StoreException.OperationNotAllowedException) {
-                            log.debug("Cannot commit transaction on epoch {} on stream {}/{}. Postponing", epoch, scope, stream);
+                            log.debug("Cannot commit transaction on stream {}/{}. Postponing", scope, stream);
                         } else {
-                            log.error("Exception while attempting to commit transaction on epoch {} on stream {}/{}", epoch, scope, stream, e);
+                            log.error("Exception while attempting to commit transaction on stream {}/{}", scope, stream, e);
                         }
                         future.completeExceptionally(cause);
                     } else {
-                        log.debug("Successfully committed transactions on epoch {} on stream {}/{}", epoch, scope, stream);
+                        log.debug("Successfully committed transactions on epoch {} on stream {}/{}", r, scope, stream);
                         if (processedEvents != null) {
                             processedEvents.offer(event);
                         }
-                        future.complete(r);
+                        future.complete(null);
                     }
                 });
 
@@ -122,16 +123,15 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
      * an end. However, during failover, once we have created the node, we are guaranteed that it will be only that transaction that will be getting
      * committed at that time.
      */
-    private CompletableFuture<Void> tryCommitTransactions(final String scope,
+    private CompletableFuture<Integer> tryCommitTransactions(final String scope,
                                                           final String stream,
-                                                          final int txnEpoch,
                                                           final OperationContext context) {
         return streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenComposeAsync(state -> {
                     final AtomicReference<VersionedMetadata<State>> stateRecord = new AtomicReference<>(state);
 
                     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> commitFuture =
-                            streamMetadataStore.startCommitTransactions(scope, stream, txnEpoch, context, executor)
+                            streamMetadataStore.startCommitTransactions(scope, stream, context, executor)
                             .thenComposeAsync(versionedMetadata -> {
                                 if (versionedMetadata.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
                                     // there are no transactions found to commit.
@@ -139,6 +139,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                                     // that died just before updating the state back to ACTIVE but after having completed all the work.
                                     return CompletableFuture.completedFuture(versionedMetadata);
                                 } else {
+                                    int txnEpoch = versionedMetadata.getObject().getEpoch();
                                     List<UUID> txnList = versionedMetadata.getObject().getTransactionsToCommit();
                                     // Once state is set to committing, we are guaranteed that this will be the only processing that can happen on the stream
                                     // and we can proceed with committing outstanding transactions collected in the txnList step.
@@ -178,8 +179,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // once all commits are done, reset the committing txn record.
                     // reset state to ACTIVE if it was COMMITTING_TXN
                     return commitFuture
-                            .thenCompose(versionedMetadata -> streamMetadataStore.completeCommitTransactions(scope, stream, versionedMetadata, context, executor))
-                            .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context));
+                            .thenCompose(versionedMetadata -> streamMetadataStore.completeCommitTransactions(scope, 
+                                    stream, versionedMetadata, context, executor)
+                            .thenCompose(v -> resetStateConditionally(scope, stream, stateRecord.get(), context))
+                            .thenApply(v -> versionedMetadata.getObject().getEpoch()));
                 }, executor);
     }
 
@@ -279,6 +282,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // transaction's epoch.
                     // And we are creating duplicates of txn epoch keeping the primary same.
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId));
+            // TODO shivesh: invoke watermarking mark callback.
+            // At this point transaction is committed in segment store and we should have collected transaction commit 
+            // position as response to segment store commit requests. 
+            // Now invoke watermarking callback on behalf of writer id in the transaction's metadata.
         }
         return future;
     }

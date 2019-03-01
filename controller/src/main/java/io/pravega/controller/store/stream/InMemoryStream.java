@@ -16,7 +16,9 @@ import com.google.common.cache.CacheBuilder;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
@@ -24,10 +26,13 @@ import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -512,9 +517,22 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Version> createNewTransaction(int epoch, UUID txId, byte[] data) {
+    CompletableFuture<Data> getActiveTx(UUID txId) {
+        synchronized (txnsLock) {
+            if (!activeTxns.containsKey(txId.toString())) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
+                        "Stream: " + getName() + " Transaction: " + txId.toString()));
+            }
+
+            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
+        }
+    }
+
+    @Override
+    CompletableFuture<Version> createNewTransaction(UUID txId, byte[] data) {
         Preconditions.checkNotNull(txId);
 
+        int epoch = RecordHelper.getTransactionEpoch(txId);
         final CompletableFuture<Version> result = new CompletableFuture<>();
         final Data txnData = new Data(Arrays.copyOf(data, data.length), new Version.IntVersion(0));
 
@@ -534,19 +552,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Data> getActiveTx(int epoch, UUID txId) {
-        synchronized (txnsLock) {
-            if (!activeTxns.containsKey(txId.toString())) {
-                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
-                        "Stream: " + getName() + " Transaction: " + txId.toString()));
-            }
-
-            return CompletableFuture.completedFuture(copy(activeTxns.get(txId.toString())));
-        }
-    }
-
-    @Override
-    CompletableFuture<Version> updateActiveTx(int epoch, UUID txId, Data data) {
+    CompletableFuture<Version> updateActiveTx(UUID txId, Data data) {
         Preconditions.checkNotNull(data);
 
         CompletableFuture<Version> result = new CompletableFuture<>();
@@ -587,9 +593,10 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> removeActiveTxEntry(int epoch, UUID txId) {
+    CompletableFuture<Void> removeActiveTxEntry(UUID txId) {
         Preconditions.checkNotNull(txId);
 
+        int epoch = RecordHelper.getTransactionEpoch(txId);
         synchronized (txnsLock) {
             activeTxns.remove(txId.toString());
             epochTxnMap.computeIfPresent(epoch, (x, y) -> {
@@ -671,27 +678,29 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Map<String, Data>> getCurrentTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         synchronized (txnsLock) {
-            Map<String, Data> map = activeTxns.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
+            Map<UUID, ActiveTxnRecord> map = activeTxns.entrySet().stream()
+                    .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), x -> ActiveTxnRecord.fromBytes(x.getValue().getData())));
             return CompletableFuture.completedFuture(Collections.unmodifiableMap(map));
         }
     }
 
     @Override
-    CompletableFuture<Map<String, Data>> getTxnInEpoch(int epoch) {
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getCommittingTxnInLowestEpoch() {
         synchronized (txnsLock) {
-            Set<String> transactions = epochTxnMap.get(epoch);
-            Map<String, Data> map;
-            if (transactions != null) {
-                map = activeTxns.entrySet().stream().filter(x -> transactions.contains(x.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, x -> copy(x.getValue())));
-                map = Collections.unmodifiableMap(map);
-            } else {
-                map = Collections.emptyMap();
+            List<Map.Entry<Integer, Set<String>>> list = epochTxnMap.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).collect(Collectors.toList());
+            Map<UUID, ActiveTxnRecord> committing = Collections.emptyMap();
+            for (Map.Entry<Integer, Set<String>> entry : list) {
+                Map<UUID, ActiveTxnRecord> mapped = entry.getValue().stream().collect(Collectors.toMap(UUID::fromString, x -> ActiveTxnRecord.fromBytes(activeTxns.get(x).getData())));
+                committing = mapped.entrySet().stream().filter(x -> x.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
+                                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                if (!committing.isEmpty()) {
+                    break;
+                }
             }
-            return CompletableFuture.completedFuture(map);
+
+            return CompletableFuture.completedFuture(committing);
         }
     }
 

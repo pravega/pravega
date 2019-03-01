@@ -13,6 +13,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.AbstractStreamMetadataStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -77,7 +78,8 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version), context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version),
+                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return pair;
@@ -103,17 +105,17 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     @Override
     @Synchronized
-    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
-                                                  final OperationContext contextOpt) {
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final UUID writerId, 
+                                                  final long mark, final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), writerId, mark, context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return pair;
                 })
-                .thenCompose(x -> streamMetadataStore.commitTransaction(scope, stream, txId, context, executor));
+                .thenCompose(x -> ((AbstractStreamMetadataStore)streamMetadataStore).commitTransaction(scope, stream, txId, context, executor));
     }
 }
 

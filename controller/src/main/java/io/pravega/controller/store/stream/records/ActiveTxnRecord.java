@@ -38,6 +38,15 @@ public class ActiveTxnRecord {
     private final UUID writerId;
     private final long commitMark;
 
+    public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus) {
+        this.txCreationTimestamp = txCreationTimestamp;
+        this.leaseExpiryTime = leaseExpiryTime;
+        this.maxExecutionExpiryTime = maxExecutionExpiryTime;
+        this.txnStatus = txnStatus;
+        this.writerId = EMPTY;
+        this.commitMark = Long.MIN_VALUE;
+    }
+
     public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {
 
     }
