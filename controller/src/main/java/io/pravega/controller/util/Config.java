@@ -146,7 +146,7 @@ public final class Config {
     private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLeaseValue", 10000);
     private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue", 120000);
     private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
-    private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requestStream");
+    private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requeststream");
     private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
     private static final String COMPONENT_CODE = "controller";
 
