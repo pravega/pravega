@@ -47,8 +47,6 @@ jobs:
          - PROJECT_NAME=pravega-dev
          - CLUSTER_NAME=pravega-travis-$(date +'%Y%m%d%H%M%S')
          - CLUSTER_ZONE=us-central1-c
-         - BASE_VERSION=$(grep 'pravegaVersion=' gradle.properties  | sed 's/pravegaVersion=//' | sed 's/-.*//')
-         - VERSION="$TRAVIS_BRANCH-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
          - PRAVEGA_BASE_TAG=pravega/pravega-testimages
          - BOOKKEEPER_BASE_TAG=pravega/bookkeeper-testimages
       install:
@@ -60,7 +58,10 @@ jobs:
          - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/ && rm -rf linux-amd64 helm.tar.gz
       before_script:
          # Push Docker images
-         - docker login
+         - export BASE_VERSION=$(grep 'pravegaVersion=' gradle.properties  | sed 's/pravegaVersion=//' | sed 's/-.*//')
+         - export BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
+         - export VERSION="${BRANCH}-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
+         - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
          - ./gradlew docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
          # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
