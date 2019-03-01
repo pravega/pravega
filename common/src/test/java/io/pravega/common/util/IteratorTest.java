@@ -98,8 +98,8 @@ public class IteratorTest {
                 });
             }
 
-            CompletableFuture<Map.Entry<String, Collection<Integer>>> completedFuture = CompletableFuture.completedFuture(
-                    new AbstractMap.SimpleEntry<String,Collection<Integer>>("" + endIndex, list.subList(startIndex, endIndex)));
+            CompletableFuture<Map.Entry<String, Collection<Integer>>> completedFuture = CompletableFuture.completedFuture(new AbstractMap.SimpleEntry<String, Collection<Integer>>(""
+                    + endIndex, list.subList(startIndex, endIndex)));
             return completedFuture;
         }, ""));
 
