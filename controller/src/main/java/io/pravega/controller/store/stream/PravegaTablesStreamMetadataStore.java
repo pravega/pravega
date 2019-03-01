@@ -53,7 +53,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final PravegaTablesStoreHelper storeHelper;
-    private final ScheduledExecutorService executor;
 
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor) {
@@ -69,7 +68,6 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGC.awaitRunning();
         this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
-        this.executor = executor;
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
