@@ -9,20 +9,16 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import org.junit.Before;
 
-public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
-    @Override
-    @Before
-    public void setup() throws Exception {
-        this.authEnabled = true;
-        super.setup();
-    }
-
+public class PravegaTablesStreamMetadataTasksTest extends StreamMetadataTasksTest {
+    SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+    
     @Override
     StreamMetadataStore getStore() {
-        return StreamStoreFactory.createInMemoryStore(executor);
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, zkClient, executor);
     }
 }

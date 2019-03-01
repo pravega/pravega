@@ -110,16 +110,16 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 
-public class StreamMetadataTasksTest {
+public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected boolean authEnabled = false;
+    protected CuratorFramework zkClient;
     private final String stream1 = "stream1";
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private ControllerService consumer;
 
-    private CuratorFramework zkClient;
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
@@ -139,7 +139,7 @@ public class StreamMetadataTasksTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        StreamMetadataStore streamStore = getStore();
         streamStorePartialMock = spy(streamStore); //create a partial mock.
         bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
         
@@ -188,6 +188,8 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.completeScale(SCOPE, stream1, response, null, executor).join();
         streamStorePartialMock.updateVersionedState(SCOPE, stream1, State.ACTIVE, state, null, executor).get();
     }
+
+    abstract StreamMetadataStore getStore();
 
     @After
     public void tearDown() throws Exception {

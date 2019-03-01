@@ -11,18 +11,10 @@ package io.pravega.controller.task.Stream;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
-import org.junit.Before;
 
-public class SecureStreamMetadataTasksTest extends StreamMetadataTasksTest {
-    @Override
-    @Before
-    public void setup() throws Exception {
-        this.authEnabled = true;
-        super.setup();
-    }
-
+public class ZkStreamMetadataTasksTest extends StreamMetadataTasksTest {
     @Override
     StreamMetadataStore getStore() {
-        return StreamStoreFactory.createInMemoryStore(executor);
+        return StreamStoreFactory.createZKStore(zkClient, executor);
     }
 }

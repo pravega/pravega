@@ -30,10 +30,10 @@ import lombok.val;
 @Slf4j
 public final class Config {
     private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication()
-                                                                          .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
-                                                                          .withFallback(ConfigFactory.systemEnvironment())
-                                                                          .withFallback(ConfigFactory.defaultReference())
-                                                                          .resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true));
+            .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
+            .withFallback(ConfigFactory.systemEnvironment())
+            .withFallback(ConfigFactory.defaultReference())
+            .resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true));
 
     //RPC Server configuration
     public static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
@@ -109,19 +109,19 @@ public final class Config {
             log.info("publishedRPCHost is not configured, will use default value");
         }
         return GRPCServerConfigImpl.builder()
-                                   .port(Config.RPC_SERVER_PORT)
-                                   .publishedRPCHost(publishHost)
-                                   .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
-                                   .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
-                                   .userPasswordFile(Config.USER_PASSWORD_FILE)
-                                   .tlsEnabled(Config.TLS_ENABLED)
-                                   .tlsCertFile(Config.TLS_CERT_FILE)
-                                   .tlsTrustStore(Config.TLS_TRUST_STORE)
-                                   .tlsKeyFile(Config.TLS_KEY_FILE)
-                                   .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
-                                   .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
-                                   .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
-                                   .build();
+                .port(Config.RPC_SERVER_PORT)
+                .publishedRPCHost(publishHost)
+                .publishedRPCPort(Config.RPC_PUBLISHED_SERVER_PORT)
+                .authorizationEnabled(Config.AUTHORIZATION_ENABLED)
+                .userPasswordFile(Config.USER_PASSWORD_FILE)
+                .tlsEnabled(Config.TLS_ENABLED)
+                .tlsCertFile(Config.TLS_CERT_FILE)
+                .tlsTrustStore(Config.TLS_TRUST_STORE)
+                .tlsKeyFile(Config.TLS_KEY_FILE)
+                .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
+                .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
+                .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
+                .build();
     }
 
     public static MetricsConfig getMetricsConfig() {
