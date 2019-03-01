@@ -42,16 +42,25 @@ jobs:
     - stage: system tests
       if: type IN (push, pull_request)
       env:
-         - PROJECT_NAME="pravega-dev"
-         - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
-         - CLUSTER_ZONE="us-central1-c"
+         - HELM_VERSION=v2.12.0
+         - CLOUDSDK_CORE_DISABLE_PROMPTS=1
+         - PROJECT_NAME=pravega-dev
+         - CLUSTER_NAME=pravega-travis-$(date +'%Y%m%d%H%M%S')
+         - CLUSTER_ZONE=us-central1-c
+         - BASE_VERSION=$(grep 'pravegaVersion=' gradle.properties  | sed 's/pravegaVersion=//' | sed 's/-.*//')
+         - VERSION="$TRAVIS_BRANCH-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
+         - PRAVEGA_BASE_TAG=pravega/pravega-testimages
+         - BOOKKEEPER_BASE_TAG=pravega/bookkeeper-testimages
       install:
-         - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; export CLOUDSDK_CORE_DISABLE_PROMPTS=1; curl https://sdk.cloud.google.com | bash; fi
+         - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; curl https://sdk.cloud.google.com | bash; fi
          - source $HOME/google-cloud-sdk/path.bash.inc
          - gcloud --quiet version
          - gcloud --quiet components update
          - gcloud --quiet components update kubectl
+         - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/
       before_script:
+         - ./gradlew build docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
+         #
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
          - gcloud --quiet config set project $PROJECT_NAME
@@ -66,6 +75,7 @@ jobs:
          # Install NFS provisioner
          - helm install stable/nfs-server-provisioner
       script:
+
          - ./gradlew startK8SystemTests
       after_script:
          # TODO: collect the logs
