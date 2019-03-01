@@ -21,6 +21,9 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
+import io.pravega.controller.server.rest.generated.model.CreateStreamRequest;
+import io.pravega.controller.server.rest.generated.model.RetentionConfig;
+import io.pravega.controller.server.rest.generated.model.ScalingConfig;
 import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
@@ -30,7 +33,9 @@ import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.TestUtils;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -50,13 +55,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,10 +75,14 @@ import static org.mockito.Mockito.when;
  * {@link UserSecureStreamMetaDataTests}) too. Here, we have focused authorization tests which test the logic more
  * comprehensively; Tests here also run much quicker, since we share REST server, auth handler and its configuration
  * across all tests in this class.
+ *
+ * Note: Since the tests are intended to run using a shared REST server, it is important to ensure that the tests do not
+ * create resources with the same names, as doing so can make the tests indirectly dependent on each other and flaky.
  */
-public class AuthLogicFocusedTests {
+public class StreamMetaDataAuthFocusedTests {
 
     private final static int HTTP_STATUS_OK = 200;
+    private final static int HTTP_STATUS_CREATED = 201;
     private final static int HTTP_STATUS_NOCONTENT = 204;
     private final static int HTTP_STATUS_UNAUTHORIZED = 401;
     private final static int HTTP_STATUS_FORBIDDEN = 403;
@@ -91,6 +105,12 @@ public class AuthLogicFocusedTests {
     @SuppressWarnings("checkstyle:StaticVariableName")
     private static File passwordHandlerInputFile;
 
+    // We want to ensure that the tests in this class are run one after another (in no particular sequence), as we
+    // are using a shared server (for execution efficiency). We use this in setup and teardown method initiazers
+    // for ensuring the desired behavior.
+    Lock sequential = new ReentrantLock();
+
+
     //region Test class initializer and cleanup
 
     @BeforeClass
@@ -105,10 +125,12 @@ public class AuthLogicFocusedTests {
 
             // Admin has READ_WRITE permission to everything
             writer.write("privilegedUser:" + encryptedPassword + ":*,READ_UPDATE\n");
-
+            writer.write("scopeCreator:" + encryptedPassword + ":/,READ_UPDATE\n");
+            writer.write("scopeLister:" + encryptedPassword + ":/,READ;/*,READ\n");
+            writer.write("scopeManager:" + encryptedPassword + ":/,READ_UPDATE;/*,READ_UPDATE\n");
+            writer.write("streamsinascopecreater:" + encryptedPassword + ":sisc-scope,READ_UPDATE;\n");
             writer.write("user1:" + encryptedPassword + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
-
-            writer.write("unauthorizedUser" + encryptedPassword + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
+            writer.write("unauthorizedUser:" + encryptedPassword + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
             writer.write("userAccessToSubsetOfScopes:" + encryptedPassword + ":/,READ;scope3,READ_UPDATE;\n");
             writer.write("userWithNoAuthorizations:" + encryptedPassword + ":;\n");
             writer.write("userWithDeletePermission:" + encryptedPassword + ":scopeToDelete,READ_UPDATE;\n");
@@ -155,7 +177,38 @@ public class AuthLogicFocusedTests {
         }
     }
 
+    @Before
+    public void setUp() throws Exception {
+        sequential.lock();
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        sequential.unlock();
+    }
+
     //endregion
+
+    //region Scope listing tests
+
+    @Test
+    public void testListScopesReturnsAllScopesForUserWithPermissionOnRootAndChildren() {
+        // Arrange
+        final String resourceURI = getURI() + "v1/scopes";
+        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
+                Arrays.asList("scopea", "scopeb", "scopec")));
+        Invocation requestInvocation = this.invocationBuilder(resourceURI, "scopeLister", "1111_aaaa")
+                .buildGet();
+
+        // Act
+        Response response = requestInvocation.invoke();
+        ScopesList scopes = response.readEntity(ScopesList.class);
+
+        // Assert
+        assertEquals(3, scopes.getScopes().size());
+
+        response.close();
+    }
 
     @Test
     public void testListScopesReturnsFilteredResults() throws ExecutionException, InterruptedException {
@@ -214,12 +267,34 @@ public class AuthLogicFocusedTests {
         response.close();
     }
 
+    //endregion
+
+    //region Scope creation tests
+
+    @Test
+    public void testPrivilegedUserCanCreateScope() {
+        Response response = createScope("newScope1", "privilegedUser", "1111_aaaa");
+        assertEquals(HTTP_STATUS_CREATED, response.getStatus());
+        response.close();
+    }
+
+    @Test
+    public void testUserWithPermissionOnRootCanCreateScope() {
+        Response response = createScope("newScope", "scopeCreator", "1111_aaaa");
+        assertEquals(HTTP_STATUS_CREATED, response.getStatus());
+        response.close();
+    }
+
+    //endregion
+
+    //region Scope delete tests
+
     @Test
     public void testDeleteScopeSucceedsForAuthorizedUser() {
         // Arrange
         String scopeName = "scopeToDelete";
 
-        createScope(scopeName, "admin", "1111_aaaa");
+        createScope(scopeName, "privilegedUser", "1111_aaaa");
 
         final String resourceUri = getURI() + "v1/scopes/" + scopeName;
         when(mockControllerService.deleteScope(scopeName)).thenReturn(
@@ -231,15 +306,13 @@ public class AuthLogicFocusedTests {
         Response response = invocationBuilder(resourceUri, "userWithDeletePermission", "1111_aaaa")
                 .buildDelete().invoke();
 
-        // Asert
+        // Assert
         assertEquals(HTTP_STATUS_NOCONTENT, response.getStatus());
         response.close();
     }
 
     @Test
     public void testDeleteScopeSucceedsForPrivilegedUser() {
-        // Arrange
-
         String scopeName = "scopeForAdminToDelete";
 
         // The special thing about this user is that the user is assigned a wildcard permission: "*,READ_UPDATE"
@@ -247,38 +320,64 @@ public class AuthLogicFocusedTests {
         String password = "1111_aaaa";
 
         createScope(scopeName, userName, password);
-        final String resourceURI = getURI() + "v1/scopes/" + scopeName;
-
-        when(mockControllerService.deleteScope(scopeName)).thenReturn(
-                CompletableFuture.completedFuture(
-                        Controller.DeleteScopeStatus.newBuilder().setStatus(
-                                Controller.DeleteScopeStatus.Status.SUCCESS).build()));
-
-        // Act
-        Response response = this.invocationBuilder(resourceURI, userName, password).buildDelete().invoke();
+        Response response = deleteScope(scopeName, userName, password);
         assertEquals(HTTP_STATUS_NOCONTENT, response.getStatus());
-
         response.close();
     }
 
     @Test
-    public void testDeleteScopeIsUnauthorizedForUnauthorizedUser() {
-        // Arrange
-        String scopeName = "scope-d";
-        createScope(scopeName, "admin", "1111_aaaa");
-        final String resourceURI = getURI() + "v1/scopes/" + scopeName;
+    public void testDeleteScopeIsForbiddenForUnauthorizedUser() {
+        String scopeName = "scope-ud";
 
-        when(mockControllerService.deleteScope(scopeName)).thenReturn(
-                CompletableFuture.completedFuture(
-                        Controller.DeleteScopeStatus.newBuilder().setStatus(
-                                Controller.DeleteScopeStatus.Status.SUCCESS).build()));
+        Response createScopeResponse = createScope(scopeName, "privilegedUser", "1111_aaaa");
+        createScopeResponse.close();
 
-        Response response = this.invocationBuilder(resourceURI, "unauthorizedUser", "1111_aaaa")
-                .buildDelete().invoke();
-        assertEquals(HTTP_STATUS_UNAUTHORIZED, response.getStatus());
+        Response response = deleteScope(scopeName, "unauthorizedUser", "1111_aaaa");
+        assertEquals(HTTP_STATUS_FORBIDDEN, response.getStatus());
+        response.close();
+    }
+
+    //endregion
+
+    //region Stream creation tests
+    @Test
+    public void testCreateStreamsSucceedsForUserHavingWriteAccessToTheScope() {
+        String username = "streamsinascopecreater";
+        String password = "1111_aaaa";
+        String scopeName = "sisc-scope";
+        String streamName = "stream1";
+        String streamResourceURI = getURI() + "v1/scopes/" + scopeName + "/streams";
+
+        CompletableFuture<Controller.CreateStreamStatus> createStreamStatus = CompletableFuture.
+                completedFuture(Controller.CreateStreamStatus.newBuilder().setStatus(
+                        Controller.CreateStreamStatus.Status.SUCCESS).build());
+
+        final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
+        createStreamRequest.setStreamName(streamName);
+
+        ScalingConfig scalingPolicy = new ScalingConfig();
+        scalingPolicy.setType(ScalingConfig.TypeEnum.FIXED_NUM_SEGMENTS);
+        scalingPolicy.setMinSegments(2);
+
+        RetentionConfig retentionPolicy = new RetentionConfig();
+        retentionPolicy.setType(RetentionConfig.TypeEnum.LIMITED_DAYS);
+        retentionPolicy.setValue(123L);
+
+        createStreamRequest.setScalingPolicy(scalingPolicy);
+        createStreamRequest.setRetentionPolicy(retentionPolicy);
+
+        when(mockControllerService.createStream(any(), any(), any(), anyLong())).thenReturn(createStreamStatus);
+        Response response = this.invocationBuilder(streamResourceURI, username, password)
+                                .buildPost(Entity.json(createStreamRequest))
+                                .invoke();
+        assertEquals(HTTP_STATUS_CREATED, response.getStatus());
 
         response.close();
     }
+
+    //endregion
+
+    //region Streams listing tests
 
     @Test
     public void testListStreamsReturnsEmptyListWhenUserHasNoStreamsAssigned() {
@@ -347,6 +446,9 @@ public class AuthLogicFocusedTests {
         response.close();
     }
 
+    //endregion
+
+    //region Streams update tests
     @Test
     public void testUpdateStreamStateAuthorizedForPrivilegedUser() {
         String resourceURI = getURI() + "v1/scopes/myscope/streams/stream1/state";
@@ -411,7 +513,38 @@ public class AuthLogicFocusedTests {
         response.close();
     }
 
+    //endregion
+
+    //region Combination tests
+    @Test
+    public void testUserWithReadWriteOnAllScopesCanCreateListAndDeleteScopes() {
+        List<String> scopes = Arrays.asList("sm-scope1", "sm-scope2", "sm-scope3");
+        boolean isCreateSuccessful = createScopes(scopes, "scopeManager", "1111_aaaa");
+        assertTrue(isCreateSuccessful);
+
+        ScopesList listedScopes = listScopes(scopes, "scopeManager", "1111_aaaa");
+        assertNotNull(listedScopes.getScopes());
+        assertEquals(3, listedScopes.getScopes().size());
+
+        boolean isDeleteSuccessful = deleteScopes(scopes, "scopeManager", "1111_aaaa");
+        assertTrue(isDeleteSuccessful);
+    }
+
+    //endregion
+
     //region Private methods
+
+    private boolean createScopes(List<String> scopeNames, String userName, String password) {
+        boolean result = true;
+        for (String scopeName : scopeNames) {
+            Response response = createScope(scopeName, userName, password);
+            if (response.getStatus() != HTTP_STATUS_CREATED) {
+                result = false;
+            }
+            response.close();
+        }
+        return result;
+    }
 
     private Response createScope(String scopeName, String username, String password) {
 
@@ -423,6 +556,43 @@ public class AuthLogicFocusedTests {
                 Controller.CreateScopeStatus.newBuilder().setStatus(
                         Controller.CreateScopeStatus.Status.SUCCESS).build()));
         return invocationBuilder(resourceURI, username, password).buildPost(Entity.json(createScopeRequest)).invoke();
+    }
+
+    private boolean deleteScopes(List<String> scopeNames, String userName, String password) {
+       boolean result = true;
+       for (String scopeName : scopeNames) {
+           Response response = deleteScope(scopeName, userName, password);
+           if (response.getStatus() != HTTP_STATUS_NOCONTENT) {
+               result = false;
+           }
+           response.close();
+       }
+       return result;
+    }
+
+    private Response deleteScope(String scopeName, String userName, String password) {
+        final String resourceUri = getURI() + "v1/scopes/" + scopeName;
+
+        when(mockControllerService.deleteScope(scopeName)).thenReturn(
+                CompletableFuture.completedFuture(
+                        Controller.DeleteScopeStatus.newBuilder().setStatus(
+                                Controller.DeleteScopeStatus.Status.SUCCESS).build()));
+
+        return invocationBuilder(resourceUri, userName, password)
+                .buildDelete().invoke();
+    }
+
+    private ScopesList listScopes(List<String> scopeNames, String userName, String password) {
+        final String resourceURI = getURI() + "v1/scopes";
+        when(mockControllerService.listScopes())
+                .thenReturn(CompletableFuture.completedFuture(scopeNames));
+        Invocation requestInvocation = this.invocationBuilder(resourceURI, userName, password)
+                .buildGet();
+
+        Response response = requestInvocation.invoke();
+        ScopesList scopes = response.readEntity(ScopesList.class);
+        response.close();
+        return scopes;
     }
 
     private String getURI() {
