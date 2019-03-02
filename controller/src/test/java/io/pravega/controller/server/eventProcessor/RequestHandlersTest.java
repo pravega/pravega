@@ -197,7 +197,7 @@ public class RequestHandlersTest {
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
+                "", Long.MIN_VALUE, null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
@@ -207,7 +207,7 @@ public class RequestHandlersTest {
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
+                "", Long.MIN_VALUE, null, executor).join();
 
         // regular commit
         // start commit transactions
@@ -297,7 +297,7 @@ public class RequestHandlersTest {
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
+                "", Long.MIN_VALUE, null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
@@ -307,7 +307,7 @@ public class RequestHandlersTest {
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).join();
+                "", Long.MIN_VALUE, null, executor).join();
 
         // regular commit
         // start commit transactions

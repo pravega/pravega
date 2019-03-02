@@ -258,7 +258,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, null, Long.MIN_VALUE, version, context),
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, "", Long.MIN_VALUE, version, context),
                     RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
@@ -272,7 +272,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param contextOpt optional context
      * @return true/false.
      */
-    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final UUID writerId, 
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId, 
                                                   final long mark, final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
@@ -549,7 +549,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                              final String stream,
                                              final boolean commit,
                                              final UUID txnId,
-                                             final UUID writerId, 
+                                             final String writerId, 
                                              final long mark, 
                                              final Version version,
                                              final OperationContext ctx) {

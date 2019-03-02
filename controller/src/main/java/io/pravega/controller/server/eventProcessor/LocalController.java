@@ -329,7 +329,7 @@ public class LocalController implements Controller {
         // TODO: shivesh: watermarking: should receive writer id and mark with commit request. 
         return controller
                 .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), 
-                        new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE)
+                        "", Long.MIN_VALUE)
                 .thenApply(x -> null);
     }
 

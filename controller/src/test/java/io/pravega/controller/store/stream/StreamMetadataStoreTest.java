@@ -750,9 +750,9 @@ public abstract class StreamMetadataStoreTest {
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
 
         store.sealTransaction(scope, stream, tx02.getId(), true, Optional.of(tx02.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
         store.sealTransaction(scope, stream, tx01.getId(), true, Optional.of(tx01.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
 
         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).join();
@@ -799,7 +799,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(store.transactionStatus(scope, stream, tx02.getId(), null, executor).join(), TxnStatus.COMMITTED);
         assertEquals(store.transactionStatus(scope, stream, tx03.getId(), null, executor).join(), TxnStatus.OPEN);
         store.sealTransaction(scope, stream, tx03.getId(), true, Optional.of(tx03.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
         // endregion
 
         // region verify migrate request for manual scale
@@ -819,7 +819,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(1, tx14.getEpoch());
 
         store.sealTransaction(scope, stream, tx14.getId(), true, Optional.of(tx14.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
 
         // verify that new txns can be created and are created on original epoch
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
@@ -837,7 +837,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(4, activeEpoch.getReferenceEpoch());
 
         store.sealTransaction(scope, stream, tx15.getId(), true, Optional.of(tx15.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
 
         record = store.startCommitTransactions(scope, stream, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).get();
@@ -870,7 +870,7 @@ public abstract class StreamMetadataStoreTest {
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
                 100, 100, null, executor).get();
         store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
 
         long scaleTs = System.currentTimeMillis();
         List<Long> scale1SealedSegments = Collections.singletonList(0L);

@@ -505,7 +505,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
              .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(),
-                     new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, null, executor))
+                     "", Long.MIN_VALUE, null, executor))
              .thenCompose(x -> ((AbstractStreamMetadataStore)store).commitTransaction(scope, stream, txnId, null, executor));
     }
 

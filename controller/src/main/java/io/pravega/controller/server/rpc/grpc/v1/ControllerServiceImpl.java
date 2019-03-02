@@ -314,8 +314,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        // TODO: shivesh: watermarking: should receive writer id and mark with commit request.
-                        request.getTxnId(), new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE),
+                        request.getTxnId(), request.getWriterId(), request.getTime()),
                 responseObserver);
     }
 

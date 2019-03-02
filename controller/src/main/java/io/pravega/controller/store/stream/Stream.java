@@ -409,12 +409,12 @@ interface Stream {
      * @param commit  whether to commit or abort the specified transaction.
      * @param version optional expected version of transaction data node to validate before updating it.
      * @param writerId
-     * @param mark
+     * @param commitTime
      * @return        a pair containing transaction status and its epoch.
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
                                                                        final boolean commit,
-                                                                       final Optional<Version> version, UUID writerId, long mark);
+                                                                       final Optional<Version> version, String writerId, long commitTime);
 
     /**
      * Returns transaction's status

@@ -987,7 +987,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(txnId, record.toBytes())
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, current, maxExecTimestamp, new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE)));
+                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE)));
     }
 
     @Override
@@ -1006,7 +1006,7 @@ public abstract class PersistentStreamBase implements Stream {
 
         return updateActiveTx(txnId, data)
                 .thenApply(updatedVersion -> new VersionedTransactionData(epoch, txnId, updatedVersion, status, creationTime, 
-                        maxExecutionExpiryTime, new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE));
+                        maxExecutionExpiryTime, "", Long.MIN_VALUE));
     }
 
     @Override
@@ -1017,7 +1017,7 @@ public abstract class PersistentStreamBase implements Stream {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.fromBytes(data.getData());
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), activeTxnRecord.getCommitMark());
+                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), activeTxnRecord.getCommitTime());
                 });
     }
 
@@ -1053,9 +1053,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
-                                                                              final Optional<Version> version, UUID writerId, long mark) {
+                                                                              final Optional<Version> version, String writerId, long commitTime) {
         int epoch = RecordHelper.getTransactionEpoch(txId);
-        return sealActiveTxn(epoch, txId, commit, writerId, mark, version)
+        return sealActiveTxn(epoch, txId, commit, writerId, commitTime, version)
                 .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null))
                 .thenCompose(pair -> {
                     if (pair.getKey() == TxnStatus.UNKNOWN) {
@@ -1081,7 +1081,7 @@ public abstract class PersistentStreamBase implements Stream {
     private CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealActiveTxn(final int epoch,
                                                                              final UUID txId,
                                                                              final boolean commit,
-                                                                             final UUID writerId, 
+                                                                             final String writerId, 
                                                                              final long mark, 
                                                                              final Optional<Version> version) {
         return getActiveTx(txId).thenCompose(data -> {
@@ -1119,7 +1119,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     private CompletableFuture<Version> sealActiveTx(final UUID txId, final boolean commit,
                                                     final ActiveTxnRecord previous,
-                                                    final UUID writerId, 
+                                                    final String writerId, 
                                                     long mark, 
                                                     final Version version) {
         final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
@@ -1319,11 +1319,11 @@ public abstract class PersistentStreamBase implements Stream {
         return getCommittingTxnInLowestEpoch()
                 .thenApply(txn -> txn.entrySet().stream()
                                      .sorted((x, y) -> {
-                    long markX = x.getValue().getCommitMark();
-                    long markY = y.getValue().getCommitMark();
-                    UUID writerX = x.getValue().getWriterId();
-                    UUID writerY = y.getValue().getWriterId();
-                    if (writerX.equals(writerY)) {
+                    long markX = x.getValue().getCommitTime();
+                    long markY = y.getValue().getCommitTime();
+                    String writerX = x.getValue().getWriterId();
+                    String writerY = y.getValue().getWriterId();
+                    if (writerX != null && writerX.equals(writerY)) {
                         return Long.compare(markX, markY);
                     } else {
                         // dont care about order across writers

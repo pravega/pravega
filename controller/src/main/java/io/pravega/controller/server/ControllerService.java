@@ -335,7 +335,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
-            txnId, UUID writerId, long mark) {
+            txnId, String writerId, long mark) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");

@@ -79,7 +79,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
         return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version),
-                new UUID(Long.MIN_VALUE, Long.MIN_VALUE), Long.MIN_VALUE, context, executor)
+                "", Long.MIN_VALUE, context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return pair;
@@ -105,7 +105,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     @Override
     @Synchronized
-    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final UUID writerId, 
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId, 
                                                   final long mark, final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;

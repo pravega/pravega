@@ -583,12 +583,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                               final UUID txId,
                                                                               final boolean commit,
                                                                               final Optional<Version> version,
-                                                                              final UUID writerId, 
-                                                                              final long mark,
+                                                                              final String writerId, 
+                                                                              final long commitTime,
                                                                               final OperationContext context,
                                                                               final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
-                .sealTransaction(txId, commit, version, writerId, mark), executor);
+                .sealTransaction(txId, commit, version, writerId, commitTime), executor);
     }
 
     @Override
