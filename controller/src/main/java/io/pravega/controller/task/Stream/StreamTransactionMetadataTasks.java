@@ -273,10 +273,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @return true/false.
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId, 
-                                                  final long mark, final OperationContext contextOpt) {
+                                                  final long time, final OperationContext contextOpt) {
+        final long commitTime;
+        if (time == Long.MIN_VALUE) {
+            // take current wall clock time. This time will be used transaction commit order for per writer. 
+            commitTime = System.currentTimeMillis();
+        } else {
+            commitTime = time;
+        }
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, writerId, mark, null, context),
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, writerId, commitTime, null, context),
                     RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
@@ -550,7 +557,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                              final boolean commit,
                                              final UUID txnId,
                                              final String writerId, 
-                                             final long mark, 
+                                             final long time, 
                                              final Version version,
                                              final OperationContext ctx) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
@@ -573,7 +580,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
         // Step 2. Seal txn
         CompletableFuture<AbstractMap.SimpleEntry<TxnStatus, Integer>> sealFuture = addIndex.thenComposeAsync(x ->
-                streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, writerId, mark, ctx, executor), executor)
+                streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, writerId, time, ctx, executor), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed sealing txn", txnId);

@@ -1074,7 +1074,7 @@ public abstract class PersistentStreamBase implements Stream {
      * @param txId    transaction identifier.
      * @param commit  boolean indicating whether to commit or abort the transaction.
      * @param writerId
-     * @param mark
+     * @param time
      * @param version optional expected version of transaction node to validate before updating it.
      * @return        a pair containing transaction status and its epoch.
      */
@@ -1082,7 +1082,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                                              final UUID txId,
                                                                              final boolean commit,
                                                                              final String writerId, 
-                                                                             final long mark, 
+                                                                             final long time, 
                                                                              final Optional<Version> version) {
         return getActiveTx(txId).thenCompose(data -> {
             ActiveTxnRecord txnRecord = ActiveTxnRecord.fromBytes(data.getData());
@@ -1090,7 +1090,7 @@ public abstract class PersistentStreamBase implements Stream {
             TxnStatus status = txnRecord.getTxnStatus();
             switch (status) {
                 case OPEN:
-                    return sealActiveTx(txId, commit, txnRecord, writerId, mark, dataVersion).thenApply(y ->
+                    return sealActiveTx(txId, commit, txnRecord, writerId, time, dataVersion).thenApply(y ->
                             new SimpleEntry<>(commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, epoch));
                 case COMMITTING:
                 case COMMITTED:
@@ -1120,14 +1120,14 @@ public abstract class PersistentStreamBase implements Stream {
     private CompletableFuture<Version> sealActiveTx(final UUID txId, final boolean commit,
                                                     final ActiveTxnRecord previous,
                                                     final String writerId, 
-                                                    long mark, 
+                                                    long time, 
                                                     final Version version) {
         final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                 previous.getLeaseExpiryTime(),
                 previous.getMaxExecutionExpiryTime(),
                 commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, 
                 writerId, 
-                mark);
+                time);
         final Data data = new Data(updated.toBytes(), version);
         return updateActiveTx(txId, data);
     }

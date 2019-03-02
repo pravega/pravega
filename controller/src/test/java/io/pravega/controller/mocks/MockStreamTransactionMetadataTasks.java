@@ -105,12 +105,12 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     @Override
     @Synchronized
-    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId, 
-                                                  final long mark, final OperationContext contextOpt) {
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId,
+                                                  final long time, final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), writerId, mark, context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), writerId, time, context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return pair;
