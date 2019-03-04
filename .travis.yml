@@ -80,6 +80,8 @@ jobs:
          - helm install stable/nfs-server-provisioner
          # Create pravega-tier2 PVC
          - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
+         # Workaround for https://github.com/kubernetes-client/java/issues/460
+         - sed -i -E "s/expiry: '(.*)'/expiry: \1/" /home/travis/.kube/config
       script:
          - ./gradlew startK8SystemTests
       after_script:
