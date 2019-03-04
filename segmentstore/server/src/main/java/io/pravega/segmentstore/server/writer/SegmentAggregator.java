@@ -293,7 +293,12 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                             // Segment has never been created because there was nothing to write to it. As long as we know
                             // its expected length is zero, this is a valid case.
                             this.handle.set(null);
-                            log.info("{}: Initialized. Segment does not exist in Storage but Metadata indicates it should be empty.");
+                            log.info("{}: Initialized. Segment does not exist in Storage but Metadata indicates it should be empty.", this.traceObjectId);
+                            if (this.metadata.isSealed() && this.metadata.getLength() == 0) {
+                                // Truly an empty segment that is sealed; mark it as such in Storage.
+                                this.metadata.markSealedInStorage();
+                                log.info("{}: Segment does not exist in Storage, but Metadata indicates it is empty and sealed - marking as sealed in storage.", this.traceObjectId);
+                            }
                         } else {
                             // Segment does not exist anymore. This is a real possibility during recovery, in the following cases:
                             // * We already processed a Segment Deletion but did not have a chance to checkpoint metadata
@@ -388,10 +393,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
      * @param operation The Operation to process.
      */
     private void addUpdateAttributesOperation(UpdateAttributesOperation operation) {
-        Map<UUID, Long> attributes = getExtendedAttributes(operation);
-        if (!attributes.isEmpty()) {
-            AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.metadata.getStorageLength(), operation.getSequenceNumber());
-            aggregatedAppend.includeAttributes(attributes);
+        if (!this.metadata.isSealedInStorage()) {
+            // Only process the operation if the Segment is not sealed in Storage. If it is, then so is the Attribute Index,
+            // and it means this operation has already been applied to the index.
+            Map<UUID, Long> attributes = getExtendedAttributes(operation);
+            if (!attributes.isEmpty()) {
+                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.metadata.getStorageLength(), operation.getSequenceNumber());
+                aggregatedAppend.includeAttributes(attributes);
+            }
         }
     }
 

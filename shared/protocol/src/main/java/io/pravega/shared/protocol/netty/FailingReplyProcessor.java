@@ -185,4 +185,14 @@ public abstract class FailingReplyProcessor implements ReplyProcessor {
     public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
         throw new IllegalStateException("Unexpected operation: " + tableKeyBadVersion);
     }
+
+    @Override
+    public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableKeysRead);
+    }
+
+    @Override
+    public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
+        throw new IllegalStateException("Unexpected operation: " + tableEntriesRead);
+    }
 }

@@ -187,6 +187,32 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to handle an already-sealed index.
+     */
+    @Test
+    public void testAlreadySealedIndex() {
+        val config = AttributeIndexConfig
+                .builder()
+                .with(AttributeIndexConfig.MAX_INDEX_PAGE_SIZE, DEFAULT_CONFIG.getMaxIndexPageSize())
+                .with(AttributeIndexConfig.ATTRIBUTE_SEGMENT_ROLLING_SIZE, 10)
+                .build();
+
+        @Cleanup
+        val context = new TestContext(config);
+        populateSegments(context);
+
+        context.storage.create(StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT)
+                       .thenCompose(handle -> context.storage.seal(handle, TIMEOUT));
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Index allowed adding new values when sealed.",
+                () -> idx.update(Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT),
+                ex -> ex instanceof StreamSegmentSealedException);
+
+        idx.seal(TIMEOUT).join();
+    }
+
+    /**
      * Tests the ability to delete all AttributeData for a particular Segment.
      */
     @Test

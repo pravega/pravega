@@ -9,15 +9,17 @@
  */
 package io.pravega.controller.store.stream;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * Properties of a Scope and operations that can be performed on it.
  * Identifier for a Scope is its name.
  */
 public interface Scope {
-
     /**
      * Retrieve name of the scope.
      *
@@ -38,6 +40,17 @@ public interface Scope {
      * @return null on success and exception on failure.
      */
     CompletableFuture<Void> deleteScope();
+    
+    /**
+     * A paginated api on the scope to get requested number of streams from under the scope starting from the continuation token. 
+     * 
+     * @param limit maximum number of streams to return
+     * @param continuationToken continuation token from where to start.
+     * @param executor executor
+     * @return A future, which upon completion, will hold a pair of list of stream names and a new continuation token. 
+     */
+    CompletableFuture<Pair<List<String>, String>> listStreams(final int limit, final String continuationToken,
+                                                              final Executor executor);
 
     /**
      * List existing streams in scopes.
@@ -51,5 +64,4 @@ public interface Scope {
      * This allows us reuse of scope object without having to recreate a new scope object for each new operation
      */
     void refresh();
-
 }

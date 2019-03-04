@@ -35,11 +35,11 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
     /**
      * Executes Step 1 of the 2-Step Merge Process.
      * <ol>
-     * <li>Step 1: The StreamSegments are merged (Source->Target@Offset) in Metadata and a ReadIndex Redirection is put in place.
+     * <li>Step 1: The StreamSegments are merged (Source-$gt;Target@Offset) in Metadata and a ReadIndex Redirection is put in place.
      * At this stage, the Source still exists as a physical object in Storage, and we need to keep its ReadIndex around, pointing
-     * to the old object.
+     * to the old object. </li>
      * <li>Step 2: The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
-     * The ReadIndex entries of the two Streams are actually joined together.
+     * The ReadIndex entries of the two Streams are actually joined together. </li>
      * </ol>
      *
      * @param targetStreamSegmentId The Id of the StreamSegment to merge into.

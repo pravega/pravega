@@ -15,12 +15,12 @@ import lombok.Data;
 
 /**
  * This class is used to represent Stream information. It currently includes:
- *
- *  <li> - scope of stream.
- *  <li> - name of stream.
- *  <li> - {@link StreamCut} which represents the current TAIL of the stream.
- *  <li> - {@link StreamCut} which represents the current HEAD of the stream.
- *
+ * <ul>
+ *  <li> - scope of stream. </li>
+ *  <li> - name of stream.  </li>
+ *  <li> - {@link StreamCut} which represents the current TAIL of the stream. </li>
+ *  <li> - {@link StreamCut} which represents the current HEAD of the stream. </li>
+ * </ul>
  *  @deprecated This class is deprecated and will be removed in the subsequent releases. Use
  *  {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo represented
  *  by {@link io.pravega.client.admin.StreamInfo}.

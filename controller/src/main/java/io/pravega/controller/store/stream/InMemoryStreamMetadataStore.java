@@ -106,10 +106,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
             return getSafeStartingSegmentNumberFor(scopeName, streamName)
                     .thenCompose(startingSegmentNumber -> stream.create(configuration, timeStamp, startingSegmentNumber)
-                    .thenApply(x -> {
+                    .thenCompose(status -> {
                         streams.put(scopedStreamName(scopeName, streamName), stream);
-                        scopes.get(scopeName).addStreamToScope(streamName);
-                        return x;
+                        return scopes.get(scopeName).addStreamToScope(streamName).thenApply(v -> status);
                     }));
         } else {
             return Futures.
@@ -139,8 +138,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         String scopedStreamName = scopedStreamName(scopeName, streamName);
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
             streams.remove(scopedStreamName);
-            scopes.get(scopeName).removeStreamFromScope(streamName);
-            return super.deleteStream(scopeName, streamName, context, executor);
+            return getCreationTime(scopeName, streamName, context, executor)
+                    .thenCompose(time -> scopes.get(scopeName).removeStreamFromScope(streamName))
+                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor));
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));

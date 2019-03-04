@@ -144,8 +144,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.certFile)
                             && !Strings.isNullOrEmpty(this.jksKeyFile)
                             && !Strings.isNullOrEmpty(this.jksTrustFile)
-                            && !Strings.isNullOrEmpty(this.keyPasswordFile)
-                            && !Strings.isNullOrEmpty(this.passwdFile)),
+                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
             if (this.isInMemStorage) {
@@ -296,7 +295,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile))
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
