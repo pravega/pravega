@@ -43,6 +43,7 @@ jobs:
       if: type = pull_request
       env:
          - HELM_VERSION=v2.12.0
+         - KUBECTL_VERSION=v1.13.4
          - CLOUDSDK_CORE_DISABLE_PROMPTS=1
          - PROJECT_NAME=pravega-dev
          - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
@@ -54,7 +55,7 @@ jobs:
          - source $HOME/google-cloud-sdk/path.bash.inc
          - gcloud --quiet version
          - gcloud --quiet components update
-         - gcloud --quiet components update kubectl
+         - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
          - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/ && rm -rf linux-amd64 helm.tar.gz
       before_script:
          # Push Docker images
