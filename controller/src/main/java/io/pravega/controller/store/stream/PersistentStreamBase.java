@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
@@ -1699,7 +1700,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, byte[] data);
     
-    abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getCommittingTxnInLowestEpoch();
+    abstract CompletableFuture<List<Pair<UUID, ActiveTxnRecord>>> getCommittingTxnInLowestEpoch();
     // endregion
 
     // region marker

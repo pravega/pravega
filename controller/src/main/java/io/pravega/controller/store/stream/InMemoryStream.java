@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.util.Config;
+import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
@@ -686,7 +687,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Map<UUID, ActiveTxnRecord>> getCommittingTxnInLowestEpoch() {
+    CompletableFuture<List<Pair<UUID, ActiveTxnRecord>>> getCommittingTxnInLowestEpoch() {
         synchronized (txnsLock) {
             List<Map.Entry<Integer, Set<String>>> list = epochTxnMap.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).collect(Collectors.toList());
             Map<UUID, ActiveTxnRecord> committing = Collections.emptyMap();
