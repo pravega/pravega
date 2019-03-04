@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.commons.lang.NotImplementedException;
@@ -32,10 +33,12 @@ class Producer extends Actor {
     //region Members
 
     private static final Supplier<Long> TIME_PROVIDER = System::nanoTime;
+    @Getter
     private final String logId;
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
     private final int id;
+    private final ProducerDataSource dataSource;
 
     //endregion
 
@@ -51,11 +54,12 @@ class Producer extends Actor {
      * @param executor   An Executor to use for async operations.
      */
     Producer(int id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
-        super(config, dataSource, store, executor);
+        super(config, store, executor);
 
         this.id = id;
         this.logId = String.format("Producer[%s]", id);
         this.iterationCount = new AtomicInteger();
+        this.dataSource = dataSource;
         this.canContinue = new AtomicBoolean(true);
     }
 
@@ -70,11 +74,6 @@ class Producer extends Actor {
                 this::canLoop,
                 this::runOneIteration,
                 this.executorService);
-    }
-
-    @Override
-    protected String getLogId() {
-        return this.logId;
     }
 
     //endregion
@@ -191,9 +190,9 @@ class Producer extends Actor {
             result = this.store.append(operation.getTarget(), event, this.config.getTimeout());
         } else if (operation.getType() == ProducerOperationType.SEAL) {
             // Seal the target.
-            StoreAdapter.Feature.Seal.ensureSupported(this.store, "seal");
+            StoreAdapter.Feature.SealStream.ensureSupported(this.store, "seal");
             startTime.set(TIME_PROVIDER.get());
-            result = this.store.seal(operation.getTarget(), this.config.getTimeout());
+            result = this.store.sealStream(operation.getTarget(), this.config.getTimeout());
         } else {
             throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
         }

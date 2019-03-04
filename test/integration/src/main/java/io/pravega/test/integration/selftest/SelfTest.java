@@ -185,7 +185,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         if (readsEnabled && storeSupportsReads) {
             for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
-                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
+                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.state, this.store, this.executor));
                 }
             }
         } else {

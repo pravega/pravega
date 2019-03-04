@@ -110,6 +110,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
         this.transactionalWriters.clear();
     }
 
+    //endregion
+
+    //region Stream Operations
+
     @Override
     public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
         ensureRunning();
@@ -143,7 +147,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         ensureRunning();
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
         if (isTransaction(streamName, parentName)) {
@@ -188,7 +192,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
+    public CompletableFuture<Void> sealStream(String streamName, Duration timeout) {
         ensureRunning();
         return CompletableFuture.runAsync(() -> {
             if (getStreamManager().sealStream(SCOPE, streamName)) {
@@ -258,6 +262,35 @@ abstract class ClientAdapterBase extends StoreAdapter {
     @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
         return null;
+    }
+
+    //endregion
+
+    //region Table Operations
+
+    @Override
+    public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
     }
 
     //endregion

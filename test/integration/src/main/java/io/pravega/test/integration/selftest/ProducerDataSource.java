@@ -59,7 +59,7 @@ class ProducerDataSource {
         this.lastCreatedTransaction = 0;
         this.appendSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Append);
         this.transactionsSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Transaction);
-        this.sealSupported = this.store.isFeatureSupported(StoreAdapter.Feature.Seal);
+        this.sealSupported = this.store.isFeatureSupported(StoreAdapter.Feature.SealStream);
     }
 
     //endregion
@@ -213,7 +213,7 @@ class ProducerDataSource {
         ArrayList<CompletableFuture<Void>> creationFutures = new ArrayList<>();
 
         TestLogger.log(LOG_ID, "Creating Streams.");
-        StoreAdapter.Feature.Create.ensureSupported(this.store, "create streams");
+        StoreAdapter.Feature.CreateStream.ensureSupported(this.store, "create streams");
         for (int i = 0; i < this.config.getStreamCount(); i++) {
             // Streams names are of the form: Stream<TestId><StreamId> - to avoid clashes between different tests.
             final int streamId = i;
@@ -232,7 +232,7 @@ class ProducerDataSource {
      * Deletes all the Streams/Segments required for this test.
      */
     CompletableFuture<Void> deleteAllStreams() {
-        if (!this.store.isFeatureSupported(StoreAdapter.Feature.Delete)) {
+        if (!this.store.isFeatureSupported(StoreAdapter.Feature.DeleteStream)) {
             TestLogger.log(LOG_ID, "Not deleting Streams because the store adapter does not support it.");
             return CompletableFuture.completedFuture(null);
         }
@@ -258,7 +258,7 @@ class ProducerDataSource {
     }
 
     private CompletableFuture<Void> deleteStream(String name) {
-        return this.store.delete(name, this.config.getTimeout())
+        return this.store.deleteStream(name, this.config.getTimeout())
                          .exceptionally(ex -> {
                              ex = Exceptions.unwrap(ex);
                              if (!(ex instanceof StreamSegmentNotExistsException)) {

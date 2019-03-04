@@ -85,7 +85,7 @@ class BookKeeperAdapter extends StoreAdapter {
 
     @Override
     public boolean isFeatureSupported(Feature feature) {
-        return feature == Feature.Create
+        return feature == Feature.CreateStream
                 || feature == Feature.Append;
     }
 
@@ -203,13 +203,38 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
+    public CompletableFuture<Void> sealStream(String streamName, Duration timeout) {
         throw new UnsupportedOperationException("seal() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         throw new UnsupportedOperationException("delete() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("createTable() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("deleteTable() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("updateTableEntry() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("removeTableEntry() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout) {
+        throw new UnsupportedOperationException("getTableEntry() is not supported on " + this.logId);
     }
 
     @Override

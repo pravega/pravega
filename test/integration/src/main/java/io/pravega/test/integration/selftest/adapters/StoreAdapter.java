@@ -12,6 +12,7 @@ package io.pravega.test.integration.selftest.adapters;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.test.integration.selftest.Event;
@@ -49,7 +50,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
 
     //endregion
 
-    //region Operations
+    //region Stream Operations
 
     /**
      * Appends the given Event.
@@ -109,7 +110,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout    Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> seal(String streamName, Duration timeout);
+    public abstract CompletableFuture<Void> sealStream(String streamName, Duration timeout);
 
     /**
      * Deletes a Stream.
@@ -118,7 +119,76 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout    Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> delete(String streamName, Duration timeout);
+    public abstract CompletableFuture<Void> deleteStream(String streamName, Duration timeout);
+
+    //endregion
+
+    //region Table Operations
+
+    /**
+     * Creates a new Table.
+     *
+     * @param tableName The name of the Table to create.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the Table has been created.
+     */
+    public abstract CompletableFuture<Void> createTable(String tableName, Duration timeout);
+
+    /**
+     * Deletes an existing Table.
+     *
+     * @param tableName The name of the Table to delete.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the Table has been deleted.
+     */
+    public abstract CompletableFuture<Void> deleteTable(String tableName, Duration timeout);
+
+    /**
+     * Updates a Table Entry in a Table.
+     *
+     * @param tableName      The name of the Table to update the entry in.
+     * @param key            The Key to update.
+     * @param value          The Value to associate with the Key.
+     * @param compareVersion (Optional) If provided, the update will be conditioned on this being the current Key version.
+     * @param timeout        Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the latest version of the Key.
+     */
+    public abstract CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout);
+
+    /**
+     * Removes a Table Entry from a Table.
+     *
+     * @param tableName      The name of the Table to remove the key from.
+     * @param key            The Key to remove.
+     * @param compareVersion (Optional) If provided, the update will be conditioned on this being the current Key version.
+     * @param timeout        Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the key has been removed.
+     */
+    public abstract CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout);
+
+    /**
+     * Retrieves the latest value of a Table Entry from a Table.
+     *
+     * @param tableName The name of the Table to retrieve the Entry from.
+     * @param key       The Key associated with the Entry.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the result, or null if no such Entry exists.
+     */
+    public abstract CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout);
+
+    /**
+     * This feature is not yet implemented. When implemented, its signature and return type may change.
+     * Iterates through all the Entries in a Table.
+     *
+     * @param tableName The name of the Table to iterate over.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the iteration is done.
+     */
+    public CompletableFuture<Void> iterateTableEntries(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("iterators not implemented");
+    }
+
+    //endregion
 
     /**
      * Gets a Snapshot of the SegmentStore thread pool.
@@ -134,7 +204,6 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @return True if supported, false otherwise.
      */
     public abstract boolean isFeatureSupported(Feature feature);
-
 
     protected void ensureRunning() {
         Preconditions.checkState(state() == State.RUNNING, "%s is not running.", logId);
@@ -195,11 +264,12 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         /**
          * Creating new Streams.
          */
-        Create,
+        CreateStream,
+
         /**
          * Deleting Streams.
          */
-        Delete,
+        DeleteStream,
 
         /**
          * Appending Events.
@@ -209,7 +279,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         /**
          * Sealing Streams.
          */
-        Seal,
+        SealStream,
 
         /**
          * Tail-Reading from Streams.
@@ -229,7 +299,12 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         /**
          * Direct Storage Access.
          */
-        StorageDirect;
+        StorageDirect,
+
+        /**
+         * Table Operations, such as Put/ConditionalPut, Remove/ConditionalRemove, Get, Iterators.
+         */
+        Tables;
 
         /**
          * Ensures that the given StoreAdapter supports the given operation name.
