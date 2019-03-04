@@ -148,7 +148,7 @@ public class K8sClient {
         meta.setName(namespace);
         body.setMetadata(meta);
 
-        return api.createNamespace(body, PRETTY_PRINT);
+        return api.createNamespace(body, true, PRETTY_PRINT, null);
     }
 
     /**
@@ -161,7 +161,7 @@ public class K8sClient {
     public CompletableFuture<V1Pod> deployPod(final String namespace, final V1Pod pod) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1Pod> callback = new K8AsyncCallback<>("createPod");
-        api.createNamespacedPodAsync(namespace, pod, PRETTY_PRINT, callback);
+        api.createNamespacedPodAsync(namespace, pod, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -175,7 +175,7 @@ public class K8sClient {
     public CompletableFuture<V1PodStatus> getStatusOfPod(final String namespace, final String podName) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
-        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, "POD_NAME=" + podName, null,
+        api.listNamespacedPodAsync(namespace, true, PRETTY_PRINT, null, null, "POD_NAME=" + podName, null,
                                    null, null, false, callback);
         return callback.getFuture()
                        .thenApply(v1PodList -> {
@@ -202,7 +202,7 @@ public class K8sClient {
         api.getApiClient().getHttpClient().networkInterceptors().clear();
 
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
-        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelName + "=" + labelValue, null,
+        api.listNamespacedPodAsync(namespace, true, PRETTY_PRINT, null, null, labelName + "=" + labelValue, null,
                                    null, null, false, callback);
         return callback.getFuture()
                        .thenApply(v1PodList -> {
@@ -222,7 +222,7 @@ public class K8sClient {
     public CompletableFuture<V1Deployment> createDeployment(final String namespace, final V1Deployment deploy) {
         AppsV1Api api = new AppsV1Api();
         K8AsyncCallback<V1Deployment> callback = new K8AsyncCallback<>("deployment");
-        api.createNamespacedDeploymentAsync(namespace, deploy, PRETTY_PRINT, callback);
+        api.createNamespacedDeploymentAsync(namespace, deploy, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -350,7 +350,7 @@ public class K8sClient {
     public void deletePVC(String namespace, String name) {
         CoreV1Api api = new CoreV1Api();
         try {
-            api.deleteNamespacedPersistentVolumeClaim(name, namespace, new V1DeleteOptions(), PRETTY_PRINT, null, null, null);
+            api.deleteNamespacedPersistentVolumeClaim(name, namespace, new V1DeleteOptions(), PRETTY_PRINT, null, null, null, null);
         } catch (JsonSyntaxException e) {
             // https://github.com/kubernetes-client/java/issues/86
             if (e.getCause() instanceof IllegalStateException) {
@@ -373,7 +373,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1CustomResourceDefinition> createCRD(final V1beta1CustomResourceDefinition crd) {
         ApiextensionsV1beta1Api api = new ApiextensionsV1beta1Api();
         K8AsyncCallback<V1beta1CustomResourceDefinition> callback = new K8AsyncCallback<>("create CRD");
-        api.createCustomResourceDefinitionAsync(crd, PRETTY_PRINT, callback);
+        api.createCustomResourceDefinitionAsync(crd, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -386,7 +386,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1ClusterRole> createClusterRole(V1beta1ClusterRole role) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1ClusterRole> callback = new K8AsyncCallback<>("createClusterRole");
-        api.createClusterRoleAsync(role, PRETTY_PRINT, callback);
+        api.createClusterRoleAsync(role, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -400,7 +400,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1Role> createRole(String namespace, V1beta1Role role) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1Role> callback = new K8AsyncCallback<>("createRole");
-        api.createNamespacedRoleAsync(namespace, role, PRETTY_PRINT, callback);
+        api.createNamespacedRoleAsync(namespace, role, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -413,7 +413,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1ClusterRoleBinding> createClusterRoleBinding(V1beta1ClusterRoleBinding binding) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1ClusterRoleBinding> callback = new K8AsyncCallback<>("createClusterRoleBinding");
-        api.createClusterRoleBindingAsync(binding, PRETTY_PRINT, callback);
+        api.createClusterRoleBindingAsync(binding, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -427,7 +427,7 @@ public class K8sClient {
     public CompletableFuture<V1beta1RoleBinding> createRoleBinding(String namespace, V1beta1RoleBinding binding) {
         RbacAuthorizationV1beta1Api api = new RbacAuthorizationV1beta1Api();
         K8AsyncCallback<V1beta1RoleBinding> callback = new K8AsyncCallback<>("createRoleBinding");
-        api.createNamespacedRoleBindingAsync(namespace, binding, PRETTY_PRINT, callback);
+        api.createNamespacedRoleBindingAsync(namespace, binding, true, PRETTY_PRINT, null, callback);
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -441,7 +441,7 @@ public class K8sClient {
     public CompletableFuture<V1ServiceAccount> createServiceAccount(String namespace, V1ServiceAccount account) {
         CoreV1Api api = new CoreV1Api();
         K8AsyncCallback<V1ServiceAccount> callback = new K8AsyncCallback<>("createServiceAccount");
-        api.createNamespacedServiceAccountAsync(namespace, account, PRETTY_PRINT, callback );
+        api.createNamespacedServiceAccountAsync(namespace, account, true, PRETTY_PRINT, null, callback );
         return exceptionallyExpecting(callback.getFuture(), isConflict, null);
     }
 
@@ -491,7 +491,7 @@ public class K8sClient {
         @Cleanup
         Watch<V1Pod> watch = Watch.createWatch(
                 client,
-                api.listNamespacedPodCall(namespace, PRETTY_PRINT, null, null, true, "POD_NAME=" + podName, null,
+                api.listNamespacedPodCall(namespace, true, PRETTY_PRINT, null, null, "POD_NAME=" + podName, null,
                                           null, null, Boolean.TRUE, null, null),
                 new TypeToken<Watch.Response<V1Pod>>() {
                 }.getType());
