@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
+    static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -58,9 +60,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
     static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
+    
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private ZKStoreHelper storeHelper;
+    private final ZkOrderedStore orderer;
     private final Object lock;
     @GuardedBy("lock")
     private final AtomicInt96 limit;
@@ -80,7 +84,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor));
-        storeHelper = new ZKStoreHelper(client, executor);
+        this.storeHelper = new ZKStoreHelper(client, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", storeHelper, executor);
         this.lock = new Object();
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
@@ -115,7 +120,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor);
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor, orderer);
     }
 
     @Override

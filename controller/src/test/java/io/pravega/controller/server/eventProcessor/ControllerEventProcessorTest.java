@@ -191,13 +191,15 @@ public class ControllerEventProcessorTest {
                 sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
         
-        // now attempt to commit the transaction on epoch 1. 
+        // now attempt to commit the transaction on epoch 1. epoch in commit event is ignored and transactions on lowest epoch 
+        // should be committed first. 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData1.getEpoch())).join();
-        checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTED);
+        checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTED);
+        checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTING);
 
         EpochRecord activeEpoch = streamStore.getActiveEpoch(SCOPE, stream, null, true, executor).join();
-        assertEquals(1, activeEpoch.getEpoch());
+        assertEquals(3, activeEpoch.getEpoch());
         assertEquals(1, activeEpoch.getReferenceEpoch());
 
         // attempt to seal the stream. This should still fail with postponement. 
@@ -205,9 +207,9 @@ public class ControllerEventProcessorTest {
                 sealStreamTask.execute(new SealStreamEvent(SCOPE, stream, 0L)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
 
-        // now attempt to commit the transaction on epoch 0. 
-        commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData0.getEpoch())).join();
-        checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTED);
+        // now attempt to commit the transaction on epoch 1. 
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, stream, txnData1.getEpoch())).join();
+        checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTED);
 
         // verify transaction has rolled over
         activeEpoch = streamStore.getActiveEpoch(SCOPE, stream, null, true, executor).join();
@@ -255,12 +257,7 @@ public class ControllerEventProcessorTest {
 
         streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
-
-        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-        AssertExtensions.assertFutureThrows("Operation should be disallowed", commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1)),
-                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
-
+        
         commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch)).join();
         for (VersionedTransactionData txnData : txnDataList1) {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);

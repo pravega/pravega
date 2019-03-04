@@ -165,7 +165,7 @@ public class RequestHandlersTest {
         map.put("rollingTxnCreateDuplicateEpochs", 0);
         map.put("completeRollingTxn", 0);
         map.put("startCommitTransactions", 1);
-        map.put("completeCommitTransactions", 1);
+        map.put("completeCommitTransactions", 0);
         concurrentTxnCommit("commit1", "startCommitTransactions", false,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map, 3);
         map.put("updateVersionedState", 1);
@@ -193,17 +193,17 @@ public class RequestHandlersTest {
         CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         ScaleOperationTask scaleRequesthandler = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
 
-        // create txn on epoch 0
+        // create txn on epoch 0 and keep it open
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
-                "", Long.MIN_VALUE, null, executor).join();
+
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
                 System.currentTimeMillis());
         scaleRequesthandler.execute(event).join();
 
+        // create txn on epoch 1 and set it to committing
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
@@ -226,6 +226,7 @@ public class RequestHandlersTest {
 
         wait.complete(null);
 
+        // transaction on epoch 0 should have been committed with rolling transaction. 
         if (expectFailureOnFirstJob) {
             AssertExtensions.assertSuppliedFutureThrows("first commit should fail", () -> future1, firstExceptionPredicate);
             verify(streamStore1Spied, times(invocationCount.get("startCommitTransactions")))
@@ -253,7 +254,7 @@ public class RequestHandlersTest {
         map.put("rollingTxnCreateDuplicateEpochs", 0);
         map.put("completeRollingTxn", 0);
         map.put("startCommitTransactions", 1);
-        map.put("completeCommitTransactions", 1);
+        map.put("completeCommitTransactions", 0);
         map.put("updateVersionedState", 1);
         concurrentRollingTxnCommit("stream1", "startCommitTransactions", false,
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, map, 4);
@@ -293,7 +294,7 @@ public class RequestHandlersTest {
         CommitRequestHandler requestHandler2 = new CommitRequestHandler(streamStore2, streamMetadataTasks, streamTransactionMetadataTasks, executor);
         ScaleOperationTask scaleRequesthandler = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
 
-        // create txn on epoch 0
+        // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
         streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
@@ -304,10 +305,9 @@ public class RequestHandlersTest {
                 System.currentTimeMillis());
         scaleRequesthandler.execute(event).join();
 
+        // create transaction on epoch 1 and set it to committing
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
-                "", Long.MIN_VALUE, null, executor).join();
 
         // regular commit
         // start commit transactions
@@ -342,7 +342,7 @@ public class RequestHandlersTest {
         } else {
             future1Rolling.join();
         }
-        // validate rolling txn done
+        // validate rolling txn done and first job has updated the CTR with new txn record
         VersionedMetadata<CommittingTransactionsRecord> versioned = streamStore1.getVersionedCommittingTransactionsRecord(scope, stream, null, executor).join();
         assertEquals(CommittingTransactionsRecord.EMPTY, versioned.getObject());
         assertEquals(expectedVersion, versioned.getVersion().asIntVersion().getIntValue());

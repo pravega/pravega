@@ -38,9 +38,7 @@ import java.util.UUID;
  */
 public class CommittingTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
-    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord
-            .builder().epoch(Integer.MIN_VALUE).transactionsToCommit(ImmutableList.of())
-            .commitOrder(ImmutableList.of()).activeEpoch(Optional.empty()).build();
+    public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE).transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
     /**
      * Epoch from which transactions are committed.
      */
@@ -50,27 +48,24 @@ public class CommittingTransactionsRecord {
      */
     private final List<UUID> transactionsToCommit;
 
-    private final List<OrderedEntity> commitOrder;
-
     /**
      * Set only for rolling transactions and identify the active epoch that is being rolled over.
      */
     @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
-    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, List<OrderedEntity> commitOrder) {
-        this(epoch, transactionsToCommit, Optional.empty(), commitOrder);
+    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+        this(epoch, transactionsToCommit, Optional.empty());
     }
 
-    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch, List<OrderedEntity> commitOrder) {
-        this(epoch, transactionsToCommit, Optional.of(activeEpoch), commitOrder);
+    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
+        this(epoch, transactionsToCommit, Optional.of(activeEpoch));
     }
 
-    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch, List<OrderedEntity> commitOrder) {
+    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
         this.transactionsToCommit = ImmutableList.copyOf(transactionsToCommit);
         this.activeEpoch = activeEpoch;
-        this.commitOrder = ImmutableList.copyOf(commitOrder);
     }
 
     public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
@@ -89,7 +84,7 @@ public class CommittingTransactionsRecord {
 
     public CommittingTransactionsRecord createRollingTxnRecord(int activeEpoch) {
         Preconditions.checkState(!this.activeEpoch.isPresent());
-        return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch, this.commitOrder);
+        return new CommittingTransactionsRecord(this.epoch, this.transactionsToCommit, activeEpoch);
     }
 
     public boolean isRollingTxnRecord() {
@@ -120,8 +115,7 @@ public class CommittingTransactionsRecord {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00)
-                      .revision(1, this::write01, this::read01);
+            version(0).revision(0, this::write00, this::read00);
         }
 
         private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
@@ -141,16 +135,6 @@ public class CommittingTransactionsRecord {
             revisionDataOutput.writeInt(record.getEpoch());
             revisionDataOutput.writeCollection(record.getTransactionsToCommit(), RevisionDataOutput::writeUUID);
             revisionDataOutput.writeInt(record.getActiveEpoch().orElse(Integer.MIN_VALUE));
-        }
-
-        private void read01(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
-                throws IOException {
-            builder.commitOrder(revisionDataInput.readCollection(OrderedEntity.SERIALIZER::deserialize,
-                    ArrayList::new));
-        }
-
-        private void write01(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeCollection(record.getCommitOrder(), OrderedEntity.SERIALIZER::serialize);
         }
 
         @Override

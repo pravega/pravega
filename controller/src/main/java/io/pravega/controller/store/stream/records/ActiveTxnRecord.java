@@ -40,6 +40,7 @@ public class ActiveTxnRecord {
     private final TxnStatus txnStatus;
     private final Optional<String> writerId;
     private final Optional<Long> commitTime;
+    private final Optional<Long> commitOrder;
 
     public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus) {
         this.txCreationTimestamp = txCreationTimestamp;
@@ -48,16 +49,18 @@ public class ActiveTxnRecord {
         this.txnStatus = txnStatus;
         this.writerId = Optional.empty();
         this.commitTime = Optional.empty();
+        this.commitOrder = Optional.empty();
     }
 
     public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus, 
-                           String writerId, long commitTime) {
+                           String writerId, long commitTime, long commitOrder) {
         this.txCreationTimestamp = txCreationTimestamp;
         this.leaseExpiryTime = leaseExpiryTime;
         this.maxExecutionExpiryTime = maxExecutionExpiryTime;
         this.txnStatus = txnStatus;
         this.writerId = Optional.ofNullable(writerId);
         this.commitTime = Optional.of(commitTime);
+        this.commitOrder = Optional.of(commitOrder);
     }
 
     public String getWriterId() {
@@ -66,6 +69,10 @@ public class ActiveTxnRecord {
 
     public long getCommitTime() {
         return commitTime.orElse(Long.MIN_VALUE);
+    }
+    
+    public long getCommitOrder() {
+        return commitOrder.orElse(Long.MIN_VALUE);
     }
 
     public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {
@@ -113,13 +120,15 @@ public class ActiveTxnRecord {
 
         private void read01(RevisionDataInput revisionDataInput, ActiveTxnRecord.ActiveTxnRecordBuilder activeTxnRecordBuilder)
                 throws IOException {
-            activeTxnRecordBuilder.writerId(Optional.ofNullable(revisionDataInput.readUTF()))
-                                  .commitTime(Optional.ofNullable(revisionDataInput.readLong()));
+            activeTxnRecordBuilder.writerId(Optional.of(revisionDataInput.readUTF()))
+                                  .commitTime(Optional.of(revisionDataInput.readLong()))
+                                  .commitOrder(Optional.of(revisionDataInput.readLong()));
         }
 
         private void write01(ActiveTxnRecord activeTxnRecord, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeUTF(activeTxnRecord.getWriterId());
             revisionDataOutput.writeLong(activeTxnRecord.getCommitTime());
+            revisionDataOutput.writeLong(activeTxnRecord.getCommitOrder());
         }
 
         @Override

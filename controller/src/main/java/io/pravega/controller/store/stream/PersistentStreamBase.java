@@ -59,10 +59,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {
@@ -986,6 +986,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                 .txCreationTimestamp(current).maxExecutionExpiryTime(maxExecTimestamp)
                                                 .writerId(Optional.empty())
                                                 .commitTime(Optional.empty())
+                                                .commitOrder(Optional.empty())
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(txnId, record.toBytes())
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
@@ -1125,14 +1126,36 @@ public abstract class PersistentStreamBase implements Stream {
                                                     final String writerId, 
                                                     long time, 
                                                     final Version version) {
-        final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                previous.getLeaseExpiryTime(),
-                previous.getMaxExecutionExpiryTime(),
-                commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, 
-                writerId, 
-                time);
-        final Data data = new Data(updated.toBytes(), version);
-        return updateActiveTx(txId, data);
+        CompletableFuture<ActiveTxnRecord> future;
+        if (commit) {
+            // if request is for commit --> add a new entry to orderer. 
+            // update record
+            if (!previous.getTxnStatus().equals(TxnStatus.COMMITTING)) {
+                future = addTxnToCommitOrder(txId)
+                        .thenApply(position -> {
+                            return new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                                    previous.getLeaseExpiryTime(),
+                                    previous.getMaxExecutionExpiryTime(),
+                                    TxnStatus.COMMITTING,
+                                    writerId,
+                                    time,
+                                    position);
+                        });
+            } else {
+                future = CompletableFuture.completedFuture(previous);
+            }
+        } else {
+            future = CompletableFuture.completedFuture(new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                    previous.getLeaseExpiryTime(),
+                    previous.getMaxExecutionExpiryTime(),
+                    TxnStatus.ABORTING,
+                    writerId,
+                    time, Long.MIN_VALUE));
+        }
+        return future.thenCompose(updated -> {
+            final Data data = new Data(updated.toBytes(), version);
+            return updateActiveTx(txId, data);  
+        });
     }
 
     @VisibleForTesting
@@ -1160,7 +1183,8 @@ public abstract class PersistentStreamBase implements Stream {
                     } else {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
-                }).thenCompose(x -> removeActiveTxEntry(txId)).thenApply(x -> TxnStatus.COMMITTED);
+                })
+                .thenCompose(x -> removeActiveTxEntry(txId)).thenApply(x -> TxnStatus.COMMITTED);
     }
 
     @Override
@@ -1212,7 +1236,16 @@ public abstract class PersistentStreamBase implements Stream {
             }
         });
     }
-    
+
+    @Override
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
+        return getCurrentTxns()
+                .thenApply(x -> x.entrySet()
+                                 .stream()
+                                 .collect(toMap(k -> UUID.fromString(k.getKey()),
+                                         v -> ActiveTxnRecord.fromBytes(v.getValue().getData()))));
+    }
+
     @Override
     public CompletableFuture<EpochRecord> getActiveEpoch(boolean ignoreCached) {
         return getCurrentEpochRecordData(ignoreCached).thenApply(currentEpochRecord -> EpochRecord.fromBytes(currentEpochRecord.getData()));
@@ -1296,7 +1329,7 @@ public abstract class PersistentStreamBase implements Stream {
         return getVersionedCommitTransactionsRecord()
                 .thenCompose(versioned -> {
                     if (versioned.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
-                        return getTxnCommitList()
+                        return getOrderedCommittingTxnInLowestEpoch()
                                 .thenCompose(list -> {
                                     if (list.isEmpty()) {
                                         return CompletableFuture.completedFuture(versioned);
@@ -1312,28 +1345,6 @@ public abstract class PersistentStreamBase implements Stream {
                         return CompletableFuture.completedFuture(versioned);
                     }
                 });
-    }
-
-    /**
-     * This method finds transactions to commit in lowest epoch and returns the list of transactions sorted by
-     * their marks. 
-     */
-    private CompletableFuture<List<UUID>> getTxnCommitList() {
-        return getCommittingTxnInLowestEpoch()
-                .thenApply(txn -> txn.entrySet().stream()
-                                     .sorted((x, y) -> {
-                    long markX = x.getValue().getCommitTime();
-                    long markY = y.getValue().getCommitTime();
-                    String writerX = x.getValue().getWriterId();
-                    String writerY = y.getValue().getWriterId();
-                    if (writerX != null && writerX.equals(writerY)) {
-                        return Long.compare(markX, markY);
-                    } else {
-                        // dont care about order across writers
-                        return 0;
-                    }
-                }).map(Map.Entry::getKey).collect(Collectors.toList()));
-                                    
     }
 
     @Override
@@ -1361,7 +1372,7 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new Data(CommittingTransactionsRecord.EMPTY.toBytes(),
                         record.getVersion()))));
     }
-    
+
     @Override
     public CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName) {
         return createWaitingRequestNodeIfAbsent(processorName.getBytes());
@@ -1694,13 +1705,32 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Version> updateActiveTx(final UUID txId, final Data data);
 
+    // This method is called for adding a transcation to committing order. 
+    // It is important to note that this method is called before marking transaction as committing in active txn record. 
+    // So retrieving a transaction from this ordered list is no guarantee that the transaction has been set to committing. 
+    // Similarly, there could be duplicate entries for the same transaction if retried. 
+    // So the ordered ist merely captures the order in which a request may have been received and is only opportunistic 
+    // and makes no strong claim of its consistency with active txn record. 
+    // 1. we could have duplicate entries for same transaction in commit order.
+    // 2. we could have transcations that are marked for aborting added to commit order
+    // 3. we could have transactions that are no longer in activeTxn list yet present in commit order. 
+    abstract CompletableFuture<Long> addTxnToCommitOrder(final UUID txId);
+
+    abstract CompletableFuture<Void> removeTxnsFromCommitOrder(final List<Long> txId);
+
     abstract CompletableFuture<Data> getCompletedTx(final UUID txId);
 
     abstract CompletableFuture<Void> removeActiveTxEntry(final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, byte[] data);
-    
-    abstract CompletableFuture<List<Pair<UUID, ActiveTxnRecord>>> getCommittingTxnInLowestEpoch();
+
+    abstract CompletableFuture<Map<String, Data>> getCurrentTxns();
+
+    /**
+     * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 
+     * sorted by their order of commits. 
+     */
+    abstract CompletableFuture<List<UUID>> getOrderedCommittingTxnInLowestEpoch();
     // endregion
 
     // region marker

@@ -551,7 +551,8 @@ public class ZkStreamTest {
     @Test(timeout = 10000)
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
-        ZKStream stream = new ZKStream("scope", "stream", storeHelper, executor);
+        ZkOrderedStore orderer = new ZkOrderedStore("txn", storeHelper, executor);
+        ZKStream stream = new ZKStream("scope", "stream", storeHelper, executor, orderer);
         final int startingSegmentNumber = 0;
         storeHelper.createZNodeIfNotExist("/store/scope").join();
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -561,7 +562,7 @@ public class ZkStreamTest {
         UUID txId = stream.generateNewTxnId(0, 0L).join();
         stream.createTransaction(txId, 1000L, 1000L).join();
 
-        String activeTxPath = stream.getActiveTxPath(txId.toString());
+        String activeTxPath = stream.getActiveTxPath(txId);
         // throw DataNotFoundException for txn path
         doReturn(Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "txn data not found")))
                 .when(storeHelper).getData(eq(activeTxPath));
@@ -573,12 +574,12 @@ public class ZkStreamTest {
         // throw generic exception for txn path
         doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).getData(eq(activeTxPath));
 
-        ZKStream stream2 = new ZKStream("scope", "stream", storeHelper, executor);
+        ZKStream stream2 = new ZKStream("scope", "stream", storeHelper, executor, orderer);
         // verify that the call fails
         AssertExtensions.assertFutureThrows("", stream2.getActiveTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         reset(storeHelper);
-        ZKStream stream3 = new ZKStream("scope", "stream", storeHelper, executor);
+        ZKStream stream3 = new ZKStream("scope", "stream", storeHelper, executor, orderer);
         result = stream3.getActiveTxns().join();
         assertEquals(1, result.size());
     }
