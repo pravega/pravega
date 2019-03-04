@@ -63,7 +63,7 @@ jobs:
          - export BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
          - export VERSION="${BRANCH}-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
          - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
-         - ./gradlew docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=pravega/$PRAVEGA_IMAGE_NAME -PbookkeeperBaseTag=pravega/$BOOKKEEPER_IMAGE_NAME
+         - ./gradlew clean docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=pravega/$PRAVEGA_IMAGE_NAME -PbookkeeperBaseTag=pravega/$BOOKKEEPER_IMAGE_NAME
          # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
