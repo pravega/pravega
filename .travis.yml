@@ -82,7 +82,7 @@ jobs:
          # Create pravega-tier2 PVC
          - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
       script:
-         - ./gradlew startK8SystemTests
+         - ./gradlew startK8SystemTests -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
       after_script:
          # TODO: collect the logs
          - gcloud --quiet container clusters delete $CLUSTER_NAME --zone $CLUSTER_ZONE
