@@ -70,7 +70,7 @@ public class RawClientTest {
                                              Mockito.any(ClientConnection.CompletedCallback.class));
         assertFalse(future.isDone());
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        DataAppended reply = new DataAppended(id, 1, 0);
+        DataAppended reply = new DataAppended(id, 1, 0, -1);
         processor.process(reply);
         assertTrue(future.isDone());
         assertEquals(reply, future.get());
