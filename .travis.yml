@@ -58,12 +58,7 @@ jobs:
          - curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
          - curl -Lo helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-$HELM_VERSION-linux-amd64.tar.gz && tar xfz helm.tar.gz && sudo mv linux-amd64/{helm,tiller} /usr/local/bin/ && rm -rf linux-amd64 helm.tar.gz
       before_script:
-         # Push Docker images
-         - export BASE_VERSION=$(grep 'pravegaVersion=' gradle.properties  | sed 's/pravegaVersion=//' | sed 's/-.*//')
-         - export BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
-         - export VERSION="${BRANCH}-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
          - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
-         - ./gradlew clean docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=pravega/$PRAVEGA_IMAGE_NAME -PbookkeeperBaseTag=pravega/$BOOKKEEPER_IMAGE_NAME
          # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
@@ -82,6 +77,10 @@ jobs:
          # Create pravega-tier2 PVC
          - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
       script:
+         - export BASE_VERSION=$(grep 'pravegaVersion=' gradle.properties | sed 's/pravegaVersion=//' | sed 's/-.*//')
+         - export BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
+         - export VERSION="${BRANCH}-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
+         - ./gradlew clean docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=pravega/$PRAVEGA_IMAGE_NAME -PbookkeeperBaseTag=pravega/$BOOKKEEPER_IMAGE_NAME
          - ./gradlew startK8SystemTests -PimageVersion=$VERSION -PpravegaImageName=$PRAVEGA_IMAGE_NAME -PbookkeeperImageName=$BOOKKEEPER_IMAGE_NAME
       after_script:
          # TODO: collect the logs
