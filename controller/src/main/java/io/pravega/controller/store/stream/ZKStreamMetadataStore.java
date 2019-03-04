@@ -70,6 +70,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     private volatile CompletableFuture<Void> refreshFutureRef;
 
     private final ZKGarbageCollector completedTxnGC;
+    private final Executor executor;
     
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
@@ -87,6 +88,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
+        this.executor = executor;
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
@@ -113,7 +115,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor);
     }
 
     @Override

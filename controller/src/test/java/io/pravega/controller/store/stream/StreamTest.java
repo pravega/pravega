@@ -63,7 +63,7 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper);
+        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper, executor);
         testStream(zkStream);
     }
 
@@ -157,7 +157,7 @@ public class StreamTest {
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
 
-        ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
+        ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper, executor));
 
         List<Map.Entry<Double, Double>> newRanges;
 

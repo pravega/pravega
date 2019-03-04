@@ -25,12 +25,16 @@ import org.apache.curator.utils.ZKPaths;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Optional;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -93,25 +97,28 @@ class ZKStream extends PersistentStreamBase {
 
     private final Cache cache;
     private final Supplier<Integer> currentBatchSupplier;
+    private final Executor executor;
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
-        this(scopeName, streamName, storeHelper, () -> 0);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Executor executor) {
+        this(scopeName, streamName, storeHelper, () -> 0, executor);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize) {
-        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize, Executor executor) {
+        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize, executor);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier) {
-        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier, 
+             Executor executor) {
+        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE,
+                executor);
     }
     
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
-             int chunkSize, int shardSize) {
+             int chunkSize, int shardSize, Executor executor) {
         super(scopeName, streamName, chunkSize, shardSize);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -136,6 +143,7 @@ class ZKStream extends PersistentStreamBase {
 
         cache = new Cache(store::getData);
         this.currentBatchSupplier = currentBatchSupplier;
+        this.executor = executor;
     }
 
     // region overrides
@@ -144,7 +152,7 @@ class ZKStream extends PersistentStreamBase {
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         return store.getChildren(activeTxRoot).thenApply(List::size);
     }
-    
+
     @Override
     public CompletableFuture<Void> deleteStream() {
         return store.deleteTree(streamPath);
@@ -442,41 +450,37 @@ class ZKStream extends PersistentStreamBase {
         // coordination. 
         return Futures.exceptionallyExpecting(store.getChildren(activeTxRoot),
                 DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
-                      .thenCompose(txIds -> {
+                      .thenCompose(allTxns -> {
                           // group transactions by epoch
-                          Map<Integer, List<String>> groupByEpoch = txIds.stream().collect(
+                          Map<Integer, List<String>> groupByEpoch = allTxns.stream().collect(
                                   Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x))));
 
-                          // sort transcations by epoch
+                          // sort transactions by epoch
                           List<Map.Entry<Integer, List<String>>> sortedList = groupByEpoch
                                   .entrySet().stream()
                                   .sorted(Comparator.comparingInt(Map.Entry::getKey))
                                   .collect(Collectors.toList());
+                          Iterator<Map.Entry<Integer, List<String>>> iterator = sortedList.iterator();
+                          AtomicReference<Map<UUID, ActiveTxnRecord>> result = new AtomicReference<>(Collections.emptyMap());
 
-                          CompletableFuture<Map<UUID, ActiveTxnRecord>> future = CompletableFuture.completedFuture(Collections.emptyMap());
+                          return Futures.loop(() -> iterator.hasNext() && result.get().isEmpty(), () -> {
+                              Map.Entry<Integer, List<String>> nextEpoch = iterator.next();
+                              List<String> txnIds = nextEpoch.getValue();
+                              CompletableFuture<Map<UUID, ActiveTxnRecord>> transactionsMap = Futures.allOfWithResults(
+                                      txnIds.stream().collect(Collectors.toMap(UUID::fromString, this::getTxnRecord)));
 
-                          for (Map.Entry<Integer, List<String>> txnInEpoch : sortedList) {
-                              future = future.thenCompose(map -> {
-                                  if (map.isEmpty()) {
-                                      CompletableFuture<Map<UUID, ActiveTxnRecord>> transactionsMap = Futures.allOfWithResults(
-                                              txnInEpoch.getValue().stream().collect(Collectors.toMap(UUID::fromString, this::getTxnRecord)));
-
-                                      return transactionsMap
-                                              .thenApply(map2 -> {
-                                                  // Filter non null transactions which are in committing state. 
-                                                  return map2.entrySet().stream()
-                                                             .filter(x -> !ActiveTxnRecord.EMPTY.equals(x.getValue()) && 
-                                                                     x.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
-                                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                                              });
-                                  } else {
-                                      // if we have already found the epoch with transactions committing, ignore all higher epochs 
-                                      // by falling through with the found map.
-                                      return CompletableFuture.completedFuture(map);
-                                  }
-                              });
-                          }
-                          return future;
+                              return transactionsMap
+                                      .thenAccept(map -> {
+                                          // Filter transactions which are in committing state. 
+                                          Map<UUID, ActiveTxnRecord> filtered =
+                                                  map.entrySet().stream()
+                                                     .filter(x -> x.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
+                                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                                          if (!filtered.isEmpty()) {
+                                              result.set(filtered);
+                                          }
+                                      });
+                          }, executor).thenApply(v -> result.get());
                       });
     }
 
@@ -654,7 +658,7 @@ class ZKStream extends PersistentStreamBase {
     String getActiveTxPath(final String txId) {
         return ZKPaths.makePath(activeTxRoot, txId);
     }
-    
+
     CompletableFuture<Void> createStreamPositionNodeIfAbsent(int streamPosition) {
         byte[] b = new byte[Integer.BYTES];
         BitConverter.writeInt(b, 0, streamPosition);

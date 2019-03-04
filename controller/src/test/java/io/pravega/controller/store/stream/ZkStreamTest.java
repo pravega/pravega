@@ -21,6 +21,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -56,6 +57,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.reset;
 
+@Slf4j
 public class ZkStreamTest {
     private static final String SCOPE = "scope";
     private TestingServer zkTestServer;
@@ -63,7 +65,7 @@ public class ZkStreamTest {
     private StreamMetadataStore storePartialMock;
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
-    
+
     @Before
     public void startZookeeper() throws Exception {
         zkTestServer = new TestingServerStarter().start();
@@ -549,7 +551,7 @@ public class ZkStreamTest {
     @Test(timeout = 10000)
     public void testGetActiveTxn() throws Exception {
         ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
-        ZKStream stream = new ZKStream("scope", "stream", storeHelper);
+        ZKStream stream = new ZKStream("scope", "stream", storeHelper, executor);
         final int startingSegmentNumber = 0;
         storeHelper.createZNodeIfNotExist("/store/scope").join();
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -571,12 +573,12 @@ public class ZkStreamTest {
         // throw generic exception for txn path
         doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).getData(eq(activeTxPath));
 
-        ZKStream stream2 = new ZKStream("scope", "stream", storeHelper);
+        ZKStream stream2 = new ZKStream("scope", "stream", storeHelper, executor);
         // verify that the call fails
         AssertExtensions.assertFutureThrows("", stream2.getActiveTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         reset(storeHelper);
-        ZKStream stream3 = new ZKStream("scope", "stream", storeHelper);
+        ZKStream stream3 = new ZKStream("scope", "stream", storeHelper, executor);
         result = stream3.getActiveTxns().join();
         assertEquals(1, result.size());
     }
