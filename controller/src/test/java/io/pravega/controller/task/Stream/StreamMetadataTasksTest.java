@@ -1006,7 +1006,7 @@ public class StreamMetadataTasksTest {
 
         // Now complete all existing transactions and verify that seal completes
         streamStorePartialMock.abortTransaction(SCOPE, streamWithTxn, openTxn.getId(), null, executor).join();
-        ((AbstractStreamMetadataStore)streamStorePartialMock).commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
+        ((AbstractStreamMetadataStore) streamStorePartialMock).commitTransaction(SCOPE, streamWithTxn, committingTxn.getId(), null, executor).join();
         activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
         assertTrue(activeTxns.isEmpty());
 

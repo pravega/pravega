@@ -67,7 +67,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
 
     private static final Data EMPTY_DATA = new Data(null, new Version.IntVersion(Integer.MIN_VALUE));
-    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
 
     private final ZKStoreHelper store;
     private final String creationPath;
@@ -423,13 +423,23 @@ class ZKStream extends PersistentStreamBase {
                         return Futures.allOfWithResults(
                                 txIds.stream()
                                      .collect(Collectors.toMap(UUID::fromString, this::getTxnRecord))
-                        ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> x.getValue() != null)
+                        ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !ActiveTxnRecord.EMPTY.equals(x.getValue()))
                                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
                     });
     }
 
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getCommittingTxnInLowestEpoch() {
+        // We list all active transactions on the stream (assumption is that they would not be very large in number)
+        // Then we group them by epoch (epoch is encoded in first 32 bits in the transcation id)
+        // Starting with smallest epoch and we will move to higher epochs in each iteration. 
+        // In each iteration we look at one epoch, and if it has at least one committing transaction then this epoch is 
+        // selected as the lowest epoch with committing transactions and all other epochs are ignored. 
+        // 
+        // This approach has a drawback that we scan from lowest epoch with transactions even if it may not have any committing 
+        // transactions. We could avoid this by maintaining a common commit queue (built using zookeeper EPHEMERAL_SEQUENTIAL 
+        // scheme. But that also has a limit on number of nodes which can be exhausted eventually and we may need additional
+        // coordination. 
         return Futures.exceptionallyExpecting(store.getChildren(activeTxRoot),
                 DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                       .thenCompose(txIds -> {
@@ -443,15 +453,11 @@ class ZKStream extends PersistentStreamBase {
                                   .sorted(Comparator.comparingInt(Map.Entry::getKey))
                                   .collect(Collectors.toList());
 
-                          // start with smallest epoch and move to higher epoch 
-                          // in each epoch, see if it has at least one committing transaction. 
-                          // as soon as we find first epoch with committing transactions, all other epochs are ignored.
-                          // ideally we would have done it using futures.loop but that needs an executor. 
                           CompletableFuture<Map<UUID, ActiveTxnRecord>> future = CompletableFuture.completedFuture(Collections.emptyMap());
 
                           for (Map.Entry<Integer, List<String>> txnInEpoch : sortedList) {
                               future = future.thenCompose(map -> {
-                                  if (!map.isEmpty()) {
+                                  if (map.isEmpty()) {
                                       CompletableFuture<Map<UUID, ActiveTxnRecord>> transactionsMap = Futures.allOfWithResults(
                                               txnInEpoch.getValue().stream().collect(Collectors.toMap(UUID::fromString, this::getTxnRecord)));
 
@@ -459,7 +465,7 @@ class ZKStream extends PersistentStreamBase {
                                               .thenApply(map2 -> {
                                                   // Filter non null transactions which are in committing state. 
                                                   return map2.entrySet().stream()
-                                                             .filter(x -> x.getValue() != null && 
+                                                             .filter(x -> !ActiveTxnRecord.EMPTY.equals(x.getValue()) && 
                                                                      x.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
                                                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                                               });
@@ -477,7 +483,7 @@ class ZKStream extends PersistentStreamBase {
     private CompletableFuture<ActiveTxnRecord> getTxnRecord(String txId) {
         return Futures.exceptionallyExpecting(
                 getActiveTx(UUID.fromString(txId)).thenApply(y -> ActiveTxnRecord.fromBytes(y.getData())),
-                DATA_NOT_FOUND_PREDICATE, null);
+                DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY);
     }
 
     @Override

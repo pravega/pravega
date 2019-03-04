@@ -55,7 +55,6 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;

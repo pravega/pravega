@@ -115,7 +115,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return pair;
                 })
-                .thenCompose(x -> ((AbstractStreamMetadataStore)streamMetadataStore).commitTransaction(scope, stream, txId, context, executor));
+                .thenCompose(x -> ((AbstractStreamMetadataStore) streamMetadataStore).commitTransaction(scope, stream, txId, context, executor));
     }
 }
 

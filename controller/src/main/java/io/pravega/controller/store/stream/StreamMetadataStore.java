@@ -704,6 +704,8 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param commit   Boolean indicating whether to change txn state to committing or aborting.
      * @param version  Expected version of the transaction record in the store.
+     * @param writerId writer id that issued commit request
+     * @param commitTime commit time as supplied by writer
      * @param context  operation context
      * @param executor callers executor
      * @return         Pair containing the transaction status after sealing and transaction epoch.

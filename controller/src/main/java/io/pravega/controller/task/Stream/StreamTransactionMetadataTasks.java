@@ -269,6 +269,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope      stream scope.
      * @param stream     stream name.
      * @param txId       transaction id.
+     * @param writerId   writer id that issued commit request
+     * @param time       commit time as supplied by writer
      * @param contextOpt optional context
      * @return true/false.
      */

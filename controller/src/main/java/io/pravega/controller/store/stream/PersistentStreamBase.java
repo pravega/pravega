@@ -62,7 +62,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
-import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {
@@ -984,6 +983,8 @@ public abstract class PersistentStreamBase implements Stream {
         final int epoch = RecordHelper.getTransactionEpoch(txnId);
         ActiveTxnRecord record = ActiveTxnRecord.builder().txnStatus(TxnStatus.OPEN).leaseExpiryTime(leaseTimestamp)
                                                 .txCreationTimestamp(current).maxExecutionExpiryTime(maxExecTimestamp)
+                                                .writerId(Optional.empty())
+                                                .commitTime(Optional.empty())
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(txnId, record.toBytes())
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
@@ -1017,7 +1018,8 @@ public abstract class PersistentStreamBase implements Stream {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.fromBytes(data.getData());
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), activeTxnRecord.getCommitTime());
+                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), 
+                            activeTxnRecord.getCommitTime());
                 });
     }
 

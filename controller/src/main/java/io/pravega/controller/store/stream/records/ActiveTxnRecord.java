@@ -21,31 +21,56 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.Optional;
 
 @Data
 @Builder
 @AllArgsConstructor
 @Slf4j
 public class ActiveTxnRecord {
+    public static final ActiveTxnRecord EMPTY = ActiveTxnRecord.builder().txCreationTimestamp(Long.MIN_VALUE)
+            .leaseExpiryTime(Long.MIN_VALUE).maxExecutionExpiryTime(Long.MIN_VALUE).txnStatus(TxnStatus.UNKNOWN)
+            .writerId(Optional.empty()).commitTime(Optional.empty()).build();
+    
     public static final ActiveTxnRecordSerializer SERIALIZER = new ActiveTxnRecordSerializer();
     
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;
     private final TxnStatus txnStatus;
-    private final String writerId;
-    private final long commitTime;
+    private final Optional<String> writerId;
+    private final Optional<Long> commitTime;
 
     public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus) {
         this.txCreationTimestamp = txCreationTimestamp;
         this.leaseExpiryTime = leaseExpiryTime;
         this.maxExecutionExpiryTime = maxExecutionExpiryTime;
         this.txnStatus = txnStatus;
-        this.writerId = "";
-        this.commitTime = Long.MIN_VALUE;
+        this.writerId = Optional.empty();
+        this.commitTime = Optional.empty();
+    }
+
+    public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus, 
+                           String writerId, long commitTime) {
+        this.txCreationTimestamp = txCreationTimestamp;
+        this.leaseExpiryTime = leaseExpiryTime;
+        this.maxExecutionExpiryTime = maxExecutionExpiryTime;
+        this.txnStatus = txnStatus;
+        this.writerId = Optional.ofNullable(writerId);
+        this.commitTime = Optional.of(commitTime);
+    }
+
+    public String getWriterId() {
+        return writerId.orElse("");
+    }
+
+    public long getCommitTime() {
+        return commitTime.orElse(Long.MIN_VALUE);
     }
 
     public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {
+        private Optional<String> writerId = Optional.empty();
+        private Optional<Long> commitTime = Optional.empty();
 
     }
 
@@ -76,9 +101,7 @@ public class ActiveTxnRecord {
             activeTxnRecordBuilder.txCreationTimestamp(revisionDataInput.readLong())
                                   .leaseExpiryTime(revisionDataInput.readLong())
                                   .maxExecutionExpiryTime(revisionDataInput.readLong())
-                                  .txnStatus(TxnStatus.values()[revisionDataInput.readCompactInt()])
-                                  .writerId(null)
-                                  .commitTime(Long.MIN_VALUE);
+                                  .txnStatus(TxnStatus.values()[revisionDataInput.readCompactInt()]);
         }
 
         private void write00(ActiveTxnRecord activeTxnRecord, RevisionDataOutput revisionDataOutput) throws IOException {
@@ -90,21 +113,13 @@ public class ActiveTxnRecord {
 
         private void read01(RevisionDataInput revisionDataInput, ActiveTxnRecord.ActiveTxnRecordBuilder activeTxnRecordBuilder)
                 throws IOException {
-            activeTxnRecordBuilder.txCreationTimestamp(revisionDataInput.readLong())
-                                  .leaseExpiryTime(revisionDataInput.readLong())
-                                  .maxExecutionExpiryTime(revisionDataInput.readLong())
-                                  .txnStatus(TxnStatus.values()[revisionDataInput.readCompactInt()])
-                                  .writerId(revisionDataInput.readUTF())
-                                  .commitTime(revisionDataInput.readCompactLong());
+            activeTxnRecordBuilder.writerId(Optional.ofNullable(revisionDataInput.readUTF()))
+                                  .commitTime(Optional.ofNullable(revisionDataInput.readLong()));
         }
 
         private void write01(ActiveTxnRecord activeTxnRecord, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(activeTxnRecord.getTxCreationTimestamp());
-            revisionDataOutput.writeLong(activeTxnRecord.getLeaseExpiryTime());
-            revisionDataOutput.writeLong(activeTxnRecord.getMaxExecutionExpiryTime());
-            revisionDataOutput.writeCompactInt(activeTxnRecord.getTxnStatus().ordinal());
-            revisionDataOutput.writeUTF(activeTxnRecord.writerId);
-            revisionDataOutput.writeCompactLong(activeTxnRecord.commitTime);
+            revisionDataOutput.writeUTF(activeTxnRecord.getWriterId());
+            revisionDataOutput.writeLong(activeTxnRecord.getCommitTime());
         }
 
         @Override

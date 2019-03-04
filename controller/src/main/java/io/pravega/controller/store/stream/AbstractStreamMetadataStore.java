@@ -569,7 +569,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return withCompletion(((PersistentStreamBase)stream).commitTransaction(txId), executor)
+        return withCompletion(((PersistentStreamBase) stream).commitTransaction(txId), executor)
                 .thenApply(result -> {
                     stream.getNumberOfOngoingTransactions().thenAccept(count ->
                             TransactionMetrics.reportOpenTransactions(scope, streamName, count));

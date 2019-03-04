@@ -63,7 +63,7 @@ public class ZkStreamTest {
     private StreamMetadataStore storePartialMock;
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
-
+    
     @Before
     public void startZookeeper() throws Exception {
         zkTestServer = new TestingServerStarter().start();
@@ -474,7 +474,7 @@ public class ZkStreamTest {
         testAbortFailure(store, SCOPE, streamName, tx.getEpoch(), tx.getId(), context, operationNotAllowedPredicate);
 
         store.setState(SCOPE, streamName, State.COMMITTING_TXN, context, executor).join();
-        CompletableFuture<TxnStatus> f1 = ((AbstractStreamMetadataStore)store).commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
+        CompletableFuture<TxnStatus> f1 = ((AbstractStreamMetadataStore) store).commitTransaction(SCOPE, streamName, tx.getId(), context, executor);
         store.setState(SCOPE, streamName, State.ACTIVE, context, executor).join();
 
         store.sealTransaction(SCOPE, streamName, tx2.getId(), false, Optional.empty(),
@@ -505,7 +505,7 @@ public class ZkStreamTest {
         // Test to ensure that commitTransaction is idempotent.
         store.setState(SCOPE, streamName, State.COMMITTING_TXN, context, executor).join();
         Assert.assertEquals(TxnStatus.COMMITTED,
-                ((AbstractStreamMetadataStore)store).commitTransaction(SCOPE, streamName, tx.getId(), context, executor).join());
+                ((AbstractStreamMetadataStore) store).commitTransaction(SCOPE, streamName, tx.getId(), context, executor).join());
         store.setState(SCOPE, streamName, State.ACTIVE, context, executor).join();
 
         // Test to ensure that sealTransaction, to abort it, and abortTransaction on committed transaction throws error.
@@ -523,7 +523,7 @@ public class ZkStreamTest {
         testCommitFailure(store, SCOPE, streamName, tx2.getEpoch(), tx2.getId(), context, operationNotAllowedPredicate);
 
         store.setState(SCOPE, streamName, State.COMMITTING_TXN, context, executor).join();
-        assert ((AbstractStreamMetadataStore)store).commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
+        assert ((AbstractStreamMetadataStore) store).commitTransaction(ZkStreamTest.SCOPE, streamName, UUID.randomUUID(), null, executor)
                 .handle((ok, ex) -> {
                     if (ex.getCause() instanceof StoreException.DataNotFoundException) {
                         return true;
@@ -590,7 +590,7 @@ public class ZkStreamTest {
                 checker);
 
         AssertExtensions.assertSuppliedFutureThrows("Commit txn failure",
-                () -> ((AbstractStreamMetadataStore)store).commitTransaction(scope, stream, txnId, context, executor),
+                () -> ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, txnId, context, executor),
                 checker);
     }
 
