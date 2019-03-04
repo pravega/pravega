@@ -50,6 +50,7 @@ public class AutoScaleMonitor implements AutoCloseable {
     @Override
     public void close() {
         this.statsRecorder.close();
+        this.tableSegmentStatsRecorder.close();
         this.processor.close();
         ExecutorServiceHelpers.shutdown(this.executor);
     }
