@@ -78,6 +78,8 @@ jobs:
          - helm init --wait --service-account tiller
          # Install NFS provisioner
          - helm install stable/nfs-server-provisioner
+         # Create pravega-tier2 PVC
+         - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
       script:
          - ./gradlew startK8SystemTests
       after_script:
